@@ -1,0 +1,250 @@
+// The transport seam is real, not hypothetical: two adapters, one shape, and no data
+// reaches a shell (ADR-0005, ADR-0020).
+
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { test, describe, assert, tempDir, fs, path } from './harness.mjs';
+import * as firecrawl from '../lib/firecrawl.mjs';
+import * as httpKeyless from '../lib/http-transport.mjs';
+import { TRANSPORTS, TRANSPORT_NAMES, selectTransport, probeFirecrawl } from '../lib/transport.mjs';
+
+describe('transport');
+
+test('both adapters hold the same seven-function shape', () => {
+  assert.equal(firecrawl.ADAPTER_SHAPE.length, 7);
+  for (const name of firecrawl.ADAPTER_SHAPE) {
+    assert.ok(name in firecrawl, `firecrawl is missing ${name}`);
+    assert.ok(name in httpKeyless, `the keyless adapter is missing ${name}`);
+    assert.equal(typeof firecrawl[name], typeof httpKeyless[name], `${name} differs in kind between the two adapters`);
+  }
+});
+
+test('the registry holds exactly the two adapters, and names no third vendor', () => {
+  assert.deepEqual(TRANSPORT_NAMES, ['firecrawl-cli', 'http-keyless']);
+  assert.equal(TRANSPORTS['firecrawl-cli'].name, 'firecrawl-cli');
+  assert.equal(TRANSPORTS['http-keyless'].name, 'http-keyless');
+});
+
+test('selection precedence: explicit, then env, then config, then a probe', () => {
+  const installed = () => ({ installed: true, authenticated: true, version: '1.0.0', credits: 900 });
+  const absent = () => ({ installed: false, authenticated: false, version: null, credits: null });
+
+  assert.equal(selectTransport({ explicit: 'http-keyless', env: {}, probe: installed, config: {} }).name, 'http-keyless');
+  assert.equal(selectTransport({ env: { RESEARCH_KIT_TRANSPORT: 'http-keyless' }, probe: installed, config: {} }).name, 'http-keyless');
+  assert.equal(selectTransport({ env: {}, probe: installed, config: { transport: 'http-keyless' } }).name, 'http-keyless');
+  assert.equal(selectTransport({ env: {}, probe: installed, config: {} }).name, 'firecrawl-cli');
+  assert.equal(selectTransport({ env: {}, probe: absent, config: {} }).name, 'http-keyless');
+});
+
+test('an unknown transport is an error naming the two that exist', () => {
+  assert.throws(() => selectTransport({ explicit: 'curl', env: {}, config: {} }), /Known transports/);
+});
+
+test('probeFirecrawl takes injected probes, so doctor\'s tests need no CLI', () => {
+  const state = probeFirecrawl({ cliVersion: () => '2.3.4', status: () => ({ authenticated: true, credits: 512 }) });
+  assert.deepEqual(state, { installed: true, authenticated: true, version: '2.3.4', credits: 512 });
+  assert.equal(probeFirecrawl({ cliVersion: () => null, status: () => ({}) }).installed, false);
+});
+
+// --- no data reaches a shell -------------------------------------------------------
+
+test('exec carries an argv ARRAY and spawns with shell:false', () => {
+  let seen = null;
+  firecrawl.exec(['scrape', 'https://x.invalid/a b'], {
+    env: { PATH: '/usr/bin' },
+    platform: 'linux',
+    program: 'firecrawl',
+    spawn: (file, args, opts) => { seen = { file, args, opts }; return { status: 0, stdout: '{}', stderr: '' }; },
+  });
+  // No program on this synthetic PATH, so resolution refuses before spawning.
+  assert.equal(seen, null);
+});
+
+test('a POSIX invocation is shell-free and passes the URL through untouched', () => {
+  const dir = tempDir('research-kit-bin-');
+  const program = path.join(dir, 'firecrawl');
+  fs.writeFileSync(program, '#!/bin/sh\necho "{}"\n');
+  const invocation = firecrawl.resolveInvocation(['scrape', 'https://x.invalid/a?q=$(touch pwned)'], {
+    env: { PATH: dir },
+    platform: 'linux',
+  });
+  assert.equal(invocation.ok, true);
+  assert.equal(invocation.shell, false);
+  assert.equal(invocation.route, 'direct');
+  assert.equal(invocation.args[1], 'https://x.invalid/a?q=$(touch pwned)', 'the URL is data, passed as one argv element');
+});
+
+test('a Windows .cmd shim validates every argument and REFUSES rather than re-quotes', () => {
+  const dir = tempDir('research-kit-bin-');
+  fs.writeFileSync(path.join(dir, 'firecrawl.cmd'), '@echo off\r\necho {}\r\n');
+
+  const safe = firecrawl.resolveInvocation(['scrape', 'https://x.invalid/docs'], {
+    env: { PATH: dir, PATHEXT: '.COM;.EXE;.BAT;.CMD', ComSpec: 'cmd.exe' },
+    platform: 'win32',
+  });
+  assert.equal(safe.ok, true);
+  assert.equal(safe.route, 'cmd-shim');
+  assert.equal(safe.shell, false, 'cmd.exe is spawned as argv, never through a shell string');
+
+  const hostile = firecrawl.resolveInvocation(['search', 'a & calc.exe'], {
+    env: { PATH: dir, PATHEXT: '.COM;.EXE;.BAT;.CMD', ComSpec: 'cmd.exe' },
+    platform: 'win32',
+  });
+  assert.equal(hostile.ok, false);
+  assert.equal(hostile.reason, 'unsafe-for-cmd-shim');
+  assert.match(hostile.remedy, /http-keyless/, 'the interpreter-free escape hatch is named');
+});
+
+test('the named cost: a percent-encoded URL is refused on the Windows shim route', () => {
+  const dir = tempDir('research-kit-bin-');
+  fs.writeFileSync(path.join(dir, 'firecrawl.cmd'), '@echo off\r\n');
+  const refused = firecrawl.resolveInvocation(['scrape', 'https://x.invalid/a%20b'], {
+    env: { PATH: dir, PATHEXT: '.CMD', ComSpec: 'cmd.exe' },
+    platform: 'win32',
+  });
+  assert.equal(refused.ok, false, 'the cost is named, not hidden');
+  assert.equal(firecrawl.CMD_SAFE_ARG.test('https://x.invalid/a%20b'), false);
+  assert.equal(firecrawl.CMD_SAFE_ARG.test('https://x.invalid/a-b_c.d/e'), true);
+});
+
+test('a real stub CLI runs, and an injected $(touch ...) creates nothing', () => {
+  if (process.platform === 'win32') return; // the POSIX route is what this pins
+  const dir = tempDir('research-kit-bin-');
+  const marker = path.join(dir, 'pwned');
+  const program = path.join(dir, 'firecrawl');
+  fs.writeFileSync(program, '#!/bin/sh\nprintf \'{"data":{"markdown":"hello"}}\'\n');
+  fs.chmodSync(program, 0o755);
+
+  const result = firecrawl.exec(['scrape', `https://x.invalid/?q=$(touch ${marker})`], {
+    env: { PATH: dir },
+    platform: 'linux',
+  });
+  assert.equal(result.ok, true, result.stderr);
+  assert.equal(fs.existsSync(marker), false, 'the shell never saw the argument');
+});
+
+test('command() renders for display and nothing executes it', () => {
+  const rendered = firecrawl.command(['scrape', 'https://x.invalid/a b']);
+  assert.match(rendered, /^firecrawl scrape "https:\/\/x\.invalid\/a b"$/);
+});
+
+// --- payload normalisation ---------------------------------------------------------
+
+test('normalizeScrape reads the payload and stamps transport and completeness', () => {
+  const result = firecrawl.normalizeScrape('{"data":{"markdown":"# Limits","metadata":{"title":"T","statusCode":200,"sourceURL":"https://x.invalid/l"}}}', 'https://x.invalid/l');
+  assert.equal(result.markdown, '# Limits');
+  assert.equal(result.title, 'T');
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.transport, 'firecrawl-cli');
+  assert.equal(result.completeness, 'full');
+});
+
+test('normalizeScrape survives a banner printed before the JSON', () => {
+  const result = firecrawl.normalizeScrape('Firecrawl CLI v1.2\n{"data":{"markdown":"body"}}', 'https://x.invalid');
+  assert.equal(result.markdown, 'body');
+});
+
+test('normalizeSearch and normalizeMap drop what has no URL', () => {
+  assert.deepEqual(
+    firecrawl.normalizeSearch('{"data":[{"url":"https://a.invalid","title":"A"},{"title":"no url"}]}').map((r) => r.url),
+    ['https://a.invalid'],
+  );
+  assert.deepEqual(firecrawl.normalizeMap('{"links":["https://a.invalid",{"url":"https://b.invalid"},{}]}'), ['https://a.invalid', 'https://b.invalid']);
+});
+
+test('parseStatus reads the credit count without pretending to know more', () => {
+  assert.deepEqual(firecrawl.parseStatus('Authenticated. 1,000 credits remaining.'), {
+    authenticated: true, credits: 1000, raw: 'Authenticated. 1,000 credits remaining.',
+  });
+  assert.equal(firecrawl.parseStatus('not authenticated').authenticated, false);
+});
+
+test('a failing CLI becomes a result, not an exception', () => {
+  const result = firecrawl.scrape('https://x.invalid', { execFn: () => ({ ok: false, status: 1, stdout: '', stderr: 'HTTP 402' }) });
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'HTTP 402');
+  assert.equal(result.transport, 'firecrawl-cli');
+});
+
+// --- the keyless adapter -----------------------------------------------------------
+
+test('the keyless adapter grades its own completeness honestly', () => {
+  assert.equal(httpKeyless.gradeCompleteness('x'.repeat(2000)).completeness, 'full');
+  const partial = httpKeyless.gradeCompleteness('x'.repeat(100));
+  assert.equal(partial.completeness, 'partial');
+  assert.match(partial.omitted, /100 characters/, 'a partial capture names what is missing');
+});
+
+test('htmlToMarkdown keeps headings, lists, links and tables; drops scripts', () => {
+  const md = httpKeyless.htmlToMarkdown('<h2>Limits</h2><script>evil()</script><ul><li>10 <b>per minute</b></li></ul><p>See <a href="https://x.invalid">docs</a>.</p><table><tr><th>Plan</th><th>Credits</th></tr><tr><td>Free</td><td>1,000</td></tr></table>');
+  assert.match(md, /## Limits/);
+  assert.doesNotMatch(md, /evil/);
+  assert.match(md, /- 10 \*\*per minute\*\*/);
+  assert.match(md, /\[docs\]\(https:\/\/x\.invalid\)/);
+  assert.match(md, /\| Plan \| Credits \|/);
+});
+
+test('decodeEntities handles named, decimal and hex references', () => {
+  assert.equal(httpKeyless.decodeEntities('a&amp;b &#65; &#x42; &nbsp;c'), 'a&b A B  c');
+});
+
+test('mainContent picks the densest block', () => {
+  const html = '<div><nav><a href="/a">a</a><a href="/b">b</a><a href="/c">c</a></nav><article>' + 'Real prose about rate limits and credits. '.repeat(20) + '</article></div>';
+  assert.match(httpKeyless.mainContent(html).html, /Real prose/);
+});
+
+test('the keyless adapter never reads a key and charges no credit', () => {
+  const state = httpKeyless.status();
+  assert.equal(state.authenticated, false);
+  assert.equal(state.credits, null);
+  const source = fs.readFileSync(fileURLToPath(new URL('../lib/http-transport.mjs', import.meta.url)), 'utf8');
+  assert.doesNotMatch(source, /API_KEY/, 'the keyless adapter must not know about keys');
+});
+
+test('the rendezvous returns a result object rather than throwing, when the job fails', () => {
+  const result = httpKeyless.scrape('https://x.invalid/never', {
+    spawn: () => ({ stdout: '', stderr: 'boom', status: 1 }),
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.transport, 'http-keyless');
+  assert.match(result.error, /boom/);
+});
+
+test('a scrape through the rendezvous produces a graded capture', () => {
+  const body = `<html><head><title>Limits</title></head><body><article>${'The free plan allows 10 requests per minute. '.repeat(60)}</article></body></html>`;
+  const result = httpKeyless.scrape('https://x.invalid/limits', {
+    spawn: () => ({ stdout: JSON.stringify({ ok: true, url: 'https://x.invalid/limits', statusCode: 200, body }), stderr: '', status: 0 }),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.title, 'Limits');
+  assert.equal(result.transport, 'http-keyless');
+  assert.equal(result.completeness, 'full');
+  assert.match(result.markdown, /10 requests per minute/);
+});
+
+test('map keeps same-domain links only', () => {
+  const body = '<a href="/docs/a">a</a><a href="https://other.invalid/x">x</a><a href="https://x.invalid/b">b</a>';
+  const result = httpKeyless.map('https://x.invalid/', {
+    spawn: () => ({ stdout: JSON.stringify({ ok: true, url: 'https://x.invalid/', body }), stderr: '', status: 0 }),
+  });
+  assert.deepEqual(result.links.sort(), ['https://x.invalid/b', 'https://x.invalid/docs/a']);
+});
+
+test('search unwraps the redirect the result list wraps its URLs in', () => {
+  const body = '<a href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fdocs.x.invalid%2Flimits" class="result-link">Limits</a>';
+  const result = httpKeyless.search('x limits', {
+    spawn: () => ({ stdout: JSON.stringify({ ok: true, body }), stderr: '', status: 0 }),
+  });
+  assert.equal(result.results[0].url, 'https://docs.x.invalid/limits');
+});
+
+test('the keyless adapter runs as its own child: node <file> answers a job on stdin', () => {
+  const file = fileURLToPath(new URL('../lib/http-transport.mjs', import.meta.url));
+  const result = spawnSync(process.execPath, [file], {
+    input: JSON.stringify({ kind: 'unknown-job' }),
+    encoding: 'utf8',
+    timeout: 20_000,
+  });
+  assert.equal(result.status, 0);
+  assert.deepEqual(JSON.parse(result.stdout), { ok: false, error: 'unknown job kind "unknown-job"' });
+});

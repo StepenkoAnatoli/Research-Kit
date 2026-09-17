@@ -1,0 +1,25 @@
+node_modules/
+.DS_Store
+
+# Credentials never belong in this repository (AGENTS.md Rule 6). `doctor` scans for
+# them on every run; this is the second line of defence, and both are cheap.
+.env
+.env.*
+.firecrawl/
+*.pem
+*.key
+
+# Tool byproducts, written by the kit's own entrypoints into whatever directory they
+# are run from. Diagnostics, spend, and lock files are machine-local state; they are
+# not evidence and must not travel with a repository.
+research/raw/.diagnostics.jsonl
+research/raw/.usage.jsonl
+research/raw/.failures.jsonl
+research/raw/.fetches.lock
+
+# Deliberately NOT ignored: research/raw/.fetches.jsonl. The fetch ledger is the
+# provenance chain - a repository that ships evidence without it cannot pass its own
+# gate, which is exactly what happened when this project was uploaded without its
+# dotfiles. If you copy this project by hand, copy research/raw/.* too.
+!research/raw/.fetches.jsonl
+!research/overrides.log

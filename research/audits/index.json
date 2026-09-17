@@ -1,0 +1,184 @@
+{
+  "topics": {
+    "the-research-kits-own-protocol-metered-primary": {
+      "latest": "0.1",
+      "versions": {
+        "0.1": {
+          "file": "the-research-kits-own-protocol-metered-primary-v0.1-2026-09-14.md",
+          "scope": "full",
+          "at": "2026-09-14T20:30:57.908Z",
+          "date": "2026-09-14",
+          "evidenceCount": 6,
+          "closedUnknowns": 4,
+          "knownUnknowns": 0,
+          "failures": 0,
+          "fingerprint": "47e60599-2399899b-13b02910"
+        }
+      },
+      "subtopics": {
+        "d-1-access-model": {
+          "versions": {
+            "0.1": {
+              "file": "the-research-kits-own-protocol-metered-primary--d-1-access-model-v0.1-2026-09-14.md",
+              "scope": "subtopic",
+              "at": "2026-09-14T20:30:57.909Z",
+              "date": "2026-09-14",
+              "evidenceCount": 1,
+              "closedUnknowns": 1,
+              "knownUnknowns": 0,
+              "failures": 0,
+              "fingerprint": "09ef718d-f3951dfd-74d0afee"
+            }
+          },
+          "latest": "0.1",
+          "id": "D-1",
+          "subtopic": "Access model"
+        },
+        "d-2-auth-and-credentials": {
+          "versions": {
+            "0.1": {
+              "file": "the-research-kits-own-protocol-metered-primary--d-2-auth-and-credentials-v0.1-2026-09-14.md",
+              "scope": "subtopic",
+              "at": "2026-09-14T20:30:57.909Z",
+              "date": "2026-09-14",
+              "evidenceCount": 1,
+              "closedUnknowns": 1,
+              "knownUnknowns": 0,
+              "failures": 0,
+              "fingerprint": "09ef718d-f3951dfd-ca44f1ff"
+            }
+          },
+          "latest": "0.1",
+          "id": "D-2",
+          "subtopic": "Auth and credentials"
+        },
+        "d-3-rate-limits-and-quotas": {
+          "versions": {
+            "0.1": {
+              "file": "the-research-kits-own-protocol-metered-primary--d-3-rate-limits-and-quotas-v0.1-2026-09-14.md",
+              "scope": "subtopic",
+              "at": "2026-09-14T20:30:57.910Z",
+              "date": "2026-09-14",
+              "evidenceCount": 1,
+              "closedUnknowns": 1,
+              "knownUnknowns": 0,
+              "failures": 0,
+              "fingerprint": "09ef718d-f3951dfd-ff2c41e0"
+            }
+          },
+          "latest": "0.1",
+          "id": "D-3",
+          "subtopic": "Rate limits and quotas"
+        },
+        "d-4-tos-licensing-legality-of": {
+          "versions": {
+            "0.1": {
+              "file": "the-research-kits-own-protocol-metered-primary--d-4-tos-licensing-legality-of-v0.1-2026-09-14.md",
+              "scope": "subtopic",
+              "at": "2026-09-14T20:30:57.910Z",
+              "date": "2026-09-14",
+              "evidenceCount": 1,
+              "closedUnknowns": 1,
+              "knownUnknowns": 0,
+              "failures": 0,
+              "fingerprint": "598fa983-d11d99c1-d27a74b2"
+            }
+          },
+          "latest": "0.1",
+          "id": "D-4",
+          "subtopic": "ToS, licensing, legality of the intended use"
+        },
+        "d-7-cost-at-expected-volume": {
+          "versions": {
+            "0.1": {
+              "file": "the-research-kits-own-protocol-metered-primary--d-7-cost-at-expected-volume-v0.1-2026-09-14.md",
+              "scope": "subtopic",
+              "at": "2026-09-14T20:30:57.911Z",
+              "date": "2026-09-14",
+              "evidenceCount": 1,
+              "closedUnknowns": 1,
+              "knownUnknowns": 0,
+              "failures": 0,
+              "fingerprint": "09ef718d-f3951dfd-a18db8b4"
+            }
+          },
+          "latest": "0.1",
+          "id": "D-7",
+          "subtopic": "Cost at expected volume"
+        },
+        "d-8-runtime-and-platform-limits": {
+          "versions": {
+            "0.1": {
+              "file": "the-research-kits-own-protocol-metered-primary--d-8-runtime-and-platform-limits-v0.1-2026-09-14.md",
+              "scope": "subtopic",
+              "at": "2026-09-14T20:30:57.911Z",
+              "date": "2026-09-14",
+              "evidenceCount": 2,
+              "closedUnknowns": 2,
+              "knownUnknowns": 0,
+              "failures": 0,
+              "fingerprint": "31733341-9718354b-0854da47"
+            }
+          },
+          "latest": "0.1",
+          "id": "D-8",
+          "subtopic": "Runtime and platform limits"
+        },
+        "d-9-output-obtainability": {
+          "versions": {
+            "0.1": {
+              "file": "the-research-kits-own-protocol-metered-primary--d-9-output-obtainability-v0.1-2026-09-14.md",
+              "scope": "subtopic",
+              "at": "2026-09-14T20:30:57.912Z",
+              "date": "2026-09-14",
+              "evidenceCount": 1,
+              "closedUnknowns": 1,
+              "knownUnknowns": 0,
+              "failures": 0,
+              "fingerprint": "09ef718d-f3951dfd-7aac6e56"
+            }
+          },
+          "latest": "0.1",
+          "id": "D-9",
+          "subtopic": "Output obtainability"
+        },
+        "s-2-which-skill-root-the": {
+          "versions": {
+            "0.1": {
+              "file": "the-research-kits-own-protocol-metered-primary--s-2-which-skill-root-the-v0.1-2026-09-14.md",
+              "scope": "subtopic",
+              "at": "2026-09-14T20:30:57.912Z",
+              "date": "2026-09-14",
+              "evidenceCount": 1,
+              "closedUnknowns": 1,
+              "knownUnknowns": 0,
+              "failures": 0,
+              "fingerprint": "723639b3-ec059ce8-f941da9f"
+            }
+          },
+          "latest": "0.1",
+          "id": "S-2",
+          "subtopic": "Which skill root the desktop runtime discovers, and how the protocol binds in Cowork"
+        },
+        "s-3-whether-the-edit-time": {
+          "versions": {
+            "0.1": {
+              "file": "the-research-kits-own-protocol-metered-primary--s-3-whether-the-edit-time-v0.1-2026-09-14.md",
+              "scope": "subtopic",
+              "at": "2026-09-14T20:30:57.913Z",
+              "date": "2026-09-14",
+              "evidenceCount": 1,
+              "closedUnknowns": 1,
+              "knownUnknowns": 0,
+              "failures": 0,
+              "fingerprint": "c7372f13-288754b2-572f87d3"
+            }
+          },
+          "latest": "0.1",
+          "id": "S-3",
+          "subtopic": "Whether the edit-time PreToolUse gate blocks (allow/deny/ask/defer, exit-2 semantics)"
+        }
+      }
+    }
+  }
+}

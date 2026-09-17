@@ -1,0 +1,86 @@
+---
+name: research-first
+description: Makes research a blocking phase before any bot or project is designed or built. Use when the user says "build me a bot", "make a project", "can you build X", when starting a new repository or feature whose design depends on external facts (APIs, pricing, limits, schemas, platform rules), or whenever the honest answer would be "I don't have enough information yet". Produces a Discovery Contract with primary sources and a preflight gate instead of guessing, and enforces a question budget so intent questions do not crowd out facts that could simply be fetched.
+---
+
+# Research-first
+
+Findable facts are collection tasks, not questions. This skill is the protocol that makes
+that binding.
+
+## Before anything else: where am I?
+
+The project is the **current working directory**. If the cwd is not the project the
+operator means - the kit's own repo, a parent folder holding several projects, an
+unrelated checkout - **ask which project**, and wait. Never search the filesystem for the
+one you think was meant, never infer it from a name, never look it up on a remote.
+
+Signals that you are in the wrong place: no `AGENTS.md`, no `research/` directory, or a
+`research/` corpus plainly about something else.
+
+## Which machine is this?
+
+```
+node ~/.agents/research-kit/bin/doctor.mjs
+```
+
+A **collector** holds the key and produces the corpus. A **builder** consumes one and
+must not collect: `research.mjs` and `decompose.mjs` refuse there (exit 2) rather than
+fall back on another transport. A page fetched by hand is not evidence in this kit.
+
+On a builder, the first command is `node ~/.agents/research-kit/bin/handoff.mjs`.
+
+## The sequence
+
+```
+decompose -> contract -> collect -> gate -> brief
+```
+
+1. **Decompose.** `node ~/.agents/research-kit/bin/decompose.mjs --topic "<topic>"`
+   drafts `research/MAP.md`, seeded with nine universal dimensions: access model, auth,
+   rate limits, ToS/legality, schema stability, freshness, cost at volume, runtime
+   limits, and **output obtainability** - the load-bearing one. If the data your "done"
+   depends on cannot be obtained, the project dies in phase 1, not phase 2.
+
+   Statuses arrive blank. Mark each row COVERED (cite the U-## rows), DISMISSED (reason
+   required), or GAP. Dismissing is fine; omitting is not.
+
+2. **Contract.** Write `## Build intent` in `research/DISCOVERY.md`, then enumerate the
+   blocking unknowns FROM the map. A fact blocks the build when a wrong guess changes the
+   design.
+
+3. **Collect.** `node ~/.agents/research-kit/bin/research.mjs`. Prefer the page that
+   *owns* the fact - official docs, the repo, the pricing page, the statute - over any
+   write-up about it. Every scrape spends a credit; plan the queries first.
+
+4. **Rewrite the findings.** The `Finding` cell arrives auto-extracted. Turn it into a
+   real claim with the number or quote that proves it, and keep `Raw` pointing at the
+   cached page.
+
+5. **Gate.** `node ~/.agents/research-kit/bin/preflight.mjs`. **Do not build until it
+   prints PASS.**
+
+6. **Brief.** `node ~/.agents/research-kit/bin/brief.mjs` drafts the phase-1 -> phase-2
+   handoff. Answer the two sections the corpus cannot fill.
+
+## The question budget
+
+At most **three** questions, once, up front, and only about intent: what the user
+actually wants, which accounts or budget they have, who the audience is, what "done"
+means. A question whose answer is in public documentation is a research task.
+
+**Never answer "insufficient info" and stop.** Either produce evidence, or name the
+single missing fact and go collect it.
+
+## Honest gaps
+
+A fact that is genuinely unreachable - login-walled, private, paywalled - is marked
+`KNOWN-UNKNOWN`, with the day-one verification step written into the `Evidence` cell. An
+honest, labeled gap is fine. An unlabeled gap is the failure mode this protocol exists to
+prevent.
+
+## Source quality
+
+`P` primary/official carries the design. `S` secondary is context. `L` lead-only -
+forums, video, blogs - is a hint, never proof. Never invent a citation. Record
+contradictions and say which side you trust and why; never average them.

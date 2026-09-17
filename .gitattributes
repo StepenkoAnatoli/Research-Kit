@@ -1,0 +1,30 @@
+# Line endings for the evidence corpus.
+#
+# The body hashes in research/raw/.fetches.jsonl were computed over the bytes the
+# collector fetched, which end in LF. On a default Windows checkout
+# (core.autocrlf=true) git's smudge filter rewrites every text file it checks out
+# to CRLF, so every one of those hashes stops recomputing: verifyLedger reports
+# all six captures as body-unmodified, handoff and preflight exit with blockers,
+# and the two-machine workflow is unusable on a default Windows builder.
+#
+# Nothing was lost and nothing needs re-collecting - the files travelled fine and
+# git rewrote them locally on the way out of the object store. Pinning them here
+# makes the checkout write what the ledger hashed, on every platform, regardless
+# of the reader's core.autocrlf. This file outranks that setting.
+#
+# See ADR-0020 and research-kit/lib/handoff.mjs, which detects this exact case
+# and says so instead of blaming a missing push.
+research/raw/*   text eol=lf
+*.jsonl          text eol=lf
+research/*.md    text eol=lf
+
+# And the same reasoning, applied to the rest of the repository rather than only to the
+# part whose hashes made the problem visible. Without this, every other text file still
+# follows the reader's core.autocrlf: `git add` warns on ~200 files, and a checkout on a
+# second machine differs byte-for-byte from this one for no reason anybody chose.
+* text=auto eol=lf
+
+# The commit gate is a POSIX sh script. CRLF in a shebang script is a syntax error
+# on every POSIX host, and the failure is a hook that cannot run - which, per
+# ADR-0001, git reports as a clean commit.
+research-kit/githooks/pre-commit text eol=lf

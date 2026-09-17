@@ -1,0 +1,15 @@
+node_modules/
+.env
+.DS_Store
+
+# The kit's local review logs are not evidence.
+research/raw/.usage.jsonl
+research/raw/.failures.jsonl
+research/raw/.diagnostics.jsonl
+research/raw/.fetches.lock
+
+# The chain IS evidence and must travel. The explicit negation is here so a broader
+# dotfile rule added later cannot silently exclude it - this repository lost its ledger
+# exactly that way once.
+!research/raw/.fetches.jsonl
+!research/overrides.log

@@ -1,0 +1,125 @@
+// archive.mjs - ONE container format (ADR-0019).
+//
+// ZIP with deflate (store when deflating would only grow the payload), written by hand
+// because the kit has no dependencies and cannot shell out to a `zip` binary that may
+// not exist on one of the two machines ADR-0010 exists for.
+//
+// It knows the container and nothing else. What goes inside a bundle is lib/audit.mjs's.
+
+import zlib from 'node:zlib';
+import { writeText, ensureDir } from './core.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[n] = c >>> 0;
+  }
+  return table;
+})();
+
+export function crc32(buf) {
+  let c = 0xffffffff;
+  for (let i = 0; i < buf.length; i += 1) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+/** An archive must not be able to unpack outside the folder it is opened into. */
+export function entryName(name) {
+  const value = String(name).split('\\').join('/');
+  if (!value) throw new Error('archive entry has no name');
+  if (value.startsWith('/') || /^[A-Za-z]:/.test(value)) throw new Error(`archive entry "${value}" is not a relative path`);
+  if (value.split('/').includes('..')) throw new Error(`archive entry "${value}" climbs out of the archive`);
+  return value;
+}
+
+function dosTime(date) {
+  const time = ((date.getHours() & 0x1f) << 11) | ((date.getMinutes() & 0x3f) << 5) | ((date.getSeconds() / 2) & 0x1f);
+  const day = (((date.getFullYear() - 1980) & 0x7f) << 9) | (((date.getMonth() + 1) & 0x0f) << 5) | (date.getDate() & 0x1f);
+  return { time, day };
+}
+
+/**
+ * `buildZip(entries)` -> bytes. Pure: the same entries produce byte-identical archives,
+ * so re-zipping is free and idempotent.
+ */
+export function buildZip(entries, { date = new Date(1980, 0, 1, 0, 0, 0) } = {}) {
+  if (!Array.isArray(entries) || !entries.length) {
+    throw new Error('refusing to write an archive with no entries - a valid ZIP holding nothing is a successful-looking way to lose work');
+  }
+  const { time, day } = dosTime(date);
+  const locals = [];
+  const central = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const name = Buffer.from(entryName(entry.name), 'utf8');
+    const raw = Buffer.isBuffer(entry.data) ? entry.data : Buffer.from(String(entry.data), 'utf8');
+    const deflated = zlib.deflateRawSync(raw, { level: 9 });
+    const store = deflated.length >= raw.length;
+    const data = store ? raw : deflated;
+    const method = store ? 0 : 8;
+    const sum = crc32(raw);
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(method, 8);
+    local.writeUInt16LE(time, 10);
+    local.writeUInt16LE(day, 12);
+    local.writeUInt32LE(sum, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(raw.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    locals.push(local, name, data);
+
+    const dir = Buffer.alloc(46);
+    dir.writeUInt32LE(0x02014b50, 0);
+    dir.writeUInt16LE(20, 4);
+    dir.writeUInt16LE(20, 6);
+    dir.writeUInt16LE(0, 8);
+    dir.writeUInt16LE(method, 10);
+    dir.writeUInt16LE(time, 12);
+    dir.writeUInt16LE(day, 14);
+    dir.writeUInt32LE(sum, 16);
+    dir.writeUInt32LE(data.length, 20);
+    dir.writeUInt32LE(raw.length, 24);
+    dir.writeUInt16LE(name.length, 28);
+    dir.writeUInt16LE(0, 30);
+    dir.writeUInt16LE(0, 32);
+    dir.writeUInt16LE(0, 34);
+    dir.writeUInt16LE(0, 36);
+    dir.writeUInt32LE(0, 38);
+    dir.writeUInt32LE(offset, 42);
+    central.push(dir, name);
+
+    offset += local.length + name.length + data.length;
+  }
+
+  const directory = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(directory.length, 12);
+  end.writeUInt32LE(offset, 16);
+  end.writeUInt16LE(0, 20);
+
+  return Buffer.concat([...locals, directory, end]);
+}
+
+export function writeZip(file, entries, options = {}) {
+  const bytes = buildZip(entries, options);
+  ensureDir(path.dirname(file));
+  fs.writeFileSync(file, bytes);
+  return { file, bytes: bytes.length, entries: entries.length };
+}
+
+export { writeText };
