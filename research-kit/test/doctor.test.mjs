@@ -232,3 +232,56 @@ test('gateHealth names an absent commit gate and the command that installs it', 
   assert.ok(['warn', 'pass', 'fail'].includes(commit.severity));
   if (commit.severity === 'warn') assert.match(commit.fix, /install-hooks\.mjs/);
 });
+
+// --- deploy mirrors, it does not merge --------------------------------------------
+
+test('deploy MIRRORS: a file the source no longer ships is removed from the deployed tree', async () => {
+  const { deploy } = await import('../lib/installer.mjs');
+  const source = tempDir('research-kit-src-');
+  const target = tempDir('research-kit-dst-');
+
+  writeText(path.join(source, 'lib', 'core.mjs'), 'export const a = 1;\n');
+  writeText(path.join(source, 'recipes', 'kept.md'), '# kept\n');
+
+  // The deployed tree still holds a previous version's files.
+  writeText(path.join(target, 'lib', 'core.mjs'), 'export const a = 0;\n');
+  writeText(path.join(target, 'lib', 'release-validator.mjs'), 'export const old = true;\n');
+  writeText(path.join(target, 'recipes', 'retired-recipe.md'), '# from a kit that was replaced\n');
+  writeText(path.join(target, 'schemas', 'old.schema.json'), '{}\n');
+
+  const { env } = { env: { ...process.env, RESEARCH_KIT_INSTALL_STATE: path.join(target, 'install.json') } };
+  const result = deploy({ from: source, kitHome: target, env });
+
+  assert.equal(fs.existsSync(path.join(target, 'lib', 'release-validator.mjs')), false,
+    'a module from the previous implementation must not survive an update');
+  assert.equal(fs.existsSync(path.join(target, 'recipes', 'retired-recipe.md')), false,
+    'decompose --recipes listed ten recipes, half from a kit that no longer existed');
+  assert.equal(fs.existsSync(path.join(target, 'schemas')), false, 'and an emptied directory goes too');
+  assert.equal(readText(path.join(target, 'lib', 'core.mjs')), 'export const a = 1;\n', 'what IS shipped is updated');
+  assert.ok(fs.existsSync(path.join(target, 'recipes', 'kept.md')));
+
+  assert.ok(result.pruned.includes('lib/release-validator.mjs'), 'and the pruning is reported, not silent');
+  assert.ok(result.pruned.includes('recipes/retired-recipe.md'));
+});
+
+test('deploy does NOT mirror a skill root - it holds other people\'s skills too', async () => {
+  const { deploy } = await import('../lib/installer.mjs');
+  const source = tempDir('research-kit-src2-');
+  writeText(path.join(source, 'skill', 'SKILL.md'), '# research-first\n');
+  const skillRoot = tempDir('research-kit-skills-');
+  writeText(path.join(skillRoot, 'someone-elses-skill', 'SKILL.md'), '# not ours\n');
+
+  const env = {
+    ...process.env,
+    RESEARCH_KIT_CONFIG: (() => {
+      const f = path.join(tempDir('research-kit-cfg-'), 'c.json');
+      writeText(f, JSON.stringify({ skillRoots: [skillRoot] }));
+      return f;
+    })(),
+    RESEARCH_KIT_INSTALL_STATE: path.join(tempDir('research-kit-state-'), 'install.json'),
+  };
+  deploy({ from: source, kitHome: tempDir('research-kit-dst2-'), env });
+
+  assert.ok(fs.existsSync(path.join(skillRoot, 'someone-elses-skill', 'SKILL.md')),
+    'mirroring a shared skill root would delete skills the kit never owned');
+});

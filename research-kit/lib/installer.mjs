@@ -160,8 +160,38 @@ export function settingsState({ env = process.env } = {}) {
 
 // ---------------------------------------------------------------- deploy
 
-function copyTree(from, to, { prune = [] } = {}) {
+function listTree(root) {
+  const out = [];
+  const walk = (dir) => {
+    for (const name of fs.readdirSync(dir)) {
+      if (name === 'node_modules' || name === '.git') continue;
+      const abs = path.join(dir, name);
+      if (fs.statSync(abs).isDirectory()) { walk(abs); continue; }
+      out.push(path.relative(root, abs).split(path.sep).join('/'));
+    }
+  };
+  if (exists(root)) walk(root);
+  return out;
+}
+
+/**
+ * A deploy MIRRORS; it does not merge.
+ *
+ * `RETIRED_KIT_FILES` was a hand-maintained list of paths the kit used to ship, and it
+ * only ever names what somebody remembered to add. Deploying a 26-module kit over a
+ * 34-module one left 27 files from the previous implementation sitting in the deployed
+ * tree - old modules, an old entrypoint, twelve old test files and five recipes that no
+ * longer exist in any source. `decompose --recipes` listed ten recipes, half of them
+ * from a kit that was replaced.
+ *
+ * The deployed tree is meant to BE the kit. So anything the source does not ship is
+ * removed, and the list is reported rather than silent - a stale deployed copy silently
+ * defeats an update, which is the whole reason ADR-0012 asked for pruning at all.
+ */
+function copyTree(from, to, { prune = [], mirror = false } = {}) {
   const written = [];
+  const before = mirror ? new Set(listTree(to)) : new Set();
+
   const walk = (dir) => {
     for (const name of fs.readdirSync(dir)) {
       const abs = path.join(dir, name);
@@ -184,6 +214,21 @@ function copyTree(from, to, { prune = [] } = {}) {
     fs.rmSync(target, { force: true });
     pruned.push(rel);
   }
+
+  if (mirror) {
+    const shipped = new Set(written);
+    for (const rel of before) {
+      if (shipped.has(rel) || pruned.includes(rel)) continue;
+      fs.rmSync(path.join(to, ...rel.split('/')), { force: true });
+      pruned.push(rel);
+    }
+    // Directories the pruning emptied are removed too, deepest first.
+    for (const dir of [...new Set(pruned.map((rel) => path.dirname(rel)))].filter((d) => d !== '.').sort((a, b) => b.length - a.length)) {
+      const abs = path.join(to, ...dir.split('/'));
+      try { if (fs.readdirSync(abs).length === 0) fs.rmdirSync(abs); } catch { /* not empty, or gone */ }
+    }
+  }
+
   return { written, pruned };
 }
 
@@ -195,7 +240,7 @@ function copyTree(from, to, { prune = [] } = {}) {
 export function deploy({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env, dryRun = false, into = '' } = {}) {
   if (dryRun) return { dryRun: true, from, to: kitHome, prune: [...RETIRED_KIT_FILES] };
 
-  const copied = copyTree(from, kitHome, { prune: RETIRED_KIT_FILES });
+  const copied = copyTree(from, kitHome, { prune: RETIRED_KIT_FILES, mirror: true });
   const skills = [];
   const skillSource = path.join(from, 'skill');
   if (exists(skillSource)) {
