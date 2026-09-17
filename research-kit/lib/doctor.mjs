@@ -14,6 +14,7 @@ import { verdictContext, runPreflight } from './preflight.mjs';
 import { isGated } from './gate.mjs';
 import { verifyHandoff, handoffRemedy } from './handoff.mjs';
 import { validateProject, hookExecutability, GATE_MARKERS, KIT_ROOT } from './scaffold.mjs';
+import { settingsState } from './installer.mjs';
 import { recordOverride } from './provenance.mjs';
 import { probeFirecrawl, selectTransport } from './transport.mjs';
 import {
@@ -129,22 +130,28 @@ export function gateHealth(root, { env = process.env, gitPaths = {}, record = tr
 
   const runtime = runtimePaths(env);
   let registered = 'none';
-  if (exists(runtime.settingsPath)) {
-    try {
-      registered = editGateState(JSON.parse(safeRead(runtime.settingsPath) || '{}'));
-    } catch {
-      registered = 'unparseable';
-    }
+  try {
+    registered = settingsState({ env });
+  } catch {
+    registered = 'unparseable';
   }
-  if (registered === 'current') out.push(f('pass', 'gate-edit', `registered in ${runtime.settingsPath}`));
-  else if (registered === 'retired') {
+  const repair = 'node research-kit/bin/install-hooks.mjs --edit-only';
+  if (registered === 'current') out.push(f('pass', 'gate-edit', `registered in ${runtime.settingsPath}, pointing at the deployed kit`));
+  else if (registered === 'foreign') {
+    out.push(f('fail', 'gate-edit',
+      `registered in ${runtime.settingsPath}, but pointing at a hook OUTSIDE the deployed kit - the gate that runs is not the kit that is installed`,
+      repair));
+  } else if (registered === 'dangling') {
+    out.push(f('fail', 'gate-edit',
+      `registered in ${runtime.settingsPath}, and the hook file it names is not on disk - a gate that silently gates nothing`,
+      repair));
+  } else if (registered === 'retired') {
     out.push(f('warn', 'gate-edit',
-      `registered at a RETIRED hook name in ${runtime.settingsPath} - a registration pointing at a hook file that no longer exists is a gate that silently gates nothing`,
-      'node research-kit/bin/install-hooks.mjs'));
-  } else if (registered === 'unparseable') {
+      `registered at a RETIRED hook name in ${runtime.settingsPath}`, repair));
+  } else if (registered === 'unfamiliar' || registered === 'unparseable') {
     out.push(f('fail', 'gate-edit', `${runtime.settingsPath} does not parse - the edit-time gate cannot load`));
   } else {
-    out.push(f('warn', 'gate-edit', `not registered in ${runtime.settingsPath}`, 'node research-kit/bin/install-hooks.mjs'));
+    out.push(f('warn', 'gate-edit', `not registered in ${runtime.settingsPath}`, repair));
   }
 
   return out;

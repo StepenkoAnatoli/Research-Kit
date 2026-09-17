@@ -146,16 +146,47 @@ export function removeEditGate({ env = process.env } = {}) {
   return { ok: true, file, removed };
 }
 
-/** `current` / `retired` / `none` - so an un-upgraded machine reads as repairable. */
-export function settingsState({ env = process.env } = {}) {
+/**
+ * `current` / `foreign` / `dangling` / `retired` / `unfamiliar` / `none`.
+ *
+ * Matching the hook's NAME is not enough. This machine had a registration reading
+ *
+ *     node "C:/Users/PC/Desktop/FreeBuff/Deep-Research-Agent-main/research-kit/hooks/edit-gate.mjs"
+ *
+ * which names `hooks/edit-gate.mjs` and so read as `current` - while the gate that
+ * actually ran belonged to a different checkout of a different implementation, one whose
+ * commit gate crashed. ADR-0012 sec 4 says no registration may point at a hook file that
+ * no longer exists, "a gate that silently gates nothing"; pointing at a hook that exists
+ * but is not the deployed kit's is the same failure wearing a working file.
+ *
+ *   foreign  - our hook name, somebody else's tree
+ *   dangling - our hook name, and nothing on disk there
+ */
+export function settingsState({ env = process.env, kitHome = KIT_HOME } = {}) {
   const file = runtimePaths(env).settingsPath;
   const read = readSettings(file);
   if (read.state === 'absent') return 'none';
   if (read.state === 'unfamiliar') return 'unfamiliar';
+
   const commands = entriesOf(read.settings).flatMap((e) => (e.hooks ?? []).map((h) => String(h.command ?? '')));
-  if (commands.some((c) => namesHook(c, EDIT_GATE_HOOK))) return 'current';
+  const ours = commands.filter((c) => namesHook(c, EDIT_GATE_HOOK));
+
+  if (ours.length) {
+    const expected = path.join(kitHome, ...EDIT_GATE_HOOK.split('/'));
+    if (ours.some((c) => namesHook(c, expected))) return 'current';
+    const target = ours.map(registeredPath).find(Boolean);
+    return target && exists(target) ? 'foreign' : 'dangling';
+  }
   if (commands.some((c) => RETIRED_EDIT_GATE_HOOKS.some((name) => namesHook(c, name)))) return 'retired';
   return 'none';
+}
+
+/** The path inside a registered command, whether or not it is quoted. */
+export function registeredPath(command) {
+  const quoted = String(command).match(/"([^"]+)"/);
+  if (quoted) return quoted[1];
+  const bare = String(command).match(/(\S*edit-gate\.mjs)/);
+  return bare ? bare[1] : '';
 }
 
 // ---------------------------------------------------------------- deploy

@@ -135,7 +135,9 @@ test('installEditGate writes exactly one registration, pointing at the current h
   assert.equal(hooks.length, 1);
   assert.equal(hooks[0].matcher, MATCHER);
   assert.match(hooks[0].hooks[0].command, new RegExp(EDIT_GATE_HOOK.replace('/', '[\\\\/]')));
-  assert.equal(settingsState({ env }), 'current');
+  // Asked with the kitHome it was installed against - the state is about WHICH kit the
+  // registration points at, so the question has to name one.
+  assert.equal(settingsState({ env, kitHome: KIT_ROOT }), 'current');
 });
 
 test('a registration at a RETIRED name is REPLACED, not doubled, and the repair is reported', () => {
@@ -144,7 +146,7 @@ test('a registration at a RETIRED name is REPLACED, not doubled, and the repair 
       hooks: { PreToolUse: [{ matcher: MATCHER, hooks: [{ type: 'command', command: `node "/old/kit/${RETIRED_EDIT_GATE_HOOKS[0]}"` }] }] },
     },
   });
-  assert.equal(settingsState({ env }), 'retired', 'an un-upgraded machine reads as repairable, not healthy or broken');
+  assert.equal(settingsState({ env, kitHome: KIT_ROOT }), 'retired', 'an un-upgraded machine reads as repairable, not healthy or broken');
 
   const result = installEditGate({ kitHome: KIT_ROOT, env });
   const hooks = readJson(settingsFile).hooks.PreToolUse;
@@ -284,4 +286,56 @@ test('deploy does NOT mirror a skill root - it holds other people\'s skills too'
 
   assert.ok(fs.existsSync(path.join(skillRoot, 'someone-elses-skill', 'SKILL.md')),
     'mirroring a shared skill root would delete skills the kit never owned');
+});
+
+// --- a registration must point at the DEPLOYED kit, not merely name the hook ------
+
+test('a registration naming our hook in SOMEBODY ELSE\'S tree is foreign, not current', () => {
+  const foreignKit = tempDir('research-kit-foreign-');
+  writeText(path.join(foreignKit, 'hooks', 'edit-gate.mjs'), '// another checkout entirely\n');
+  const { env } = machine({
+    settings: { hooks: { PreToolUse: [{ matcher: MATCHER, hooks: [{ type: 'command', command: `node "${path.join(foreignKit, 'hooks', 'edit-gate.mjs')}"` }] }] } },
+  });
+
+  assert.equal(settingsState({ env, kitHome: tempDir('research-kit-deployed-') }), 'foreign',
+    'this machine had exactly this: the gate that ran belonged to a different implementation');
+});
+
+test('a registration pointing at a hook that is not on disk is dangling', () => {
+  const { env } = machine({
+    settings: { hooks: { PreToolUse: [{ matcher: MATCHER, hooks: [{ type: 'command', command: 'node "/gone/research-kit/hooks/edit-gate.mjs"' }] }] } },
+  });
+  assert.equal(settingsState({ env, kitHome: tempDir('research-kit-deployed2-') }), 'dangling',
+    'ADR-0012: no registration may point at a hook file that no longer exists');
+});
+
+test('a registration pointing at the deployed kit is current', () => {
+  const kitHome = tempDir('research-kit-deployed3-');
+  writeText(path.join(kitHome, 'hooks', 'edit-gate.mjs'), '// the deployed kit\n');
+  const { env } = machine({
+    settings: { hooks: { PreToolUse: [{ matcher: MATCHER, hooks: [{ type: 'command', command: `node "${path.join(kitHome, 'hooks', 'edit-gate.mjs')}"` }] }] } },
+  });
+  assert.equal(settingsState({ env, kitHome }), 'current');
+});
+
+test('doctor reports foreign and dangling as BLOCKERS, with the repair', async () => {
+  const { runDoctor } = await import('../lib/doctor.mjs');
+  const foreignKit = tempDir('research-kit-foreign2-');
+  writeText(path.join(foreignKit, 'hooks', 'edit-gate.mjs'), '// elsewhere\n');
+  const { env } = machine({
+    settings: { hooks: { PreToolUse: [{ matcher: MATCHER, hooks: [{ type: 'command', command: `node "${path.join(foreignKit, 'hooks', 'edit-gate.mjs')}"` }] }] } },
+  });
+
+  const report = runDoctor(makePassingProject(), { env, probe: READY, record: false });
+  const finding = find(report.findings, 'gate-edit');
+  assert.equal(finding.severity, 'fail', 'green here means the operator believes a gate is installed that is not this one');
+  assert.match(finding.detail, /OUTSIDE the deployed kit/);
+  assert.match(finding.fix, /--edit-only/);
+});
+
+test('registeredPath reads the path out of a command, quoted or bare', async () => {
+  const { registeredPath } = await import('../lib/installer.mjs');
+  assert.equal(registeredPath('node "C:/a b/research-kit/hooks/edit-gate.mjs"'), 'C:/a b/research-kit/hooks/edit-gate.mjs');
+  assert.equal(registeredPath('node /opt/kit/hooks/edit-gate.mjs'), '/opt/kit/hooks/edit-gate.mjs');
+  assert.equal(registeredPath('node /opt/kit/hooks/other.mjs'), '');
 });
