@@ -215,6 +215,9 @@ export function decompose(root, {
         date,
         now,
         transportName: adapter.name,
+        // Every URL here came from a ranking - decompose has no plan file to read from -
+        // so unlike `runResearch` this is never empty (DR-2).
+        discoveredBy: row.rankedBy ?? '',
       });
       if (outcome.status === 'collected' || outcome.status === 'failed') spent += 1;
       log(`  ${outcome.status.padEnd(9)} ${row.url}`);

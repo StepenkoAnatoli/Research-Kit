@@ -141,8 +141,13 @@ export function searchesUsed(payload) {
  * The shape deliberately mirrors what `command()` produces for the CLI adapters so the
  * ledger's `cmd` annotation and `--dry-run` output read the same whichever provider ran.
  */
-export function command(query) {
-  return `GET ${ENDPOINT}?engine=google&q=${encodeURIComponent(String(query))}&api_key=***REDACTED***`;
+export function command(query, key = '') {
+  // Defence in depth for the case `search()` refuses outright: if the query itself holds
+  // the credential, this string must still not carry it. `cmd` is written into the
+  // hash-chained ledger, which is a COMMITTED file - it is the last place a secret may
+  // reach, and the hardest to take back once it has.
+  const shown = redact(String(query), key);
+  return `GET ${ENDPOINT}?engine=google&q=${encodeURIComponent(shown)}&api_key=***REDACTED***`;
 }
 
 // ---------------------------------------------------------------- the contract
@@ -163,12 +168,33 @@ export function search(query, {
   job = runJob,
 } = {}) {
   const text = String(query);
-  const cmd = command(text);
   const apiKey = key ?? readKey({ env, config });
+  const cmd = command(text, apiKey);
 
   if (!apiKey) {
     return { ok: false, query: text, results: [], cmd, provider: name, searchId: null,
       error: `no SerpAPI key: set ${KEY_ENV} or the machine config's ${CONFIG_KEY}` };
+  }
+
+  // A query that CONTAINS the credential is refused before it is transmitted.
+  //
+  // Found by the Phase C suite, which asked whether any field of any result could carry
+  // the key and discovered that one could: `cmd` interpolates the query, and `cmd` is
+  // written into the hash-chained ledger - a committed file.
+  //
+  // Redacting `cmd` alone would have been the small fix and the wrong one. Sending the
+  // request is the worse half: the key would become a Google search term, stored on the
+  // vendor's systems for 31 days (E-10) and carried through whatever logs sit between.
+  // A key pasted into a query box is a mistake that has already happened; the useful
+  // thing to do is stop it leaving the machine and say so.
+  if (apiKey.length >= 8 && text.includes(apiKey)) {
+    return {
+      ok: false, query: '[query withheld: it contained your API key]', results: [], cmd,
+      provider: name, searchId: null,
+      error: 'refusing to search for a string that contains your SerpAPI key. '
+        + 'Sending it would store your credential as a search term on the vendor\'s systems. '
+        + 'Nothing was transmitted; check what was pasted into the query.',
+    };
   }
 
   const answer = job({ kind: 'serpapi-search', query: text, apiKey, timeout }, { timeout });

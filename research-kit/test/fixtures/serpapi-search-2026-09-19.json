@@ -1,0 +1,367 @@
+{
+  "search_metadata": {
+    "id": "6aaee0d6a26f56b3a3769324",
+    "status": "Success",
+    "json_endpoint": "https://serpapi.com/searches/ACCOUNT-PATH-REDACTED/6aaee0d6a26f56b3a3769324.json",
+    "markdown_endpoint": "https://serpapi.com/searches/ACCOUNT-PATH-REDACTED/6aaee0d6a26f56b3a3769324.md",
+    "pixel_position_endpoint": "https://serpapi.com/searches/ACCOUNT-PATH-REDACTED/6aaee0d6a26f56b3a3769324.json_with_pixel_position",
+    "created_at": "2026-09-19 19:21:58 UTC",
+    "processed_at": "2026-09-19 19:21:58 UTC",
+    "google_url": "https://www.google.com/search?q=research+kit+provenance+ledger&oq=research+kit+provenance+ledger&sourceid=chrome&ie=UTF-8",
+    "raw_html_file": "https://serpapi.com/searches/ACCOUNT-PATH-REDACTED/6aaee0d6a26f56b3a3769324.html",
+    "total_time_taken": 0.4
+  },
+  "search_parameters": {
+    "engine": "google",
+    "q": "research kit provenance ledger",
+    "google_domain": "google.com",
+    "device": "desktop"
+  },
+  "search_information": {
+    "query_displayed": "research kit provenance ledger",
+    "total_results": 58200,
+    "time_taken_displayed": 0.22,
+    "organic_results_state": "Results for exact spelling"
+  },
+  "ai_overview": {
+    "page_token": "5q1B0XiczVbbcqpIFP2A-Y7xJYkgEpVUUae6ERVvEZQk-GIhYIOKbWgV9e38y3zVfM004AUSTOach6nZVW3T3Yvd-7bY_vxr6a0Wf_-xdzebNXlimDAMiwhjtHSKFvYZkxxWFjPDSxJY7o_DTiwXLCKyBccTS1tpawYPW3nQrK1r_MCbVRQEjEL8ijiZmsSZU437OWEmDP1Z_Fmu00WRFJ1VcTsj47pQskfdWpFjS0LxmTF9CgD_ncgqgtHcBtJtED2Sv1cVKVAAlFOaFIDiGV5RRnIsqfGRhG5qg8mdWgxX6ahPjq2wTndP8anffJdeATPLMLYFgDC2EgLve29Sop58Ofv1RaQu6KycooevO-kcZ2zNCAozywa1YgIk6XpJ-jKqxs2YcYmUhUCthWEdAv223TQ-HQU8LoAq57mQFlV-4S-Z6xpNusPYiBYuy0wDOpUYz3Kt-CEgUT1LI4HFjZFbFfT65tlesnixNxtTg9NqtfGs3wOMNaW4JTZtx564E_ZHvC5xpUdWKFdr9zGRLHJhEkkzaQC202HX5b0jKHaLsHSmkZQkHXzKmEzXkpLjGJRO0JwUpwo7SpicwNRGWu8plRBIGMgayKa2M4ji2jwvaY0eaWrSiOutUfF_plEiKAWWtMQQBZ-AaUSCaqaom0qsAvI-Mx_9VlvXx_onYIaA1BSwAOdaNz5qNoAqITnigCS34ClqVloH9bhzWcCzwTKgXyh4RpwNlE-glE1RCBQV9IAiU52ertAKRVGtJoZGxXC6qyF_YNyNgjfoNa_Sv_n05Qj8jkSRqGe-fCj_NG1ane6Lqb-9j9ZtQ8DzaY_fHfuvb9yg30b5NMH-9Bc6jvW_IlLSj-RTP7pNJPl7IsX9CH7Rj-Jn40KkqHglfJNIsJnfj3q5_SjrtwS0NJG-7ke_TCTpSyIldZhLJJxPpPVNIqHwI5Gy_UjO70cXIv1OP4K_2Y9iXjnJlG1O2zm62aSair_X17XgzXR6D-89MnrQKt1Hy5I7-_DbJjXzN0--aS_vJ579BLn25mDfT-gGfnLswrsYOMQx6T_Iu4W3uVsHeOeszJXl3C0dGzlBwV8GWGRNfuc9k6nfWI3b9lDjSgtO8Nnq1uh2lfm8avfbpLGC_Gg97bvbnmrordnwteE-uvywfjjwbhgcRpXx25HdLx7G2krXsYbWZK40rArR1HK3wtpmtaNJfY-rjst17mXf0pfCS7lc6zcc3q5om4GzW3D4vTJeDd6cDdJjw4jI9-2eLjXhcMoX_MASadZ5BPoqeEW0_KS4LOnAdIR0VGhWYIFY5sQhO5FlOfbRKc0EjmedqlAu-GhzWIsCWyCrQCz9A7F6OZs",
+    "serpapi_link": "https://serpapi.com/search.json?engine=google_ai_overview&page_token=5q1B0XiczVbbcqpIFP2A-Y7xJYkgEpVUUae6ERVvEZQk-GIhYIOKbWgV9e38y3zVfM004AUSTOach6nZVW3T3Yvd-7bY_vxr6a0Wf_-xdzebNXlimDAMiwhjtHSKFvYZkxxWFjPDSxJY7o_DTiwXLCKyBccTS1tpawYPW3nQrK1r_MCbVRQEjEL8ijiZmsSZU437OWEmDP1Z_Fmu00WRFJ1VcTsj47pQskfdWpFjS0LxmTF9CgD_ncgqgtHcBtJtED2Sv1cVKVAAlFOaFIDiGV5RRnIsqfGRhG5qg8mdWgxX6ahPjq2wTndP8anffJdeATPLMLYFgDC2EgLve29Sop58Ofv1RaQu6KycooevO-kcZ2zNCAozywa1YgIk6XpJ-jKqxs2YcYmUhUCthWEdAv223TQ-HQU8LoAq57mQFlV-4S-Z6xpNusPYiBYuy0wDOpUYz3Kt-CEgUT1LI4HFjZFbFfT65tlesnixNxtTg9NqtfGs3wOMNaW4JTZtx564E_ZHvC5xpUdWKFdr9zGRLHJhEkkzaQC202HX5b0jKHaLsHSmkZQkHXzKmEzXkpLjGJRO0JwUpwo7SpicwNRGWu8plRBIGMgayKa2M4ji2jwvaY0eaWrSiOutUfF_plEiKAWWtMQQBZ-AaUSCaqaom0qsAvI-Mx_9VlvXx_onYIaA1BSwAOdaNz5qNoAqITnigCS34ClqVloH9bhzWcCzwTKgXyh4RpwNlE-glE1RCBQV9IAiU52ertAKRVGtJoZGxXC6qyF_YNyNgjfoNa_Sv_n05Qj8jkSRqGe-fCj_NG1ane6Lqb-9j9ZtQ8DzaY_fHfuvb9yg30b5NMH-9Bc6jvW_IlLSj-RTP7pNJPl7IsX9CH7Rj-Jn40KkqHglfJNIsJnfj3q5_SjrtwS0NJG-7ke_TCTpSyIldZhLJJxPpPVNIqHwI5Gy_UjO70cXIv1OP4K_2Y9iXjnJlG1O2zm62aSair_X17XgzXR6D-89MnrQKt1Hy5I7-_DbJjXzN0--aS_vJ579BLn25mDfT-gGfnLswrsYOMQx6T_Iu4W3uVsHeOeszJXl3C0dGzlBwV8GWGRNfuc9k6nfWI3b9lDjSgtO8Nnq1uh2lfm8avfbpLGC_Gg97bvbnmrordnwteE-uvywfjjwbhgcRpXx25HdLx7G2krXsYbWZK40rArR1HK3wtpmtaNJfY-rjst17mXf0pfCS7lc6zcc3q5om4GzW3D4vTJeDd6cDdJjw4jI9-2eLjXhcMoX_MASadZ5BPoqeEW0_KS4LOnAdIR0VGhWYIFY5sQhO5FlOfbRKc0EjmedqlAu-GhzWIsCWyCrQCz9A7F6OZs"
+  },
+  "organic_results": [
+    {
+      "position": 1,
+      "title": "Tamperproof timestamped provenance ledger using ...",
+      "link": "https://www.sciencedirect.com/science/article/pii/S2666281720300834",
+      "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESewHrOzAVG4jVh_UEjek-a5y_cs8kaUUJQznNS0MZKEmUpHaj5xqkHuA3DWB3LInM8kbBtLQe7cuqcFjz9bzfClgO71LED_4vyF2QmoF9CBglRdPOeb6sdmSbAfsjy8frJG4w4l7siKBlmg5UBMTC_fjuVsboLqGuXrLEkg&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQFnoECB8QAQ&uoh=1",
+      "displayed_link": "https://www.sciencedirect.com › science › article › pii",
+      "favicon": "https://serpapi.com/images/i/UklGRk4BAABXRUJQVlA4IEIBAAAQCQCdASogACAAPtE-tFooIigoFAEAGglsALElQTQC6PtBBgNsB-unQgeoDeAPRA8rv9gPg6_b70VSl7HDAh2KGltr_EST6IruifoRgONCl9gA_v0tEq9NvcR-Rj2Ix8in-HtlsMNKCqDesdVlvt0VmJ8rOx31fm5xN8anZGqNUmtBpwe9Yy5AnZ3_g3UGj9-QMmmttVUbUrKwfGke7w1TXR4p6MABdn38ew6evio2YyR6O75_Z6k9Jqrun3e8o7-p-M5EG4xy-NEmA-F0NSLLvl8MrchY4o056X-2V9rEKs6IfzAaCAfv7ofdGt-zr4e8tGnllzUB-vMIWwJ6cSGZCoEXeAqcCy6KU3bymLZLNAYjRjbxeUlYprm9snWKmZeViuAudTjI3oKWfsK29UhLPJ0Jat9Z6D9K7jv3WQpwAAAA.webp",
+      "author": "by DO Jaquet-Chiffelle",
+      "snippet": "This work provides a tamperproof timestamped provenance ledger using a public pre-existing trusted blockchain, that can be adapted to any setting.",
+      "snippet_highlighted_words": [
+        "tamperproof timestamped provenance ledger"
+      ],
+      "about_this_result": {
+        "source": {
+          "description": "This work provides a tamperproof timestamped provenance ledger using a public pre-existing trusted blockchain, that can be adapted to any setting.",
+          "source_info_link": "https://www.sciencedirect.com/science/article/pii/S2666281720300834",
+          "icon": "https://serpapi.com/images/i/UklGRk4BAABXRUJQVlA4IEIBAAAQCQCdASogACAAPtE-tFooIigoFAEAGglsALElQTQC6PtBBgNsB-unQgeoDeAPRA8rv9gPg6_b70VSl7HDAh2KGltr_EST6IruifoRgONCl9gA_v0tEq9NvcR-Rj2Ix8in-HtlsMNKCqDesdVlvt0VmJ8rOx31fm5xN8anZGqNUmtBpwe9Yy5AnZ3_g3UGj9-QMmmttVUbUrKwfGke7w1TXR4p6MABdn38ew6evio2YyR6O75_Z6k9Jqrun3e8o7-p-M5EG4xy-NEmA-F0NSLLvl8MrchY4o056X-2V9rEKs6IfzAaCAfv7ofdGt-zr4e8tGnllzUB-vMIWwJ6cSGZCoEXeAqcCy6KU3bymLZLNAYjRjbxeUlYprm9snWKmZeViuAudTjI3oKWfsK29UhLPJ0Jat9Z6D9K7jv3WQpwAAAA.webp"
+        },
+        "languages": [
+          "en"
+        ],
+        "regions": [
+          "US"
+        ]
+      },
+      "source": "ScienceDirect.com"
+    },
+    {
+      "position": 2,
+      "title": "Meta Museum Provenance Research Kit",
+      "link": "https://www.metamuseum.org/research-kit",
+      "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESXwHrOzAVUwcCK5XzH-Qo1MVfPLvqjy9HP7ji-QCrag0DU90uhJkHASNOSzEdlF6YkJ12akEcY2Fxlq0Aj3EJJFaHtXHcGLE3tKiL0LNxC1hAqXZfkrzXG_heqycziAL5&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQFnoECBEQAQ&uoh=1",
+      "displayed_link": "https://www.metamuseum.org › research-kit",
+      "favicon": "https://serpapi.com/images/i/UklGRtIBAABXRUJQVlA4IMYBAABQCQCdASocABsAPtE-tFooIigoFAEAGglpABFTfsOLz_HSdYbpjHyedNnDehfYE_VvfL_05DZt-itcpRW3xFgLFag48gHpNnIeNGHEfwMVf2dQAAD-9NUf9tjpUbPXWpRMO957tr8l1-v04N_whZO13Il1HjzEbfD77vSXhBzPoWkqudONZHkUHifo6M9eVo_OHumVnu8_6ZP7jGu4HxdamEsu1xrzRq0qQv2Hq5Eosw-LVOr1dyg6szZnn-Nr50XhgxjXA-iXwtQ0_OBAEh_P3JjigddFf3PWH7mPoeTGMXpaQJLd18_FcYMkaDk_50H_kc_G7eEXwINsLvMqHzPMFNNuu8TMbLGvZ4IgM5LXP_f6uJ2UeYqASevgNbjvQxwmKaAYztutSChNUUjaxHz2z5_59_gs9_-HKn6JkHmfiB84-_YDlX3-Yf_CHGXhnV8WbOcP8aNyFw9dTLcXkb_KPyF4ExVf7_JhAj77_-DosmVP5c8syEmhawNsC14QvhM34GbAuf6PTM-nLRwXxk5dUcbp7qFjb-DK3kJXL1ff-0turVZpXjsaoD_Rui5TjAPb75Zf_3_Diyh1WBk5Y0_zYipYYAAA.webp",
+      "snippet": "Use source-first templates to investigate provenance, separate claims from evidence, assess reuse rights, and produce citation-ready research notes.",
+      "snippet_highlighted_words": [
+        "Use source-first templates"
+      ],
+      "about_this_result": {
+        "source": {
+          "description": "Use source-first templates to investigate provenance, separate claims from evidence, assess reuse rights, and produce citation-ready research notes.",
+          "source_info_link": "https://www.metamuseum.org/research-kit",
+          "icon": "https://serpapi.com/images/i/UklGRtIBAABXRUJQVlA4IMYBAABQCQCdASocABsAPtE-tFooIigoFAEAGglpABFTfsOLz_HSdYbpjHyedNnDehfYE_VvfL_05DZt-itcpRW3xFgLFag48gHpNnIeNGHEfwMVf2dQAAD-9NUf9tjpUbPXWpRMO957tr8l1-v04N_whZO13Il1HjzEbfD77vSXhBzPoWkqudONZHkUHifo6M9eVo_OHumVnu8_6ZP7jGu4HxdamEsu1xrzRq0qQv2Hq5Eosw-LVOr1dyg6szZnn-Nr50XhgxjXA-iXwtQ0_OBAEh_P3JjigddFf3PWH7mPoeTGMXpaQJLd18_FcYMkaDk_50H_kc_G7eEXwINsLvMqHzPMFNNuu8TMbLGvZ4IgM5LXP_f6uJ2UeYqASevgNbjvQxwmKaAYztutSChNUUjaxHz2z5_59_gs9_-HKn6JkHmfiB84-_YDlX3-Yf_CHGXhnV8WbOcP8aNyFw9dTLcXkb_KPyF4ExVf7_JhAj77_-DosmVP5c8syEmhawNsC14QvhM34GbAuf6PTM-nLRwXxk5dUcbp7qFjb-DK3kJXL1ff-0turVZpXjsaoD_Rui5TjAPb75Zf_3_Diyh1WBk5Y0_zYipYYAAA.webp"
+        },
+        "languages": [
+          "en"
+        ],
+        "regions": [
+          "US"
+        ]
+      },
+      "source": "metamuseum.org"
+    },
+    {
+      "position": 3,
+      "title": "A Blockchain-Based Approach to Provenance and ...",
+      "link": "https://elib.dlr.de/142470/1/212995_1.pdf",
+      "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESYQHrOzAVKN94_wSeCO_6wVqmjKqj7QSaKiYy9kAyy5I4XW0v7_eplpoSemoPDeQZnwI93hjCEH8tysu529jkhRouv4xviU_ZBexwk_69KvjHhhv94hfUL1VuUU4yj12mB7M&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQFnoECBcQAQ&uoh=1",
+      "displayed_link": "https://elib.dlr.de › ...",
+      "favicon": "https://serpapi.com/images/i/UklGRuYAAABXRUJQVlA4INoAAAAQBQCdASogACAAPtE-tFooIigoFAEAGglkAJ0vPBcss3QsuWx9BP0WIZsoh9Qvoo3gAP79L_ygHtOYS_qrs9MuIw_89Rw1EGrT3hVHkE3pEgSZK6niOrjLFomXQU6-HjvdlpKRGcOzq8B2gHyvfQ_c6Wq77G4ysyemp-HmXtn5IrJYHp7Yd6zvDTzPDsoHvr0l8TkLV_849D5TjPZtRgn2RNInchPYmSdbm0ePgiCgSezLC4EDIhQIrfZBqq4PR6lNPWw_r_hJtp1pcBcC4RbQB2p6Lx-vkGd4AA.webp",
+      "author": "by K Wittek",
+      "snippet": "This paper describes how the blockchain and distributed ledger technology can be used to form a new certification model, that captures the research process",
+      "snippet_highlighted_words": [
+        "ledger",
+        "research"
+      ],
+      "rich_snippet": {
+        "top": {
+          "detected_extensions": {
+            "pages": 6
+          },
+          "extensions": [
+            "6 pages"
+          ]
+        }
+      },
+      "about_this_result": {
+        "source": {
+          "description": "This paper describes how the blockchain and distributed ledger technology can be used to form a new certification model, that captures the research process",
+          "source_info_link": "https://elib.dlr.de/142470/1/212995_1.pdf",
+          "icon": "https://serpapi.com/images/i/UklGRuYAAABXRUJQVlA4INoAAAAQBQCdASogACAAPtE-tFooIigoFAEAGglkAJ0vPBcss3QsuWx9BP0WIZsoh9Qvoo3gAP79L_ygHtOYS_qrs9MuIw_89Rw1EGrT3hVHkE3pEgSZK6niOrjLFomXQU6-HjvdlpKRGcOzq8B2gHyvfQ_c6Wq77G4ysyemp-HmXtn5IrJYHp7Yd6zvDTzPDsoHvr0l8TkLV_849D5TjPZtRgn2RNInchPYmSdbm0ePgiCgSezLC4EDIhQIrfZBqq4PR6lNPWw_r_hJtp1pcBcC4RbQB2p6Lx-vkGd4AA.webp"
+        },
+        "languages": [
+          "en"
+        ],
+        "regions": [
+          "US"
+        ]
+      },
+      "source": "Deutsches Zentrum für Luft- und Raumfahrt"
+    },
+    {
+      "position": 4,
+      "title": "Provenance: The Leading Blockchain for Digital Real-World ...",
+      "link": "https://provenance.io/",
+      "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESTgHrOzAV4s7PIzIDmuXC86KlvSeMr0eXnvt-fPf_hTWdHSzs_7nQ1MrQYSadrvvu5EEpG6XXkKsxmkLnJgJ6uV8YEPSBjaRQceYoVJm9zw&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQFnoECBMQAQ&uoh=1",
+      "displayed_link": "https://provenance.io",
+      "favicon": "https://serpapi.com/images/i/UklGRnAAAABXRUJQVlA4IGQAAABwBACdASobACAAPtEutFooIagoGAEAGglpAABcgYIwJXEHZbL3ybtMwPHuoAD-9hEGtSiGpZf6-HpnwFiN4iU99iIQZsRn6is_XnJDh4Zwq5gq_XM3F8SvTgg5XKoFoAPQMgAA.webp",
+      "snippet": "Provenance is the leading Layer 1 blockchain for financial services, built with the Cosmos SDK. Our secure, proof-of-stake network is purpose-built for ...",
+      "snippet_highlighted_words": [
+        "Provenance is the leading Layer 1 blockchain for financial services"
+      ],
+      "about_this_result": {
+        "source": {
+          "description": "Provenance is the leading Layer 1 blockchain for financial services, built with the Cosmos SDK. Our secure, proof-of-stake network is purpose-built for ...",
+          "source_info_link": "https://provenance.io/",
+          "icon": "https://serpapi.com/images/i/UklGRnAAAABXRUJQVlA4IGQAAABwBACdASobACAAPtEutFooIagoGAEAGglpAABcgYIwJXEHZbL3ybtMwPHuoAD-9hEGtSiGpZf6-HpnwFiN4iU99iIQZsRn6is_XnJDh4Zwq5gq_XM3F8SvTgg5XKoFoAPQMgAA.webp"
+        },
+        "languages": [
+          "en"
+        ],
+        "regions": [
+          "US"
+        ]
+      },
+      "source": "Provenance Blockchain"
+    },
+    {
+      "position": 5,
+      "title": "Press Release: Provenance Proof Blockchain",
+      "link": "https://everledger.io/provenance/",
+      "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESWQHrOzAVmZEXZjECqnkJO1ZuRN3zLydyDrLnOsyj0J0BJTgYtiMg2e6_OPNVBVZL1Ok0VBR5K091YCYYWKXu6ipfaKhH3y75iaJwqtLq-m8oVvLOE3xLBC2l&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQFnoECBYQAQ&uoh=1",
+      "displayed_link": "https://everledger.io › Resources",
+      "favicon": "https://serpapi.com/images/i/UklGRr4AAABXRUJQVlA4ILIAAADQBACdASocABwAPtE8tFooIigoFAEAGgllALszOUhlmQ1rhe9_xfwPSuHFPrGlwAD--cggUEbPCz_zP-bEH9t-3yAzS5Nv-qx2EvB8iesPLsWECfGRvoz9qQ5sJhUWAQjmE46uc2_R_-ED_4a_7WSgtm-TvG1KXB_6AvWocOVzy6S7nl1y2vozTAaTUupSk89kD7OPF30zKAha14xTaWZ8ghLnRiYdGhxusQ40A7D5AAAA.webp",
+      "date": "Jul 22, 2021",
+      "snippet": "Provenance Proof Blockchain, the world's first digital ledger for tracking coloured gemstones created by the Swiss family-owned House of Gü ...",
+      "snippet_highlighted_words": [
+        "Provenance Proof Blockchain"
+      ],
+      "about_this_result": {
+        "source": {
+          "description": "Provenance Proof Blockchain, the world's first digital ledger for tracking coloured gemstones created by the Swiss family-owned House of Gü ...",
+          "source_info_link": "https://everledger.io/provenance/",
+          "icon": "https://serpapi.com/images/i/UklGRr4AAABXRUJQVlA4ILIAAADQBACdASocABwAPtE8tFooIigoFAEAGgllALszOUhlmQ1rhe9_xfwPSuHFPrGlwAD--cggUEbPCz_zP-bEH9t-3yAzS5Nv-qx2EvB8iesPLsWECfGRvoz9qQ5sJhUWAQjmE46uc2_R_-ED_4a_7WSgtm-TvG1KXB_6AvWocOVzy6S7nl1y2vozTAaTUupSk89kD7OPF30zKAha14xTaWZ8ghLnRiYdGhxusQ40A7D5AAAA.webp"
+        },
+        "languages": [
+          "en"
+        ],
+        "regions": [
+          "US"
+        ]
+      },
+      "source": "Everledger"
+    },
+    {
+      "position": 6,
+      "title": "Introducing Model Provenance Kit: Know Where Your AI ...",
+      "link": "https://blogs.cisco.com/?p=490158",
+      "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESWQHrOzAVqCV2OTcOnqBrfhObF8DBqB7eUh1bp3km78GbBuH_JH43TiWmScszg4fLlm0PjFoVgKGSflXsoPcfs8DtY-Ywn7PyuHAzAe5kaBzXRmoGQ55TUIwf&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQFnoECBkQAQ&uoh=1",
+      "displayed_link": "https://blogs.cisco.com › ...",
+      "favicon": "https://serpapi.com/images/i/UklGRhwBAABXRUJQVlA4IBABAAAwBgCdASogACAAPtEutFooIagoGAEAGglmAHfiEFeBwAHokr8CplPsCsgA-A-L3MKRI8ioJfNvoBeAAP7-whbsY0K3Tl5nuqyEe-yCneDMMeZ1Ay9LUU_iY-7Y4jKuJ85nNNN_UDlJhR1v-7IvrTjrtZXvGdtUabWGVwH5Pto_D97_cjEGOKNk9Zni8tOBTRwPfo-HQqSUsPVU7uRUe__NKCMAWo_Tq7EUO0oWBpEnAiNfhBKOQOE1LAZl2qR4Wqgp6vceJr-Hi_MLLQGuzP0Nyk9BLDqqCral_8Hj8zJDVnPfjfZzRtkWiKa52ABkko6M-92XPjcSXaGJ15nmemVEU2J7Dr8GuaQcX_L7F9AAAA.webp",
+      "date": "Apr 30, 2026",
+      "snippet": "Model Provenance Kit is a Python toolkit and command-line interface (CLI) that that can determine whether two AI models share a common origin",
+      "snippet_highlighted_words": [
+        "Provenance Kit"
+      ],
+      "about_this_result": {
+        "source": {
+          "description": "Model Provenance Kit is a Python toolkit and command-line interface (CLI) that that can determine whether two AI models share a common origin",
+          "source_info_link": "https://blogs.cisco.com/?p=490158",
+          "icon": "https://serpapi.com/images/i/UklGRhwBAABXRUJQVlA4IBABAAAwBgCdASogACAAPtEutFooIagoGAEAGglmAHfiEFeBwAHokr8CplPsCsgA-A-L3MKRI8ioJfNvoBeAAP7-whbsY0K3Tl5nuqyEe-yCneDMMeZ1Ay9LUU_iY-7Y4jKuJ85nNNN_UDlJhR1v-7IvrTjrtZXvGdtUabWGVwH5Pto_D97_cjEGOKNk9Zni8tOBTRwPfo-HQqSUsPVU7uRUe__NKCMAWo_Tq7EUO0oWBpEnAiNfhBKOQOE1LAZl2qR4Wqgp6vceJr-Hi_MLLQGuzP0Nyk9BLDqqCral_8Hj8zJDVnPfjfZzRtkWiKa52ABkko6M-92XPjcSXaGJ15nmemVEU2J7Dr8GuaQcX_L7F9AAAA.webp"
+        },
+        "languages": [
+          "en"
+        ],
+        "regions": [
+          "US"
+        ]
+      },
+      "source": "Cisco Blogs"
+    },
+    {
+      "position": 7,
+      "title": "Distributed Ledger for Provenance Tracking of Artificial ...",
+      "link": "https://www.researchgate.net/publication/339832610_Distributed_Ledger_for_Provenance_Tracking_of_Artificial_Intelligence_Assets",
+      "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAEStwEB6zswFcWhZyAutxmiygL5fN1P8mUvfPh69fRiCxnoQoh1KtvPgp68fz8SKppmR3_MmatrqjtsATM8acq3twnqtDZgxSqtHen9w45QnMm2feF40DAM50iKb1jaH3xnIty4JLVEr6yTHSn4EYzTgOHzEADpvDUlnapOFbhxtiVwc2byN5ysuxcIRW2MUyKNznS6ex31St-F1N1ackpsCrshfGnCLFFZ2MYFDelcQtOSg8S7Cipgh8A&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQFnoECBIQAQ&uoh=1",
+      "displayed_link": "https://www.researchgate.net › ... › Artificial Intelligence",
+      "favicon": "https://serpapi.com/images/i/UklGRgYBAABXRUJQVlA4IPoAAADwBQCdASocABwAPtEutFooIagoGAEAGglpAAPjR9EewBukqvgOo133wUJLm6nq80Xl6ttC8s5gAAD-_p4cSWBHjd47XoD_L__ak-L9vPnHTdV3QJYy_4H--A0f8z97ifV1Nwf8nfwmIgVsFo4tSqrTj_iUC1Y0uYgnHaC4JlHZSnysNOdHzhvt1waGOlWj34iqHkpw2UYb9Nv580pvKo-wdjpXJcc7KFSgkwoo4yxsrA1pXqfmy38bGIkjL5gA7P2RhRTNgB-zDWPAw2S-q3fSs9GxrbQsWuhASW0Ozt6j_QK6Fxm86bjdDMIgagy35R0f3ekyldj2wAAA.webp",
+      "snippet": "In this paper we design a graph-based provenance model for AI assets and their relations within an AI value chain.",
+      "snippet_highlighted_words": [
+        "provenance"
+      ],
+      "about_this_result": {
+        "source": {
+          "description": "In this paper we design a graph-based provenance model for AI assets and their relations within an AI value chain.",
+          "source_info_link": "https://www.researchgate.net/publication/339832610_Distributed_Ledger_for_Provenance_Tracking_of_Artificial_Intelligence_Assets",
+          "icon": "https://serpapi.com/images/i/UklGRgYBAABXRUJQVlA4IPoAAADwBQCdASocABwAPtEutFooIagoGAEAGglpAAPjR9EewBukqvgOo133wUJLm6nq80Xl6ttC8s5gAAD-_p4cSWBHjd47XoD_L__ak-L9vPnHTdV3QJYy_4H--A0f8z97ifV1Nwf8nfwmIgVsFo4tSqrTj_iUC1Y0uYgnHaC4JlHZSnysNOdHzhvt1waGOlWj34iqHkpw2UYb9Nv580pvKo-wdjpXJcc7KFSgkwoo4yxsrA1pXqfmy38bGIkjL5gA7P2RhRTNgB-zDWPAw2S-q3fSs9GxrbQsWuhASW0Ozt6j_QK6Fxm86bjdDMIgagy35R0f3ekyldj2wAAA.webp"
+        },
+        "languages": [
+          "en"
+        ],
+        "regions": [
+          "US"
+        ]
+      },
+      "source": "ResearchGate"
+    },
+    {
+      "position": 8,
+      "title": "Distributed Ledger and Text Watermarking for Fine-Grain ...",
+      "link": "https://dl.acm.org/doi/10.1145/3701716.3717536",
+      "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESZgHrOzAVBKkw_BCb3VkYDOURupTa5y6mnn0tIusX4QtXtHVe_qYVQbMnrhx-7E_2uFTlyPP-7BubxJqEct-_cOyF7ZNaOGLU-URo_IgBbE5maaYPorCf0Nt_QsXTnr27x5NuXb9yMw&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQFnoECBQQAQ&uoh=1",
+      "displayed_link": "https://dl.acm.org › doi",
+      "favicon": "https://serpapi.com/images/i/UklGRgYBAABXRUJQVlA4IPoAAABQBgCdASocABwAPrUurVanIacnG_DgFolpAAbIDvLv7fyO_QGoAFe1-t1fUHhUzur4aYft-acC5396AAD--b2J9SW9N9ZJnsjpcQE-0QRkCl_4VnAcRiHjkXx1DaFzeD7Bnm13ePAivffs5pT8UDIsUoZvLPhmYFjZ__4bpOz07P-Qu3DfVppAaGH1Sd4VYmeBt5uM-Bd1T_IXX9_kWYWDRInhLlxbvH7nv9I-2ZvVZCGeR8TO-JnekIGRNH1ilLNCosPrIXQyPYy_mwvRLldYshcljCsjTuS2P-Oi_3kg6VewIAh_0qLRdML6z81qvyKzJjjfvWMAAAAA.webp",
+      "snippet": "Distributed Ledger and Text Watermarking. Watermarking text documents has become a cutting-edge research topic protecting text documents from illegal copying, ...",
+      "snippet_highlighted_words": [
+        "Ledger",
+        "research"
+      ],
+      "about_this_result": {
+        "source": {
+          "description": "Distributed Ledger and Text Watermarking. Watermarking text documents has become a cutting-edge research topic protecting text documents from illegal copying, ...",
+          "source_info_link": "https://dl.acm.org/doi/10.1145/3701716.3717536",
+          "icon": "https://serpapi.com/images/i/UklGRgYBAABXRUJQVlA4IPoAAABQBgCdASocABwAPrUurVanIacnG_DgFolpAAbIDvLv7fyO_QGoAFe1-t1fUHhUzur4aYft-acC5396AAD--b2J9SW9N9ZJnsjpcQE-0QRkCl_4VnAcRiHjkXx1DaFzeD7Bnm13ePAivffs5pT8UDIsUoZvLPhmYFjZ__4bpOz07P-Qu3DfVppAaGH1Sd4VYmeBt5uM-Bd1T_IXX9_kWYWDRInhLlxbvH7nv9I-2ZvVZCGeR8TO-JnekIGRNH1ilLNCosPrIXQyPYy_mwvRLldYshcljCsjTuS2P-Oi_3kg6VewIAh_0qLRdML6z81qvyKzJjjfvWMAAAAA.webp"
+        },
+        "languages": [
+          "en"
+        ],
+        "regions": [
+          "US"
+        ]
+      },
+      "source": "ACM Digital Library"
+    },
+    {
+      "position": 9,
+      "title": "Applying Distributed Ledgers to Manage Workflow ...",
+      "link": "https://arxiv.org/html/1804.05395v1",
+      "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESWwHrOzAVmWP3jDy6qrSU-vuw6um88UGY7pLvtT5gSxT3kMupcaYeZ6ND4Hc0FAUut4ahJOLDWxMWCW-Gg6AtERiX44I2dhk6KrjnFhcr9pZwnEyqfUjB5wjWFxo&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQFnoECEcQAQ&uoh=1",
+      "displayed_link": "https://arxiv.org › html",
+      "favicon": "https://serpapi.com/images/i/UklGRgABAABXRUJQVlA4IPQAAAAQBgCdASocABwAPtEutFooIagoGAEAGglsALsB3At0T6gOdGrHnJqXiRtSOHkMwX6c4GvYjFEnCAAA_vUWCAIoxv_18vepfCOlJUfzzLUSoUwQSSgtd6QcnnaXOi6wqKYx06FNkQtClFZr8GP7q_8IwwkjTlXEGGHvFyELPcOi1-v_VHnZZ_3POzY-JrGiXGtGP-tSq-z4krdf7iuEtu0_LkiD2EoqH8x7WoE69qnp2PBP-r_d6z01sWbQuEU2kj83dTm3RW6Qq92QdxzQgcvenw5ABsqN_aUurNII6LHTqBj7bpOArT1vRGN9wS9UThPfHgAA.webp",
+      "date": "Apr 15, 2018",
+      "snippet": "This work discusses provenance and distributed ledgers on their own and then presents an argument that distributed ledgers naturally satisfy ...",
+      "snippet_highlighted_words": [
+        "provenance",
+        "ledgers",
+        "ledgers"
+      ],
+      "about_this_result": {
+        "source": {
+          "description": "This work discusses provenance and distributed ledgers on their own and then presents an argument that distributed ledgers naturally satisfy ...",
+          "source_info_link": "https://arxiv.org/html/1804.05395v1",
+          "icon": "https://serpapi.com/images/i/UklGRgABAABXRUJQVlA4IPQAAAAQBgCdASocABwAPtEutFooIagoGAEAGglsALsB3At0T6gOdGrHnJqXiRtSOHkMwX6c4GvYjFEnCAAA_vUWCAIoxv_18vepfCOlJUfzzLUSoUwQSSgtd6QcnnaXOi6wqKYx06FNkQtClFZr8GP7q_8IwwkjTlXEGGHvFyELPcOi1-v_VHnZZ_3POzY-JrGiXGtGP-tSq-z4krdf7iuEtu0_LkiD2EoqH8x7WoE69qnp2PBP-r_d6z01sWbQuEU2kj83dTm3RW6Qq92QdxzQgcvenw5ABsqN_aUurNII6LHTqBj7bpOArT1vRGN9wS9UThPfHgAA.webp"
+        },
+        "languages": [
+          "en"
+        ],
+        "regions": [
+          "US"
+        ]
+      },
+      "source": "arXiv.org",
+      "read_more_link": "https://arxiv.org/html/1804.05395v1#:~:text=This%20work%20discusses%20provenance%20and,that%20distributed%20ledgers%20naturally%20satisfy"
+    }
+  ],
+  "related_searches": [
+    {
+      "block_position": 1,
+      "query": "Research kit provenance ledger 2021",
+      "link": "https://www.google.com/search?sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&q=Research+kit+provenance+ledger+2021&sa=X&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ1QJ6BAhEEAE",
+      "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=Research+kit+provenance+ledger+2021"
+    },
+    {
+      "block_position": 1,
+      "query": "Provenance Blockchain",
+      "link": "https://www.google.com/search?sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&q=Provenance+Blockchain&sa=X&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ1QJ6BAhGEAE",
+      "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=Provenance+Blockchain"
+    },
+    {
+      "block_position": 1,
+      "query": "Where to buy Provenance HASH token",
+      "link": "https://www.google.com/search?sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&q=Where+to+buy+Provenance+HASH+token&sa=X&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ1QJ6BAhFEAE",
+      "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=Where+to+buy+Provenance+HASH+token"
+    },
+    {
+      "block_position": 1,
+      "query": "Provenance Blockchain (HASH)",
+      "link": "https://www.google.com/search?sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&q=Provenance+Blockchain+(HASH)&sa=X&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ1QJ6BAhCEAE",
+      "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=Provenance+Blockchain+%28HASH%29"
+    },
+    {
+      "block_position": 1,
+      "query": "HASH token Provenance price",
+      "link": "https://www.google.com/search?sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&q=HASH+token+Provenance+price&sa=X&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ1QJ6BAhBEAE",
+      "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=HASH+token+Provenance+price"
+    },
+    {
+      "block_position": 1,
+      "query": "Provenance hash price prediction",
+      "link": "https://www.google.com/search?sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&q=Provenance+hash+price+prediction&sa=X&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ1QJ6BAhDEAE",
+      "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=Provenance+hash+price+prediction"
+    },
+    {
+      "block_position": 1,
+      "query": "Provenance crypto",
+      "link": "https://www.google.com/search?sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&q=Provenance+crypto&sa=X&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ1QJ6BAg_EAE",
+      "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=Provenance+crypto"
+    },
+    {
+      "block_position": 1,
+      "query": "Provenance Blockchain Wallet",
+      "link": "https://www.google.com/search?sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&q=Provenance+Blockchain+Wallet&sa=X&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ1QJ6BAhAEAE",
+      "serpapi_link": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=Provenance+Blockchain+Wallet"
+    }
+  ],
+  "pagination": {
+    "current": 1,
+    "next": "https://www.google.com/search?q=research+kit+provenance+ledger&sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&ei=1uCuar-uEPG8p84Pif6IgAY&start=10&sa=N&sstk=AS6-VmKy8bImQ6oRjT4iJig7x2x-v2Kk867gWu2Oizuoyjm-S7eD6LNWIdTTTn74Z-SwRXBZHofyZurhJ1X2OMRyceNy3NksJ-KV9g&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ8NMDegQIOxAW",
+    "other_pages": {
+      "2": "https://www.google.com/search?q=research+kit+provenance+ledger&sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&ei=1uCuar-uEPG8p84Pif6IgAY&start=10&sa=N&sstk=AS6-VmKy8bImQ6oRjT4iJig7x2x-v2Kk867gWu2Oizuoyjm-S7eD6LNWIdTTTn74Z-SwRXBZHofyZurhJ1X2OMRyceNy3NksJ-KV9g&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ8tMDegQIOxAE",
+      "3": "https://www.google.com/search?q=research+kit+provenance+ledger&sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&ei=1uCuar-uEPG8p84Pif6IgAY&start=20&sa=N&sstk=AS6-VmKy8bImQ6oRjT4iJig7x2x-v2Kk867gWu2Oizuoyjm-S7eD6LNWIdTTTn74Z-SwRXBZHofyZurhJ1X2OMRyceNy3NksJ-KV9g&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ8tMDegQIOxAG",
+      "4": "https://www.google.com/search?q=research+kit+provenance+ledger&sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&ei=1uCuar-uEPG8p84Pif6IgAY&start=30&sa=N&sstk=AS6-VmKy8bImQ6oRjT4iJig7x2x-v2Kk867gWu2Oizuoyjm-S7eD6LNWIdTTTn74Z-SwRXBZHofyZurhJ1X2OMRyceNy3NksJ-KV9g&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ8tMDegQIOxAI",
+      "5": "https://www.google.com/search?q=research+kit+provenance+ledger&sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&ei=1uCuar-uEPG8p84Pif6IgAY&start=40&sa=N&sstk=AS6-VmKy8bImQ6oRjT4iJig7x2x-v2Kk867gWu2Oizuoyjm-S7eD6LNWIdTTTn74Z-SwRXBZHofyZurhJ1X2OMRyceNy3NksJ-KV9g&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ8tMDegQIOxAK",
+      "6": "https://www.google.com/search?q=research+kit+provenance+ledger&sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&ei=1uCuar-uEPG8p84Pif6IgAY&start=50&sa=N&sstk=AS6-VmKy8bImQ6oRjT4iJig7x2x-v2Kk867gWu2Oizuoyjm-S7eD6LNWIdTTTn74Z-SwRXBZHofyZurhJ1X2OMRyceNy3NksJ-KV9g&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ8tMDegQIOxAM",
+      "7": "https://www.google.com/search?q=research+kit+provenance+ledger&sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&ei=1uCuar-uEPG8p84Pif6IgAY&start=60&sa=N&sstk=AS6-VmKy8bImQ6oRjT4iJig7x2x-v2Kk867gWu2Oizuoyjm-S7eD6LNWIdTTTn74Z-SwRXBZHofyZurhJ1X2OMRyceNy3NksJ-KV9g&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ8tMDegQIOxAO",
+      "8": "https://www.google.com/search?q=research+kit+provenance+ledger&sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&ei=1uCuar-uEPG8p84Pif6IgAY&start=70&sa=N&sstk=AS6-VmKy8bImQ6oRjT4iJig7x2x-v2Kk867gWu2Oizuoyjm-S7eD6LNWIdTTTn74Z-SwRXBZHofyZurhJ1X2OMRyceNy3NksJ-KV9g&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ8tMDegQIOxAQ",
+      "9": "https://www.google.com/search?q=research+kit+provenance+ledger&sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&ei=1uCuar-uEPG8p84Pif6IgAY&start=80&sa=N&sstk=AS6-VmKy8bImQ6oRjT4iJig7x2x-v2Kk867gWu2Oizuoyjm-S7eD6LNWIdTTTn74Z-SwRXBZHofyZurhJ1X2OMRyceNy3NksJ-KV9g&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ8tMDegQIOxAS",
+      "10": "https://www.google.com/search?q=research+kit+provenance+ledger&sca_esv=00205e1f9240e793&sxsrf=APpeQnuvlwNxyUJf0240tUSoEcY3J5SWHA:1789845718274&ei=1uCuar-uEPG8p84Pif6IgAY&start=90&sa=N&sstk=AS6-VmKy8bImQ6oRjT4iJig7x2x-v2Kk867gWu2Oizuoyjm-S7eD6LNWIdTTTn74Z-SwRXBZHofyZurhJ1X2OMRyceNy3NksJ-KV9g&ved=2ahUKEwi_8fXxrvuWAxVx3skDHQk_AmAQ8tMDegQIOxAU"
+    }
+  },
+  "serpapi_pagination": {
+    "current": 1,
+    "next_link": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=research+kit+provenance+ledger&start=10",
+    "next": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=research+kit+provenance+ledger&start=10",
+    "other_pages": {
+      "2": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=research+kit+provenance+ledger&start=10",
+      "3": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=research+kit+provenance+ledger&start=20",
+      "4": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=research+kit+provenance+ledger&start=30",
+      "5": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=research+kit+provenance+ledger&start=40",
+      "6": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=research+kit+provenance+ledger&start=50",
+      "7": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=research+kit+provenance+ledger&start=60",
+      "8": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=research+kit+provenance+ledger&start=70",
+      "9": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=research+kit+provenance+ledger&start=80",
+      "10": "https://serpapi.com/search.json?device=desktop&engine=google&google_domain=google.com&q=research+kit+provenance+ledger&start=90"
+    }
+  }
+}
