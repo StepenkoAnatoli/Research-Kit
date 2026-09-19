@@ -1,0 +1,8 @@
+
+  [38;5;208m🔥 [1mfirecrawl[0m [2mcli[0m [2mv1.23.3[0m
+
+  [32m●[0m Authenticated [2mvia stored credentials[0m
+  [2mConcurrency:[0m 0/2 jobs [2m(parallel scrape limit)[0m
+  [2mCredits:[0m 949 / 1,000 [2m(95% left this cycle)[0m
+  [2m.firecrawl:[0m not found [2m- no local cache[0m
+  [2m.gitignore:[0m present [2m- .firecrawl ignored: yes[0m

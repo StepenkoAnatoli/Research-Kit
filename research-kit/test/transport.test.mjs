@@ -3,7 +3,8 @@
 
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { test, describe, assert, tempDir, fs, path } from './harness.mjs';
+import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
+import { readText } from '../lib/core.mjs';
 import * as firecrawl from '../lib/firecrawl.mjs';
 import * as httpKeyless from '../lib/http-transport.mjs';
 import { TRANSPORTS, TRANSPORT_NAMES, selectTransport, probeFirecrawl } from '../lib/transport.mjs';
@@ -41,9 +42,14 @@ test('an unknown transport is an error naming the two that exist', () => {
 });
 
 test('probeFirecrawl takes injected probes, so doctor\'s tests need no CLI', () => {
-  const state = probeFirecrawl({ cliVersion: () => '2.3.4', status: () => ({ authenticated: true, credits: 512 }) });
-  assert.deepEqual(state, { installed: true, authenticated: true, version: '2.3.4', credits: 512 });
-  assert.equal(probeFirecrawl({ cliVersion: () => null, status: () => ({}) }).installed, false);
+  // cache:false, because the probe is now memoised per process - two different injected
+  // CLIs in one test are two different questions, and both have to be asked.
+  const state = probeFirecrawl({ cache: false, cliVersion: () => '2.3.4', status: () => ({ authenticated: true, credits: 512 }) });
+  assert.equal(state.installed, true);
+  assert.equal(state.authenticated, true);
+  assert.equal(state.version, '2.3.4', 'an injected version wins over the one --status reports');
+  assert.equal(state.credits, 512);
+  assert.equal(probeFirecrawl({ cache: false, cliVersion: () => null, status: () => ({}) }).installed, false);
 });
 
 // --- no data reaches a shell -------------------------------------------------------
@@ -136,7 +142,10 @@ test('normalizeScrape reads the payload and stamps transport and completeness', 
   assert.equal(result.title, 'T');
   assert.equal(result.statusCode, 200);
   assert.equal(result.transport, 'firecrawl-cli');
-  assert.equal(result.completeness, 'full');
+  // "# Limits" is eight characters. It used to be stamped `full` because the adapter
+  // stamped every successful scrape that way; the grade is now earned.
+  assert.equal(result.completeness, 'partial');
+  assert.match(result.omitted, /below the 1500-character bar/);
 });
 
 test('normalizeScrape survives a banner printed before the JSON', () => {
@@ -152,10 +161,15 @@ test('normalizeSearch and normalizeMap drop what has no URL', () => {
   assert.deepEqual(firecrawl.normalizeMap('{"links":["https://a.invalid",{"url":"https://b.invalid"},{}]}'), ['https://a.invalid', 'https://b.invalid']);
 });
 
-test('parseStatus reads the credit count without pretending to know more', () => {
-  assert.deepEqual(firecrawl.parseStatus('Authenticated. 1,000 credits remaining.'), {
-    authenticated: true, credits: 1000, raw: 'Authenticated. 1,000 credits remaining.',
-  });
+test('parseStatus reads what it can and reports null for what is not there', () => {
+  // This invented sample is what the parser was written against before a key existed:
+  // a number BEFORE the word "credits". The real CLI prints "Credits: 949 / 1,000", so
+  // the shape this test used to assert was never the shape the CLI emits.
+  const guessed = firecrawl.parseStatus('Authenticated. 1,000 credits remaining.');
+  assert.equal(guessed.authenticated, true);
+  assert.equal(guessed.credits, null, 'no "Credits: n / m" line, so no count is claimed');
+  assert.equal(guessed.concurrencyLimit, null);
+
   assert.equal(firecrawl.parseStatus('not authenticated').authenticated, false);
 });
 
@@ -247,4 +261,136 @@ test('the keyless adapter runs as its own child: node <file> answers a job on st
   });
   assert.equal(result.status, 0);
   assert.deepEqual(JSON.parse(result.stdout), { ok: false, error: 'unknown job kind "unknown-job"' });
+});
+
+// --- an anonymous CLI is a different guarantee, and is recorded as one -------------
+
+test('D2: an UNAUTHENTICATED CLI is labelled anonymous, not metered', () => {
+  const anonymous = () => ({ installed: true, authenticated: false, version: '1.23.3', credits: null });
+  const chosen = selectTransport({ env: {}, probe: anonymous, config: {} });
+
+  assert.equal(chosen.name, firecrawl.ANONYMOUS_NAME);
+  assert.match(chosen.why, /NOT authenticated/);
+  assert.notEqual(chosen.name, firecrawl.name,
+    'stamping it firecrawl-cli made a fetch nobody paid for indistinguishable from a metered one');
+});
+
+test('D2: the label reaches the CAPTURE, not just the selection', () => {
+  const anonymous = () => ({ installed: true, authenticated: false, version: '1.23.3', credits: null });
+  const chosen = selectTransport({ env: {}, probe: anonymous, config: {} });
+  const result = chosen.adapter.runScrape('https://x.invalid/a', {
+    execFn: () => ({ ok: true, status: 0, stdout: JSON.stringify({ data: { markdown: 'x'.repeat(2000) } }), stderr: '' }),
+  });
+  assert.equal(result.transport, firecrawl.ANONYMOUS_NAME, 'the ledger records what the check will judge');
+});
+
+test('D2: an AUTHENTICATED CLI is the metered transport, unwrapped', () => {
+  const authed = () => ({ installed: true, authenticated: true, version: '1.23.3', credits: 900 });
+  const chosen = selectTransport({ env: {}, probe: authed, config: {} });
+  assert.equal(chosen.name, firecrawl.name);
+  assert.equal(chosen.adapter, firecrawl, 'no wrapper when the label already matches');
+});
+
+test('D2: transport-provenance names the anonymous case specifically', async () => {
+  const { CHECKS } = await import('../lib/checks.mjs');
+  const check = CHECKS.find((c) => c.name === 'transport-provenance');
+  const corpus = {
+    evidence: [{ id: 'E-01', url: 'u', raw: 'research/raw/a.md', line: 1 }],
+    ledger: { entries: [{ op: 'scrape', url: 'u', raw: 'research/raw/a.md', transport: 'firecrawl-cli-anonymous' }] },
+    captures: { byFile: new Map([['research/raw/a.md', { file: 'research/raw/a.md', transport: 'firecrawl-cli-anonymous' }]]), byUrl: new Map() },
+  };
+  const finding = check.run(corpus).find((f) => f.severity === 'warn');
+  assert.match(finding.detail, /NO credential/);
+  assert.match(finding.detail, /capped per IP/);
+});
+
+// --- the completeness grade is earned, by both adapters ---------------------------
+
+test('D3: the firecrawl adapter grades completeness instead of stamping full', () => {
+  const thin = firecrawl.normalizeScrape(JSON.stringify({ data: { markdown: 'x'.repeat(167) } }), 'https://x.invalid');
+  assert.equal(thin.completeness, 'partial', 'a 167-character page came back graded full');
+  assert.match(thin.omitted, /167 characters/);
+
+  const full = firecrawl.normalizeScrape(JSON.stringify({ data: { markdown: 'x'.repeat(2000) } }), 'https://x.invalid');
+  assert.equal(full.completeness, 'full');
+  assert.equal(full.omitted, '');
+});
+
+test('D3: both adapters use the SAME bar, so they cannot disagree about "full"', () => {
+  assert.equal(firecrawl.FULL_THRESHOLD, httpKeyless.FULL_THRESHOLD);
+  const size = firecrawl.FULL_THRESHOLD - 1;
+  assert.equal(firecrawl.gradeCompleteness('x'.repeat(size)).completeness, 'partial');
+  assert.equal(httpKeyless.gradeCompleteness('x'.repeat(size)).completeness, 'partial');
+});
+
+// --- the probe is asked once ------------------------------------------------------
+
+test('D1: probeFirecrawl is memoised, and presence costs no spawn', async () => {
+  const { forgetProbe } = await import('../lib/transport.mjs');
+  forgetProbe();
+  let statusCalls = 0;
+  let resolveCalls = 0;
+  const opts = {
+    resolve: () => { resolveCalls += 1; return '/usr/bin/firecrawl'; },
+    status: () => { statusCalls += 1; return { authenticated: true, credits: 1 }; },
+  };
+
+  probeFirecrawl(opts);
+  probeFirecrawl(opts);
+  probeFirecrawl(opts);
+
+  assert.equal(statusCalls, 1, 'doctor asked once and handed the same probe to selectTransport, which asked again');
+  assert.equal(resolveCalls, 1);
+  forgetProbe();
+});
+
+test('D1: cache:false still asks, for a long-lived process', async () => {
+  const { forgetProbe } = await import('../lib/transport.mjs');
+  forgetProbe();
+  let calls = 0;
+  const opts = { cache: false, resolve: () => '/usr/bin/firecrawl', status: () => { calls += 1; return { authenticated: false }; } };
+  probeFirecrawl(opts);
+  probeFirecrawl(opts);
+  assert.equal(calls, 2);
+  forgetProbe();
+});
+
+// --- vendor knowledge, verified against a REAL payload ----------------------------
+//
+// O-4 of the hardening design: "Firecrawl is still unauthenticated, so the collector's
+// parsers remain unvalidated against real payloads." It stayed open until a key existed.
+// These run against bytes captured from firecrawl v1.23.3 on 2026-09-19.
+
+const REAL_STATUS = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-status-1.23.3.txt'));
+
+test('O-4: the status parser reads the CLI\'s actual output', () => {
+  assert.ok(REAL_STATUS, 'the fixture must exist - a parser with no real payload is the defect');
+  const s = firecrawl.parseStatus(REAL_STATUS);
+
+  assert.equal(s.authenticated, true);
+  assert.equal(s.credits, 949, 'the old regex wanted a number BEFORE the word "credits"; this CLI puts the word first');
+  assert.equal(s.creditLimit, 1000);
+  assert.equal(s.concurrencyInUse, 0);
+  assert.equal(s.concurrencyLimit, 2, 'matches E-01: two concurrent browsers on the free plan');
+  assert.equal(s.version, '1.23.3');
+});
+
+test('O-4: stripAnsi removes the ESCAPE, not just the bracket sequence', () => {
+  const ESC = String.fromCharCode(27);
+  assert.ok(REAL_STATUS.includes(ESC), 'the fixture carries real escapes');
+  const stripped = firecrawl.stripAnsi(REAL_STATUS);
+  assert.equal(stripped.includes(ESC), false, 'leaving the ESC behind put a control character where parsers expected a word boundary');
+  assert.match(stripped, /Credits: 949 \/ 1,000/);
+});
+
+test('O-4: status() calls --status, the flag the CLI actually has', () => {
+  let seen = null;
+  firecrawl.status({ execFn: (argv) => { seen = argv; return { ok: true, stdout: REAL_STATUS, stderr: '' }; } });
+  assert.deepEqual(seen, ['--status'], '`firecrawl status` is not a command: it exits non-zero and the probe never sees a key');
+});
+
+test('O-4: an unauthenticated machine is read as unauthenticated, not as a parse failure', () => {
+  const s = firecrawl.parseStatus('firecrawl cli v1.23.3\n  Not authenticated - run firecrawl login\n');
+  assert.equal(s.authenticated, false);
+  assert.equal(s.credits, null);
 });

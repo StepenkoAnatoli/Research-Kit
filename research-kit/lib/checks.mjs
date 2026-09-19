@@ -135,7 +135,11 @@ function transportProvenance(corpus) {
         { row: row.id, line: row.line }));
       continue;
     }
-    if (transport !== 'firecrawl-cli') {
+    if (transport === 'firecrawl-cli-anonymous') {
+      out.push(finding('warn', 'transport-provenance', 'transport-not-metered',
+        `${row.id} was collected by the Firecrawl CLI with NO credential - keyless access capped per IP, not a metered fetch`,
+        { row: row.id, line: row.line, transport }));
+    } else if (transport !== 'firecrawl-cli') {
       out.push(finding('warn', 'transport-provenance', 'transport-not-metered',
         `${row.id} was collected by "${transport}", not the metered Firecrawl CLI`,
         { row: row.id, line: row.line, transport }));

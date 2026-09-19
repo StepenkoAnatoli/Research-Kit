@@ -14,6 +14,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const name = 'firecrawl-cli';
+/**
+ * The same CLI, run without a key. A distinct transport because it is a distinct
+ * guarantee: capped per IP rather than metered, and not reproducible from a credential.
+ */
+export const ANONYMOUS_NAME = 'firecrawl-cli-anonymous';
 export const PROGRAM = 'firecrawl';
 
 /** The seven-function shape both adapters hold. Pinned by test. */
@@ -92,9 +97,14 @@ export function exec(argv, { env = process.env, platform = process.platform, spa
   };
 }
 
+/**
+ * The ESC character is PART of the sequence. Omitting it stripped "[38;5;208m" and left
+ * the escape itself sitting in the text, so every parser downstream saw a control
+ * character where it expected a word boundary. Verified against real CLI output.
+ */
 export function stripAnsi(text) {
   // eslint-disable-next-line no-control-regex
-  return String(text).replace(/\[[0-9;]*[A-Za-z]/g, '');
+  return String(text).replace(/\u001B\[[0-9;]*[A-Za-z]/g, '');
 }
 
 /** Display-only. Nothing executes this. */
@@ -119,18 +129,40 @@ function parsePayload(stdout) {
   }
 }
 
-export function normalizeScrape(stdout, url) {
+/**
+ * The completeness grade is EARNED, not stamped.
+ *
+ * This adapter used to write `completeness: 'full'` on every successful scrape. A
+ * 167-character page came back graded full, and so would a page the extractor had
+ * reduced to a nav bar. "The vendor returned main content" is not evidence that the
+ * section a claim rests on arrived - and `capture-completeness`, the check that decides
+ * whether a CLOSED unknown may rest on this capture alone, believed the stamp.
+ *
+ * The same bar as the keyless adapter, for the same reason and with the same words, so
+ * the two transports cannot disagree about what `full` means.
+ */
+export const FULL_THRESHOLD = 1500;
+
+export function gradeCompleteness(markdown) {
+  const length = String(markdown ?? '').length;
+  if (length >= FULL_THRESHOLD) return { completeness: 'full', omitted: '' };
+  return {
+    completeness: 'partial',
+    omitted: `only ${length} characters of main content were returned (below the ${FULL_THRESHOLD}-character bar)`,
+  };
+}
+
+export function normalizeScrape(stdout, url, label = name) {
   const payload = parsePayload(stdout);
   const data = payload?.data ?? payload ?? {};
-  const markdown = data.markdown ?? data.content ?? data.text ?? (typeof payload === 'string' ? payload : '');
+  const markdown = String(data.markdown ?? data.content ?? data.text ?? (typeof payload === 'string' ? payload : '') ?? '');
   return {
     url: data.metadata?.sourceURL ?? data.url ?? url,
     title: data.metadata?.title ?? data.title ?? '',
-    markdown: String(markdown ?? ''),
+    markdown,
     statusCode: data.metadata?.statusCode ?? data.statusCode ?? '',
-    transport: name,
-    completeness: 'full',
-    omitted: '',
+    transport: label,
+    ...gradeCompleteness(markdown),
   };
 }
 
@@ -152,12 +184,33 @@ export function normalizeMap(stdout) {
   return links.map((link) => (typeof link === 'string' ? link : link.url)).filter(Boolean);
 }
 
+/**
+ * Written against REAL v1.23.3 output, pinned as a fixture in the transport tests:
+ *
+ *   firecrawl cli v1.23.3
+ *   ● Authenticated via stored credentials
+ *   Concurrency: 0/2 jobs (parallel scrape limit)
+ *   Credits: 949 / 1,000 (95% left this cycle)
+ *
+ * The old regex looked for a number BEFORE the word "credits". This CLI puts the word
+ * first, so it matched nothing and every run reported credits: null. That is the defect
+ * O-4 of the hardening design predicted - "the collector's parsers remain unvalidated
+ * against real payloads" - and it survived until a key existed to produce one.
+ */
 export function parseStatus(stdout) {
-  const text = String(stdout);
-  const credits = text.match(/(\d[\d,]*)\s*credits?/i);
+  const text = stripAnsi(String(stdout));
+  const credits = text.match(/Credits:\s*([\d,]+)\s*\/\s*([\d,]+)/i);
+  const concurrency = text.match(/Concurrency:\s*(\d+)\s*\/\s*(\d+)/i);
+  const version = text.match(/cli\s+v([\d.]+)/i);
+  const num = (s) => Number(String(s).replace(/,/g, ''));
+
   return {
-    authenticated: /authenticated|logged in|api key/i.test(text) && !/not (authenticated|logged in)/i.test(text),
-    credits: credits ? Number(credits[1].replace(/,/g, '')) : null,
+    authenticated: /\bauthenticated\b/i.test(text) && !/\bnot authenticated\b/i.test(text),
+    credits: credits ? num(credits[1]) : null,
+    creditLimit: credits ? num(credits[2]) : null,
+    concurrencyInUse: concurrency ? Number(concurrency[1]) : null,
+    concurrencyLimit: concurrency ? Number(concurrency[2]) : null,
+    version: version ? version[1] : null,
     raw: text.trim(),
   };
 }
@@ -188,7 +241,10 @@ export function map(url, { limit = 50, execFn = exec, ...opts } = {}) {
 }
 
 export function status({ execFn = exec, ...opts } = {}) {
-  const argv = ['status'];
+  // `firecrawl status` does not exist: the CLI exposes `--status` on the root command.
+  // Guessed rather than verified, so it exited non-zero on every call and the probe
+  // could never report an authenticated machine.
+  const argv = ['--status'];
   const result = execFn(argv, opts);
   if (!result.ok) {
     return { ok: false, authenticated: false, credits: null, transport: name, error: result.stderr || 'firecrawl status failed' };
