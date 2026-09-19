@@ -1,0 +1,22 @@
+{
+  "success": true,
+  "data": {
+    "web": [
+      {
+        "url": "https://docs.firecrawl.dev/api-reference/endpoint/search",
+        "title": "Search - Firecrawl Docs",
+        "description": "## Documentation Index\n```\nimport requests\n\nurl = \"https://api.firecrawl.dev/v2/"
+      },
+      {
+        "url": "https://www.firecrawl.dev/",
+        "title": "Firecrawl - The web data API to search, scrape, and interact with the web ...",
+        "description": "# Power AI agents with   clean web data\n## Start searching   today\n```python\n1# "
+      },
+      {
+        "url": "https://www.firecrawl.dev/pricing",
+        "title": "Pricing - Firecrawl",
+        "description": "# Flexible pricing\n## Pricing at a glance\nSearch costs 2 credits per 10 results;"
+      }
+    ]
+  }
+}

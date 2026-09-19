@@ -22,6 +22,8 @@ enforcement for agent-built bots on this machine.
 | S-3 | Whether the edit-time PreToolUse gate blocks (allow/deny/ask/defer, exit-2 semantics) | Decides whether the edit-time gate is real enforcement or decoration | COVERED | U-3 |
 | S-4 | Collection provenance: which transport fetched a capture, and how much of the page arrived | The chain's guarantee and its honest limits (R6/R7) | DISMISSED | out of scope as an *unknown*: it is now a machine-checked property (transport field + completeness grades + the two contract checks), not a question to research |
 | S-5 | Paid-tier Firecrawl pricing beyond the free plan (Hobby/Standard/Growth/Scale) | Relevant only when the free tier binds; recorded with E-01..E-03 during collection | DISMISSED | out of scope for now: solo operator on the free tier; the tier facts are already captured and cited (E-01..E-03), and refresh stays with --refresh-days |
+| S-6 | Search providers other than the fetch vendor: what a dedicated search API allows and costs | The kit binds search and fetch to ONE adapter (ADR-0005). Splitting them is only worth an ADR if a dedicated provider is cheaper, more reliable, or permits retention - and each of those is a fact, not a preference | COVERED | U-5, U-8 |
+| S-7 | Retention rights: whether a search provider permits storing the results the corpus keeps | The kit writes what it collects into research/raw/ and keeps it. A provider that forbids retention cannot back this design at all, which is the same question U-4 asked of the fetch vendor | COVERED | U-6, U-7 |
 
 ## Coverage notes (per dimension)
 

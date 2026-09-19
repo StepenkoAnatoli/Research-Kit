@@ -29,7 +29,34 @@ export const ADAPTER_SHAPE = Object.freeze(['name', 'scrape', 'search', 'map', '
  * interpreter in it. Every argument is validated against this set and REFUSED rather
  * than re-quoted - re-quoting is how injection bugs come back.
  */
-export const CMD_SAFE_ARG = /^[A-Za-z0-9_.:/\\@=+-]*$/;
+export const CMD_UNSAFE_CHARS = /[%&|<>^()"`\r\n\t]/;
+
+/**
+ * Is this argument safe to cross a Windows `.cmd` shim?
+ *
+ * A DENYLIST of cmd.exe metacharacters, which is what
+ * `docs/superpowers/plans/2026-09-16-researcher-windows-safe-hook-test-runner.md` sec 3
+ * specifies: "Empty values, %, &, |, <, >, ^, parentheses, quotes, CR, LF, and tabs are
+ * refused."
+ *
+ * It used to be an ALLOWLIST that happened to exclude the space, and the consequence was
+ * total: every search query has spaces, so on Windows - where the CLI is a `.cmd` shim -
+ * every single search was refused before it was sent. Measured, not reasoned about: four
+ * planned queries, four refusals, zero credits spent, zero results. That is F01's sibling,
+ * "ordinary Windows collection never launches", for the search half.
+ *
+ * A space is an argument SEPARATOR, not an injection vector: node quotes an argument
+ * containing one, and inside double quotes cmd.exe neutralises everything except `%`
+ * expansion and a closing `"` - both of which are refused here. The characters that can
+ * break out are the ones listed above, and they are still refused rather than re-quoted.
+ */
+export function cmdSafeArg(value) {
+  const text = String(value);
+  return text.length > 0 && !CMD_UNSAFE_CHARS.test(text);
+}
+
+/** Kept as a predicate-shaped object so existing callers read the same way. */
+export const CMD_SAFE_ARG = { test: cmdSafeArg };
 
 // ---------------------------------------------------------------- program resolution
 
@@ -166,15 +193,41 @@ export function normalizeScrape(stdout, url, label = name) {
   };
 }
 
+/**
+ * The real v2 shape, captured from the CLI and pinned as a fixture:
+ *
+ *   { success: true, id, creditsUsed, data: { web: [ { url, title, description, position } ] } }
+ *
+ * `data` is an OBJECT keyed by source, not an array. The old parser did
+ * `Array.isArray(payload.data)`, got false, and returned `[]` - so every search
+ * succeeded, cost credits, and produced no candidates, silently. Four planned queries
+ * came back with nothing and the run reported "collected 0" with no error anywhere.
+ *
+ * Other sources (`news`, `images`) are merged when present, because a caller asked for
+ * them by passing `--sources`; anything without a URL is dropped as before.
+ */
 export function normalizeSearch(stdout) {
   const payload = parsePayload(stdout);
-  const rows = payload?.data ?? payload?.results ?? payload ?? [];
-  if (!Array.isArray(rows)) return [];
+  const data = payload?.data;
+
+  let rows = [];
+  if (Array.isArray(data)) rows = data;                       // older / flat shape
+  else if (data && typeof data === 'object') rows = Object.values(data).flatMap((v) => (Array.isArray(v) ? v : []));
+  else if (Array.isArray(payload?.results)) rows = payload.results;
+  else if (Array.isArray(payload)) rows = payload;
+
   return rows.map((row) => ({
     url: row.url ?? row.link ?? '',
     title: row.title ?? '',
     description: row.description ?? row.snippet ?? '',
+    position: row.position ?? null,
   })).filter((row) => row.url);
+}
+
+/** What the vendor says this call cost. Recorded rather than inferred from a tier table. */
+export function creditsUsed(stdout) {
+  const payload = parsePayload(stdout);
+  return Number.isFinite(payload?.creditsUsed) ? payload.creditsUsed : null;
 }
 
 export function normalizeMap(stdout) {

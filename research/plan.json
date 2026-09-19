@@ -1,12 +1,35 @@
 {
   "topic": "Research-first project bootstrap",
   "notes": "Fill queries and urls BEFORE collecting - every scrape spends a credit. q is the search query, why records which unknown in research/DISCOVERY.md it closes, prefer lists the official domains that carry the fact.",
-  "depth": "quick",
+  "depth": "normal",
   "refreshDays": 30,
-  "limit": 8,
-  "perQuery": 3,
+  "limit": 6,
+  "perQuery": 2,
   "maxScrapes": 10,
   "prefer": [],
-  "queries": [],
-  "urls": []
+  "queries": [
+    {
+      "q": "SerpAPI pricing free plan searches per month limits",
+      "why": "U-5",
+      "prefer": ["serpapi.com"]
+    },
+    {
+      "q": "SerpAPI terms of service storing caching search results retention",
+      "why": "U-6",
+      "prefer": ["serpapi.com"]
+    },
+    {
+      "q": "Tavily API pricing free plan credits per month terms of service",
+      "why": "U-7",
+      "prefer": ["tavily.com", "docs.tavily.com"]
+    },
+    {
+      "q": "Firecrawl search endpoint credits cost per result",
+      "why": "U-8",
+      "prefer": ["docs.firecrawl.dev", "firecrawl.dev"]
+    }
+  ],
+  "urls": [
+    "https://www.tavily.com/terms"
+  ]
 }
