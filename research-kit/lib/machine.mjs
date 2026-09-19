@@ -76,6 +76,8 @@ export const DEFAULTS = Object.freeze({
   evidencePolicy: 'pluralist',
   role: 'collector',
   transport: '',
+  searchTransport: '',
+  serpapiKey: '',
   skillRoots: Object.freeze([]),
   projectSkillDir: '',
   maxAgeDays: 180,
@@ -119,6 +121,13 @@ function shape(raw) {
     // spend credits. Absent stays `collector` (ADR-0010); unknown blocks (ADR-0023).
     role: raw.role === undefined ? DEFAULTS.role : (ROLES.includes(raw.role) ? raw.role : 'unknown'),
     transport: typeof raw.transport === 'string' ? raw.transport : DEFAULTS.transport,
+    // The SEARCH side is chosen separately from the fetch side (ADR-0027). Absent means
+    // "the fetch provider", which is what every machine did before the split.
+    searchTransport: typeof raw.searchTransport === 'string' ? raw.searchTransport : DEFAULTS.searchTransport,
+    // A credential, and the only one this config holds. It lives here or in the
+    // environment and never in a repository (SR-1). Read but never rendered: every
+    // display path goes through `serpapi.redact()`.
+    serpapiKey: typeof raw.serpapiKey === 'string' ? raw.serpapiKey : DEFAULTS.serpapiKey,
     skillRoots: Array.isArray(raw.skillRoots) ? raw.skillRoots.slice() : [],
     projectSkillDir: typeof raw.projectSkillDir === 'string' ? raw.projectSkillDir : '',
     maxAgeDays: Number.isFinite(raw.maxAgeDays) ? raw.maxAgeDays : DEFAULTS.maxAgeDays,

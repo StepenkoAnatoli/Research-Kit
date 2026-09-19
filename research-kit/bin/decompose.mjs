@@ -6,7 +6,7 @@
 
 import { parseFlags } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal } from '../lib/machine.mjs';
-import { selectTransport, TRANSPORT_NAMES } from '../lib/transport.mjs';
+import { selectTransport, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES } from '../lib/transport.mjs';
 import { decompose, RECIPE_DIR } from '../lib/decompose.mjs';
 import { UNIVERSAL_DIMENSIONS } from '../lib/dimensions.mjs';
 import { listFiles } from '../lib/core.mjs';
@@ -27,6 +27,9 @@ if (flags.help || (!flags.topic && !flags.recipes)) {
   --dry-run          write the seeded map with no gathering; spend nothing
   --force            redraft over a map that already holds judged rows
   --transport <name> ${TRANSPORT_NAMES.join(' | ')}
+  --search-transport <name>
+                     ${SEARCH_PROVIDER_NAMES.join(' | ')} - the SEARCH side only.
+                     Default: the fetch transport, unless a SerpAPI key is configured.
 
 The ${UNIVERSAL_DIMENSIONS.length} universal dimensions are always seeded. A recipe adds to them; nothing
 replaces them - a recipe that silently dropped legality would be worse than no recipe.
@@ -59,11 +62,19 @@ if (spends && !policy.mayCollect) {
 }
 
 let adapter = null;
+let searchAdapter = null;
 if (spends) {
   try {
-    const chosen = selectTransport({ explicit: typeof flags.transport === 'string' ? flags.transport : '' });
+    const chosen = selectTransport({
+      explicit: typeof flags.transport === 'string' ? flags.transport : '',
+      explicitSearch: typeof flags['search-transport'] === 'string' ? flags['search-transport'] : '',
+    });
     adapter = chosen.adapter;
+    searchAdapter = chosen.search.adapter;
     process.stdout.write(`transport: ${chosen.name} - ${chosen.why}\n`);
+    if (!chosen.search.sameAsFetch) {
+      process.stdout.write(`search:    ${chosen.search.name} - ${chosen.search.why}\n`);
+    }
   } catch (err) {
     process.stderr.write(`${err.message}\n`);
     process.exit(2);
@@ -75,6 +86,7 @@ try {
   result = decompose(root, {
     topic: String(flags.topic),
     adapter,
+    searchAdapter,
     recipe: typeof flags.recipe === 'string' ? flags.recipe : '',
     limit: Number(flags.limit ?? 8),
     maxScrapes: Number(flags['max-scrapes'] ?? 0),

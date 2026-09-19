@@ -90,6 +90,14 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
   try {
     const chosen = selectTransport({ env, probe });
     out.push(f('pass', 'transport', `${chosen.name} (${chosen.why})`));
+    // The SEARCH side gets its own line (FR-7). Folding it into the one above would let
+    // a second provider - and a second credential - run unreported.
+    const side = chosen.search;
+    if (side?.sameAsFetch) {
+      out.push(f('pass', 'search-transport', `${side.name} - same provider as fetch; one meter pays for both`));
+    } else {
+      out.push(f('pass', 'search-transport', `${side.name} (${side.why})`));
+    }
   } catch (err) {
     out.push(f('fail', 'transport', err.message));
   }

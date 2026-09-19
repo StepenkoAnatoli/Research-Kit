@@ -257,6 +257,14 @@ export function appendFetch(root, fields) {
     };
     if (fields.error) entry.error = String(fields.error);
     if (fields.omitted) entry.omitted = String(fields.omitted);
+    // WHICH search provider ranked this URL, when a search is why it was fetched
+    // (ADR-0027, DR-2). `transport` says who fetched the page; this says who chose it,
+    // and with two providers those stopped being the same answer.
+    //
+    // Optional, like the two above, so every entry written before the split keeps the
+    // hash it was written with - the chain covers the canonical entry, and an absent
+    // field was never in it.
+    if (fields.discoveredBy) entry.discoveredBy = String(fields.discoveredBy);
     entry.entrySha256 = entryHash(entry);
     appendLine(resolve(root, PATHS.ledger), JSON.stringify(entry));
     return entry;

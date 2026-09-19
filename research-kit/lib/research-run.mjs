@@ -70,6 +70,9 @@ export function selectCandidates(results, { prefer = [], perQuery = 3, seen = ne
  */
 export function runResearch(root, {
   adapter,
+  // The SEARCH side (ADR-0027). Absent means "the fetch adapter", which is what every
+  // caller did before the split - so an un-updated caller behaves exactly as before.
+  searchAdapter = null,
   plan = null,
   depth = '',
   refreshDays = null,
@@ -95,6 +98,14 @@ export function runResearch(root, {
   let spent = 0;
   let cached = 0;
   let failed = 0;
+  // The search side keeps its OWN counters, because it is a separate meter and a summary
+  // that merged them would hide the whole point of the split.
+  let searchesUsed = 0;
+  let searchFailures = 0;
+  let degraded = 0;
+
+  const searcher = searchAdapter ?? adapter;
+  const searchName = searcher?.name ?? adapter?.name ?? '';
 
   const seen = new Set(corpus.captures.entries.map((e) => e.url).filter(Boolean));
   const targets = [];
@@ -119,13 +130,35 @@ export function runResearch(root, {
       discovered.push({ query: text, results: [], note: 'search not run under --dry-run' });
       continue;
     }
-    const found = adapter.search(text, { limit: settings.limit });
+    let found = searcher.search(text, { limit: settings.limit });
+    let ranker = searchName;
+
+    // A second meter is a second thing that can be down. One bounded fallback to the
+    // fetch provider's own search (RR-1, RR-2): it keeps the run alive, it costs fetch
+    // credits, and it is REPORTED rather than absorbed - a silent fallback is a bill the
+    // operator did not know they were paying.
+    if (!found.ok && searcher !== adapter) {
+      const reason = found.error;
+      searchFailures += 1;
+      appendJsonLine(root, PATHS.failures, {
+        at: new Date().toISOString(), op: 'search', query: text, provider: searchName, error: reason, degraded: true,
+      });
+      log(`  search failed on ${searchName}: ${reason}`);
+      log(`  degrading to ${adapter.name} for this query - this spends fetch credits`);
+      found = adapter.search(text, { limit: settings.limit });
+      ranker = adapter.name;
+      if (found.ok) degraded += 1;
+    }
+
     if (!found.ok) {
       log(`  search failed: ${text} - ${found.error}`);
-      appendJsonLine(root, PATHS.failures, { at: new Date().toISOString(), op: 'search', query: text, error: found.error });
+      appendJsonLine(root, PATHS.failures, {
+        at: new Date().toISOString(), op: 'search', query: text, provider: ranker, error: found.error,
+      });
       continue;
     }
-    discovered.push({ query: text, results: found.results });
+    if (Number.isFinite(found.searchesUsed)) searchesUsed += found.searchesUsed;
+    discovered.push({ query: text, results: found.results, provider: ranker, searchId: found.searchId ?? null });
     for (const candidate of selectCandidates(found.results, { prefer, perQuery: settings.perQuery, seen })) {
       targets.push({
         // Discovered by a search, not chosen by a person: context until an agent reads
@@ -133,7 +166,11 @@ export function runResearch(root, {
         url: candidate.url,
         type: DEFAULT_SOURCE_TYPE,
         usedFor: (typeof query === 'object' && query.why) || text,
-        from: `query: ${text}`,
+        // WHICH provider ranked it, not just which query found it (DR-2). Two providers'
+        // rankings are two different provenance claims, and a bare query string cannot
+        // carry both.
+        from: `query: ${text} (via ${ranker})`,
+        rankedBy: ranker,
       });
     }
   }
@@ -159,6 +196,8 @@ export function runResearch(root, {
       date,
       now,
       transportName: adapter.name,
+      // Empty for a plan URL - nobody's ranking chose it, a person wrote it down.
+      discoveredBy: target.rankedBy ?? '',
       dryRun,
     });
     if (outcome.status === 'collected') spent += 1;
@@ -168,13 +207,27 @@ export function runResearch(root, {
     log(`  ${outcome.status.padEnd(9)} ${target.url}${outcome.reason ? ` - ${outcome.reason}` : ''}`);
   }
 
-  if (!dryRun && spent) {
+  // A run that only searched still spent something - on a different meter. Logging only
+  // when `spent` was non-zero would make a search-only run invisible in the usage record
+  // (DR-1).
+  if (!dryRun && (spent || searchesUsed)) {
     appendJsonLine(root, PATHS.usage, {
-      at: new Date().toISOString(), depth: tier, budget, attempts, spent, cached, failed, transport: adapter.name,
+      at: new Date().toISOString(), depth: tier, budget, attempts, spent, cached, failed,
+      transport: adapter.name,
+      searchTransport: searchName,
+      searchesUsed,
+      searchFailures,
+      degraded,
     });
   }
 
-  return { transport: adapter.name, depth: tier, budget, attempts, spent, cached, failed, results, discovered };
+  return {
+    transport: adapter.name,
+    searchTransport: searchName,
+    depth: tier, budget, attempts, spent, cached, failed,
+    searchesUsed, searchFailures, degraded,
+    results, discovered,
+  };
 }
 
 /** What has been spent, read from the run log the collector keeps. */

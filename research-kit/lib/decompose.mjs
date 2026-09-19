@@ -120,6 +120,7 @@ function mapBody({ topic, rows, hosts, material, date, recipe }) {
 export function decompose(root, {
   topic,
   adapter,
+  searchAdapter = null,
   recipe = '',
   limit = 8,
   maxScrapes = 0,
@@ -170,19 +171,31 @@ export function decompose(root, {
       `${topic} terms of service`,
     ]);
     const seen = new Set();
+    // The SEARCH side (ADR-0027). Absent means "the fetch adapter" - what this function
+    // did before the split, so a caller that has not been updated is unaffected.
+    const searcher = searchAdapter ?? adapter;
     for (const query of queries) {
-      const found = adapter.search(query, { limit });
+      let found = searcher.search(query, { limit });
+      let ranker = searcher.name;
+      // One bounded fallback, reported rather than absorbed (RR-1, RR-2).
+      if (!found.ok && searcher !== adapter) {
+        failures.push({ query, error: found.error, provider: searcher.name, degraded: true });
+        log(`  search failed on ${searcher.name}: ${found.error}`);
+        log(`  degrading to ${adapter.name} for this query - this spends fetch credits`);
+        found = adapter.search(query, { limit });
+        ranker = adapter.name;
+      }
       if (!found.ok) {
         // A failed search is kept, not just printed: a map written after every search
         // failed looks exactly like a map written from a quiet topic.
-        failures.push({ query, error: found.error });
+        failures.push({ query, error: found.error, provider: ranker });
         log(`  search failed: ${query} - ${found.error}`);
         continue;
       }
       for (const row of found.results) {
         if (seen.has(row.url)) continue;
         seen.add(row.url);
-        material.push(row);
+        material.push({ ...row, rankedBy: ranker });
       }
     }
     hosts = docsHosts(material);

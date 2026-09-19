@@ -24,3 +24,5 @@ under `research/raw/`; a source without raw evidence was not fetched.
 | https://www.firecrawl.dev/blog/mastering-firecrawl-search-endpoint | S | Mastering Firecrawl Search Endpoint: Web Search and Data Extraction in One API Call | 2026-09-19 | U-8 |
 | https://www.tavily.com/terms-of-service | P | Page Not Found | 2026-09-19 |  |
 | https://www.tavily.com/terms | P | Tavily | 2026-09-19 |  |
+| https://trajectdata.com/serp/value-serp-api/pricing/ | S | Value SERP API Pricing \| Low Cost SERP API | 2026-09-19 | U-5 |
+| https://www.searchapi.io/pricing | S | Affordable SERP API Pricing | 2026-09-19 | U-5 |

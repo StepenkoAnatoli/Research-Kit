@@ -92,6 +92,8 @@ export function collectOne(root, url, {
   date = today(),
   now = new Date(),
   transportName = '',
+  // Which search provider ranked this URL, when a search is why it is being fetched.
+  discoveredBy = '',
   dryRun = false,
 } = {}) {
   // A dry run decides and writes nothing, so it needs no exclusive section.
@@ -131,6 +133,7 @@ export function collectOne(root, url, {
       appendFetch(root, {
         op: 'fail', url, raw: '', bodySha256: '',
         transport: result?.transport || transportName,
+        discoveredBy,
         cmd: result?.cmd ?? '', error: result?.error ?? 'unknown failure',
       });
       return { status: 'failed', url, entry: null, reason: result?.error ?? 'unknown failure', spent: 1 };
@@ -145,6 +148,7 @@ export function collectOne(root, url, {
       raw: entry.file,
       bodySha256,
       transport: entry.transport || transportName,
+      discoveredBy,
       completeness: entry.completeness,
       omitted: entry.omitted,
       cmd: entry.command,
