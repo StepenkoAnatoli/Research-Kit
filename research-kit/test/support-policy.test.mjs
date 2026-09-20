@@ -19,12 +19,37 @@ const WORKFLOW = path.join(REPO, '.github', 'workflows', 'offline-suite.yml');
 const ROOT_README = path.join(REPO, 'README.md');
 const KIT_README = path.join(KIT_ROOT, 'README.md');
 
-/** The platforms the workflow actually runs the suite on. */
+/**
+ * The platforms the workflow actually runs the suite on.
+ *
+ * This repository has no YAML parser and no dependencies, so this reads the `os:` key by
+ * hand. It accepts BOTH shapes YAML allows, because the first version accepted only flow
+ * style and would have failed on a semantically identical workflow:
+ *
+ *     os: [ubuntu-latest, windows-latest]      flow
+ *     os:                                      block
+ *       - ubuntu-latest
+ *       - windows-latest
+ *
+ * Quotes are stripped either way. It is still a structural reader rather than a parser -
+ * an anchor or a matrix built by `fromJSON` would defeat it - so it fails LOUDLY when it
+ * cannot find the key, rather than returning an empty list that would make every
+ * assertion below vacuously true.
+ */
 function matrixPlatforms() {
   const yaml = fs.readFileSync(WORKFLOW, 'utf8');
-  const match = yaml.match(/^\s*os:\s*\[([^\]]+)\]/m);
-  assert(match, 'could not find the `os:` matrix in offline-suite.yml; this test needs updating');
-  return match[1].split(',').map((name) => name.trim()).filter(Boolean);
+  const unquote = (name) => name.trim().replace(/^['"]|['"]$/g, '');
+
+  const flow = yaml.match(/^\s*os:\s*\[([^\]]+)\]/m);
+  if (flow) return flow[1].split(',').map(unquote).filter(Boolean);
+
+  const block = yaml.match(/^(\s*)os:\s*$\n((?:\1\s+-\s*\S+\s*$\n?)+)/m);
+  if (block) return [...block[2].matchAll(/-\s*(\S+)/g)].map((m) => unquote(m[1])).filter(Boolean);
+
+  assert(false, 'could not read the `os:` matrix from offline-suite.yml in either flow or '
+    + 'block style. This is a structural reader, not a YAML parser - if the matrix now '
+    + 'comes from an anchor or fromJSON, this test needs rewriting rather than deleting.');
+  return [];
 }
 
 test('the CI matrix is exactly the platforms the README calls supported', () => {
@@ -67,17 +92,38 @@ test('macOS is excluded on purpose, and only ever mentioned in a comment', () =>
     + `it, so the workflow states something no job checks:\n  ${claims.join('\n  ')}`);
 });
 
-test('the success message names the platforms that actually ran', () => {
-  // The general form of the bug above: any hardcoded platform list in the summary can
-  // drift from the matrix, and it drifts silently because the job passes either way.
+test('the matrix is the ONLY place that says which platforms run', () => {
+  // The earlier version of this test checked that a hardcoded list in the success message
+  // matched the matrix. That guarded the drift without removing it: there were still two
+  // places stating which platforms run, and a future edit had to update both.
+  //
+  // The message no longer names any platform, so there is one source of truth and nothing
+  // to keep in step. This asserts that property rather than the agreement of two lists -
+  // a guard you can delete by fixing the design is better than a guard you must maintain.
   const yaml = fs.readFileSync(WORKFLOW, 'utf8');
   const platforms = matrixPlatforms();
-  const summary = yaml.split('\n').find((line) => /echo "every platform in the matrix passed/.test(line));
-  assert(summary, 'the aggregating job no longer prints which platforms passed');
+  assert(platforms.length > 0, 'the matrix reader returned nothing, so nothing below is meaningful');
+
+  const executable = yaml.split('\n').filter((line) => !line.trim().startsWith('#'));
   for (const platform of platforms) {
-    assert(summary.includes(platform),
-      `the success message does not name ${platform}, which the matrix runs`);
+    // Two mentions are legitimate and are not claims about coverage:
+    //   os:       the matrix itself, which is the source of truth
+    //   runs-on:  WHERE a job executes. The aggregating `suite` job runs on
+    //             ubuntu-latest because it needs some host for a three-second check;
+    //             that says nothing about which platforms the suite was run on.
+    //
+    // The first version of this test flagged that `runs-on` and was wrong to. What is
+    // actually being guarded is a platform named in OUTPUT - an echo, a summary, a
+    // message a reader would take as evidence that the platform ran.
+    const mentions = executable.filter((line) => line.includes(platform)
+      && !/^\s*os:/.test(line) && !/^\s*runs-on:/.test(line));
+    assertEqual(mentions.length, 0,
+      `${platform} is named outside the matrix and outside a runs-on, which makes a second `
+      + `source of truth that can drift from it:\n  ${mentions.join('\n  ')}`);
   }
+
+  const summary = executable.find((line) => /every platform in the matrix passed/.test(line));
+  assert(summary, 'the aggregating job no longer reports that the matrix passed');
 });
 
 test('both READMEs agree about what is supported', () => {
