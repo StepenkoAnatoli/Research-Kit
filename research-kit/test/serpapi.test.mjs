@@ -91,8 +91,12 @@ test('TR-2: limit is applied CLIENT-side, because no count parameter is sent (IR
   const r = serpapi.search('q', { key: SENTINEL, limit: 3, job });
   assert.equal(r.results.length, 3);
   const sent = job.calls[0];
-  assert.deepEqual(Object.keys(sent).sort(), ['apiKey', 'kind', 'query', 'timeout'],
+  // Deliberately an EXACT set rather than a "does not contain num" check. It caught the
+  // `endpoint` field the moment that was added, which is the behaviour worth keeping:
+  // anything new reaching the child should be noticed here and justified, not absorbed.
+  assert.deepEqual(Object.keys(sent).sort(), ['apiKey', 'endpoint', 'kind', 'query', 'timeout'],
     'the job carries only what the child needs - a count parameter here would be an undocumented one');
+  assert.equal(sent.endpoint, serpapi.ENDPOINT, 'the default job should target the vendor, not a test server');
 });
 
 test('TR-2: a limit larger than the result set returns everything, not padding', () => {

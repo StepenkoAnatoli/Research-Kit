@@ -6,12 +6,15 @@
 //
 // Requirement ids refer to docs/requirements-2026-09-19-search-fetch-seam.md.
 
-import { test, describe, assert, tempDir, fs, path } from './harness.mjs';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
 import { runResearch, searchUsage, FREE_TIER_PER_HOUR, FREE_TIER_PER_MONTH } from '../lib/research-run.mjs';
 import { decompose } from '../lib/decompose.mjs';
 import * as serpapi from '../lib/serpapi.mjs';
-import { readLedger } from '../lib/corpus.mjs';
+import { readLedger, readCorpus } from '../lib/corpus.mjs';
+import { withLock, holdsLock } from '../lib/provenance.mjs';
 import { readText } from '../lib/core.mjs';
 
 describe('search-seam');
@@ -65,6 +68,20 @@ function project(topic = 'seam probe') {
   const root = tempDir('rk-seam-');
   scaffoldProject(root, { topic });
   return root;
+}
+
+/** Everything under research/, as a map of path -> bytes. Cheap and exact. */
+function snapshot(root) {
+  const out = {};
+  const walk = (dir, prefix) => {
+    for (const name of fs.readdirSync(dir)) {
+      const full = path.join(dir, name);
+      if (fs.statSync(full).isDirectory()) { walk(full, prefix + name + "/"); continue; }
+      out[prefix + name] = fs.readFileSync(full).toString("base64");
+    }
+  };
+  walk(path.join(root, "research"), "");
+  return out;
 }
 
 function jsonLines(root, file) {
@@ -420,4 +437,109 @@ test('RR-5: a run records spend that the meter then reads back', () => {
   const usage = searchUsage(root);
   assert.equal(usage.thisMonth, 1);
   assert.deepEqual(usage.providers, ['stub-search']);
+});
+
+// ---------------------------------------------------------------- concurrency
+
+test('CONCURRENCY: a search takes no lock, so it runs while a collector holds one', () => {
+  // The claim gap 2 of the validation map recorded as an argument rather than a test:
+  // "a search takes no lock because it writes nothing". Argued, it is plausible. Tested,
+  // it is the difference between a second provider that composes with the collector's
+  // exclusive section (ADR-0025) and one that deadlocks against it.
+  const root = project();
+  const searcher = searchStub();
+  let searchedWhileLocked = false;
+  let lockHeldDuringSearch = false;
+
+  withLock(root, () => {
+    assert.equal(holdsLock(root), true, 'the premise failed - no lock was held');
+    const found = searcher.search('q', { limit: 3 });
+    searchedWhileLocked = found.ok;
+    lockHeldDuringSearch = holdsLock(root);
+  });
+
+  assert.equal(searchedWhileLocked, true, 'a search could not complete while the corpus was locked');
+  assert.equal(lockHeldDuringSearch, true, 'the search released a lock it never took');
+  assert.equal(holdsLock(root), false, 'the lock outlived its block');
+});
+
+test('CONCURRENCY: a search writes nothing to the corpus - the reason it needs no lock', () => {
+  // The justification, made checkable. If a search ever starts writing, this fails and
+  // the test above stops being a valid argument.
+  const root = project();
+  const before = snapshot(root);
+
+  const found = searchStub().search('q', { limit: 3 });
+  assert.equal(found.ok, true);
+
+  assert.deepEqual(snapshot(root), before, 'a search modified the corpus');
+});
+
+test('CONCURRENCY: the SERPAPI adapter writes nothing either, on success and on failure', () => {
+  const root = project();
+  const before = snapshot(root);
+
+  serpapi.search('q', { key: 'k'.repeat(40), job: () => ({ ok: true, payload: { organic_results: [] } }) });
+  serpapi.search('q', { key: 'k'.repeat(40), job: () => ({ ok: false, error: 'down' }) });
+  serpapi.search('q', { env: {}, config: null });
+
+  assert.deepEqual(snapshot(root), before, 'the search provider touched the corpus');
+});
+
+test('CONCURRENCY: two processes collecting with DIFFERENT search providers keep one chain', () => {
+  // The real shape of the risk: two runs, two search providers, one corpus. If the search
+  // side had taken the lock, or if `discoveredBy` had raced the entry it belongs to, this
+  // is where it would show.
+  const root = project();
+  const files = ['alpha', 'beta'].map((tag, i) => {
+    const file = path.join(root, `driver-${tag}.mjs`);
+    fs.writeFileSync(file, `
+import { runResearch } from ${JSON.stringify(pathToFileURL(path.join(KIT_ROOT, 'lib/research-run.mjs')).href)};
+const MARKDOWN = 'x'.repeat(2000);
+const fetcher = {
+  name: 'stub-fetch',
+  search: () => ({ ok: true, query: 'q', results: [] }),
+  runScrape: (url) => ({ ok: true, url, markdown: MARKDOWN, title: 'T', statusCode: 200, transport: 'stub-fetch', completeness: 'full', command: 'stub' }),
+};
+const searcher = {
+  name: ${JSON.stringify(`search-${tag}`)},
+  search: () => ({ ok: true, query: 'q', provider: ${JSON.stringify(`search-${tag}`)}, searchesUsed: 1,
+    results: [{ url: ${JSON.stringify(`https://${tag}.example/page`)}, title: 'T', description: '', position: 1 }] }),
+};
+runResearch(${JSON.stringify(root)}, {
+  adapter: fetcher, searchAdapter: searcher,
+  plan: { topic:'t', depth:'normal', refreshDays:30, limit:5, perQuery:1, maxScrapes:5, prefer:[],
+          queries:[{ q:'a query', why:'U-1' }], urls:[] },
+});
+`);
+    return file;
+  });
+
+  const running = files.map((file) => spawnSync(process.execPath, [file], { encoding: 'utf8', timeout: 60_000 }));
+  for (const result of running) assert.equal(result.status, 0, result.stderr);
+
+  const ledger = readLedger(root);
+  assert.equal(ledger.problems.length, 0, `the chain broke: ${JSON.stringify(ledger.problems)}`);
+  assert.equal(ledger.entries.length, 2, 'one of the two collections was lost');
+
+  // Each entry names the provider that actually ranked ITS url - the two did not cross.
+  for (const entry of ledger.entries) {
+    const tag = entry.url.includes('alpha') ? 'alpha' : 'beta';
+    assert.equal(entry.discoveredBy, `search-${tag}`,
+      `${entry.url} was credited to the wrong provider`);
+    assert.equal(entry.transport, 'stub-fetch');
+  }
+
+  const providers = readCorpus(root).evidence.length;
+  assert.equal(providers, 2, 'the evidence rows collided');
+});
+
+test('CONCURRENCY: both runs are recorded in the usage log, one line each', () => {
+  const root = project();
+  runResearch(root, { adapter: fetchStub(), searchAdapter: searchStub({ name: 'search-a' }), plan: plan() });
+  runResearch(root, { adapter: fetchStub({ results: ['https://second.example/b'] }), searchAdapter: searchStub({ name: 'search-b', results: ['https://second.example/b'] }), plan: plan() });
+
+  const rows = jsonLines(root, '.usage.jsonl');
+  assert.equal(rows.length, 2, 'a run was swallowed by the other');
+  assert.deepEqual(rows.map((r) => r.searchTransport), ['search-a', 'search-b']);
 });

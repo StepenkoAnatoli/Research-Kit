@@ -4,8 +4,8 @@
 - **Requirements:** `docs/requirements-2026-09-19-search-fetch-seam.md`
 - **Decision:** `docs/adr/0027-search-and-fetch-are-two-seams.md`
 - **Commits:** `5ff0bdd` (spec) → `a536ec1` (build) → `8111c66` (tests) → this one
-- **Suite:** 421 passed, 0 failed
-- **Status:** **shipped with three named gaps**, listed at the bottom. Not "complete".
+- **Suite:** 471 passed, 0 failed
+- **Status:** the three gaps named in the first version are **closed** (2026-09-20). One smaller limit remains, stated at the bottom.
 
 Every requirement is below. A requirement is only **VERIFIED** if something fails when it
 stops being true. Anything else says what it actually is.
@@ -19,9 +19,9 @@ stops being true. Anything else says what it actually is.
 | FR-3 | Fetch contract unchanged | VERIFIED | `transport.test.mjs`'s existing seven-function test still passes untouched; `satisfies(firecrawl, FETCH_SHAPE)` |
 | FR-4 | `lib/serpapi.mjs` implements it against SerpAPI | VERIFIED | 49 tests, replaying a real captured response |
 | FR-5 | No key ⇒ behaviour identical to before | VERIFIED | `search-seam.test.mjs` TR-8 compares ledger entries field for field between an old-style and a new-style run |
-| FR-6 | `--search-transport` plus env and config below it | **PARTLY** | The precedence ladder is verified at the library level (`selectSearch`, all four positions). The CLI *flag wiring* is exercised by hand only — no test runs `bin/research.mjs` with the flag. See gap 1. |
-| FR-7 | `doctor` reports the search provider on its own line | OBSERVED | Live: `pass  search-transport  serpapi (a SerpAPI key is configured…)` and, without a key, `firecrawl-cli - same provider as fetch`. No test asserts it. See gap 1. |
-| FR-8 | `--status` and `--dry-run` name both providers before spending | OBSERVED | Live `--status` output includes both, plus the new meter lines. Not asserted. See gap 1. |
+| FR-6 | `--search-transport` plus env and config below it | VERIFIED | `cli.test.mjs` spawns the real binary: the flag is documented, an unknown provider exits 2 naming the ones that exist, and the flag is asserted to outrank an environment key |
+| FR-7 | `doctor` reports the search provider on its own line | VERIFIED | `cli.test.mjs` spawns `doctor.mjs` with and without a key and asserts both the line and that the key is never printed |
+| FR-8 | `--status` and `--dry-run` name both providers before spending | VERIFIED | Six `cli.test.mjs` tests, including that a dry run writes nothing to the usage log and that a one-provider run does not announce two |
 | FR-9 | A result carries which provider produced it, through to promotion | VERIFIED | `search-seam.test.mjs` — three DR-2 tests |
 
 ## Non-functional
@@ -140,7 +140,7 @@ admits both limits.
 
 | ID | Criterion | Status |
 |---|---|---|
-| AC-1 | New tests pass, the existing 348 still pass | **MET** — 421 passed, 0 failed (348 before this change, so 73 new) |
+| AC-1 | New tests pass, the existing 348 still pass | **MET** — 471 passed, 0 failed (348 before this change, so 123 new) |
 | AC-2 | No key ⇒ one provider, dry run unchanged | **MET** — TR-8 plus live `--status` |
 | AC-3 | With a key ⇒ two providers, confirmed against both meters | **MET** — live run: 1 SerpAPI search, Firecrawl 919→917 |
 | AC-4 | `preflight` PASSes and the chain verifies after a two-provider run | **MET** — PASS, 20 entries, chain verifies |
@@ -148,24 +148,78 @@ admits both limits.
 | AC-6 | `ARCHITECTURE.md` updated in the same commit | **MET** — enforced by the gate, which blocked twice until it was |
 | AC-7 | Every requirement maps to a test or an explicit gap | **MET** — this document |
 
-## What is NOT verified
+## The three gaps — closed 2026-09-20
 
-Three gaps, stated rather than absorbed.
+All three were closed after this document first shipped. Each is recorded with what the
+closing found, because two of the three turned up something the argument had missed.
 
-**1. The CLI layer has no automated test.** FR-6, FR-7 and FR-8 are wired and were
-checked by hand — the flag, the doctor line, the `--status` block all behave. But no test
-executes `bin/research.mjs` or `bin/decompose.mjs`, so a future edit to flag parsing
-would break them silently. The library beneath them is thoroughly covered; the ~40 lines
-of wiring above are not. This is the largest real gap.
+**1. The CLI layer had no automated test. — CLOSED, and it was hiding a defect.**
 
-**2. Concurrency across the two providers is untested.** `concurrency.test.mjs` covers
-the collector's lock, and a search takes no lock because it writes nothing. That is
-almost certainly correct, and it is an argument rather than a test.
+`test/cli.test.mjs` spawns the real binaries and reads their real stdout: 20 tests over
+`research.mjs`, `decompose.mjs`, `doctor.mjs` and `bundle.mjs`. Nothing spends a credit —
+every invocation is `--help`, `--status` or `--dry-run`.
 
-**3. The live path is exercised, not pinned.** Real network calls proved the 401 path,
-the timeout, the guard and a full two-meter run — but those are session observations in
-commit messages, not repeatable checks. They cannot be, without spending credits in CI.
-The fixture is the durable half.
+The first test that ever ran `research.mjs --status` with a bad flag found this:
+
+```
+$ research --status --transport firecrwal
+transport          unresolved
+search transport   unresolved
+$ echo $?
+0
+```
+
+`--status` caught the `UNKNOWN_TRANSPORT` error and dropped it. The catch block's comment
+said `/* reported below */` and nothing below reported it — so a typo'd provider name
+printed as *"unresolved"* and exited **0**, which reads as a healthy machine with a
+detection problem rather than as a misspelled flag. The non-status path had always exited
+2 correctly; only the informational one swallowed it. Fixed: the error is printed and the
+exit is 2, and the now-unreachable `'unresolved'` branches are gone.
+
+This is precisely the gap's own argument coming true. The wiring was "checked by hand" —
+by me, running the commands that worked.
+
+**2. Two-provider concurrency was an argument. — CLOSED, argument confirmed.**
+
+Five tests in `search-seam.test.mjs`. The claim was "a search takes no lock because it
+writes nothing"; both halves are now checked rather than asserted. A search runs to
+completion *inside* a held `withLock` block and does not disturb it; a byte-for-byte
+snapshot of `research/` is unchanged across a search on the success path, the failure
+path and the no-key path; and two separate **processes** collect concurrently with
+*different* search providers, after which the chain still verifies, both entries survive,
+and each names the provider that ranked its own URL.
+
+**3. The live path was exercised, not pinned. — CLOSED.**
+
+`test/serpapi-live.test.mjs`: 13 tests where every request travels parent → `spawnSync` →
+child process → global `fetch` → a real socket → an HTTP server standing in for the
+vendor. No network, no key, no credits, repeatable. It pins the 401, the exhausted
+allowance, a 500, an HTML error page, truncated JSON, a connection killed mid-flight, an
+unanswering server against the timeout, and — the assertion no injected stub could make —
+*what the child actually put on the wire*: exactly `engine`, `q`, `api_key`, and none of
+the six forbidden parameters.
+
+Two things that made it possible, and one that nearly stopped it:
+
+- `search({ endpoint })` is new, and **guarded**. `allowedEndpoint` permits the vendor's
+  own host over https, or loopback. An overridable endpoint on a request carrying an API
+  key is otherwise an exfiltration route, so both halves check it — the parent before
+  spawning, the child before fetching, because the child reads its job off a pipe and
+  does not get to trust it.
+- The first version hosted the server in the test process and **every request timed out**.
+  The cause is the reason this module exists: the adapter shape is synchronous, so the
+  parent reaches the vendor through `spawnSync`, which blocks its own event loop. A server
+  in that loop can never accept the connection. Parent waits for child, child waits for
+  server, server waits for parent. The stand-in now runs in its own process.
+
+### What is still not verified
+
+One thing, smaller than the three above and stated so it is not lost: **no test drives
+`research.mjs` through a full collecting run against a live provider.** The CLI tests stop
+at `--dry-run` because going further spends credits, and the end-to-end two-meter run
+recorded in `a536ec1` (1 SerpAPI search, Firecrawl 919→917) remains a session observation
+rather than a repeatable check. Every layer beneath it is covered; the last inch costs
+money to assert.
 
 ## Requirements that changed during the work
 

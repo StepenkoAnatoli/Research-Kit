@@ -155,12 +155,34 @@ export function searchesUsed(payload) {
  * The one string in this system that carries the credential. It is built in the child
  * and never returned to the parent.
  */
-export function requestUrl(query, apiKey) {
-  const url = new URL(ENDPOINT);
+export function requestUrl(query, apiKey, endpoint = ENDPOINT) {
+  const url = new URL(endpoint);
   url.searchParams.set('engine', 'google');
   url.searchParams.set('q', String(query ?? ''));
   url.searchParams.set('api_key', String(apiKey ?? ''));
   return url;
+}
+
+/**
+ * Where this module is willing to send a credential.
+ *
+ * The endpoint is overridable so the whole path - parent, child, real HTTP, real JSON -
+ * can be driven against a local stand-in server instead of being exercised once by hand
+ * and called verified. But an overridable endpoint on a request that carries an API key
+ * is a way to exfiltrate one, so the override is not open: the vendor's own host, or a
+ * loopback address. Anything else is refused by name.
+ *
+ * Checked in BOTH halves. The parent refuses before spawning, and the child refuses
+ * before fetching, because the child is a separate program that reads a job off a pipe
+ * and should not trust it.
+ */
+export function allowedEndpoint(endpoint) {
+  let url;
+  try { url = new URL(String(endpoint)); } catch { return false; }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+  if (url.protocol === 'https:' && url.host === new URL(ENDPOINT).host) return true;
+  return ['localhost', '127.0.0.1', '[::1]', '::1'].includes(url.hostname)
+    || url.hostname === '127.0.0.1';
 }
 
 export function command(query, key = '') {
@@ -187,11 +209,18 @@ export function search(query, {
   config = null,
   key = null,
   timeout = DEFAULT_TIMEOUT,
+  endpoint = ENDPOINT,
   job = runJob,
 } = {}) {
   const text = String(query);
   const apiKey = key ?? readKey({ env, config });
   const cmd = command(text, apiKey);
+
+  if (!allowedEndpoint(endpoint)) {
+    return { ok: false, query: text, results: [], cmd, provider: name, searchId: null,
+      error: `refusing to send a SerpAPI key to "${endpoint}". The endpoint may be the vendor's `
+        + 'own host or a loopback address (for tests), and nothing else.' };
+  }
 
   if (!apiKey) {
     return { ok: false, query: text, results: [], cmd, provider: name, searchId: null,
@@ -219,7 +248,7 @@ export function search(query, {
     };
   }
 
-  const answer = job({ kind: 'serpapi-search', query: text, apiKey, timeout }, { timeout });
+  const answer = job({ kind: 'serpapi-search', query: text, apiKey, timeout, endpoint }, { timeout });
   const scrub = (value) => redact(value, apiKey);
 
   if (!answer.ok) {
@@ -320,7 +349,14 @@ async function child() {
     return;
   }
 
-  const url = requestUrl(job.query, job.apiKey);
+  // The child re-checks rather than trusting the job it read off a pipe. It is a
+  // separate program, and the thing it is about to do is send a credential somewhere.
+  const endpoint = job.endpoint ?? ENDPOINT;
+  if (!allowedEndpoint(endpoint)) {
+    process.stdout.write(JSON.stringify({ ok: false, error: `refusing to send a key to "${endpoint}"` }));
+    return;
+  }
+  const url = requestUrl(job.query, job.apiKey, endpoint);
 
   try {
     const response = await fetch(url, {

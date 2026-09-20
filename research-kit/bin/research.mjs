@@ -49,10 +49,20 @@ if (flags.status) {
   const plan = readPlan(root);
   const usage = usageSummary(root);
   let transport = null;
-  try { transport = selectTransport({
-    explicit: typeof flags.transport === 'string' ? flags.transport : '',
-    explicitSearch: typeof flags['search-transport'] === 'string' ? flags['search-transport'] : '',
-  }); } catch { /* reported below */ }
+  try {
+    transport = selectTransport({
+      explicit: typeof flags.transport === 'string' ? flags.transport : '',
+      explicitSearch: typeof flags['search-transport'] === 'string' ? flags['search-transport'] : '',
+    });
+  } catch (err) {
+    // A misspelled provider is an operator error, not a state to report. The old comment
+    // here said "reported below" and nothing below reported it: `--status` printed
+    // "unresolved" and exited 0, so `--transport firecrwal` looked like a healthy
+    // machine with a detection problem. Found by the first test that ever ran this
+    // binary.
+    process.stderr.write(`${err.message}\n`);
+    process.exit(2);
+  }
   process.stdout.write(`${heading('corpus')}
 captures on disk   ${usage.captures}
 evidence rows      ${usage.evidence}
@@ -64,8 +74,8 @@ queries / urls     ${plan.queries.length} / ${plan.urls.length}
 refresh-days       ${plan.refreshDays}
 ${heading('machine')}
 role               ${policy.role}${policy.mayCollect ? '' : ' - this machine must NOT collect'}
-transport          ${transport ? `${transport.name} (${transport.why})` : 'unresolved'}
-search transport   ${transport ? `${transport.search.name}${transport.search.sameAsFetch ? ' - same meter as fetch' : ` (${transport.search.why})`}` : 'unresolved'}
+transport          ${transport.name} (${transport.why})
+search transport   ${transport.search.name}${transport.search.sameAsFetch ? ' - same meter as fetch' : ` (${transport.search.why})`}
 searches (this box) ${usage.search.lastHour} in the last hour, ${usage.search.thisMonth} this month${usage.search.providers.length ? ` (${usage.search.providers.join(', ')})` : ''}
                    free-tier caps are ${usage.search.perHourCap}/hour and ${usage.search.perMonthCap}/month; ${usage.search.caveat}
 `);

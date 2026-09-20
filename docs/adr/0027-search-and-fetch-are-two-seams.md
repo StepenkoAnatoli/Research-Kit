@@ -128,3 +128,23 @@ claim any.
 - The usage and failure logs gain a provider field (DR-1, DR-4). The **fetch ledger is
   untouched** (DR-3) — searches are not fetches and must not enter the hash chain.
 - `docs/ARCHITECTURE.md` and `LAYOUT` name the new module in the same commit (ADR-0007).
+
+### Added 2026-09-20 — the endpoint seam
+
+`search({ endpoint })` was added so the transport path could be tested rather than
+argued: parent → `spawnSync` → child → real `fetch` → real socket, against a local
+stand-in server. Before it, everything between "the parent builds a job" and "the parent
+gets an answer" was covered only by a human running commands once.
+
+It is **guarded**, because an overridable endpoint on a request that carries an API key
+is an exfiltration route. `allowedEndpoint` permits the vendor's own host over https, or
+a loopback address — nothing else — and the check runs in both halves: the parent refuses
+before spawning, and the child refuses before fetching, because the child is a separate
+program reading a job off a pipe and does not get to trust it.
+
+Writing that test found something worth recording about this design: the first version
+hosted the stand-in server in the test process and every request timed out. The adapter
+shape is synchronous, so the parent reaches the vendor through `spawnSync`, which blocks
+its own event loop; a server living in that loop can never accept the connection. The
+rendezvous that makes an async `fetch` fit a synchronous contract is also the thing that
+makes in-process testing of it impossible. The stand-in runs in its own process.
