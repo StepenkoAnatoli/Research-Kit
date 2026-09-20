@@ -1,8 +1,8 @@
 // The extractor is the one module a caller can exercise with a string (ADR-0016).
 // Page markdown in, one line of prose out.
 
-import { test, describe, assert } from './harness.mjs';
-import { firstFinding, findingWithContext, sentences, score, MAX_CHARS, EXCERPT_CHARS } from '../lib/finding.mjs';
+import { test, describe, assert , fs, path, KIT_ROOT } from './harness.mjs';
+import { firstFinding, findingWithContext, sentences, score, explainScore, RULES, MAX_CHARS, EXCERPT_CHARS } from '../lib/finding.mjs';
 
 describe('finding');
 
@@ -188,4 +188,76 @@ test('a page with nothing concrete still returns the fallback, and says so', () 
   const result = findingWithContext(page, 'the fallback');
   assert.equal(result.finding, 'the fallback');
   assert.equal(result.excerpt, '', 'a fallback finding must not carry an excerpt that supports something else');
+});
+
+// ---------------------------------------------------------------- the rule table
+//
+// The ranking used to be a run of `value += n` statements in score() and a SECOND run of
+// them inside the selector. Nobody could state the priority order without executing the
+// code, and the number a reviewer saw could differ from the number that chose the
+// sentence. RULES is now the only place a weight is declared.
+
+test('every weight lives in RULES, and nowhere else', () => {
+  // The structural guard. A stray `value += 2` somewhere would restore exactly the
+  // condition this refactor removed: a policy you cannot read.
+  const source = fs.readFileSync(path.join(KIT_ROOT, 'lib', 'finding.mjs'), 'utf8');
+  const strays = source.split('\n')
+    .filter((line) => /\b(value|total|score)\s*[+-]=\s*\d/.test(line))
+    .filter((line) => !/rule\.weight/.test(line));
+  assert.deepEqual(strays, [], `these lines apply a weight outside RULES:\n  ${strays.join('\n  ')}`);
+});
+
+test('each rule is named, weighted, explained and testable', () => {
+  // `why` is not decoration: a weight without a reason is one nobody can argue with later.
+  for (const rule of RULES) {
+    assert.ok(rule.name && /^[a-z][a-z-]*$/.test(rule.name), `bad rule name: ${rule.name}`);
+    assert.ok(Number.isInteger(rule.weight) && rule.weight !== 0, `${rule.name} has weight ${rule.weight}`);
+    assert.ok(rule.why && rule.why.length > 20, `${rule.name} does not say why it exists`);
+    assert.equal(typeof rule.test, 'function', `${rule.name} has no test`);
+  }
+  assert.equal(new Set(RULES.map((r) => r.name)).size, RULES.length, 'two rules share a name');
+});
+
+test('the signals reported are exactly the rules that moved the score', () => {
+  // A reviewer is shown `signals`. If those were computed separately from the total, the
+  // explanation could be of a different calculation than the one that chose the sentence.
+  const text = 'The free plan allows 10 requests per minute per team.';
+  const { total, signals } = explainScore(text, { heading: 'Rate limits' });
+  const sum = signals.reduce((n, name) => n + RULES.find((r) => r.name === name).weight, 0);
+  assert.equal(total, sum, `signals ${signals.join(', ')} sum to ${sum}, but the score is ${total}`);
+  assert.equal(score(text, { heading: 'Rate limits' }), total, 'score() and explainScore() disagree');
+});
+
+test('a comparison-matrix row loses to prose that answers the question', () => {
+  // The SerpApi pricing case. A row like "Plan: Starter$25 / month, Searches: 1,000" is
+  // dense with numbers and scores well on every generic rule, but it describes ONE tier -
+  // rarely the one being asked about. It must not beat a sentence stating the actual rule.
+  const page = [
+    '## All plans',
+    '',
+    '| Plan | Searches / month | Price / month |',
+    '| --- | --- | --- |',
+    '| Starter | 1,000 | $25 |',
+    '',
+    'How are searches counted?',
+    '',
+    'Only successful searches are counted toward your monthly searches. Cached and failed searches are not.',
+  ].join('\n');
+  const result = findingWithContext(page, 'x');
+  assert.match(result.finding, /counted toward/, `a pricing-matrix row won: ${result.finding}`);
+  assert.ok(result.signals.includes('metering-rule'), JSON.stringify(result.signals));
+});
+
+test('an FAQ answer is found even though its question is not a heading', () => {
+  // Pages write FAQ questions as plain text far more often than as headings, so the
+  // heading rules cannot see them. Without this the answer scores as orphan prose.
+  const page = [
+    '## Support',
+    '',
+    'What happens when I hit the limit?',
+    '',
+    'Requests beyond the limit are rejected and are not billed to your account.',
+  ].join('\n');
+  const result = findingWithContext(page, 'x');
+  assert.ok(result.signals.includes('answers-a-question'), JSON.stringify(result.signals));
 });
