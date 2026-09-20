@@ -352,6 +352,20 @@ export function zipAudit(root, { topic = '', date = today() } = {}) {
 
   const files = [resolved.main, ...resolved.subtopics];
   const auditsDir = resolve(root, PATHS.audits);
+  // The BOUNDARY must be resolved the same way the file is, or the comparison is between
+  // two different namings of the same place.
+  //
+  // It was not. `real` was realpath'd and `auditsDir` was not, so any project reached
+  // through a symlink refused to bundle its own files: on macOS /var is a symlink to
+  // /private/var, so a file at /var/.../audits/x.md realpaths to /private/var/... and
+  // "resolves outside" an audits directory it is literally inside. Real users hit this
+  // wherever a project lives under a symlink - a macOS temp dir, a symlinked ~/projects,
+  // a Linux /home -> /mnt/home. Found by the macOS CI leg on its first run.
+  //
+  // Both comparisons are kept: plain against plain still catches a manifest naming ../..
+  // when the target does not exist and realpath cannot say anything.
+  let auditsReal = auditsDir;
+  try { auditsReal = fs.realpathSync(auditsDir); } catch { /* not created yet; plain check still applies */ }
   const entries = [];
   for (const file of files) {
     // A manifest can arrive from another machine with the corpus. Containment is checked
@@ -360,7 +374,7 @@ export function zipAudit(root, { topic = '', date = today() } = {}) {
     const abs = resolve(root, file);
     let real = abs;
     try { real = fs.realpathSync(abs); } catch { /* checked as a plain path below */ }
-    if (!isInside(auditsDir, abs) || (exists(abs) && !isInside(auditsDir, real))) {
+    if (!isInside(auditsDir, abs) || (exists(abs) && !isInside(auditsReal, real))) {
       return {
         ok: false,
         exit: 1,
