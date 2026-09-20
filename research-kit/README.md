@@ -116,6 +116,20 @@ Status maps to exit code — `PASS` 0, `FAIL`/`REOPEN` 1, `INCOMPLETE` 2, `BLOCK
 `--json` output is byte-deterministic across runs. The only command that writes anything
 is `fi-validate --report <file>`, and only when you name the file.
 
+**`validate` checks a package, not a file, so start from the worked example** rather than
+from the schemas — the schemas give you the shape of each file but not how they refer to
+each other:
+
+```
+node research-kit/examples/release-evidence/run-example.mjs
+```
+
+[`examples/release-evidence/`](examples/release-evidence/README.md) is six synthetic
+packages: the smallest one that passes, four that fail one way each with the error code
+named, and one that **passes** in order to show that a record the registry does not list
+is never validated at all. All offline, no credential, and a test asserts they still
+behave as their README says.
+
 ### Two languages, one answer
 
 Three of the conformance runners ship **twice**, in Node and in Python:

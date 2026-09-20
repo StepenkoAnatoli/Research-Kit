@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "benchmarkSpecVersion": "1.0.0",
+  "benchmarkSpecSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "roleRosterSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "externalRoots": {
+    "benchmark-spec": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "role-roster": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "artifacts": [
+    {
+      "artifactId": "R28-01",
+      "package": "R28",
+      "path": "records/R28-01.json",
+      "schema": 1,
+      "ownerRoles": [
+        "contract-custodian"
+      ],
+      "visibility": "grader-only",
+      "predecessors": [],
+      "pointer": false
+    }
+  ]
+}
