@@ -1,13 +1,51 @@
-// Read-only R28–R32 artifact and JSON-Schema validator.
+// Read-only R28–R32 release validation, and the facade over its primitives.
 //
-// The release contract intentionally has no runtime dependency on Ajv or a
-// package manager. This module implements the small, deterministic JSON Schema
-// vocabulary used by the checked-in schemas and keeps all release validation in
-// one injected/read-only seam.
+// The release contract intentionally has no runtime dependency on Ajv or a package
+// manager, so the JSON Schema subset is implemented here rather than installed.
+//
+// WHAT MOVED, AND WHAT DID NOT (2026-09-20)
+//
+// Four primitives now live in ./release/ and are re-exported unchanged at the bottom of
+// this file, so every existing import of `release-validator.mjs` keeps working:
+//
+//   release/json.mjs       duplicate-key-safe parsing
+//   release/canonical.mjs  canonical JSON, hashing, flat-vs-nested record shape
+//   release/schema.mjs     the JSON Schema subset
+//   release/paths.mjs      containment
+//
+// They were chosen because they are genuinely SHARED - fi-validator, the three
+// conformance libraries and path-authority all reuse them - and because duplication of
+// exactly this code has already cost this repository once, when three Python runners each
+// carried their own canonicaliser and two of them drifted.
+//
+// The R28–R32 semantics below - ledger anchoring, envelope checks, promotion pointers and
+// the status reduction - deliberately stayed together. They are one concern, they share a
+// dozen small helpers (`add`, `resultStatus`, `metaOf`, `readJson`), and splitting them
+// would replace a long file with a web of cross-imports and no clearer boundary. A split
+// that makes the dependency graph worse is not a decomposition.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+
+import { parseJsonNoDuplicates } from './release/json.mjs';
+import {
+  canonicalJson, sha256, payloadHash, same,
+  metaOf, payloadOf, nestedRecord,
+  recordHash, qualificationRecordHash, qualificationChainHash,
+} from './release/canonical.mjs';
+import { validateJsonSchema } from './release/schema.mjs';
+import { inside, safePath } from './release/paths.mjs';
+
+// Re-exported so this module's public API is byte-for-byte what it was before the split.
+// Consumers import from here; the move is an internal fact, not a migration.
+export { parseJsonNoDuplicates } from './release/json.mjs';
+export {
+  canonicalJson, sha256, payloadHash,
+  recordHash, qualificationRecordHash, qualificationChainHash,
+} from './release/canonical.mjs';
+export { validateJsonSchema } from './release/schema.mjs';
+export { safePath } from './release/paths.mjs';
 
 export const VALIDATOR_VERSION = '1.0.0';
 export const DEFAULT_SCHEMA_DIR = fileURLToPath(new URL('../schemas/', import.meta.url));
@@ -28,223 +66,8 @@ const ROLES = new Set([
 
 // --------------------------------------------------------------------- JSON
 
-class JsonReader {
-  constructor(text) { this.text = String(text); this.index = 0; }
 
-  error(message) { throw new Error(`${message} at byte ${this.index}`); }
 
-  whitespace() {
-    while (/[\u0009\u000a\u000d\u0020]/.test(this.text[this.index] ?? '')) this.index += 1;
-  }
-
-  value() {
-    this.whitespace();
-    const char = this.text[this.index];
-    if (char === '{') return this.object();
-    if (char === '[') return this.array();
-    if (char === '"') return this.string();
-    if (this.text.startsWith('true', this.index)) { this.index += 4; return true; }
-    if (this.text.startsWith('false', this.index)) { this.index += 5; return false; }
-    if (this.text.startsWith('null', this.index)) { this.index += 4; return null; }
-    const match = this.text.slice(this.index).match(/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/);
-    if (match) {
-      this.index += match[0].length;
-      const number = Number(match[0]);
-      if (!Number.isFinite(number)) this.error('non-finite number');
-      return number;
-    }
-    this.error('invalid JSON value');
-  }
-
-  string() {
-    const start = this.index;
-    this.index += 1;
-    while (this.index < this.text.length) {
-      const char = this.text[this.index];
-      if (char === '\\') { this.index += 2; continue; }
-      if (char === '"') {
-        this.index += 1;
-        try { return JSON.parse(this.text.slice(start, this.index)); } catch { this.error('invalid JSON string'); }
-      }
-      if (char < ' ') this.error('control character in JSON string');
-      this.index += 1;
-    }
-    this.error('unterminated JSON string');
-  }
-
-  object() {
-    this.index += 1;
-    const result = {};
-    const keys = new Set();
-    this.whitespace();
-    if (this.text[this.index] === '}') { this.index += 1; return result; }
-    while (this.index < this.text.length) {
-      this.whitespace();
-      if (this.text[this.index] !== '"') this.error('object key must be a string');
-      const key = this.string();
-      if (keys.has(key)) this.error(`duplicate object key ${JSON.stringify(key)}`);
-      keys.add(key);
-      this.whitespace();
-      if (this.text[this.index] !== ':') this.error('missing colon after object key');
-      this.index += 1;
-      result[key] = this.value();
-      this.whitespace();
-      if (this.text[this.index] === '}') { this.index += 1; return result; }
-      if (this.text[this.index] !== ',') this.error('missing comma between object members');
-      this.index += 1;
-    }
-    this.error('unterminated JSON object');
-  }
-
-  array() {
-    this.index += 1;
-    const result = [];
-    this.whitespace();
-    if (this.text[this.index] === ']') { this.index += 1; return result; }
-    while (this.index < this.text.length) {
-      result.push(this.value());
-      this.whitespace();
-      if (this.text[this.index] === ']') { this.index += 1; return result; }
-      if (this.text[this.index] !== ',') this.error('missing comma between array members');
-      this.index += 1;
-    }
-    this.error('unterminated JSON array');
-  }
-
-  parse() {
-    const result = this.value();
-    this.whitespace();
-    if (this.index !== this.text.length) this.error('trailing JSON data');
-    return result;
-  }
-}
-
-export function parseJsonNoDuplicates(text) {
-  const source = String(text);
-  if (source.startsWith('\uFEFF')) throw new Error('UTF-8 BOM is not permitted at byte 0');
-  return new JsonReader(source).parse();
-}
-
-/** Canonical JSON: recursively sorted object keys, authored array order. */
-export function canonicalJson(value) {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value && typeof value === 'object') {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
-  }
-  const encoded = JSON.stringify(value);
-  if (encoded === undefined) throw new Error('undefined is not canonical JSON');
-  return encoded;
-}
-
-export function sha256(value) {
-  return crypto.createHash('sha256').update(value).digest('hex');
-}
-
-export function payloadHash(payload) {
-  return sha256(canonicalJson(payload));
-}
-
-// -------------------------------------------------------------- schema subset
-
-function schemaError(errors, code, message, schemaPath = '') {
-  errors.push({ code, message, path: schemaPath || '$' });
-}
-
-function same(a, b) { return canonicalJson(a) === canonicalJson(b); }
-
-/** Validate the JSON Schema keywords used by the shipped release schemas. */
-export function validateJsonSchema(value, schema, { path: valuePath = '$', errors = [], rootSchema = schema } = {}) {
-  if (!schema || typeof schema !== 'object') {
-    schemaError(errors, 'SCHEMA-INPUT', 'schema must be an object', valuePath);
-    return errors;
-  }
-  if (schema.$ref) {
-    const match = /^#\/\$defs\/([^/]+)$/.exec(schema.$ref);
-    if (!match || !rootSchema?.$defs?.[match[1]]) {
-      schemaError(errors, 'SCHEMA-REF', `unresolved schema reference ${schema.$ref}`, valuePath);
-      return errors;
-    }
-    return validateJsonSchema(value, rootSchema.$defs[match[1]], { path: valuePath, errors, rootSchema });
-  }
-  if (schema.allOf) {
-    for (const alternative of schema.allOf) validateJsonSchema(value, alternative, { path: valuePath, errors, rootSchema });
-  }
-  if (schema.if) {
-    const conditionErrors = [];
-    validateJsonSchema(value, schema.if, { path: valuePath, errors: conditionErrors, rootSchema });
-    if (conditionErrors.length === 0 && schema.then) validateJsonSchema(value, schema.then, { path: valuePath, errors, rootSchema });
-    if (conditionErrors.length > 0 && schema.else) validateJsonSchema(value, schema.else, { path: valuePath, errors, rootSchema });
-  }
-  if (schema.oneOf || schema.anyOf) {
-    const alternatives = schema.oneOf ?? schema.anyOf;
-    const alternativeErrors = alternatives.map((alternative) => {
-      const local = [];
-      validateJsonSchema(value, alternative, { path: valuePath, errors: local, rootSchema });
-      return local;
-    });
-    const matches = alternativeErrors.filter((local) => local.length === 0);
-    const valid = schema.oneOf ? matches.length === 1 : matches.length >= 1;
-    if (!valid) {
-      if (matches.length === 0) for (const error of alternativeErrors[alternativeErrors.length - 1] ?? []) errors.push(error);
-      schemaError(errors, schema.oneOf ? 'SCHEMA-ONE-OF' : 'SCHEMA-ANY-OF', `must match ${schema.oneOf ? 'exactly one' : 'at least one'} schema alternative (matched ${matches.length})`, valuePath);
-    }
-  }
-  if (schema.const !== undefined && !same(value, schema.const)) schemaError(errors, 'SCHEMA-CONST', `must equal ${JSON.stringify(schema.const)}`, valuePath);
-  if (schema.enum && !schema.enum.some((candidate) => same(value, candidate))) schemaError(errors, 'SCHEMA-ENUM', `must be one of ${schema.enum.join(', ')}`, valuePath);
-  if (schema.type) {
-    const types = Array.isArray(schema.type) ? schema.type : [schema.type];
-    const ok = types.some((type) => (
-      type === 'null' ? value === null
-        : type === 'array' ? Array.isArray(value)
-          : type === 'object' ? value !== null && typeof value === 'object' && !Array.isArray(value)
-            : type === 'integer' ? Number.isInteger(value)
-              : type === 'number' ? typeof value === 'number' && Number.isFinite(value)
-                : type === 'string' ? typeof value === 'string'
-                  : type === 'boolean' ? typeof value === 'boolean' : true
-    ));
-    if (!ok) {
-      schemaError(errors, 'SCHEMA-TYPE', `must be ${types.join(' or ')}`, valuePath);
-      return errors;
-    }
-  }
-  if (schema.required && value && typeof value === 'object' && !Array.isArray(value)) {
-    for (const key of schema.required) if (!(key in value)) schemaError(errors, 'SCHEMA-REQUIRED', `missing required property ${key}`, `${valuePath}.${key}`);
-  }
-  if (schema.additionalProperties === false && value && typeof value === 'object' && !Array.isArray(value) && schema.properties) {
-    for (const key of Object.keys(value)) if (!(key in schema.properties)) schemaError(errors, 'SCHEMA-ADDITIONAL', `unknown property ${key}`, `${valuePath}.${key}`);
-  }
-  if (schema.properties && value && typeof value === 'object' && !Array.isArray(value)) {
-    for (const [key, child] of Object.entries(schema.properties)) if (key in value) validateJsonSchema(value[key], child, { path: `${valuePath}.${key}`, errors, rootSchema });
-  }
-  if (schema.items && Array.isArray(value)) value.forEach((item, index) => validateJsonSchema(item, schema.items, { path: `${valuePath}[${index}]`, errors, rootSchema }));
-  if (schema.minItems !== undefined && Array.isArray(value) && value.length < schema.minItems) schemaError(errors, 'SCHEMA-MIN-ITEMS', `must contain at least ${schema.minItems} item(s)`, valuePath);
-  if (schema.maxItems !== undefined && Array.isArray(value) && value.length > schema.maxItems) schemaError(errors, 'SCHEMA-MAX-ITEMS', `must contain at most ${schema.maxItems} item(s)`, valuePath);
-  if (schema.contains && Array.isArray(value)) {
-    let matches = 0;
-    value.forEach((item, index) => {
-      const local = [];
-      validateJsonSchema(item, schema.contains, { path: `${valuePath}[${index}]`, errors: local, rootSchema });
-      if (local.length === 0) matches += 1;
-    });
-    const minimum = schema.minContains ?? 1;
-    const maximum = schema.maxContains ?? Number.POSITIVE_INFINITY;
-    if (matches < minimum || matches > maximum) schemaError(errors, 'SCHEMA-CONTAINS', `must contain between ${minimum} and ${Number.isFinite(maximum) ? maximum : 'unbounded'} matching item(s) (found ${matches})`, valuePath);
-  }
-  if (schema.uniqueItems && Array.isArray(value)) {
-    for (let i = 0; i < value.length; i += 1) for (let j = i + 1; j < value.length; j += 1) if (same(value[i], value[j])) schemaError(errors, 'SCHEMA-UNIQUE', 'items must be unique', valuePath);
-  }
-  if (schema.minLength !== undefined && typeof value === 'string' && value.length < schema.minLength) schemaError(errors, 'SCHEMA-MIN-LENGTH', `must contain at least ${schema.minLength} character(s)`, valuePath);
-  if (schema.maxLength !== undefined && typeof value === 'string' && value.length > schema.maxLength) schemaError(errors, 'SCHEMA-MAX-LENGTH', `must contain at most ${schema.maxLength} character(s)`, valuePath);
-  if (schema.minProperties !== undefined && value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length < schema.minProperties) schemaError(errors, 'SCHEMA-MIN-PROPERTIES', `must contain at least ${schema.minProperties} propert(ies)`, valuePath);
-  if (schema.minimum !== undefined && typeof value === 'number' && value < schema.minimum) schemaError(errors, 'SCHEMA-MINIMUM', `must be greater than or equal to ${schema.minimum}`, valuePath);
-  if (schema.maximum !== undefined && typeof value === 'number' && value > schema.maximum) schemaError(errors, 'SCHEMA-MAXIMUM', `must be less than or equal to ${schema.maximum}`, valuePath);
-  if (schema.pattern && typeof value === 'string') {
-    let matches = false;
-    try { matches = new RegExp(schema.pattern).test(value); } catch { schemaError(errors, 'SCHEMA-PATTERN', 'schema pattern is invalid', valuePath); }
-    if (!matches) schemaError(errors, 'SCHEMA-PATTERN', `does not match ${schema.pattern}`, valuePath);
-  }
-  return errors;
-}
 
 function resultStatus(errors) {
   if (errors.some((error) => error.status === 'REOPEN' || error.code === 'REOPEN')) return 'REOPEN';
@@ -282,25 +105,6 @@ function readArtifactRecord(file) {
   }
 }
 
-function inside(root, candidate) {
-  const relative = path.relative(path.resolve(root), path.resolve(candidate));
-  return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
-}
-
-export function safePath(root, relativePath) {
-  if (typeof relativePath !== 'string' || !relativePath || path.isAbsolute(relativePath) || /^[A-Za-z]:[\\/]/.test(relativePath)) throw new Error(`absolute or empty path is not allowed: ${relativePath}`);
-  const resolved = path.resolve(root, relativePath);
-  if (!inside(root, resolved)) throw new Error(`path escapes root: ${relativePath}`);
-  const rootReal = fs.realpathSync(root);
-  let probe = resolved;
-  while (!fs.existsSync(probe)) {
-    const parent = path.dirname(probe);
-    if (parent === probe) break;
-    probe = parent;
-  }
-  if (!inside(rootReal, fs.realpathSync(probe))) throw new Error(`path traverses a symlink outside root: ${relativePath}`);
-  return resolved;
-}
 
 function normalizeArtifacts(registry) {
   if (Array.isArray(registry?.artifacts)) return registry.artifacts;
@@ -308,35 +112,6 @@ function normalizeArtifacts(registry) {
   return [];
 }
 
-function metaOf(record) { return record?.envelope && typeof record.envelope === 'object' ? record.envelope : record; }
-function payloadOf(record) { return record?.payload; }
-function nestedRecord(record) { return Boolean(record?.envelope && typeof record.envelope === 'object'); }
-export function recordHash(record) {
-  if (nestedRecord(record)) {
-    const envelope = { ...record.envelope };
-    delete envelope.recordHash;
-    return sha256(canonicalJson({ envelope, payload: record.payload }));
-  }
-  const flat = { ...record };
-  delete flat.recordHash;
-  return sha256(canonicalJson(flat));
-}
-
-// Qualification-ledger hashing deliberately excludes fields that are either
-// derived from the hash (chainHash) or contain the signature over it. This is
-// the byte-level rule used by the append protocol and keeps verification
-// deterministic across runtimes.
-export function qualificationRecordHash(record) {
-  const unsigned = { ...record };
-  delete unsigned.recordHash;
-  delete unsigned.chainHash;
-  delete unsigned.signature;
-  return sha256(canonicalJson(unsigned));
-}
-
-export function qualificationChainHash(record) {
-  return sha256(`benchmark-ledger-chain-v1\0${record.recordHash}\0${record.prevChainHash}\0${record.physicalSequence}`);
-}
 
 function pointerHashFor(pointer) {
   const unsigned = nestedRecord(pointer)
