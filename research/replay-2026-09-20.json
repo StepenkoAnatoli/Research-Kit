@@ -1,0 +1,19 @@
+{
+  "topic": "Re-collect the six captures that predate a metered transport",
+  "notes": "Written 2026-09-20 to clear the nine preflight warnings. Five captures were fetched by an agent page-fetch with no Firecrawl egress, one recorded no transport at all, and three unknowns (U-2, U-3, U-4) rest on partial chunks of pages that were never fetched whole. The kit now has an authenticated metered CLI, so the pages can be collected the way the protocol says they should have been. ADR-0026 applies: each of these adds a NEW row and the old one stays standing, so every claim above them must be re-read before its citation moves.",
+  "depth": "normal",
+  "refreshDays": 0,
+  "limit": 6,
+  "perQuery": 0,
+  "maxScrapes": 8,
+  "prefer": [],
+  "queries": [],
+  "urls": [
+    { "url": "https://docs.firecrawl.dev/rate-limits", "type": "P", "why": "U-1 (supersedes E-01)" },
+    { "url": "https://www.firecrawl.dev/pricing", "type": "S", "why": "context (supersedes E-02)" },
+    { "url": "https://docs.firecrawl.dev/billing", "type": "P", "why": "U-8 (supersedes E-03)" },
+    { "url": "https://code.claude.com/docs/en/skills", "type": "P", "why": "U-2 (supersedes E-04)" },
+    { "url": "https://code.claude.com/docs/en/hooks", "type": "P", "why": "U-3 (supersedes E-05)" },
+    { "url": "https://www.firecrawl.dev/terms-of-service", "type": "P", "why": "U-4 (supersedes E-06)" }
+  ]
+}

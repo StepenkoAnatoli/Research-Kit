@@ -20,8 +20,17 @@ export const DEPTH_SCRAPES = Object.freeze({
 
 export const DEPTHS = Object.freeze(Object.keys(DEPTH_SCRAPES));
 
-export function readPlan(root) {
-  const plan = readJson(resolve(root, PATHS.plan), null);
+/**
+ * `readPlan(root, file)` - the plan to run, defaulting to the project's own.
+ *
+ * `file` was missing entirely until 2026-09-20, while `bin/research.mjs --help` had been
+ * documenting `--plan <file>` the whole time. The CLI called `readPlan(root)` and threw
+ * the filename away, so `--plan probe.json` re-ran the default plan and looked like it
+ * had worked. A flag that silently ignores its argument is worse than an absent one: the
+ * operator watches a run happen and believes it was theirs.
+ */
+export function readPlan(root, file = '') {
+  const plan = readJson(resolve(root, file || PATHS.plan), null);
   if (!plan) return { topic: '', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 3, maxScrapes: 10, prefer: [], queries: [], urls: [] };
   return {
     topic: plan.topic ?? '',

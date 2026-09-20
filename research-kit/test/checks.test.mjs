@@ -3,9 +3,9 @@
 // tests (ADR-0004).
 
 import { test, describe, assert, makePassingProject, corrupt, fs } from './harness.mjs';
-import { PATHS, resolve, writeText } from '../lib/core.mjs';
+import { PATHS, resolve, writeText, readText } from '../lib/core.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
-import { CHECKS, CHECK_NAMES, runCheck, runChecks } from '../lib/checks.mjs';
+import { CHECKS, CHECK_NAMES, runCheck, runChecks, supersededRows } from '../lib/checks.mjs';
 import { verifyLedger, rebuildLedger } from '../lib/provenance.mjs';
 import { UNIVERSAL_DIMENSIONS, coverageOfUniversals } from '../lib/dimensions.mjs';
 
@@ -169,4 +169,94 @@ test('order is part of the interface: findings arrive in registry order', () => 
   const seen = [...new Set(names)];
   const expected = CHECK_NAMES.filter((name) => seen.includes(name));
   assert.deepEqual(seen, expected);
+});
+
+// ---------------------------------------------------------------- supersession-aware checks
+//
+// ADR-0026 requires a re-collection to add a row and leave the old one standing. Two
+// checks predated that ADR and warned about the very state it requires. Nobody noticed
+// for four days, because nobody had performed a refresh - the first real one, on
+// 2026-09-20, produced twelve warnings where the corpus had just been cleaned to nine.
+
+/**
+ * Take the passing fixture and REFRESH its one page: a second capture of the same URL,
+ * collected later, with the unknown moved onto it. This is exactly the shape ADR-0026
+ * prescribes, built through the real files so the real parser sees it.
+ */
+function withRefresh(dir, { transportOfOld = 'agent page fetch (no Firecrawl egress)', citeOld = false } = {}) {
+  const oldRaw = 'research/raw/2026-09-20-limits-example-a4e22bcd.md';
+  const newRaw = 'research/raw/2026-09-21-limits-example-refreshed.md';
+  const url = 'https://example.invalid/docs/limits';
+
+  // The fresher capture, and a ledger entry for it.
+  fs.copyFileSync(resolve(dir, oldRaw), resolve(dir, newRaw));
+  const ledger = readText(resolve(dir, PATHS.ledger), '').trim().split('\n');
+  const first = JSON.parse(ledger[0]);
+  ledger[0] = JSON.stringify({ ...first, transport: transportOfOld });
+  ledger.push(JSON.stringify({
+    ...first, seq: 2, at: '2026-09-21T00:00:00.000Z', raw: newRaw, transport: 'firecrawl-cli', prev: first.entrySha256,
+  }));
+  writeText(resolve(dir, PATHS.ledger), `${ledger.join('\n')}\n`);
+
+  // The fresher row.
+  const evidence = readText(resolve(dir, PATHS.evidence), '');
+  writeText(resolve(dir, PATHS.evidence),
+    `${evidence.trimEnd()}\n| E-02 | 2026-09-21 | P | ${url} | A re-read of the same page. | ${newRaw} |\n`);
+
+  // The unknown moves to it, unless a test wants the stale citation left in place.
+  if (!citeOld) {
+    writeText(resolve(dir, PATHS.discovery),
+      readText(resolve(dir, PATHS.discovery), '').split('| CLOSED | E-01').join('| CLOSED | E-02'));
+  }
+  return dir;
+}
+
+test('a refresh does not trip duplicate-url - two rows for one URL is the DESIGN', () => {
+  const corpus = snapshot(withRefresh(makePassingProject()));
+  const dupes = runCheck('hygiene', corpus).filter((f) => f.rule === 'duplicate-url');
+  assert.deepEqual(dupes.map((f) => f.detail), [], 'a refresh was reported as a hygiene problem');
+});
+
+test('two rows for one URL fetched the SAME DAY is still a duplicate', () => {
+  // The real thing the check was written for; it has to survive the fix above.
+  const dir = makePassingProject();
+  const evidence = readText(resolve(dir, PATHS.evidence), '');
+  writeText(resolve(dir, PATHS.evidence),
+    `${evidence.trimEnd()}\n| E-02 | 2026-09-20 | P | https://example.invalid/docs/limits | Same day, second row. | research/raw/2026-09-20-limits-example-a4e22bcd.md |\n`);
+
+  const dupes = runCheck('hygiene', snapshot(dir)).filter((f) => f.rule === 'duplicate-url');
+  assert.equal(dupes.length, 1, 'a same-day duplicate stopped being reported');
+  assert.match(dupes[0].detail, /same day/);
+});
+
+test('transport-provenance goes quiet about a superseded row nothing relies on', () => {
+  // Six such warnings stood in this project's own corpus after its refresh. Reporting
+  // the provenance of a capture no claim rests on buries the rows that carry one.
+  const corpus = snapshot(withRefresh(makePassingProject()));
+  const warned = runCheck('transport-provenance', corpus).filter((f) => f.severity === 'warn');
+  assert.deepEqual(warned.map((f) => f.detail), [],
+    'a released historical row was still reported');
+});
+
+test('transport-provenance still speaks up when the superseded row IS still cited', () => {
+  // The safety property. Going quiet must depend on nothing relying on the row - not on
+  // the row merely being old. A claim resting on an unmetered capture is still that.
+  const corpus = snapshot(withRefresh(makePassingProject(), { citeOld: true }));
+  const warned = runCheck('transport-provenance', corpus).filter((f) => f.severity === 'warn');
+  assert.equal(warned.length, 1, 'a cited unmetered capture stopped being reported');
+  assert.match(warned[0].detail, /E-01/);
+});
+
+test('supersededRows maps each replaced row to the row that replaced it', () => {
+  const map = supersededRows(snapshot(withRefresh(makePassingProject())));
+  assert.equal(map.get('E-01').id, 'E-02');
+  assert.equal(map.has('E-02'), false, 'the newest row was marked superseded');
+});
+
+test('an unrefreshed corpus has nothing superseded, and no check changes behaviour', () => {
+  const corpus = snapshot(makePassingProject());
+  assert.equal(supersededRows(corpus).size, 0);
+  for (const name of CHECK_NAMES) {
+    assert.equal(failures(runCheck(name, corpus, { localHooksPath: null })).length, 0, name);
+  }
 });

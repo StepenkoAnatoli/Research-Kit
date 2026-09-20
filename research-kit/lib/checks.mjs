@@ -125,7 +125,13 @@ function provenance(corpus) {
 
 function transportProvenance(corpus) {
   const out = [];
+  const superseded = supersededRows(corpus);
   for (const row of corpus.evidence) {
+    // A row that has been re-collected and is relied on by nothing is HISTORY (ADR-0026).
+    // Reporting the provenance of a capture no claim rests on is noise, and worse than
+    // noise: it buries the rows that DO carry a claim. Six such warnings stood in this
+    // corpus after the 2026-09-20 refresh, all of them about superseded captures.
+    if (isReleasedHistory(corpus, row, superseded)) continue;
     const trace = traceOf(corpus, row);
     if (!trace.fetch) continue;
     const transport = trace.fetch.transport || trace.capture?.transport || '';
@@ -321,8 +327,17 @@ function captureCompleteness(corpus) {
  * The old capture is KEPT - it is history, and evidence is irreplaceable. What is refused
  * is a superseded row still carrying an unknown.
  */
-function evidenceSupersession(corpus) {
-  const out = [];
+/**
+ * Which rows have been replaced by a fresher capture of the same URL.
+ *
+ * Extracted 2026-09-20 because three checks need the same answer and two of them were
+ * getting it wrong by not asking. `evidence-supersession` computed it privately, while
+ * `transport-provenance` and `hygiene` knew nothing about ADR-0026 and warned about the
+ * exact state that ADR REQUIRES: two rows for one URL, the older one kept as history.
+ *
+ * Returns `Map<upper-cased old id, the row that replaced it>`.
+ */
+export function supersededRows(corpus) {
   const byUrl = new Map();
   for (const row of corpus.evidence) {
     if (!row.url) continue;
@@ -330,13 +345,25 @@ function evidenceSupersession(corpus) {
     byUrl.get(row.url).push(row);
   }
 
-  const superseded = new Map(); // row id -> the row that replaced it
+  const superseded = new Map();
   for (const rows of byUrl.values()) {
     if (rows.length < 2) continue;
     const ordered = [...rows].sort((a, b) => String(a.retrieved).localeCompare(String(b.retrieved)));
     const current = ordered[ordered.length - 1];
     for (const row of ordered.slice(0, -1)) superseded.set(row.id.toUpperCase(), current);
   }
+  return superseded;
+}
+
+/** Is this row superseded AND relied on by nothing? Then it is history, and silent. */
+function isReleasedHistory(corpus, row, superseded = supersededRows(corpus)) {
+  if (!superseded.has(row.id.toUpperCase())) return false;
+  return !corpus.unknowns.some((u) => u.cites.some((c) => c.toUpperCase() === row.id.toUpperCase()));
+}
+
+function evidenceSupersession(corpus) {
+  const out = [];
+  const superseded = supersededRows(corpus);
   if (!superseded.size) {
     return [finding('pass', 'evidence-supersession', 'supersession', 'no evidence row has been re-collected')];
   }
@@ -381,14 +408,29 @@ function collectionAttempts(corpus) {
 
 function hygiene(corpus) {
   const out = [];
+  // "One row per fetched page" is right for a duplicate and WRONG for a refresh.
+  //
+  // ADR-0026 requires a re-collection to add a row and leave the old one standing, so
+  // two rows for one URL is the designed state, not a hygiene problem. This check
+  // predated that ADR and warned about it anyway - six times, immediately after the
+  // refresh the ADR exists to govern. What is still worth warning about is two rows for
+  // one URL fetched on the SAME DAY, which no refresh produces and which is the real
+  // duplicate this check was written for.
+  const superseded = supersededRows(corpus);
   const seenUrl = new Map();
   for (const row of corpus.evidence) {
     if (!row.url) continue;
     const held = seenUrl.get(row.url);
     if (held) {
-      out.push(finding('warn', 'hygiene', 'duplicate-url',
-        `${row.id} cites the same URL as ${held} - one row per fetched page`, { row: row.id, line: row.line }));
-    } else seenUrl.set(row.url, row.id);
+      const isRefresh = superseded.has(held.id.toUpperCase()) && held.retrieved !== row.retrieved;
+      if (!isRefresh) {
+        out.push(finding('warn', 'hygiene', 'duplicate-url',
+          `${row.id} cites the same URL as ${held.id} on the same day - one row per fetched page`,
+          { row: row.id, line: row.line }));
+      }
+    }
+    // The LATEST row for a URL is the one a further duplicate should be compared against.
+    if (!held || String(row.retrieved).localeCompare(String(held.retrieved)) >= 0) seenUrl.set(row.url, row);
   }
 
   const ids = new Set();

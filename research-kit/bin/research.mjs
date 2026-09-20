@@ -46,7 +46,7 @@ if (spends && !policy.mayCollect) {
 }
 
 if (flags.status) {
-  const plan = readPlan(root);
+  const plan = readPlan(root, typeof flags.plan === 'string' ? flags.plan : '');
   const usage = usageSummary(root);
   let transport = null;
   try {
@@ -100,7 +100,7 @@ if (!chosen.search.sameAsFetch) {
 const run = runResearch(root, {
   adapter: chosen.adapter,
   searchAdapter: chosen.search.adapter,
-  plan: typeof flags.plan === 'string' ? readPlan(root) : null,
+  plan: typeof flags.plan === 'string' ? readPlan(root, flags.plan) : null,
   depth: typeof flags.depth === 'string' ? flags.depth : '',
   refreshDays: flags['refresh-days'] === undefined ? null : Number(flags['refresh-days']),
   force: Boolean(flags.force),

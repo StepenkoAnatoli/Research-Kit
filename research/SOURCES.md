@@ -26,3 +26,9 @@ under `research/raw/`; a source without raw evidence was not fetched.
 | https://www.tavily.com/terms | P | Tavily | 2026-09-19 |  |
 | https://trajectdata.com/serp/value-serp-api/pricing/ | S | Value SERP API Pricing \| Low Cost SERP API | 2026-09-19 | U-5 |
 | https://www.searchapi.io/pricing | S | Affordable SERP API Pricing | 2026-09-19 | U-5 |
+| https://docs.firecrawl.dev/rate-limits | P | Rate Limits \| Firecrawl | 2026-09-20 | U-1 (supersedes E-01) |
+| https://www.firecrawl.dev/pricing | S | Pricing \| Firecrawl | 2026-09-20 | context (supersedes E-02) |
+| https://docs.firecrawl.dev/billing | P | Billing \| Firecrawl | 2026-09-20 | U-8 (supersedes E-03) |
+| https://code.claude.com/docs/en/skills | P | Extend Claude with skills - Claude Code Docs | 2026-09-20 | U-2 (supersedes E-04) |
+| https://code.claude.com/docs/en/hooks | P | Hooks reference - Claude Code Docs | 2026-09-20 | U-3 (supersedes E-05) |
+| https://www.firecrawl.dev/terms-of-service | P | Terms of Service \| Firecrawl | 2026-09-20 | U-4 (supersedes E-06) |

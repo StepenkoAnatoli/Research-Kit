@@ -19,6 +19,34 @@ helped.
 The failure mode is specific and quiet: a claim that was true when it was written, resting on
 a capture that has been superseded, in a corpus that passes its gate.
 
+## Addendum, 2026-09-20 — the first real refresh, and what it found
+
+This ADR was written and tested against fixtures. The first refresh of an actual corpus
+happened on 2026-09-20, when six captures that predated a metered transport were
+re-collected, and it worked exactly as designed: the gate **blocked** with five
+`cites-superseded-row` failures until every claim had been re-read and every citation
+moved.
+
+It also showed that two other checks had never been told about this ADR.
+
+- **`transport-provenance`** warned about all six superseded rows, even though nothing
+  cited them any more. This ADR says plainly that the old capture is kept as history;
+  reporting the provenance of a capture no claim rests on is noise, and worse than noise,
+  because it buries the rows that do carry a claim.
+- **`hygiene/duplicate-url`** warned "one row per fetched page" about all six pairs —
+  which is the state this ADR *requires*. The check predated it and contradicted it.
+
+Net effect: a corpus cleaned from nine warnings to zero produced twelve. Both checks are
+now supersession-aware, through one shared `supersededRows(corpus)` helper rather than
+three private re-derivations. `duplicate-url` still fires for two rows of the same URL
+retrieved on the **same day**, which is the real duplicate it was written for and which
+no refresh produces.
+
+The lesson is about the ADR rather than the checks: **a rule that changes what a valid
+corpus looks like has to be carried to every check that reads one.** This one was carried
+to the check it created and to none of the others, and that went unnoticed for four days
+because nobody had performed the operation the ADR governs.
+
 ## Decision
 
 **A twelfth check, `evidence-supersession`, placed between `capture-completeness` and

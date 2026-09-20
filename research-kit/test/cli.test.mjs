@@ -210,3 +210,58 @@ test('decompose refuses an unknown search provider before doing any work', () =>
   assert.equal(r.status, 2, r.all);
   assert.match(r.all, /unknown search provider/);
 });
+
+// ---------------------------------------------------------------- --plan
+
+test('--plan actually reads the file it is given', () => {
+  // It did not, for the entire life of the flag. `readPlan(root)` ignored the filename
+  // and re-read the default, so `--plan probe.json` ran the project's own plan and
+  // looked like it had worked.
+  const root = project('default topic');
+  fs.writeFileSync(path.join(root, 'research/other-plan.json'), JSON.stringify({
+    topic: 'a DIFFERENT plan',
+    depth: 'deep',
+    refreshDays: 7,
+    limit: 2,
+    perQuery: 1,
+    maxScrapes: 2,
+    queries: [{ q: 'one query', why: 'U-1' }],
+    urls: ['https://planned.example/a', 'https://planned.example/b'],
+  }, null, 2));
+
+  const mine = run('research.mjs', ['--status', '--plan', 'research/other-plan.json'], { root });
+  assert.equal(mine.status, 0, mine.err);
+  assert.match(mine.out, /topic\s+a DIFFERENT plan/, `--plan was ignored:\n${mine.out}`);
+  assert.match(mine.out, /depth\s+deep/);
+  assert.match(mine.out, /queries \/ urls\s+1 \/ 2/);
+  assert.match(mine.out, /refresh-days\s+7/);
+
+  // And without the flag, the project's own plan is still what runs.
+  const theirs = run('research.mjs', ['--status'], { root });
+  assert.equal(/a DIFFERENT plan/.test(theirs.out), false,
+    `the named plan leaked into a run that did not ask for it:\n${theirs.out}`);
+});
+
+test('--plan and the run agree about which plan is in force', () => {
+  // --status reporting one plan while the run executes another is the shape of a very
+  // expensive surprise: the preview says 2 scrapes, the run spends 10.
+  const root = project();
+  fs.writeFileSync(path.join(root, 'research/tiny.json'), JSON.stringify({
+    topic: 'tiny', depth: 'probe', refreshDays: 30, limit: 1, perQuery: 1, maxScrapes: 1,
+    queries: [], urls: ['https://planned.example/only'],
+  }, null, 2));
+
+  const status = run('research.mjs', ['--status', '--plan', 'research/tiny.json'], { root });
+  assert.match(status.out, /depth\s+probe/);
+
+  const dry = run('research.mjs', ['--dry-run', '--plan', 'research/tiny.json'], { root });
+  assert.match(dry.out, /https:\/\/planned\.example\/only/, `the run used a different plan:\n${dry.out}`);
+  assert.match(dry.out, /depth\s+probe/);
+});
+
+test('--plan naming a file that is not there falls back to an empty plan, not a crash', () => {
+  const root = project();
+  const r = run('research.mjs', ['--status', '--plan', 'research/does-not-exist.json'], { root });
+  assert.equal(r.status, 0, r.err);
+  assert.match(r.out, /queries \/ urls\s+0 \/ 0/);
+});
