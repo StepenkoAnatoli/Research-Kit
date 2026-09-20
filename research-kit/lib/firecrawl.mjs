@@ -58,6 +58,30 @@ export function cmdSafeArg(value) {
 /** Kept as a predicate-shaped object so existing callers read the same way. */
 export const CMD_SAFE_ARG = { test: cmdSafeArg };
 
+/**
+ * Which of these arguments would be refused, or `null` if none would.
+ *
+ * The plural, reporting form of `cmdSafeArg`. A caller validating an argv wants to tell
+ * the operator WHICH argument is the problem, not merely that one of them is — and
+ * building that list at each call site is how the answers drift apart.
+ *
+ * `null` rather than `[]` for the safe case, so a caller can write
+ * `const bad = unsafeCmdArgs(argv); if (bad) …` without the empty array reading as a
+ * failure. The shape is borrowed deliberately from the tree this kit ported its
+ * validator layer from (ADR-0029), whose hostile-argv corpus is written against exactly
+ * this signature — but the SEMANTICS are ours: that tree guards with a regex allowlist,
+ * and this refuses on the `CMD_UNSAFE_CHARS` denylist above, for the reason that comment
+ * gives.
+ */
+export function unsafeCmdArgs(args) {
+  const bad = [];
+  for (const arg of args) {
+    const value = String(arg);
+    if (!cmdSafeArg(value)) bad.push(value);
+  }
+  return bad.length > 0 ? bad : null;
+}
+
 // ---------------------------------------------------------------- program resolution
 
 /** Full path off PATH + PATHEXT. Returns null when the program is not installed. */
@@ -93,8 +117,8 @@ export function resolveInvocation(argv, { env = process.env, platform = process.
   if (platform !== 'win32' || ext === '.exe' || ext === '') {
     return { ok: true, file: resolved, args: argv, shell: false, route: 'direct' };
   }
-  const unsafe = argv.filter((a) => !CMD_SAFE_ARG.test(String(a)));
-  if (unsafe.length) {
+  const unsafe = unsafeCmdArgs(argv);
+  if (unsafe) {
     return {
       ok: false,
       reason: 'unsafe-for-cmd-shim',
