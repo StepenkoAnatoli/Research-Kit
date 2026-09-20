@@ -6,6 +6,15 @@ gate that refuses to let a build start while a blocking fact is unproven.
 Plain Node, no dependencies, no `package.json`. It installs with one command and runs
 offline for everything except collection itself.
 
+**That claim is about the repository, and collection is the exception in two ways.**
+The kit itself pulls nothing from npm and has no lockfile — but the metered route
+spawns a Firecrawl CLI that is installed globally and versioned outside this
+repository, and the optional `live-collection` workflow installs that CLI from npm
+at dispatch time. So the offline suite is reproducible from a clone alone; a live
+collection additionally depends on npm being reachable, the package keeping its
+name, the CLI staying on a supported major (`cliCompatibility` refuses otherwise,
+before spending), and a configured credential.
+
 **Supported on Linux and Windows; macOS is best-effort and untested.** "Supported" means
 the full offline suite runs on that platform in CI on every commit — see
 [the support policy](../README.md#supported-platforms) for why the distinction is worded
@@ -188,7 +197,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-642 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+644 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

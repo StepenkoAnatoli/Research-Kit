@@ -36,7 +36,16 @@ export function checkGit({ run = spawnSync } = {}) {
 
 /** `{ ok, detail }` - ok when a python new enough for the conformance runners answers. */
 export function checkPython({ run = spawnSync } = {}) {
-  for (const exe of ['python', 'python3']) {
+  // Keeps looking after an old interpreter. `python` is an ALIAS on most hosts, and on a
+  // great many it still points at 2.7 or an old 3.x while `python3` is the real one - the
+  // single most common layout on Linux and older macOS.
+  //
+  // The first version of this returned failure the moment it found an old `python`, so a
+  // host with python 2.7 AND python3 3.12 was rejected for having no usable Python while
+  // a usable Python sat one name away. The old interpreter is remembered only so the
+  // message can say what was actually found, rather than the less useful "no python".
+  let rejected = null;
+  for (const exe of ['python3', 'python']) {
     const probe = run(exe, ['--version'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
     if (probe.error || probe.status !== 0) continue;
     const text = `${probe.stdout ?? ''}${probe.stderr ?? ''}`.trim();   // 3.x prints to stdout, 2.x to stderr
@@ -46,13 +55,13 @@ export function checkPython({ run = spawnSync } = {}) {
     if (major > REQUIRED_PYTHON.major || (major === REQUIRED_PYTHON.major && minor >= REQUIRED_PYTHON.minor)) {
       return { ok: true, detail: `${exe} ${match[0]}` };
     }
-    return {
+    rejected ??= {
       ok: false,
       detail: `${exe} ${match[0]}; the conformance runners need ${REQUIRED_PYTHON.major}.${REQUIRED_PYTHON.minor}+`,
       fix: 'install Python 3.12+ from python.org, then reopen the terminal',
     };
   }
-  return {
+  return rejected ?? {
     ok: false,
     detail: 'no python on PATH',
     fix: 'install Python 3.12+ from python.org; only the cross-language conformance runners need it',

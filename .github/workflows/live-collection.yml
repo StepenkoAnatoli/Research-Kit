@@ -5,33 +5,30 @@ name: live-collection
 # `offline-suite` deliberately cannot reach the network, which is right: a reviewer or a
 # fork must be able to re-run every check without being given a key. But that means the
 # real network boundary is represented entirely by stubs, and the suite stays green while
-# real collection fails on a changed payload, a proxy, a platform TLS quirk, a 429, or a
-# partial response.
+# real collection fails on a changed payload, a proxy, a platform TLS quirk, or a 429.
 #
-# This exists to exercise that boundary on purpose, with the cost visible and bounded.
+# ONE SUCCESS PREDICATE, AND IT IS NOT "the steps ran".
 #
-# It is:
-#   manual only            no push, no pull_request, no schedule - nothing runs it by
-#                          accident, and a fork cannot trigger it
-#   budgeted               `max_pages` is an input with a small default, and the run
-#                          reports the credits it actually spent
-#   credential-scoped      one secret, read from the environment, never written to disk
-#   corpus-isolated        it collects into a scratch project under RUNNER_TEMP and
-#                          commits nothing. The repository's own corpus is evidence for
-#                          its own unknowns, not a place to put test captures
-#   redacted               the key never reaches a log line; the adapter refuses a query
-#                          containing it before transmit, and `command()` renders
-#                          pre-redacted
+# The first version of this workflow ran the right checks and then swallowed every one of
+# them with `|| true`, so a green run proved only that the repository was not modified.
+# That is worse than no workflow: it is a signal that looks like verification. Every
+# required condition below now fails the job, and the summary states which ones were
+# checked - so a green run means all of this held:
+#
+#   1. the vendor CLI is a major this adapter supports
+#   2. the collection command exited 0
+#   3. a ledger was written, and it parses
+#   4. handoff exits 0        - the corpus arrived whole
+#   5. preflight exits 0      - the corpus passes the same checks a synthetic one does
+#   6. the repository is unchanged
+#
+# Diagnostics are still captured when a step fails, but they are captured in a way that
+# preserves the exit status rather than discarding it.
 #
 # WHEN TO RUN IT
 #   - before trusting a Firecrawl CLI version this adapter has not seen
-#   - after changing anything under lib/firecrawl.mjs, lib/http-transport.mjs,
-#     lib/serpapi.mjs or lib/collect.mjs
+#   - after changing lib/firecrawl.mjs, lib/http-transport.mjs, lib/serpapi.mjs, lib/collect.mjs
 #   - when a real collection fails in a way the offline suite cannot reproduce
-#
-# WHAT A FAILURE HERE MEANS
-#   The offline suite passing and this failing is the interesting case, and the expected
-#   one: it means the stubs and the vendor have diverged. Read the version report first.
 
 on:
   workflow_dispatch:
@@ -46,6 +43,22 @@ on:
         default: 'firecrawl-cli'
         type: choice
         options: [firecrawl-cli, http-keyless]
+      cli_version:
+        description: 'Firecrawl CLI version to install. "tested" pins the version the adapter was written against; "latest" is compatibility surveillance and may legitimately fail.'
+        required: true
+        default: 'tested'
+        type: choice
+        options: [tested, latest]
+
+# Paid runs are SERIALISED.
+#
+# max_pages bounds one run. It does not bound the meter: two dispatches a second apart
+# spend concurrently, and a reader who sees "max 10 pages" reasonably believes that is the
+# ceiling. `cancel-in-progress: false` is deliberate - cancelling a paid collection
+# mid-flight wastes the credits already spent and can leave a scratch ledger torn.
+concurrency:
+  group: live-collection
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -55,7 +68,6 @@ jobs:
     name: live
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # A budget nobody can raise by editing an input: the job itself refuses a large run.
     environment: live-collection
     defaults:
       run:
@@ -67,32 +79,61 @@ jobs:
         with:
           node-version: '22'
 
+      - name: announce the run, its budget and its policy
+        run: |
+          {
+            echo "| setting | value |"
+            echo "|---|---|"
+            echo "| run | ${{ github.run_id }} |"
+            echo "| transport | ${{ inputs.transport }} |"
+            echo "| max pages | ${{ inputs.max_pages }} |"
+            echo "| CLI policy | ${{ inputs.cli_version }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: refuse an unbounded run
         run: |
           pages='${{ inputs.max_pages }}'
           case "$pages" in (''|*[!0-9]*) echo "max_pages must be a whole number"; exit 1;; esac
           if [ "$pages" -lt 1 ] || [ "$pages" -gt 10 ]; then
             echo "max_pages=$pages is outside 1..10."
-            echo "This workflow spends real credits; a large run belongs on a machine where"
+            echo "This workflow spends real credits; a larger run belongs on a machine where"
             echo "somebody is watching the meter, not in CI."
             exit 1
           fi
-          echo "budget: $pages page(s)"
 
-      - name: install the vendor CLI, and report the version this run used
+      # Installation failure and INCOMPATIBILITY are different facts and are reported
+      # separately. The first version suppressed both with `|| true`, so "the package
+      # moved" and "the CLI is a major we do not support" looked identical.
+      - name: install the vendor CLI
+        id: cli
         if: inputs.transport == 'firecrawl-cli'
         run: |
-          npm install -g @mendable/firecrawl-cli >/dev/null 2>&1 || npm install -g firecrawl >/dev/null 2>&1 || true
-          installed=$(firecrawl --version 2>/dev/null || echo 'not installed')
-          echo "firecrawl CLI: $installed"
-          # The version is the first thing to read when this workflow fails, so it goes in
-          # the summary rather than only in the log.
-          echo "| firecrawl CLI | \`$installed\` |" >> "$GITHUB_STEP_SUMMARY"
+          set -e
+          tested=$(node -e 'import("./research-kit/lib/firecrawl.mjs").then(m => process.stdout.write(m.TESTED_CLI_VERSION))')
+          if [ '${{ inputs.cli_version }}' = 'tested' ]; then
+            spec="firecrawl@$tested"
+            echo "pinning to the version this adapter was written against: $spec"
+          else
+            spec="firecrawl@latest"
+            echo "SURVEILLANCE MODE: installing $spec. A refusal here is the workflow doing its job."
+          fi
+          if ! npm install -g "$spec"; then
+            echo "::error::could not install $spec - this is an INSTALLATION failure, not an incompatibility"
+            echo "| CLI install | \`failed: $spec\` |" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          installed=$(firecrawl --version)
+          echo "installed=$installed" >> "$GITHUB_OUTPUT"
+          echo "| CLI installed | \`$installed\` (tested against \`$tested\`) |" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: the CLI is a major this adapter supports
+        if: inputs.transport == 'firecrawl-cli'
+        run: |
           node -e '
             import("./research-kit/lib/firecrawl.mjs").then((m) => {
               const c = m.cliCompatibility();
               console.log(`${c.level}: ${c.detail}`);
-              if (!c.supported) { console.error(c.remedy); process.exit(1); }
+              if (!c.supported) { console.error(`::error::${c.remedy}`); process.exit(1); }
             });
           '
 
@@ -101,12 +142,13 @@ jobs:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
         run: |
           if [ -z "${FIRECRAWL_API_KEY:-}" ] && [ '${{ inputs.transport }}' = 'firecrawl-cli' ]; then
-            echo "FIRECRAWL_API_KEY is not set for this environment."
+            echo "::error::FIRECRAWL_API_KEY is not set for the live-collection environment."
             echo "Add it under Settings > Environments > live-collection, or run with transport=http-keyless."
             exit 1
           fi
           echo "credential present: ${FIRECRAWL_API_KEY:+yes}${FIRECRAWL_API_KEY:-no (keyless route)}"
 
+      # From here every step is REQUIRED. `set -e` is on and nothing is swallowed.
       - name: collect into a scratch project, never the repository's corpus
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
@@ -123,36 +165,60 @@ jobs:
           # a CI capture in it would be evidence of nothing.
           node "$kit/bin/new-project.mjs" . --topic "live transport check"
 
-          node "$kit/bin/doctor.mjs" || true
+          # doctor is diagnostic and may legitimately report a missing key on the keyless
+          # route, so its status is recorded rather than required - the only step of which
+          # that is true, and it is said here rather than hidden behind `|| true`.
+          node "$kit/bin/doctor.mjs" || echo "doctor reported findings (not required to pass)"
+
           node "$kit/bin/research.mjs" --dry-run --depth quick
           node "$kit/bin/research.mjs" --depth quick --max-scrapes '${{ inputs.max_pages }}'
 
-          echo "--- what it cost ---"
-          node "$kit/bin/research.mjs" --status || true
-
-      - name: the corpus that arrived verifies
-        env:
-          RESEARCH_KIT_TRANSPORT: ${{ inputs.transport }}
+      - name: a ledger was written, and it parses
         run: |
+          set -e
           cd "$RUNNER_TEMP/live-project"
-          # The point of collecting at all: a real capture must pass the same checks a
-          # synthetic one does - chain verifies, every cited capture on disk, bodies
-          # unmodified.
-          node "$GITHUB_WORKSPACE/research-kit/bin/handoff.mjs" || true
-          node "$GITHUB_WORKSPACE/research-kit/bin/preflight.mjs" --json > preflight.json || true
+          ledger='research/raw/.fetches.jsonl'
+          if [ ! -s "$ledger" ]; then
+            echo "::error::collection produced no fetch ledger; nothing was recorded"
+            exit 1
+          fi
+          node -e '
+            const fs = require("fs");
+            const rows = fs.readFileSync(process.argv[1], "utf8").trim().split("\n").filter(Boolean);
+            const parsed = rows.map((line, i) => { try { return JSON.parse(line); } catch { throw new Error(`ledger line ${i + 1} does not parse`); } });
+            const fetched = parsed.filter((r) => r.op !== "fail");
+            if (!fetched.length) throw new Error("the ledger records no successful fetch");
+            console.log(`${parsed.length} ledger entries, ${fetched.length} successful`);
+          ' "$ledger"
+
+      - name: the corpus arrived whole, and passes its own checks
+        run: |
+          set -e
+          cd "$RUNNER_TEMP/live-project"
+          kit="$GITHUB_WORKSPACE/research-kit"
+
+          # REQUIRED, both of them. The point of collecting at all is that a real capture
+          # must pass the same checks a synthetic one does - chain verifies, every cited
+          # capture on disk, bodies unmodified. Diagnostics are printed on failure
+          # WITHOUT discarding the exit status.
+          if ! node "$kit/bin/handoff.mjs"; then
+            echo "::error::handoff failed: the collected corpus did not arrive whole"
+            exit 1
+          fi
+          if ! node "$kit/bin/preflight.mjs" --json > preflight.json; then
+            echo "::error::preflight failed on the collected corpus"
+            cat preflight.json || true
+            exit 1
+          fi
           node -e '
             const r = JSON.parse(require("fs").readFileSync("preflight.json", "utf8"));
             console.log(`preflight: ${r.status ?? r.verdict}`);
-            const chain = (r.checks ?? []).find((c) => /chain|ledger/.test(c.name ?? ""));
-            if (chain) console.log(`  ${chain.name}: ${chain.status}`);
           '
 
       - name: the repository is unchanged
         run: |
-          # The guarantee this workflow rests on. If a live run ever wrote into the
-          # checkout, every later claim about corpus provenance would be suspect.
           if [ -n "$(git status --porcelain)" ]; then
-            echo "a live collection modified the repository:"
+            echo "::error::a live collection modified the repository"
             git status --porcelain
             exit 1
           fi
@@ -161,15 +227,24 @@ jobs:
       - name: sanitized diagnostics
         if: always()
         run: |
-          cd "$RUNNER_TEMP/live-project" || exit 0
-          # Deliberately NOT the captures: they are someone else's pages, and this is a
-          # public log. Only the shape of what happened.
+          cd "$RUNNER_TEMP/live-project" 2>/dev/null || exit 0
+          # HOSTNAMES ONLY, deliberately.
+          #
+          # This summary is public. A URL is not a credential, but a path and a query
+          # string disclose what was being researched - search terms, private targets,
+          # account-scoped routes, signed parameters. The first version printed the first
+          # 60 characters of each URL, which is exactly enough to leak the subject and not
+          # enough to be useful. The shape of what happened needs no path.
           node -e '
             const fs = require("fs");
             const led = "research/raw/.fetches.jsonl";
             if (!fs.existsSync(led)) { console.log("no ledger written"); process.exit(0); }
-            const rows = fs.readFileSync(led, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse);
+            const rows = fs.readFileSync(led, "utf8").trim().split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+            console.log("| op | status | transport | completeness | host |");
+            console.log("|---|---|---|---|---|");
             for (const r of rows) {
-              console.log([r.op, r.statusCode ?? "-", r.transport ?? "-", r.completeness ?? "-", (r.url ?? "").slice(0, 60)].join("  "));
+              let host = "-";
+              try { host = r.url ? new URL(r.url).hostname : "-"; } catch { host = "unparseable"; }
+              console.log(`| ${r.op ?? "-"} | ${r.statusCode ?? "-"} | ${r.transport ?? "-"} | ${r.completeness ?? "-"} | ${host} |`);
             }
           ' >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true

@@ -153,3 +153,39 @@ test('git is reported missing rather than failing three layers down', () => {
   assertEqual(checkGit({ run: () => ({ error: new Error('ENOENT'), status: null }) }).ok, false);
   assertEqual(checkGit({ run: () => ({ status: 0, stdout: 'git version 2.44.0' }) }).ok, true);
 });
+
+test('an old `python` alias does not hide a usable `python3`', () => {
+  // The single most common layout on Linux and older macOS: `python` is a 2.7 or old-3.x
+  // alias and `python3` is the real interpreter. The first version of checkPython
+  // returned failure the moment it found the old one, so a host with a perfectly good
+  // Python 3.12 one name away was told it had none.
+  const host = (versions) => (exe) => {
+    const v = versions[exe];
+    if (!v) return { error: new Error('ENOENT'), status: null };
+    // Python 2 prints its version to stderr, Python 3 to stdout.
+    return v.startsWith('2.') ? { status: 0, stdout: '', stderr: `Python ${v}` } : { status: 0, stdout: `Python ${v}` };
+  };
+
+  const shadowed = checkPython({ run: host({ python: '2.7.18', python3: '3.12.1' }) });
+  assertEqual(shadowed.ok, true, `a usable python3 was hidden by an old python: ${shadowed.detail}`);
+  assert(/3\.12\.1/.test(shadowed.detail), shadowed.detail);
+
+  // The case above is also satisfied by trying `python3` FIRST, which the fix does - so
+  // on its own it does not prove the search CONTINUES past an old interpreter. This one
+  // does: the first name tried is the old one, and a usable interpreter sits behind it.
+  // Reintroducing the early return turns exactly this assertion red and nothing else.
+  const reversed = checkPython({ run: host({ python3: '3.9.7', python: '3.12.1' }) });
+  assertEqual(reversed.ok, true,
+    `the search stopped at the first old interpreter instead of continuing: ${reversed.detail}`);
+  assert(/3\.12\.1/.test(reversed.detail), reversed.detail);
+
+  // Genuinely too old on BOTH names still fails, and names what it found rather than
+  // claiming there is no python at all.
+  const tooOld = checkPython({ run: host({ python: '2.7.18', python3: '3.9.7' }) });
+  assertEqual(tooOld.ok, false);
+  assert(/3\.9\.7|2\.7\.18/.test(tooOld.detail), `the message should say what was found: ${tooOld.detail}`);
+
+  // Only the modern name present is the other common layout.
+  assertEqual(checkPython({ run: host({ python3: '3.12.1' }) }).ok, true);
+  assertEqual(checkPython({ run: host({}) }).ok, false);
+});

@@ -67,7 +67,19 @@ function writeResultFile(code) {
       files: files.length, node: process.versions.node, platform: process.platform,
     }, null, 2)}
 `, 'utf8');
-  } catch { /* a report that cannot be written must not fail the run it reports on */ }
+  } catch (err) {
+    // A report that cannot be written must not fail the run it reports on - but it must
+    // not be silent either.
+    //
+    // CI reads the ABSENCE of this file as "the runner crashed before reporting". If an
+    // unwritable path (bad permissions, a full disk, a typo in the variable) produced the
+    // same absence, CI would report a crash that did not happen, and the real cause -
+    // which is right here - would be invisible. Saying so on stderr costs nothing and
+    // makes the two indistinguishable cases distinguishable again.
+    process.stderr.write(
+      `RESEARCH_KIT_RESULT_FILE was set to ${JSON.stringify(target)} and could not be written: ${err.message}\n`
+      + 'The suite result below is still authoritative; only the machine-readable copy is missing.\n');
+  }
 }
 
 const seconds = ((Date.now() - started) / 1000).toFixed(1);
