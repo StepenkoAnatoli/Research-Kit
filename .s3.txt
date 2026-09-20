@@ -1,0 +1,263 @@
+ok    audit > crc32 matches its published vectors
+ok    audit > entryName refuses anything that could unpack outside the folder
+ok    audit > an archive with no entries is refused, not written empty
+ok    audit > every entry reads back out of the central directory intact
+ok    audit > two runs produce byte-identical archives, so re-zipping is free
+ok    audit > an audit renders only when the gate passes
+ok    audit > a pass renders the main audit plus one file per COVERED/GAP subtopic
+ok    audit > the audit is DERIVED: it never writes back into the corpus
+ok    audit > an unchanged corpus keeps its version; a changed one earns the next
+ok    audit > the fingerprint tracks what an audit says, not when it was written
+ok    audit > listVersions and resolveVersion are THE readers, with one ordering
+ok    audit > versions sort numerically: v0.10 comes after v0.9
+ok    audit > the bundle holds the latest main audit and its subtopics, and is named for them
+ok    audit > the file list comes from the manifest, never a directory listing
+ok    audit > a manifest naming a file that is not on disk is REFUSED, not bundled short
+ok    audit > no audits at all: refused, with the command that makes one
+ok    audit > several topics and none named: refused, every topic listed, --topic offered
+ok    audit > an exact --topic wins; only a non-exact input falls back to prefix matching
+ok    audit > a named topic that does not exist is refused with the known topics listed
+ok    audit > the bundle renders nothing and bumps no version
+ok    audit > no subtopics is not an error: the archive holds the one main file
+ok    audit > makeSlug trims AFTER truncating, so a cut never leaves a dangling separator
+ok    audit > makeSlug honours an explicit limit and keeps its old default
+ok    audit > a generated audit path stays inside the budget, however long the inputs
+ok    audit > the subtopic segment is capped independently of the topic slug
+ok    brief > six sections, two of them judged
+ok    brief > the scaffold ships the marker, and the marker is what says "still the scaffold"
+ok    brief > the marker survives the substitution pass, so no sentence of English is load-bearing
+ok    brief > a drafted brief with TODOs reads as draft; one with them answered reads as authored
+ok    brief > a LEGACY brief - the shape without the marker - refuses loudly rather than guessing
+ok    brief > drafting over a draft refuses without --force, so judgements are preserved
+ok    brief > the renderer writes its headings FROM the section definition
+ok    brief > the verified table carries the claim, the source and its type
+ok    brief > a claim resting on a partial capture says so in the brief
+ok    brief > known unknowns are listed with their day-one steps, or the section says none
+ok    brief > judgedSection is the reader the audit consumes instead of a regex of its own
+ok    bundle > parseManifest reads sha256/path pairs and ignores the prose around them
+ok    bundle > parseManifest requires the two-space separator sha256sum actually writes
+ok    bundle > sha256Of hashes BYTES, not decoded text
+ok    bundle > sha256Of answers null for a file that is not there, rather than throwing
+ok    bundle > an untouched archive verifies clean
+ok    bundle > a file that changed and was EXPECTED to is drift, not a problem
+ok    bundle > a file that changed and was NOT expected to is surfaced
+ok    bundle > a file the archive named and the tree no longer has is reported missing
+ok    bundle > a project with no manifest says so instead of failing
+ok    bundle > the drift list covers the corpus, the map and the ADR index - and itself
+ok    bundle > EXPECTED_TO_DRIFT does not cover a planning document
+ok    bundle > THIS repository: every change against the archive is accounted for
+ok    checks > the registry holds twelve checks in a pinned order
+ok    checks > an unknown check name is an error naming the known checks, never a silent pass
+ok    checks > every check passes on a corpus that deserves it
+ok    checks > discovery-contract: a status that is not CLOSED or KNOWN-UNKNOWN fails
+ok    checks > discovery-contract: an empty build intent fails
+ok    checks > citations: a row whose capture is not on disk fails
+ok    checks > unknown-closure: a CLOSED unknown citing nothing fails
+ok    checks > unknown-closure: a citation that names no row fails
+ok    checks > unknown-closure: stale evidence warns against the operator's maxAgeDays
+ok    checks > unknown-closure: a KNOWN-UNKNOWN with no verification step fails
+ok    checks > subtopic-coverage: a GAP row fails by name
+ok    checks > subtopic-coverage: a reasonless DISMISSED is a silent gap wearing a label
+ok    checks > subtopic-coverage: a COVERED row citing an unknown that does not exist fails
+ok    checks > subtopic-coverage: omitting a universal dimension fails; dismissing it does not
+ok    checks > subtopic-coverage: a contract with no map warns "no coverage claim" and does not fail
+ok    checks > coverageOfUniversals matches on id or on the dimension's own words
+ok    checks > transport-provenance: a non-Firecrawl transport is named, per row
+ok    checks > capture-completeness: a CLOSED unknown resting only on partial captures is flagged
+ok    checks > capture-completeness: partial without a reason is flagged too
+ok    checks > hygiene: a capture nobody cites is a warning, never a failure
+ok    checks > corpus-shape: a row whose arity does not match its header is reported, not absorbed
+ok    checks > order is part of the interface: findings arrive in registry order
+ok    checks > a refresh does not trip duplicate-url - two rows for one URL is the DESIGN
+ok    checks > two rows for one URL fetched the SAME DAY is still a duplicate
+ok    checks > transport-provenance goes quiet about a superseded row nothing relies on
+ok    checks > transport-provenance still speaks up when the superseded row IS still cited
+ok    checks > supersededRows maps each replaced row to the row that replaced it
+ok    checks > an unrefreshed corpus has nothing superseded, and no check changes behaviour
+ok    cli > FR-6: research --help documents --search-transport and names every provider
+ok    cli > FR-6: decompose --help documents it too
+ok    cli > FR-6: an unknown search provider is refused by the CLI, with exit 2
+ok    cli > FR-6: an unknown FETCH transport is still refused - the old path is intact
+ok    cli > FR-8: --status names BOTH providers before anything is spent
+ok    cli > FR-5/FR-8: with no key, --status says the two sides share one meter
+ok    cli > FR-1/FR-8: a key in the ENVIRONMENT moves the search side, and --status says so
+ok    cli > SR-2: no CLI output carries the key, on any path
+ok    cli > FR-6: the flag outranks the environment, end to end through the CLI
+ok    cli > RR-5: --status reports the search meter, with its caveat
+ok    cli > RR-5: a fresh project reports zero searches, not NaN or blank
+ok    cli > FR-8: --dry-run announces both providers and spends nothing
+ok    cli > FR-5: --dry-run with NO key does not mention a second provider at all
+ok    cli > FR-7: doctor reports the search provider on its own line
+ok    cli > FR-7: doctor names serpapi when a key is configured
+ok    cli > ADR-0028: doctor reports the bundle, and a project without one stays quiet
+ok    cli > ADR-0028: bin/bundle.mjs reports this repository honestly
+ok    cli > ADR-0028: bundle.mjs on a project with no manifest says so and exits 0
+ok    cli > FR-6: decompose --dry-run announces the providers and writes a map
+ok    cli > decompose refuses an unknown search provider before doing any work
+ok    cli > --plan actually reads the file it is given
+ok    cli > --plan and the run agree about which plan is in force
+ok    cli > --plan naming a file that is not there falls back to an empty plan, not a crash
+ok    collect > captureName is dated, slugged, and keyed by a digest of the URL
+ok    collect > writeRaw hands back the corpus's own index entry
+ok    collect > collectOne writes the capture, the ledger entry, the evidence row and the source row
+ok    collect > the collector stamps what the ADAPTER declared and invents neither field
+ok    collect > a failure is recorded as a fail entry and writes no capture or row
+ok    collect > an adapter that THROWS becomes a fail entry, not a crashed run
+ok    collect > a cache hit spends nothing and never touches the adapter
+ok    collect > --force collects again; the cache is a decision, not a law
+ok    collect > dry-run says what would happen and writes nothing at all
+ok    collect > bodyHashOf is taken over the exact bytes on disk
+ok    collect > the budget tiers are named and bounded
+ok    collect > readPlan fills every default rather than handing back undefined
+ok    collect > rankCandidate prefers the page that OWNS the fact
+ok    collect > selectCandidates keeps the best per query and never re-offers what is collected
+ok    collect > a run collects the plan's urls and stops at the budget
+ok    collect > a run fans a query out through the adapter and collects what it selects
+ok    collect > a dry run spends nothing and does not even search
+ok    collect > a failed search is logged to the failures file and does not stop the run
+ok    collect > usage is written after a run that spent, and read back as a summary
+ok    concurrency > F14: collectOne holds the exclusive section across the ENTIRE operation
+ok    concurrency > F14: the cache is re-read INSIDE the section, so a queued URL is not paid for twice
+ok    concurrency > F14: ids are allocated from the table on disk, so two collectors cannot collide
+ok    concurrency > F14: a dry run takes no lock at all - it decides and writes nothing
+ok    concurrency > F14: two collectors in separate PROCESSES serialise, and neither loses its row
+ok    concurrency > F13: a LIVE holder is never recoverable, however old its lock is
+ok    concurrency > F13: the section is held for the WHOLE of a slow call, with no heartbeat to miss
+ok    concurrency > F13: a holder on another host is waited for, not broken - we cannot ask about it
+ok    concurrency > F13: a lock whose process is gone is recovered, not waited on
+ok    concurrency > F13: an UNIDENTIFIABLE holder reaches the staleness test instead of blocking forever
+ok    concurrency > F13: release removes only this acquisition
+ok    concurrency > F12: appendFetch REFUSES a torn tail instead of welding a valid entry to it
+ok    concurrency > F12: a collection refuses before it spends, when the chain cannot record it
+ok    concurrency > F12: after the documented repair, collection resumes
+ok    corpus > splitRow honours escaped pipes; escapeCell round-trips through them
+ok    corpus > repairRowArity pads a short row and folds a long one into its last cell
+ok    corpus > parseTable finds the table by its first header cell and reports arity problems
+ok    corpus > parseTable stops at the end of the table, not the end of the file
+ok    corpus > parseCapture splits front-matter from the body
+ok    corpus > the capture index is keyed by URL, newest retrieval winning
+ok    corpus > dotfiles under research/raw are the kit's logs, not captures
+ok    corpus > captureEntry is the ONE constructor: the reader and the collector agree field for field
+ok    corpus > rememberCapture puts a mid-run capture into every index the reader builds
+ok    corpus > cacheDecision: fresh hits, stale misses, force always misses, undated never hits
+ok    corpus > traceOf joins a row to its fetch and its capture
+ok    corpus > an empty Raw cell matches on the URL alone - the subtle clause, in one place
+ok    corpus > claimOf returns the first cited row's finding, falling back to the unknown's own text
+ok    corpus > a cited capture that is not on disk is a corpus problem
+ok    corpus > a plan that will not parse is reported, never absorbed
+ok    corpus > sectionOf reads one heading's body and stops at the next heading of its level
+ok    corpus > citedIds finds every id in a free-text cell
+ok    corpus > appendRow creates the table when it is absent, and appends to it when it is not
+ok    corpus > upsertRow replaces by first cell rather than growing a duplicate
+ok    corpus > nextId continues the sequence it is shown
+ok    decompose > nine universal dimensions, and output obtainability is one of them
+ok    decompose > the seeded rows arrive with statuses BLANK - the tool hands over a checklist, not an answer
+ok    decompose > a draft map holds every universal dimension and no status at all
+ok    decompose > a recipe ADDS dimensions on top of the universal set and never replaces it
+ok    decompose > every shipped recipe keeps the universal set whole
+ok    decompose > an unknown recipe is an error naming where recipes live
+ok    decompose > parseRecipe reads the machine-readable frontmatter
+ok    decompose > docsHosts ranks the hosts that keep owning the facts
+ok    decompose > a dry run gathers nothing and spends nothing
+ok    decompose > gathering records the candidate material and the likely owners
+ok    decompose > --max-scrapes bounds what phase 0 may cost, and a cache hit is not an attempt
+ok    decompose > a map that already holds judged rows is not redrafted over without --force
+ok    doctor > a healthy collector reports its credential state as a pass
+ok    doctor > a collector without a key is a FAIL - a collector that cannot collect is broken
+ok    doctor > on a BUILDER the same state is informational - a gate that is always red is one nobody reads
+ok    doctor > the role and its consequence are reported on every run
+ok    doctor > an unreadable machine config is a blocking CRITICAL that names the resolved posture
+ok    doctor > a retired config key and a retired env var are both reported
+ok    doctor > doctor reports the gate, the chain, the shape and the verdict from ONE snapshot
+ok    doctor > a failing verdict and a broken chain are both blockers, each named
+ok    doctor > doctor counts each override by kind
+ok    doctor > an ungated project is reported as such rather than judged
+ok    doctor > doctor is read-only about the corpus
+ok    doctor > installEditGate writes exactly one registration, pointing at the current hook
+ok    doctor > a registration at a RETIRED name is REPLACED, not doubled, and the repair is reported
+ok    doctor > installing twice leaves one registration, not two
+ok    doctor > the operator's OTHER hooks and unknown keys survive the write
+ok    doctor > a settings file the installer does not recognise is REFUSED, never rewritten
+ok    doctor > a backup is written before the settings file is changed
+ok    doctor > --dry-run writes nothing and says what it would do
+ok    doctor > removeEditGate takes out a retired entry too
+ok    doctor > gateHealth reports the edit gate in three states
+ok    doctor > gateHealth names an absent commit gate and the command that installs it
+ok    doctor > deploy MIRRORS: a file the source no longer ships is removed from the deployed tree
+ok    doctor > deploy does NOT mirror a skill root - it holds other people's skills too
+ok    doctor > a registration naming our hook in SOMEBODY ELSE'S tree is foreign, not current
+ok    doctor > a registration pointing at a hook that is not on disk is dangling
+ok    doctor > a registration pointing at the deployed kit is current
+ok    doctor > doctor reports foreign and dangling as BLOCKERS, with the repair
+ok    doctor > registeredPath reads the path out of a command, quoted or bare
+ok    fi-sidecar-conformance-vectors > FI sidecar and evidence-manifest vectors classify valid, malformed, and tampered documents consistently
+ok    fi-sidecar-conformance-vectors > FI Node CLI is byte-deterministic and agrees with the Node library
+ok    fi-sidecar-conformance-vectors > FI Python runner agrees with Node on every vector row and expected code
+ok    fi-sidecar-conformance-vectors > FI vector packet remains synthetic and does not carry completed evidence
+ok    fi-validator-conformance > FI conformance matrix contains every documented mutation exactly once
+ok    fi-validator-conformance > every FI conformance mutation executes deterministically without filesystem fixtures
+ok    fi-validator-conformance > schema-backed FI mutations produce executable strict-schema failures
+ok    fi-validator-conformance > matrix preserves explicit nonzero outcomes and the sole deterministic PASS case
+ok    finding > it is pure: a string in, a string out, no filesystem and no corpus
+ok    finding > a concrete sentence beats a vague one
+ok    finding > navigation, cookie banners and campaign copy are never the finding
+ok    finding > a tracking-laden line is dropped
+ok    finding > a pricing table's first data row is read as prose
+ok    finding > a bare price fragment from a tier hero block is not a finding
+ok    finding > fenced code is not prose
+ok    finding > links keep their text and lose their target
+ok    finding > the output is capped, and the cap does not cut a word in half
+ok    finding > a page with nothing worth saying returns the fallback verbatim
+ok    finding > the sentence splitter does not break on e.g., v2.1, or 1,000.
+ok    finding > score rewards numbers, limits and prices, and penalises questions and marketing
+ok    gate > the gate markers stay exactly four
+ok    gate > a project with none of the markers is not gated
+ok    gate > gated and passing allows; gated and failing blocks
+ok    gate > a missing DISCOVERY.md inside a gated project fails HARDER, it does not opt out
+ok    gate > diff-scope: a commit confined to research/ is allowed while the verdict fails
+ok    gate > GATE_OFF is a no-op, reported, and recorded in the overrides log
+ok    gate > the architecture-map rule: a declared code path stages the map with it
+ok    gate > undeclared code paths fall back to the documented defaults
+ok    gate > the edit gate has no diff-scope: there are no staged paths to confine
+ok    gate > splitPathList: null is "could not read", [] is "read, and empty"
+ok    gate > one verdict, three callers: the same snapshot cannot yield two answers
+ok    handoff > a corpus that arrived whole passes
+ok    handoff > a missing ledger is named handoff-ledger-missing
+ok    handoff > an empty ledger is named handoff-ledger-empty - present is not the same as whole
+ok    handoff > a capture an evidence row names but that is not on disk is named, per row
+ok    handoff > a broken chain is named handoff-chain-broken, one line per capture
+ok    handoff > a line-ending rewrite gets the LOCAL remedy, and no push remedy
+ok    handoff > a genuinely tampered capture still gets the PUSH remedy
+ok    handoff > a report holding both causes prints both remedies
+ok    handoff > the remedy texts are the module's, so neither consumer can drift
+ok    handoff > verifyHandoff is read-only: it never repairs, and never writes the corpus
+ok    handoff > one composition, two consumers: doctor passes the corpus it already read
+ok    handoff > doctor makes handoff a BLOCKER on a builder and silent on a collector
+ok    hardening > F16: an unreadable config with nothing to hold refuses metered collection
+ok    hardening > F16: a misspelled role is unknown, not a silent default
+ok    hardening > F10: a manifest entry that climbs out of research/audits/ is refused
+ok    hardening > F10: an absolute path in the manifest is refused too
+ok    hardening > F15: absent and corrupt are different manifest states
+ok    hardening > F15: a corrupt index is refused, and the immutable file survives
+ok    hardening > F06: answering the brief's judged section bumps the audit
+ok    hardening > F06: rewriting a claim bumps it too
+ok    hardening > F22: a reordered header does not scramble the cells
+ok    hardening > F22: upsert matches its key in the column that holds it
+ok    hardening > F22: a header the canonical set does not cover is REFUSED, not guessed at
+ok    hardening > F22: alignToHeader is the mapping, and it is identity when the order matches
+ok    hardening > F19: a dry run previews against the SAME budget execution would use
+ok    hardening > F19: the preview and the execution agree on which URLs are in budget
+ok    hardening > F20: a budget that is not a number is REFUSED before anything is spent
+ok    hardening > F20: failed searches are kept, not just printed
+ok    hardening > F04: a dropped sibling section makes a capture partial, and says so
+ok    hardening > F04: a page with one block and nothing dropped is full
+ok    hardening > F04: the drop analysis sees short blocks the SELECTION ignores
+ok    hardening > F24: an auto-collected row is born secondary, not primary
+ok    hardening > F24: a plan entry may declare P, because a person wrote that URL down
+ok    hardening > F24: a lookalike host does not score as the real one
+ok    hardening > F07: a drafted brief over a FAILING gate says so instead of announcing completion
+ok    hardening > F07: an unanswered TODO says the handoff is not approved
+ok    hardening > F27: the line-ending remedy never deletes, and checks before it changes anything
+ok    hardening > F27: with no git metadata, the remedy refuses to suggest a command at all
+ok    hardening > F26: a credential in a DOTFILE is found, not skipped
+ok    hardening > F26: several credential shapes are recognised, and the coverage is stated
