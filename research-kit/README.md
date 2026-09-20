@@ -162,12 +162,12 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-326 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+565 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
-A prerequisite this host cannot provide - no POSIX shell, no git - is reported as
-`UNSUP` with its reason code and **blocks**. It is never a silent skip: a test that
+A prerequisite this host cannot provide - no POSIX shell, no git, no python - is reported
+as `UNSUP` with its reason code and **blocks**. It is never a silent skip: a test that
 returns early on a missing prerequisite prints `ok` having asserted nothing, which is
 the same false green one layer up.
 
