@@ -5,7 +5,7 @@ name: offline-suite
 # re-run every check without being given a key. The collector is the only part of
 # this kit that spends anything, and it is deliberately not exercised here.
 #
-# Three platforms, because this kit's behaviour genuinely differs across them: the
+# Two platforms, because this kit's behaviour genuinely differs across them: the
 # Firecrawl transport takes a `.cmd` route on Windows with its own argument guard,
 # paths and line endings are handled explicitly, and git's executable bit does not
 # exist on Windows at all. That last one is not hypothetical - `githooks/pre-commit`
@@ -183,4 +183,4 @@ jobs:
             echo "open the platform legs above; a single-platform failure is the point of this matrix"
             exit 1
           fi
-          echo "ubuntu, windows and macos all passed"
+          echo "every platform in the matrix passed: ubuntu-latest, windows-latest"
