@@ -137,6 +137,80 @@ test('history was moved and linked, not deleted', () => {
   }
 });
 
+test('the map does not contradict itself about exit codes', () => {
+  // This is the test that should have existed already.
+  //
+  // The map stated the corrected invariant - "usage errors return 2 from every
+  // subcommand" - in one section while a paragraph two hundred lines away still said
+  // "a usage error exits 2 for validate and conform but 4 for fi-validate; no test pins
+  // either". Both claims were in the current map at once, and the second was doubly
+  // false: the code IS 2 everywhere, and a test DOES pin it.
+  //
+  // Finding it took an external reader. A document is not trustworthy because someone
+  // read it carefully once; it is trustworthy when disagreeing with the code is a test
+  // failure. So every exit-code claim the map makes is checked against the CLI.
+  const text = map();
+  const cli = fs.readFileSync(path.join(KIT_ROOT, 'bin', 'researcher-release.mjs'), 'utf8');
+
+  // What the CLI actually does with a usage error, read from its source.
+  const usageCodes = new Set(
+    cli.split('\n')
+      .filter((line) => /console\.error\(usage\(\)\)/.test(line))
+      .map((line) => line.match(/return\s+(\d)/)?.[1])
+      .filter(Boolean),
+  );
+  assertEqual(usageCodes.size, 1,
+    `the CLI returns more than one code for a usage error (${[...usageCodes].join(', ')}), `
+    + 'so no single claim in the map can be true');
+  const usage = [...usageCodes][0];
+
+  // Any sentence in the map that talks about a usage error and names a digit must agree.
+  //
+  // EVERY standalone digit in such a sentence is checked, not only one following an
+  // "exits"/"returns" verb. The first version of this test looked only after those verbs
+  // and so missed the exact sentence it was written for:
+  //
+  //   "a usage error exits 2 for validate and conform but 4 for fi-validate"
+  //
+  // It captured the 2, found it correct, and passed - while the 4 sat two words later. I
+  // verified that by reintroducing the sentence and watching the test stay green, which
+  // is the only reason I know it was broken.
+  // Only the CLAUSE about the usage error is read, not the whole line. A line that
+  // mentions a usage error usually also lists the status codes beside it - 0, 1, 2, 3,
+  // and 4 for an unrecognised status - and reading the whole line flagged every one of
+  // them. That was this test's second false start: too narrow first, then too wide.
+  const clauseAbout = (line) => {
+    const start = line.search(/usage error/i);
+    if (start < 0) return null;
+    const rest = line.slice(start);
+    const end = rest.search(/[.;]\s|,\s+(?:and|printing)\b/);
+    return end < 0 ? rest : rest.slice(0, end);
+  };
+
+  const wrong = text.split('\n').filter((line) => {
+    const clause = clauseAbout(line);
+    if (!clause) return false;
+    const claimed = [...clause.matchAll(/(?<![\w.`])`?(\d)`?(?![\w.`])/g)].map((m) => m[1]);
+    return claimed.some((code) => code !== usage);
+  });
+  assertEqual(wrong.length, 0,
+    `the map claims a usage-error exit code other than ${usage}, which is what the CLI `
+    + `returns:\n  ${wrong.map((l) => l.slice(0, 160)).join('\n  ')}`);
+});
+
+test('the module table states ownership, not chronology', () => {
+  // "Ported 2026-09-20", "Extracted 2026-09-20", "decomposed the same day" - twelve rows
+  // opened with when they were written rather than what they own. That is the adopted
+  // policy's boundary: the map says what a module owns NOW, the ADR in the third column
+  // says who decided it, and the date belongs to the commit that made it.
+  const text = map();
+  const rows = text.split('\n').filter((line) => /^\| `/.test(line));
+  const dated = rows.filter((line) => /\*\*(Ported|Extracted|Added|Rewritten|Split) \d{4}-\d{2}-\d{2}/.test(line));
+  assertEqual(dated.length, 0,
+    'these rows open with a date instead of an owner. The governing ADR belongs in the '
+    + `third column; the date belongs to git:\n  ${dated.map((l) => l.slice(0, 110)).join('\n  ')}`);
+});
+
 test('the scaffold template stays a scaffold', () => {
   // Acceptance criterion: the template is a starting point for somebody else's project.
   // Repository-specific history leaking into it would ship this project's defect stories
