@@ -256,3 +256,33 @@ test('no current document claims a capability that has no entrypoint', () => {
   assertEqual(claims.length, 0,
     `these current documents name a capability with no bin/ entrypoint behind it:\n  ${claims.join('\n  ')}`);
 });
+
+test('the live workflow does not swallow the checks that decide its result', () => {
+  // The first version of live-collection.yml ran handoff and preflight and then discarded
+  // both exit codes with `|| true`, so a green run proved only that the repository was
+  // unchanged. That is worse than having no workflow: a signal that looks like
+  // verification and is not.
+  //
+  // This pins the property rather than the wording: the commands that decide the result
+  // may not be suffixed with a swallow.
+  const file = path.join(REPO, '.github', 'workflows', 'live-collection.yml');
+  if (!fs.existsSync(file)) return;                      // the workflow is optional
+  const yaml = fs.readFileSync(file, 'utf8');
+
+  const swallowed = yaml.split('\n')
+    .filter((line) => !line.trim().startsWith('#'))
+    .filter((line) => /\|\|\s*true/.test(line))
+    .filter((line) => /(handoff|preflight|research)\.mjs/.test(line));
+  assertEqual(swallowed.length, 0,
+    `these steps decide the workflow's result and discard their exit status:\n  ${swallowed.join('\n  ')}`);
+
+  // Paid runs must be serialised: max_pages bounds ONE run, not the meter.
+  assert(/^concurrency:/m.test(yaml), 'the paid workflow has no concurrency group; two dispatches spend at once');
+  assert(/cancel-in-progress:\s*false/.test(yaml),
+    'cancelling a paid collection mid-flight wastes the credits already spent');
+
+  // A public summary must not carry URL paths or query strings.
+  assert(!/\.url\s*\?\?\s*""\)\.slice/.test(yaml),
+    'the summary prints a URL prefix, which discloses what was being researched');
+  assert(/hostname/.test(yaml), 'the summary should reduce URLs to hostnames');
+});
