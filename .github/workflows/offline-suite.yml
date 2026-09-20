@@ -32,7 +32,12 @@ jobs:
       # throws away the comparison that makes it diagnosable.
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # Windows and Linux. macOS is deliberately NOT here: it is not a platform this
+        # kit is maintained for, and a leg nobody will fix is a leg that teaches people
+        # to ignore red. Its one run was not wasted - it found the symlink containment
+        # defect in audit.mjs, which is fixed and affects Linux too wherever a project
+        # sits under a symlink. Add macos-latest here if that changes.
+        os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     defaults:

@@ -66,15 +66,27 @@ test('exec carries an argv ARRAY and spawns with shell:false', () => {
   assert.equal(seen, null);
 });
 
-test('a POSIX invocation is shell-free and passes the URL through untouched', () => {
+test('a direct invocation is shell-free and passes the URL through untouched', () => {
+  // Simulates THIS host's platform, not a hardcoded one.
+  //
+  // The first version passed `platform: 'linux'` while handing it a real directory from
+  // this machine. On Windows that is `C:\Users\...`, and resolveProgramPath correctly
+  // splits a POSIX PATH on ':' - severing the drive letter, finding nothing, and failing
+  // the assertion. The product was right and the test was simulating a platform whose
+  // path syntax it could not actually produce. Found by the Windows CI leg.
+  //
+  // Both platforms reach the same branch - a real .exe, or anything extension-less, is
+  // spawned directly - so the property under test is genuinely shared, and asserting it
+  // natively on each host is stronger than asserting it about a fiction on one.
+  const windows = process.platform === 'win32';
   const dir = tempDir('research-kit-bin-');
-  const program = path.join(dir, 'firecrawl');
-  fs.writeFileSync(program, '#!/bin/sh\necho "{}"\n');
+  const program = path.join(dir, windows ? 'firecrawl.exe' : 'firecrawl');
+  fs.writeFileSync(program, windows ? 'MZ' : '#!/bin/sh\necho "{}"\n');
   const invocation = firecrawl.resolveInvocation(['scrape', 'https://x.invalid/a?q=$(touch pwned)'], {
-    env: { PATH: dir },
-    platform: 'linux',
+    env: { PATH: dir, PATHEXT: '.COM;.EXE;.BAT;.CMD' },
+    platform: process.platform,
   });
-  assert.equal(invocation.ok, true);
+  assert.equal(invocation.ok, true, JSON.stringify(invocation));
   assert.equal(invocation.shell, false);
   assert.equal(invocation.route, 'direct');
   assert.equal(invocation.args[1], 'https://x.invalid/a?q=$(touch pwned)', 'the URL is data, passed as one argv element');
