@@ -2,6 +2,15 @@
 
 This generated file is the navigation and integrity index for this ZIP. The other 79 entries are unchanged source documents.
 
+> **This is a frozen record of the archive as received on 2026-09-17, not a constraint on
+> the present (ADR-0028).** The digests below are never updated. Files have changed since
+> — the corpus grows every time the kit is used, and `docs/ARCHITECTURE.md` moves with the
+> code because ADR-0007 requires it — and that is the project being alive, not the index
+> being broken. A hash file rewritten whenever it disagrees with reality records nothing.
+>
+> To see how far this repository has moved from the archive, and whether each change was
+> expected: `node research-kit/bin/bundle.mjs`
+
 ## Exact authoritative reading order
 
 1. [AGENTS.md](AGENTS.md)

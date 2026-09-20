@@ -17,6 +17,7 @@ import { validateProject, hookExecutability, GATE_MARKERS, KIT_ROOT } from './sc
 import { settingsState } from './installer.mjs';
 import { recordOverride } from './provenance.mjs';
 import { probeFirecrawl, selectTransport } from './transport.mjs';
+import { verifyBundle, bundleSummary } from './bundle.mjs';
 import {
   posture, machineRole, collectionPolicy, readMachineConfig, retiredEnvNotes,
   hooksPath, hooksPathEffective, runtimePaths, skillLocations,
@@ -327,6 +328,19 @@ export function runDoctor(root, { env = process.env, gitPaths = {}, probe = prob
     }
   } else if (gated) {
     findings.push(f('pass', 'handoff', `${handoff.entries} ledger entries, every cited capture on disk`));
+  }
+
+  // the archive this project was handed over as (ADR-0028)
+  //
+  // Reported, never failed. A file that moved is a fact about this repository's history;
+  // the only thing that would make it a problem is nobody knowing. So an UNEXPECTED
+  // change warns - somebody should be able to point at the commit that explains it - and
+  // everything else passes.
+  const bundle = verifyBundle(root);
+  if (bundle.present) {
+    findings.push(bundle.ok
+      ? f('pass', 'bundle', bundleSummary(bundle))
+      : f('warn', 'bundle', bundleSummary(bundle)));
   }
 
   // deployment
