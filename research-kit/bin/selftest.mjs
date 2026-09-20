@@ -44,6 +44,32 @@ for (const file of files) {
 }
 
 const { failures, passed, unsupported, blocking } = await runPending();
+
+/**
+ * Write the result as DATA, when asked.
+ *
+ * CI used to scrape this program's stdout for `N passed, M failed`, which cannot tell a
+ * failing suite from a suite that died before printing anything - a startup error, an
+ * import-time throw, an OOM kill and a truncated log all render as "suite produced no
+ * count". A reviewer then sees a generic message and has to go hunting for the real
+ * diagnostic.
+ *
+ * Absence of this file is itself the signal: if the runner crashed before emission there
+ * is nothing to read, which is distinguishable from a suite that ran and failed.
+ */
+function writeResultFile(code) {
+  const target = process.env.RESEARCH_KIT_RESULT_FILE;
+  if (!target) return;
+  try {
+    fs.writeFileSync(target, `${JSON.stringify({
+      passed, failures, unsupported: unsupported.length, blocking, exit: code,
+      seconds: Number(((Date.now() - started) / 1000).toFixed(1)),
+      files: files.length, node: process.versions.node, platform: process.platform,
+    }, null, 2)}
+`, 'utf8');
+  } catch { /* a report that cannot be written must not fail the run it reports on */ }
+}
+
 const seconds = ((Date.now() - started) / 1000).toFixed(1);
 
 process.stdout.write(`\n${passed} passed, ${failures} failed${unsupported.length ? `, ${unsupported.length} unsupported` : ''} in ${seconds}s (watchdog ${TEST_TIMEOUT}ms/test)\n`);
@@ -55,6 +81,7 @@ if (unsupported.length) {
   for (const entry of unsupported) process.stdout.write(`  ${entry.code}  ${entry.label}\n    ${entry.reason}\n`);
 }
 if (blocking) {
+  writeResultFile(1);
   process.stdout.write(`\nA red suite stops work. cwd: ${process.cwd()}\n`);
   process.exit(1);
 }
@@ -78,10 +105,12 @@ if (!positional.length) {
         `\nresearch-kit/README.md claims ${claim[1]} tests; this run has ${actual}.\n`
         + `A stale count is the first claim a reader checks, and the cheapest one to lose trust over.\n`
         + `Fix: change "${claim[1]} tests, offline" to "${actual} tests, offline" in research-kit/README.md\n`);
+      writeResultFile(1);
       process.exit(1);
     }
   } catch { /* no README (a scaffolded or partial copy) - nothing to keep honest */ }
 }
 
+writeResultFile(0);
 process.stdout.write('all tests passed\n');
 process.exit(0);

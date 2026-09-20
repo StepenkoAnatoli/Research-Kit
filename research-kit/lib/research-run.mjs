@@ -7,6 +7,7 @@
 // run, a cache hit is never an attempt, and `--dry-run` spends nothing.
 
 import { PATHS, resolve, readJson, readText, today, hostOf, uniq } from './core.mjs';
+import * as firecrawl from './firecrawl.mjs';
 import { readCorpus, cacheDecision, appendJsonLine } from './corpus.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
 
@@ -92,6 +93,39 @@ export function runResearch(root, {
   now = new Date(),
   log = () => {},
 } = {}) {
+  // Refuse an incompatible vendor CLI BEFORE anything is spent.
+  //
+  // The Firecrawl CLI is the one dependency outside this repository's control: no
+  // lockfile pins it, it is installed globally, and it can change under a working
+  // install. Every adapter test drives a stub, so a payload-shape change is exactly what
+  // the suite cannot see - and the place it would surface is mid-collection, after
+  // credits are gone. A dry run is checked too: a preview that says "this will work" on a
+  // CLI that cannot is worse than no preview.
+  //
+  // Only a different MAJOR refuses. An unreadable or unparseable version proceeds, because
+  // a CLI that prints its version differently is not evidence that scraping is broken.
+  if (adapter?.name === firecrawl.name) {
+    const compatibility = firecrawl.cliCompatibility();
+    if (!compatibility.supported) {
+      const err = new Error(`${compatibility.detail}
+${compatibility.remedy}`);
+      err.code = 'CLI_INCOMPATIBLE';
+      err.compatibility = compatibility;
+      throw err;
+    }
+    if (compatibility.level !== 'supported') log(`note: ${compatibility.detail}`);
+  }
+
+  // A search provider that cannot run refuses here, beside the CLI check, for the same
+  // reason: this is the last point before anything is spent. selectSearch REPORTS the
+  // problem rather than throwing, so --dry-run and doctor can describe it; the refusal
+  // belongs where the money is.
+  if (searchAdapter?.notReady) {
+    const err = new Error(searchAdapter.notReady);
+    err.code = 'SEARCH_PROVIDER_NOT_READY';
+    throw err;
+  }
+
   const settings = plan ?? readPlan(root);
   const tier = depth || settings.depth;
   const budget = Math.min(settings.maxScrapes, DEPTH_SCRAPES[tier] ?? DEPTH_SCRAPES.quick);

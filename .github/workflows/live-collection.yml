@@ -1,0 +1,175 @@
+name: live-collection
+
+# THE ONLY WORKFLOW THAT SPENDS MONEY, AND THE ONLY ONE THAT TOUCHES A VENDOR.
+#
+# `offline-suite` deliberately cannot reach the network, which is right: a reviewer or a
+# fork must be able to re-run every check without being given a key. But that means the
+# real network boundary is represented entirely by stubs, and the suite stays green while
+# real collection fails on a changed payload, a proxy, a platform TLS quirk, a 429, or a
+# partial response.
+#
+# This exists to exercise that boundary on purpose, with the cost visible and bounded.
+#
+# It is:
+#   manual only            no push, no pull_request, no schedule - nothing runs it by
+#                          accident, and a fork cannot trigger it
+#   budgeted               `max_pages` is an input with a small default, and the run
+#                          reports the credits it actually spent
+#   credential-scoped      one secret, read from the environment, never written to disk
+#   corpus-isolated        it collects into a scratch project under RUNNER_TEMP and
+#                          commits nothing. The repository's own corpus is evidence for
+#                          its own unknowns, not a place to put test captures
+#   redacted               the key never reaches a log line; the adapter refuses a query
+#                          containing it before transmit, and `command()` renders
+#                          pre-redacted
+#
+# WHEN TO RUN IT
+#   - before trusting a Firecrawl CLI version this adapter has not seen
+#   - after changing anything under lib/firecrawl.mjs, lib/http-transport.mjs,
+#     lib/serpapi.mjs or lib/collect.mjs
+#   - when a real collection fails in a way the offline suite cannot reproduce
+#
+# WHAT A FAILURE HERE MEANS
+#   The offline suite passing and this failing is the interesting case, and the expected
+#   one: it means the stubs and the vendor have diverged. Read the version report first.
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_pages:
+        description: 'Pages to collect (each costs at least one credit)'
+        required: true
+        default: '2'
+      transport:
+        description: 'Which fetch route to exercise'
+        required: true
+        default: 'firecrawl-cli'
+        type: choice
+        options: [firecrawl-cli, http-keyless]
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: live
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # A budget nobody can raise by editing an input: the job itself refuses a large run.
+    environment: live-collection
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, resolved 2026-09-21
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4, resolved 2026-09-21
+        with:
+          node-version: '22'
+
+      - name: refuse an unbounded run
+        run: |
+          pages='${{ inputs.max_pages }}'
+          case "$pages" in (''|*[!0-9]*) echo "max_pages must be a whole number"; exit 1;; esac
+          if [ "$pages" -lt 1 ] || [ "$pages" -gt 10 ]; then
+            echo "max_pages=$pages is outside 1..10."
+            echo "This workflow spends real credits; a large run belongs on a machine where"
+            echo "somebody is watching the meter, not in CI."
+            exit 1
+          fi
+          echo "budget: $pages page(s)"
+
+      - name: install the vendor CLI, and report the version this run used
+        if: inputs.transport == 'firecrawl-cli'
+        run: |
+          npm install -g @mendable/firecrawl-cli >/dev/null 2>&1 || npm install -g firecrawl >/dev/null 2>&1 || true
+          installed=$(firecrawl --version 2>/dev/null || echo 'not installed')
+          echo "firecrawl CLI: $installed"
+          # The version is the first thing to read when this workflow fails, so it goes in
+          # the summary rather than only in the log.
+          echo "| firecrawl CLI | \`$installed\` |" >> "$GITHUB_STEP_SUMMARY"
+          node -e '
+            import("./research-kit/lib/firecrawl.mjs").then((m) => {
+              const c = m.cliCompatibility();
+              console.log(`${c.level}: ${c.detail}`);
+              if (!c.supported) { console.error(c.remedy); process.exit(1); }
+            });
+          '
+
+      - name: the key is present, and is never printed
+        env:
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+        run: |
+          if [ -z "${FIRECRAWL_API_KEY:-}" ] && [ '${{ inputs.transport }}' = 'firecrawl-cli' ]; then
+            echo "FIRECRAWL_API_KEY is not set for this environment."
+            echo "Add it under Settings > Environments > live-collection, or run with transport=http-keyless."
+            exit 1
+          fi
+          echo "credential present: ${FIRECRAWL_API_KEY:+yes}${FIRECRAWL_API_KEY:-no (keyless route)}"
+
+      - name: collect into a scratch project, never the repository's corpus
+        env:
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          RESEARCH_KIT_TRANSPORT: ${{ inputs.transport }}
+        run: |
+          set -e
+          kit="$PWD/research-kit"
+          scratch="$RUNNER_TEMP/live-project"
+          mkdir -p "$scratch"
+          cd "$scratch"
+
+          # A scratch project, so nothing this run collects can reach the repository's
+          # hash-chained ledger. That ledger proves the corpus answers ITS OWN questions;
+          # a CI capture in it would be evidence of nothing.
+          node "$kit/bin/new-project.mjs" . --topic "live transport check"
+
+          node "$kit/bin/doctor.mjs" || true
+          node "$kit/bin/research.mjs" --dry-run --depth quick
+          node "$kit/bin/research.mjs" --depth quick --max-scrapes '${{ inputs.max_pages }}'
+
+          echo "--- what it cost ---"
+          node "$kit/bin/research.mjs" --status || true
+
+      - name: the corpus that arrived verifies
+        env:
+          RESEARCH_KIT_TRANSPORT: ${{ inputs.transport }}
+        run: |
+          cd "$RUNNER_TEMP/live-project"
+          # The point of collecting at all: a real capture must pass the same checks a
+          # synthetic one does - chain verifies, every cited capture on disk, bodies
+          # unmodified.
+          node "$GITHUB_WORKSPACE/research-kit/bin/handoff.mjs" || true
+          node "$GITHUB_WORKSPACE/research-kit/bin/preflight.mjs" --json > preflight.json || true
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync("preflight.json", "utf8"));
+            console.log(`preflight: ${r.status ?? r.verdict}`);
+            const chain = (r.checks ?? []).find((c) => /chain|ledger/.test(c.name ?? ""));
+            if (chain) console.log(`  ${chain.name}: ${chain.status}`);
+          '
+
+      - name: the repository is unchanged
+        run: |
+          # The guarantee this workflow rests on. If a live run ever wrote into the
+          # checkout, every later claim about corpus provenance would be suspect.
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "a live collection modified the repository:"
+            git status --porcelain
+            exit 1
+          fi
+          echo "repository untouched"
+
+      - name: sanitized diagnostics
+        if: always()
+        run: |
+          cd "$RUNNER_TEMP/live-project" || exit 0
+          # Deliberately NOT the captures: they are someone else's pages, and this is a
+          # public log. Only the shape of what happened.
+          node -e '
+            const fs = require("fs");
+            const led = "research/raw/.fetches.jsonl";
+            if (!fs.existsSync(led)) { console.log("no ledger written"); process.exit(0); }
+            const rows = fs.readFileSync(led, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse);
+            for (const r of rows) {
+              console.log([r.op, r.statusCode ?? "-", r.transport ?? "-", r.completeness ?? "-", (r.url ?? "").slice(0, 60)].join("  "));
+            }
+          ' >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true

@@ -223,3 +223,36 @@ test('the scaffold template stays a scaffold', () => {
   assertEqual(leaked.length, 0,
     `this repository's specifics leaked into the scaffold template: ${leaked.join(', ')}`);
 });
+
+test('no current document claims a capability that has no entrypoint', () => {
+  // F-12. The dashboard was specified, then deliberately aborted, and its design notes
+  // survive in the dated record - correctly, because a rejected design is a decision.
+  //
+  // The risk is process, not code: a future reader finds those specs and adds a row to a
+  // command table, or a README sentence, describing something nobody built. This repo has
+  // already shipped an architecture map describing two modules that did not exist.
+  //
+  // So a CURRENT document may not claim one of these exists unless a bin/ entrypoint
+  // backs it. History may discuss them freely.
+  const speculative = ['dashboard', 'web UI', 'live view'];
+  const current = [
+    ['docs/ARCHITECTURE.md', map()],
+    ['README.md', fs.readFileSync(path.join(REPO, 'README.md'), 'utf8')],
+    ['research-kit/README.md', fs.readFileSync(path.join(KIT_ROOT, 'README.md'), 'utf8')],
+  ];
+  const bin = fs.readdirSync(path.join(KIT_ROOT, 'bin'));
+
+  const claims = [];
+  for (const [file, text] of current) {
+    for (const term of speculative) {
+      // Only a CLAIM counts: the word beside a command, or an assertion that it exists.
+      const claimed = new RegExp(`(node research-kit/bin/\S*${term}|\`[^\`]*${term}[^\`]*\.mjs\`)`, 'i');
+      const hit = text.match(claimed);
+      if (!hit) continue;
+      const backed = bin.some((name) => name.toLowerCase().includes(term.split(' ')[0].toLowerCase()));
+      if (!backed) claims.push(`${file}: ${hit[0]}`);
+    }
+  }
+  assertEqual(claims.length, 0,
+    `these current documents name a capability with no bin/ entrypoint behind it:\n  ${claims.join('\n  ')}`);
+});

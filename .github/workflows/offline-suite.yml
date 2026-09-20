@@ -112,9 +112,10 @@ jobs:
           echo "working tree is LF"
 
       - name: selftest
-        run: |
-          set -o pipefail
-          node research-kit/bin/selftest.mjs | tee "$RUNNER_TEMP/suite.txt"
+        env:
+          # Structured result, so the summary below reads DATA rather than scraping prose.
+          RESEARCH_KIT_RESULT_FILE: ${{ runner.temp }}/suite-result.json
+        run: node research-kit/bin/selftest.mjs
 
       # Publish the count where a reviewer can read it WITHOUT running anything.
       #
@@ -126,7 +127,20 @@ jobs:
       - name: publish the count
         if: always()
         run: |
-          line=$(grep -E '^[0-9]+ passed, [0-9]+ failed' "$RUNNER_TEMP/suite.txt" || echo 'suite produced no count')
+          result="$RUNNER_TEMP/suite-result.json"
+          if [ -f "$result" ]; then
+            line=$(node -e '
+              const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+              const bits = [`${r.passed} passed`, `${r.failures} failed`];
+              if (r.unsupported) bits.push(`${r.unsupported} unsupported`);
+              process.stdout.write(`${bits.join(", ")} in ${r.seconds}s across ${r.files} files (node ${r.node})`);
+            ' "$result")
+          else
+            # No file means the runner never reached its own reporting - a startup error,
+            # an import-time throw, an OOM kill. That is a DIFFERENT fact from a failing
+            # suite, and scraping stdout could not tell the two apart.
+            line='the runner produced no result file: it crashed before reporting'
+          fi
           echo "| ${{ matrix.os }} | \`$line\` |" >> "$GITHUB_STEP_SUMMARY"
 
       - name: preflight

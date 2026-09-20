@@ -153,7 +153,27 @@ export function selectSearch({ explicit = '', env = process.env, config = null, 
     const why = explicit
       ? '--search-transport'
       : (env.RESEARCH_KIT_SEARCH_TRANSPORT ? 'RESEARCH_KIT_SEARCH_TRANSPORT' : 'machine config');
-    return { name: adapter.name ?? asked, adapter, why, searchOnly: isSearchOnly(adapter) };
+
+    // Selection answers WHICH provider. It also reports whether that provider can RUN -
+    // and reports rather than throws, deliberately.
+    //
+    // Automatic selection below only reaches SerpAPI when a key exists, so it could never
+    // choose a provider that cannot run. An explicit choice skipped readiness entirely:
+    // `--search-transport serpapi` with no key was accepted and failed later, during
+    // collection, after a plan was built and - on some routes - after fetch credits were
+    // spent.
+    //
+    // Throwing here was the first fix and it was wrong. `selectSearch` is also how
+    // `--dry-run` and `doctor` ask what WOULD be used, and those must be able to say "no
+    // key" rather than crash; three precedence tests failed precisely because they ask
+    // which name wins and have no business supplying a key. So the unreadiness travels
+    // with the selection, and `runResearch` refuses on it before spending.
+    const notReady = adapter === serpapi && !serpapi.readKey({ env, config: settings })
+      ? `${adapter.name} was selected by ${why}, but no SerpAPI key is configured. `
+        + 'Set SERPAPI_API_KEY, or put serpapiKey in ~/.agents/research-kit.config.json. '
+        + 'Unset the explicit choice to let the kit pick a provider it can run.'
+      : '';
+    return { name: adapter.name ?? asked, adapter, why, searchOnly: isSearchOnly(adapter), notReady };
   }
 
   if (serpapi.readKey({ env, config: settings })) {

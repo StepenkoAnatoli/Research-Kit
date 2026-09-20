@@ -116,6 +116,19 @@ export function lockRecoverable(file, holder) {
       : { recoverable: false, why: 'a holder with no pid, possibly mid-write' };
   }
   if (holder.host === os.hostname()) {
+    // ADR-0025, and it is load-bearing: a live holder is NEVER broken, however old the
+    // lock is. Age-based eviction was tried and rejected because a collection legitimately
+    // holds the section across many slow requests, so evicting on age evicted the CORRECT
+    // holder and interleaved two collectors.
+    //
+    // A 2026-09-21 audit proposed a bound here for pid reuse - a dead collector whose
+    // number the OS later handed to an unrelated process leaves a lock that reads as held
+    // forever. The concern is real and the remedy is not eviction: any bound short enough
+    // to catch a reused pid is short enough to evict a long run, which is the worse
+    // failure and the one this decision already weighed. `test/concurrency.test.mjs`
+    // backdates a live lock six hours and requires it to survive.
+    //
+    // So pid reuse is made DIAGNOSABLE instead, in the timeout message below.
     return pidAlive(holder.pid)
       ? { recoverable: false, why: `pid ${holder.pid} is alive` }
       : { recoverable: true, why: `pid ${holder.pid} is gone` };
@@ -152,9 +165,27 @@ function acquire(root) {
       }
 
       if (Date.now() > deadline) {
+        // Names pid reuse explicitly, because the operator is the only one who can tell.
+        //
+        // `pidAlive` asks whether a process with that NUMBER exists, not whether it is the
+        // one that took the lock - and operating systems reuse numbers. A collector that
+        // died and whose pid was later handed to an unrelated process leaves a lock that
+        // reads as held forever, and nothing in a bare "still held" message would suggest
+        // the holder is now a text editor.
+        //
+        // Eviction is deliberately NOT the answer (ADR-0025): any bound short enough to
+        // catch a reused pid would evict a legitimately long collection, which is worse.
+        // So the message hands over the one check a person can make and a machine cannot.
+        const age = Math.round(lockAge(file) / 60_000);
         throw new Error(
-          `the collector's exclusive section is still held (${why}): ${file}. `
-          + 'Nothing was collected. If that holder is genuinely gone, delete the lock file.',
+          `the collector's exclusive section is still held (${why}): ${file}. Nothing was collected.\n`
+          + `The lock is ${age}m old.\n`
+          + (holder?.pid
+            ? `If pid ${holder.pid} is not a research-kit run, its number has been REUSED and the lock is stale:\n`
+              + `  ${process.platform === 'win32' ? `tasklist /FI "PID eq ${holder.pid}"` : `ps -p ${holder.pid} -o pid,lastcomm,args`}\n`
+              + 'A live pid is never evicted automatically, because a long collection looks identical to a hung one.\n'
+            : '')
+          + 'If that holder is genuinely gone, delete the lock file.',
         );
       }
       sleep(50);
