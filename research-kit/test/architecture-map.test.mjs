@@ -286,3 +286,32 @@ test('the live workflow does not swallow the checks that decide its result', () 
     'the summary prints a URL prefix, which discloses what was being researched');
   assert(/hostname/.test(yaml), 'the summary should reduce URLs to hostnames');
 });
+
+test('the live workflow requires integrity, not research sufficiency', () => {
+  // Found by RUNNING the predicate, not by reading it.
+  //
+  // The workflow originally required `preflight` to exit 0 on the scratch project it
+  // collects into. Preflight answers "is the RESEARCH sufficient to build" - a
+  // human-authored question - so a freshly scaffolded project fails
+  // `discovery-contract/no-unknowns` and exits 1 however perfectly collection worked.
+  // The workflow would have failed on every run, always, for a reason having nothing to
+  // do with the transport it exists to test.
+  //
+  // What collection CAN answer is integrity: the chain verifies, captures are on disk,
+  // the corpus parses. Those are required per-check instead.
+  const file = path.join(REPO, '.github', 'workflows', 'live-collection.yml');
+  if (!fs.existsSync(file)) return;
+  const yaml = fs.readFileSync(file, 'utf8');
+  const executable = yaml.split('\n').filter((line) => !line.trim().startsWith('#'));
+
+  const wholeVerdict = executable.filter((line) => /preflight\.mjs/.test(line) && !/--check/.test(line));
+  assertEqual(wholeVerdict.length, 0,
+    'the workflow requires the whole preflight verdict from a scratch project, which can '
+    + `never satisfy it - it has no unknowns to prove:\n  ${wholeVerdict.join('\n  ')}`);
+
+  assert(/--check "\$check"|--check \$check/.test(yaml),
+    'the workflow should require named integrity checks rather than the overall verdict');
+  for (const check of ['provenance', 'corpus-shape', 'citations']) {
+    assert(yaml.includes(check), `the integrity predicate no longer names ${check}`);
+  }
+});
