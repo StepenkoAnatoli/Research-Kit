@@ -1,0 +1,66 @@
+{
+  "packetVersion": "1.0.0",
+  "profile": "researcher-property-vector-v1",
+  "generatorProfile": "researcher-property-replay-v1",
+  "sourceCases": {
+    "PV-H-01": {"family":"canonical-hashing","seed":3242852353,"iteration":17},
+    "G-17": {"family":"descendant-invalidation","seed":3242852355,"iteration":17}
+  },
+  "vectors": [
+    {
+      "vectorId": "PV-H-01",
+      "kind": "canonical-hash",
+      "value": {"z":17,"a":{"nested":3,"list":[17,18]},"m":"case-17"},
+      "permutedValue": {"z":17,"a":{"nested":3,"list":[17,18]},"m":"case-17"},
+      "reorderedValue": {"z":17,"a":{"nested":3,"list":[18,17]},"m":"case-17"},
+      "expectedCanonical": "{\"a\":{\"list\":[17,18],\"nested\":3},\"m\":\"case-17\",\"z\":17}",
+      "expectedSha256": "6698de2b13f8f16d351b69fc6b2e084395ba5eb7387c13556cd247841005c780",
+      "expectedReorderedSha256": "d545a03bcbe8c2625537a75071c189c9ea79e8017382c29e459b90a38695787b"
+    },
+    {
+      "vectorId": "PV-H-02",
+      "kind": "record-chain",
+      "value": {
+        "ledgerVersion": "1.0.0", "physicalSequence": 18, "recordKind": "commit",
+        "payload": {"z":17,"a":{"nested":3,"list":[17,18]},"m":"case-17"},
+        "prevChainHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "recordHash": "22292498791cbf9132e7a6307426f220ef99f4709eb87629db39f4ee158d2718",
+        "chainHash": "f10946baea40fe252c69492cd7ecba340c00ea60736099391c7d0b6a91fd94d8",
+        "signature": "ignored"
+      },
+      "expectedRecordHash": "22292498791cbf9132e7a6307426f220ef99f4709eb87629db39f4ee158d2718",
+      "expectedChainHash": "f10946baea40fe252c69492cd7ecba340c00ea60736099391c7d0b6a91fd94d8"
+    },
+    {
+      "vectorId": "PV-G-01", "kind": "graph-invalidation", "graphId": "G-17",
+      "invalidationRoots": ["da7941c840d997b9a19ab248c0e60a0dc2ca5bbe2e716f36f5b24972c71eda50", "da7941c840d997b9a19ab248c0e60a0dc2ca5bbe2e716f36f5b24972c71eda50"],
+      "expectedStatus": "PASS", "expectedPrimaryReason": "descendants.invalidated",
+      "expectedAffectedPointers": ["P28-17", "P29A-17", "P30-17", "P31-17", "P32-17", "P33-17"],
+      "expectedRevocationRecordIds": ["P28-17", "P29A-17", "P30-17", "P31-17", "P32-17", "P33-17"]
+    },
+    {
+      "vectorId": "PV-G-02", "kind": "graph-invalidation", "graphId": "G-17",
+      "mutation": {"kind":"self-cycle", "recordId":"P29A-17"},
+      "invalidationRoots": ["da7941c840d997b9a19ab248c0e60a0dc2ca5bbe2e716f36f5b24972c71eda50"],
+      "expectedStatus": "FAIL", "expectedPrimaryReason": "graph.cycle",
+      "expectedAffectedPointers": [], "expectedRevocationRecordIds": []
+    },
+    {
+      "vectorId": "PV-G-03", "kind": "graph-invalidation", "graphId": "G-17",
+      "mutation": {"kind":"duplicate", "recordId":"P28-17"},
+      "invalidationRoots": ["da7941c840d997b9a19ab248c0e60a0dc2ca5bbe2e716f36f5b24972c71eda50"],
+      "expectedStatus": "FAIL", "expectedPrimaryReason": "graph.duplicate-record",
+      "expectedAffectedPointers": [], "expectedRevocationRecordIds": []
+    }
+  ],
+  "graphs": {
+    "G-17": [
+      {"package":"R28","generation":1,"recordId":"P28-17","targetHash":"a7b4bdd6788151a7ff6983b1c8db39f2244a99d2e7046f6493d82b8a2a9428a3","predecessorHashes":["789fee79540db31a77f8fdc64e197b6378b545aadd56edc57e5f2c6a24e44c8d","da7941c840d997b9a19ab248c0e60a0dc2ca5bbe2e716f36f5b24972c71eda50"]},
+      {"package":"R29","generation":1,"recordId":"P29A-17","targetHash":"3c259607391154a2c5689fe092428685a3b886310c70cdcaa959358f2796fac3","predecessorHashes":["a7b4bdd6788151a7ff6983b1c8db39f2244a99d2e7046f6493d82b8a2a9428a3"]},
+      {"package":"R30","generation":1,"recordId":"P30-17","targetHash":"131a811dea5698ef4e892c676228fe52df23d5d31f69f930a808a4b1b40879ab","predecessorHashes":["3c259607391154a2c5689fe092428685a3b886310c70cdcaa959358f2796fac3"]},
+      {"package":"R31","generation":1,"recordId":"P31-17","targetHash":"52ab42726169b5ff013136835ca0bd996083573a9ab07c73ed01ff19511933ca","predecessorHashes":["131a811dea5698ef4e892c676228fe52df23d5d31f69f930a808a4b1b40879ab"]},
+      {"package":"R32","generation":1,"recordId":"P32-17","targetHash":"7e4816363a014111935edafb12d52bcf0c52641b11cdbc3e703437193253fb9a","predecessorHashes":["52ab42726169b5ff013136835ca0bd996083573a9ab07c73ed01ff19511933ca"]},
+      {"package":"R33","generation":1,"recordId":"P33-17","targetHash":"33c27899857baf4e640895e33ec3fa5297d7fbdf6c94f80f92c26fbc90f30b0a","predecessorHashes":["7e4816363a014111935edafb12d52bcf0c52641b11cdbc3e703437193253fb9a"]}
+    ]
+  }
+}
