@@ -127,6 +127,16 @@ binding, role-aware next steps), `install-hooks.mjs` (`--fail-closed`, `--role`)
 reader), `brief.mjs` (drafts the handoff and reports the brief's state),
 `path-authority.mjs` (offline Git-origin/path-authority snapshot validation and
 schema conformance),
+`researcher-release.mjs` (ported 2026-09-20, ADR-0029 — three subcommands over the two
+validators: `validate` for R28–R32 release evidence, `conform` for schema-only checking,
+`fi-validate` for an FI bundle. It **duplicates no validation**: every check comes from
+`release-validator.mjs` or `fi-validator.mjs` through their public exports. Reads **no
+environment variable at all**, so it cannot depend on a credential or a config. Status
+maps to exit code — `PASS` 0, `FAIL`/`REOPEN` 1, `INCOMPLETE` 2, `BLOCKED` 3, unknown 4 —
+and a usage error prints the usage block to stderr. It writes exactly one thing, only when
+asked: `fi-validate --report <file>`. **Known inconsistency:** a usage error exits 2 for
+`validate` and `conform` but 4 for `fi-validate`; no test pins either, and it is recorded
+rather than changed, because guessing the intended code is how a port becomes a rewrite),
 `selftest.mjs` (the whole suite, queued by the harness — which **awaits** every test,
 so `ok` means the assertions settled; ADR-0021).
 
