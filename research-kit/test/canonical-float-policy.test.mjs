@@ -16,7 +16,7 @@
 // remembered to put in a packet.
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, fs, path, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, fs, path, KIT_ROOT, requireCapability } from './harness.mjs';
 import { canonicalJson, sha256 } from '../lib/release-validator.mjs';
 
 describe('canonical-float-policy');
@@ -24,13 +24,28 @@ describe('canonical-float-policy');
 const COMMON = path.join(KIT_ROOT, 'bin', 'conformance_common.py');
 
 /** Is there a usable python on this host? The Python runners are part of the contract. */
-const python = (() => {
+const PYTHON = (() => {
   for (const exe of ['python', 'python3']) {
     const probe = spawnSync(exe, ['--version'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
     if (!probe.error && probe.status === 0) return exe;
   }
   return null;
 })();
+
+/**
+ * A host without Python cannot run these tests, and that is NOT a skip.
+ *
+ * The first version of this file returned early instead, which printed `ok` having
+ * asserted nothing. That is precisely the false green `Unsupported` exists to prevent,
+ * and it was worst here of all places: the defect under test IS a Node/Python
+ * divergence, so a green run with no Python validates nothing at all while claiming the
+ * two languages agree.
+ *
+ * `requireCapability` reports it under its own label with a reason code, and it BLOCKS -
+ * `runPending` counts it and the runner exits non-zero.
+ */
+const python = () => requireCapability(PYTHON, 'PYTHON-NOT-FOUND',
+  'no python on this host, so Node/Python canonical agreement cannot be checked');
 
 // A float cannot cross this boundary as JSON, and that nearly made these tests vacuous.
 //
@@ -74,7 +89,7 @@ function pythonCanonical(specs, policy) {
     '        out.append("ERROR:" + type(e).__name__)',
     'sys.stdout.write(json.dumps(out))',
   ].join('\n');
-  const run = spawnSync(python, ['-c', script, JSON.stringify(specs)], {
+  const run = spawnSync(PYTHON, ['-c', script, JSON.stringify(specs)], {
     encoding: 'utf8', timeout: 60_000, windowsHide: true,
   });
   if (run.status !== 0) throw new Error(`python failed: ${run.stderr?.slice(0, 300)}`);
@@ -109,7 +124,7 @@ function pythonTypes(specs) {
     '    out.append("float" if any(isinstance(x, float) for x in values) else "no-float")',
     'sys.stdout.write(json.dumps(out))',
   ].join('\n');
-  const run = spawnSync(python, ['-c', script, JSON.stringify(specs)], {
+  const run = spawnSync(PYTHON, ['-c', script, JSON.stringify(specs)], {
     encoding: 'utf8', timeout: 60_000, windowsHide: true,
   });
   if (run.status !== 0) throw new Error(`python failed: ${run.stderr?.slice(0, 300)}`);
@@ -135,7 +150,7 @@ const CASES = [
 ];
 
 test('POLICY normalize: Node and Python produce identical canonical bytes for floats', () => {
-  if (!python) return;                                  // no python on this host
+  python();   // UNSUP, not a silent skip - see the note above
 
   // Every case must actually reach Python as a float, or this proves nothing.
   assert.deepEqual(pythonTypes(CASES), CASES.map(() => 'float'),
@@ -150,7 +165,7 @@ test('POLICY normalize: Node and Python produce identical canonical bytes for fl
 });
 
 test('POLICY normalize: identical bytes mean identical digests', () => {
-  if (!python) return;
+  python();   // UNSUP, not a silent skip - see the note above
 
   // The bytes are what get hashed, so this is the property the vectors actually rest on.
   const theirs = pythonCanonical(CASES, 'normalize');
@@ -161,7 +176,7 @@ test('POLICY normalize: identical bytes mean identical digests', () => {
 });
 
 test('POLICY reject: a float is refused, not silently canonicalised', () => {
-  if (!python) return;
+  python();   // UNSUP, not a silent skip - see the note above
 
   // The ledger packets carry hashes and chain positions. A float there means the packet
   // is wrong, and refusing says so; canonicalising it would produce a plausible digest
@@ -174,7 +189,7 @@ test('POLICY reject: a float is refused, not silently canonicalised', () => {
 });
 
 test('POLICY reject: integers still pass under the strict policy', () => {
-  if (!python) return;
+  python();   // UNSUP, not a silent skip - see the note above
 
   // The strict policy must refuse floats without refusing the packets it exists to run.
   const values = [{ a: 1 }, { a: 0 }, { a: -5 }, { a: [1, 2, 3] }, { a: 'text' }, { a: null }];
@@ -184,7 +199,7 @@ test('POLICY reject: integers still pass under the strict policy', () => {
 });
 
 test('the two policies are the only ones, and an unknown one is refused', () => {
-  if (!python) return;
+  python();   // UNSUP, not a silent skip - see the note above
 
   const result = pythonCanonical([{ a: 1 }], 'silently-guess');
   assert.ok(String(result[0]).startsWith('ERROR:'),
