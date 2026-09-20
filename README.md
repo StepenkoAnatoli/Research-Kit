@@ -36,6 +36,11 @@ file on each invocation, the tests assert the key never reaches a rendered comma
 line or an error string, and a query that *contains* your key is refused before it is
 sent — because it would otherwise be stored as a search term on the vendor's systems.
 
+**Validating needs no credentials at all.** The release-evidence validators, the
+conformance runners in both languages, `preflight` and the whole test suite are offline
+and read-only — none of them reads an environment variable, so none can use a key even
+by accident. A reviewer can re-run every check without asking you for anything.
+
 One disclosure, since it is your data: a search sends your query text to the provider.
 SerpAPI retains search data for 31 days. Tavily was evaluated and **deliberately not
 wired in**, because its terms permit it and its AI providers to retain queries and

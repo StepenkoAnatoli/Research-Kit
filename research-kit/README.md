@@ -56,6 +56,12 @@ node research-kit/bin/handoff.mjs     # did the corpus arrive whole?
 | `new-project.mjs` | scaffold the shape (`--layout`, `--force`) |
 | `install.mjs` | deploy (`--dry-run`, `--into <project>`) |
 | `install-hooks.mjs` | the two gates and the machine's role and posture |
+| `researcher-release.mjs` | release evidence (`validate`, `conform`, `fi-validate`), read-only |
+| `path-authority.mjs` | Git-origin path-authority snapshots (`conform`, `validate`), read-only |
+| `ledger-conformance.mjs` + `.py` | qualification-ledger vectors, in two languages |
+| `fi-sidecar-conformance.mjs` + `.py` | FI sidecar and manifest vectors, in two languages |
+| `property-vector-conformance.mjs` + `.py` | exported property vectors, in two languages |
+| `property-replay.mjs` | replay a captured property failure deterministically |
 | `selftest.mjs` | the whole suite, offline |
 
 ## Transports
@@ -66,20 +72,88 @@ config, or a probe:
 - **`firecrawl-cli`** — metered, spawned as an argv array with no shell.
 - **`http-keyless`** — no key, no credits, grades its own capture completeness honestly.
 
-## What is built, and what is not
+## What is built
 
-Everything the protocol needs is here and tested: the corpus, the chain, the eleven checks,
-the verdict, both gates, both transports, phase 0, the brief, the audit and its bundle.
+Everything the protocol needs: the corpus, the chain, the twelve checks, the verdict,
+both gates, both transports, phase 0, the brief, the audit and its bundle.
 
-The **release-evidence validator layer** from `docs/superpowers/specs/2026-09-16-*` —
-R28–R33, the qualification ledger, path-authority snapshots, the FI workbook join, property
-replay, the conformance vectors — is **not built**, deliberately and with nothing standing
-in for it. The reasoning, and the alternatives rejected, are in
-[ADR-0022](../docs/adr/0022-build-the-protocol-kit-first-defer-the-release-evidence-validators.md);
-what was built and how it was verified is in
-[the build report](../docs/build-report-2026-09-17.md), and the defects found and fixed
-afterwards are in [the hardening report](../docs/build-report-2026-09-17-hardening.md) and
-[the tier-3 report](../docs/build-report-2026-09-17-tier3.md).
+And, since 2026-09-20, the **release-evidence validator layer** — which this file said
+was "not built, deliberately" until it was. It was deferred by
+[ADR-0022](../docs/adr/0022-build-the-protocol-kit-first-defer-the-release-evidence-validators.md)
+because the sealed records and fixtures it validates were unavailable; they turned out to
+be on this machine, and it was ported module by module under
+[ADR-0029](../docs/adr/0029-the-validator-layer-arrives-as-a-source-not-a-donor.md).
+
+| Validator | Answers |
+|---|---|
+| `release-validator.mjs` | R28–R32 release evidence: envelope, predecessor, role, visibility, promotion, path containment → `PASS` / `INCOMPLETE` / `FAIL` / `REOPEN` |
+| `path-authority-validator.mjs` | Git-origin path-authority snapshots: schema, self-excluding envelope hashes, root containment, required origin proof |
+| `fi-validator.mjs` | FI bundles: evidence manifest, sign-off sidecars, workbook projection |
+| `r29-workbook-linkage-validator.mjs` | the R29 reviewer-workbook register: cross-task links, duplicate identities, pointer readiness |
+| `ledger-conformance.mjs` | canonical-JSON, self-excluding, chain-hash and Ed25519 vectors |
+| `fi-sidecar-conformance.mjs` | FI sidecar and manifest vectors: valid / malformed / tampered |
+| `property-vector-conformance.mjs` | the property suite's findings, exported as fixed vectors |
+| `property-replay.mjs` | capture a failing property seed once; replay it deterministically |
+
+Every one of them is **read-only and offline**. No validator opens a socket, spawns a
+shell, calls `eval`, or reads an environment variable — so none of them can use a
+credential even by accident. The single exception is deliberate and narrow:
+`property-replay` writes a captured failure with `flag: 'wx'` (`O_EXCL`), so a second
+failure on the same seed cannot overwrite the first.
+
+```
+node research-kit/bin/researcher-release.mjs validate --root <records> --package R29 …
+node research-kit/bin/researcher-release.mjs conform --root <dir> --schema <schema.json>
+node research-kit/bin/researcher-release.mjs fi-validate --root … --workbook … [--report out.json]
+node research-kit/bin/path-authority.mjs          conform | validate
+node research-kit/bin/ledger-conformance.mjs      --vectors <packet.json> --json
+node research-kit/bin/fi-sidecar-conformance.mjs  --vectors <packet.json> --json
+node research-kit/bin/property-vector-conformance.mjs --vectors <packet.json> --json
+node research-kit/bin/property-replay.mjs         --case <case-id>
+```
+
+Status maps to exit code — `PASS` 0, `FAIL`/`REOPEN` 1, `INCOMPLETE` 2, `BLOCKED` 3 — and
+`--json` output is byte-deterministic across runs. The only command that writes anything
+is `fi-validate --report <file>`, and only when you name the file.
+
+### Two languages, one answer
+
+Three of the conformance runners ship **twice**, in Node and in Python:
+
+```
+bin/ledger-conformance.mjs          bin/ledger_conformance.py
+bin/fi-sidecar-conformance.mjs      bin/fi_sidecar_conformance.py
+bin/property-vector-conformance.mjs bin/property_vector_conformance.py
+```
+
+They read the same vector packets and must agree per vector, which the suite asserts.
+The Python runners are **standard library only** — `ledger_conformance.py` implements
+Ed25519 verification by hand rather than importing a crypto package, which is why it is
+298 lines against Node's 140. Two independent implementations agreeing is a stronger
+claim than one implementation tested twice.
+
+Report hashes are *not* compared across languages, and deliberately: `reportSha256`
+covers `implementation.runtime`, so it is a within-runtime determinism check. Equivalence
+is asserted per vector.
+
+### Two files that are deliberately absent
+
+`trap-register.schema.json` and `dashboard-status-vectors.json` exist in the tree this
+layer was ported from and are **not here**. Nothing ported references either — no module,
+binary, test or fixture names them. Under ADR-0029 rule 4 nothing enters ahead of its
+dependents, and a schema no code validates against is a file that will drift silently
+until someone trusts it. They come with the code that needs them, or not at all.
+
+## Credentials
+
+**No credentials ship with this repository.** See the root
+[README](../README.md#bring-your-own-keys) for where keys go; the summary is that the kit
+reads one from the environment or `~/.agents/research-kit.config.json`, never from the
+repository, and `--transport http-keyless` runs the whole collector with no key at all.
+
+The validator layer needs none of this. `selftest.mjs`, `preflight.mjs` and every
+validator CLI run offline with no credential — which is the point of a conformance suite
+that a reviewer has to be able to re-run.
 
 ## Tests
 

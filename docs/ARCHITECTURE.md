@@ -21,7 +21,7 @@ stale map a deliberate act rather than mere forgetting. A prompt, not a proof.
                  (CLI adapter)         │  ADR-0007                    │  the verdict
                                        │                              ▼
                                        │                       lib/checks.mjs
-                                       │                 11 named checks, pure
+                                       │                 12 named checks, pure
                                        │                              │
                                        ▼                              ▼
                               lib/provenance.mjs ◄──────────── lib/corpus.mjs
@@ -78,6 +78,7 @@ stale map a deliberate act rather than mere forgetting. A prompt, not a proof.
 | `property-replay.mjs` | **Ported 2026-09-20 (ADR-0029).** Captures a failing property seed once, as a self-describing replay envelope, and replays it deterministically afterwards. The **only ported module that writes**, and it writes exactly one way: `fs.writeFileSync(file, …, { flag: 'wx' })` — `O_EXCL`, so write-once is the kernel's decision rather than a check that can race. Three layers guard it: an `existsSync` fast path, the exclusive flag, and an `EEXIST` catch that returns the **existing** envelope with `created: false`. A second failure on the same seed therefore cannot overwrite the first, which is the point — the first failure is the evidence. Identity binds `family`+`seed`+`iteration` three ways at once: the filename, the `caseId`, and `inputSha256`; `validateRegression` re-derives the `caseId` and refuses a mismatch. `regressionSha256` self-excludes before hashing, so tampering with any field is caught. Everything after capture is read-only. | ADR-0029 |
 | `property-vector-conformance.mjs` | **Ported 2026-09-20 (ADR-0029).** Exports the property suite's canonical-hash and graph findings as a static vector packet, and re-verifies them — in Node and in Python, against the same file. Read-only in all three files. Its value is that it turns property tests, which generate their own inputs and could drift with the generator, into **fixed vectors a second language can check**: canonical hashing invariant under object insertion order and sensitive to authored array order, predecessor closure across generated chains, and descendant invalidation that is transitive, sorted, duplicate-free and permutation-invariant. Two of its five tests guard the fixture rather than the code — that the exported vectors stay synthetic, and that the exported graph and hash values stay bound to the property seeds that produced them. | ADR-0029 |
 | `r29-workbook-linkage-validator.mjs` | **Ported 2026-09-20 (ADR-0029).** Cross-reference validator for the R29 reviewer-workbook linkage register: 24 task ids, six expected reference kinds (task/gold/source/calibration/warm/lock), and a status reduction that takes the worst of `PASS < INCOMPLETE < FAIL < REOPEN`. **Zero imports** — it is 58 lines of pure functions over `{ register, catalog, pointer }` passed in as arguments, so it touches no filesystem, no network and no clock, and the caller owns every input. That is also why it needed no sealed-record fixture: its tests synthesise a register into a temp directory rather than shipping one. A revoked lock pointer reduces to `REOPEN` rather than `FAIL`, which is the distinction the rank order exists for — a withdrawn approval is not the same as a broken link. | ADR-0029 |
+| `config.mjs` | A **compatibility shim**, nine lines, re-exporting `machine.mjs`'s config surface so an older import path keeps working. It adds nothing and decides nothing. Listed because it was the one module in `lib/` this map did not mention — found by counting files against rows during the 2026-09-20 reconciliation, which is the only way that kind of omission surfaces. | ADR-0002 |
 | `archive.mjs` | **One container format**: `buildZip(entries)` → bytes, `writeZip(file, entries)` → `{ file, bytes, entries }`, `crc32`, `entryName`. ZIP with deflate (store when deflating would only grow the payload), written because the kit has no dependencies and cannot shell out to a `zip` binary that may not exist. Knows the container and nothing else — what goes inside a bundle is `lib/audit.mjs`'s. Refuses entry names that are not plain relative paths (an archive must not unpack outside its folder) and an archive with no entries. See ADR-0019. | ADR-0019 |
 | `brief.mjs` | The phase-1 → phase-2 handoff: renders `research/BRIEF.md` from the corpus, and **owns the brief's shape** — `BRIEF_SECTIONS` (six sections, the two that are judged marked), the markers that distinguish *still the scaffold* from *the drafter wrote this* (`briefState` → `template \| legacy \| draft \| authored`), and the section reader (`briefSection` / `judgedSection`) that `lib/audit.mjs` consumes instead of regexes of its own. The renderer writes headings **from** that definition, so the writer and its readers cannot drift; the scaffold ships `BRIEF_FILE_MARKER`, which the substitution pass leaves alone — the alternative, matching the template's prose, made a sentence of English load-bearing. | — |
 | `corpus.mjs` | The research corpus: **one reader** (`readCorpus`, `readCaptures`, `parseTable`, `parseCapture`, `readOverrides`) and **one writer family** (`appendRow`, `upsertRow`, `appendJsonLine`, `writeRaw` lives in collect), plus the **cache decision** over the capture index (`cacheDecision`) — the one freshness predicate the collector, the run, and phase 0 consume. Table machinery: `splitRow`/`escapeCell`/`tableRow`/`repairRowArity`. Malformation is reported, never absorbed. The capture index has one constructor (`captureEntry`, used by `readCaptures` **and** by the collector when it has just written a page) and one writer (`rememberCapture`), so the index a run keeps in memory holds the same shape as the index read from disk — callers store the entry they are handed and shape nothing. The format's **joins** are here too: `traceOf` (evidence row → the fetch that produced it and the capture behind it), `captureOf` (row → capture, via the by-file index the reader builds), and `claimOf` (unknown → the claim it rests on, first cited row, falling back to the unknown's own text). Five consumers re-derived those joins, including the subtle "an empty Raw cell matches on the URL alone" clause; now a format change lands in one place. | ADR-0003 |
@@ -109,17 +110,27 @@ variable (`CLAUDE_SETTINGS_PATH`) without ever honouring it. Owns the machine ro
 | `timeline.mjs` | TIMELINE.md generation and the diagnostics-log appender the gate CLI records through. | — |
 
 
-> **Every row in this table now describes a module that exists.**
+> **Inventory, reconciled 2026-09-20.** Counted against the filesystem, not estimated:
 >
-> `release-validator.mjs` and `path-authority-validator.mjs` were the two that did
-> not, from the day this table was written until 2026-09-20. They were the
-> release-evidence layer ADR-0022 deferred, and this table listed them with no marker
-> of any kind - indistinguishable from the 27 rows that were real. Both are now ported
-> under ADR-0029, read and re-tested in this repository.
+> | | |
+> |---|---|
+> | `lib/` modules | **36**, and every one has a row in this table |
+> | `bin/` | **23**, of which **3 are Python** conformance runners |
+> | `schemas/` | **11** |
+> | `conformance/` vector packets | **3** |
+> | `test/` files | **40**, 556 tests, all passing offline |
 >
-> `fi-validator.mjs` and `bin/property-replay.mjs` are still to come, and are
-> deliberately absent from this table until they land. A map earns trust by not
-> listing what it does not have.
+> The **release-evidence validator layer ADR-0022 deferred is implemented** (ADR-0029).
+> Two rows of this table described modules that did not exist, unmarked, from the day it
+> was written until 2026-09-20; both are real now. One module - `config.mjs` - was
+> missing from the table entirely, and surfaced only by counting files against rows.
+>
+> **Two artifacts are deliberately excluded**, which is why the counts are 11 and 3
+> rather than 12 and 4: `trap-register.schema.json` and
+> `dashboard-status-vectors.json` exist in the source tree and are referenced by
+> nothing here - no module, binary, test or fixture names either. A schema no code
+> validates against drifts silently until somebody trusts it, so they arrive with the
+> code that needs them or not at all (ADR-0029 rule 4).
 
 `research.mjs` (→ research-run, refused on a builder by role), `researcher-release.mjs` (→
 read-only R28–R32 validation and schema conformance), `handoff.mjs` (→

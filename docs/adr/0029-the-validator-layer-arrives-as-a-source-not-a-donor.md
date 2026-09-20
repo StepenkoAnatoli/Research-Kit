@@ -141,6 +141,56 @@ share. Helpers are why two of those test files could not travel with `fi-validat
 the shared evidence format before replay and R29 linkage are ported on top of it, which
 is the right order: the format is the thing the other modules agree about.
 
+## Final scope — the port is complete, 2026-09-20
+
+Eleven commits, each independently revertible, each with its tests green in this
+repository before the next began.
+
+| | Landed |
+|---|---|
+| Library modules | **9** — release-validator, path-authority-validator, fi-validator, r29-workbook-linkage-validator, ledger-conformance, fi-sidecar-conformance, property-vector-conformance, property-replay, plus the `unsafeCmdArgs` guard |
+| Binaries | **8** — researcher-release, path-authority, property-replay, three Node conformance runners, and **three Python runners** |
+| Schemas | **11** of 12 |
+| Vector packets | **3** of 4 |
+| Test files | **13**, and the suite is at **556 passing** |
+
+### The two artifacts that did not come, and why
+
+`trap-register.schema.json` and `dashboard-status-vectors.json` are **excluded on
+purpose**. Nothing ported references either — no module, binary, test or fixture names
+them, checked by grep across `.mjs`, `.json` and `.py`.
+
+Rule 4 says nothing enters ahead of its dependents. These are the mirror case: artifacts
+with no dependent at all. A schema that no code validates against is worse than a missing
+one, because it looks authoritative while nothing keeps it true — it will drift with the
+format it describes and nobody will notice until somebody trusts it. They arrive with the
+code that needs them, or they do not arrive.
+
+### The hostile-argv corpus, which also did not come
+
+The source tree ships a 128-case hostile argv corpus with shrinking. It was copied in,
+evaluated, and removed, and the reason is a compatibility boundary worth recording
+permanently.
+
+Its generator asserts every value it emits is hostile. Against this kit's guard it throws
+on **case 4 of 128**. The two guards were then compared character by character:
+
+- **Agree hostile:** `"` `%` `&` `|` `<` `>` `^` `(` `)` `` ` `` tab newline — every
+  character that can actually break out of cmd quoting.
+- **Disagree:** `'` `{` `}` `\` and **every non-ASCII character**.
+
+That tree guards with a regex **allowlist**, so anything unlisted is hostile by
+construction. This kit guards with a **denylist**, after the allowlist here was found
+refusing every search query containing a space. The practical consequence of theirs:
+it refuses `cafés`, `naïve`, and any Cyrillic or CJK query — the same defect as the space
+exclusion, hit less often and therefore harder to find.
+
+**This repository's contract explicitly permits `cafés and naïve façades`**, and there is
+a test asserting it. Reusing their corpus would have imported the opposite contract
+silently. The deterministic corpus in `test/hostile-argv.test.mjs` and the
+`unsafeCmdArgs` guard are the correct boundary: same intent, our semantics, and
+`resolveInvocation` calls the guard rather than filtering inline so the two cannot drift.
+
 ## What this ADR does not claim
 
 That the ported code is good. It claims only that it will have been read, tested here, and

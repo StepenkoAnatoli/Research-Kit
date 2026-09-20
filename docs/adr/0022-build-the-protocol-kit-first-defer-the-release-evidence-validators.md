@@ -57,6 +57,35 @@ CLI that accepts the flags and answers nothing. A validator that returns `PASS` 
 was not finished is worse than an absent one — it is the self-deception the gate-hardening
 design was written against, wearing the vocabulary of the thing that prevents it.
 
+## Status update, 2026-09-20 — the deferral is discharged
+
+**The deferred layer is built.** This ADR's text below is left exactly as written on
+2026-09-17; only this note is new, because the decision it records was correct for the
+information available then and should not be edited to look prescient.
+
+What changed is a fact, not a judgment. This ADR deferred the layer because "the
+validator specs are defined against sealed records, signed promotion pointers, gold
+worksheets and evidence packets that this archive excludes by policy". True of the
+archive — and an inventory on 2026-09-20 found the layer already built elsewhere on the
+same machine. It was ported module by module under
+[ADR-0029](0029-the-validator-layer-arrives-as-a-source-not-a-donor.md): nine library
+modules, eight binaries including three Python conformance runners, eleven schemas, three
+vector packets, and the tests that go with them. 556 tests pass.
+
+Two of this ADR's consequences are now void and are superseded rather than deleted:
+
+- *"`docs/ARCHITECTURE.md` describes a superset of what exists"* — it no longer does.
+  Every row describes a module that exists, and the two that did not are real.
+- The byte-preservation argument for not editing that map was already superseded by
+  [ADR-0028](0028-the-bundle-is-a-received-state-not-a-live-constraint.md) on the same
+  day, for reasons unrelated to this layer.
+
+What stands, and stands well: **nothing was stubbed.** This ADR refused to ship a
+`researcher-release validate` that exits 0 without reading a record, on the grounds that
+"the first person to trust it would be the one it was built for". Between 2026-09-17 and
+2026-09-20 the command did not exist rather than lying, and when it arrived it arrived
+with its tests. That was the right call and it is why this note is short.
+
 ## Consequences
 
 - The kit is usable end to end today: scaffold, decompose, collect, gate, brief, audit,
