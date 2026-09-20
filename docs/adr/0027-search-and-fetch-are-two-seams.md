@@ -17,7 +17,7 @@ free allowance pays for both halves of a run.** At `perQuery: 2` a plan query co
 Firecrawl credits to search and 2 to scrape — 4 of 1,000 a month (E-03, E-14). Every
 search spent is a page not fetched.
 
-Research (`research/BRIEF.md`, gate PASS at `2f9c761`) established that SerpAPI's free
+Research (`research/BRIEF.md`, gate PASS at `ad26daf`) established that SerpAPI's free
 tier is 250 searches a month, bills **per response rather than per result**, and serves
 an identical query from its own cache for an hour free and uncounted (E-07, E-09). The
 benefit of adopting it is not a lower unit price. It is that search and fetch stop

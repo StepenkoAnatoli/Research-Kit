@@ -3,7 +3,7 @@
 - **Date:** 2026-09-20
 - **Requirements:** `docs/requirements-2026-09-19-search-fetch-seam.md`
 - **Decision:** `docs/adr/0027-search-and-fetch-are-two-seams.md`
-- **Commits:** `5ff0bdd` (spec) → `a536ec1` (build) → `8111c66` (tests) → this one
+- **Commits:** `9a894bd` (spec) → `9686ae4` (build) → `304cc52` (tests) → this one
 - **Suite:** 472 passed, 0 failed
 - **Status:** every gap named in this document is **closed** (2026-09-20), including the live collecting run, which is now an opt-in test and has been executed.
 

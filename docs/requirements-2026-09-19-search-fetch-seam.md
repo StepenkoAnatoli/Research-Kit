@@ -1,7 +1,7 @@
 # Requirements — splitting search from fetch
 
 - **Date:** 2026-09-19
-- **Source:** `research/BRIEF.md` (state: authored), gate PASS at commit `2f9c761`
+- **Source:** `research/BRIEF.md` (state: authored), gate PASS at commit `ad26daf`
 - **Status:** specified, not built
 
 Every requirement below carries a trace. `E-##` means a row in `research/EVIDENCE.md`
