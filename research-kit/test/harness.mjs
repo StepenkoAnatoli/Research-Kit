@@ -24,7 +24,33 @@ import { appendFetch } from '../lib/provenance.mjs';
 import { writeRaw } from '../lib/collect.mjs';
 import { PATHS, resolve, writeText, appendLine, today } from '../lib/core.mjs';
 
-export const TEST_TIMEOUT = Number(process.env.RESEARCH_KIT_TEST_TIMEOUT ?? 60_000);
+/**
+ * The per-test watchdog, in milliseconds.
+ *
+ * Validated rather than coerced. `Number(...)` accepted anything: `0` made every test
+ * time out instantly and report as a mass product failure, `not-a-number` produced `NaN`
+ * — and `setTimeout(fn, NaN)` fires immediately, so a typo in an environment variable
+ * turned a green suite red with no indication that the cause was the typo. A malformed
+ * knob should be a named configuration error, not a hundred confusing failures.
+ *
+ * Bounds are deliberate, and the lower one is 50ms rather than something comfortable:
+ * harness.test.mjs drives the watchdog itself with 150ms and 300ms, because a test that
+ * proves a timeout works must be allowed to time out quickly. The floor exists to reject
+ * 0 - which fires instantly and reports as a mass product failure - not to enforce taste.
+ */
+export const TEST_TIMEOUT = (() => {
+  const raw = process.env.RESEARCH_KIT_TEST_TIMEOUT;
+  if (raw === undefined || raw === '') return 60_000;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || !Number.isInteger(value) || value < 50 || value > 3_600_000) {
+    process.stderr.write(
+      `RESEARCH_KIT_TEST_TIMEOUT=${JSON.stringify(raw)} is not usable. `
+      + 'It must be a whole number of milliseconds between 50 and 3600000.\n'
+      + 'Unset it to use the default of 60000.\n');
+    process.exit(2);
+  }
+  return value;
+})();
 
 const pending = [];
 let currentFile = '';

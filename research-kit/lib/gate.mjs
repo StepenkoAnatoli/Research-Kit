@@ -124,7 +124,27 @@ export function materializeIndex(root, { run = gitCapture, tmp = os.tmpdir() } =
     return { ok: true, dir, files: 0, empty: true };
   }
 
-  const written = run(['checkout-index', '--prefix', `${dir.split(path.sep).join('/')}/`, '-f', '--', ...paths], { cwd: root });
+  // Chunked, because the whole path list used to go into one argv.
+  //
+  // The commit HOOK already moved its staged list to stdin when argv construction proved
+  // quadratic (ADR-0020), but this call kept spreading every tracked research path as an
+  // argument. A large corpus therefore hit the platform's command-line limit here —
+  // Windows caps a command line at ~32k characters — and `git checkout-index` failed for
+  // a reason that has nothing to do with the index being unreadable. Paired with the
+  // fallback above, that turned a big corpus into a blocked commit.
+  //
+  // `--stdin` would be tidier, but it is not available in every git that ships on a
+  // supported platform, and a gate is the wrong place to discover that. Chunking works
+  // everywhere and the arithmetic is visible.
+  const prefix = `${dir.split(path.sep).join('/')}/`;
+  const CHUNK = 250;
+  let written = '';
+  for (let at = 0; at < paths.length; at += CHUNK) {
+    const batch = paths.slice(at, at + CHUNK);
+    const result = run(['checkout-index', '--prefix', prefix, '-f', '--', ...batch], { cwd: root });
+    if (result === null) { written = null; break; }
+    written += result;
+  }
   if (written === null) {
     fs.rmSync(dir, { recursive: true, force: true });
     return { ok: false, reason: 'git-failed', detail: 'could not materialise the index' };
@@ -150,7 +170,10 @@ function gitCapture(args, { cwd }) {
  * and allows changes confined to it: committing collected evidence is the workflow, and
  * blocking it would make the gate a nuisance and guarantee its removal.
  */
-export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = null, env = process.env, record = true } = {}) {
+export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = null, env = process.env, record = true,
+  // Injectable so the index-read FAILURE can be tested. A gate whose behaviour on a
+  // broken git is untestable is a gate whose most dangerous path is unexercised.
+  materialize = materializeIndex } = {}) {
   const base = { gate, root, fix: fixCommand() };
 
   if (!isGated(root)) {
@@ -174,7 +197,7 @@ export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = n
   let scratch = null;
 
   if (gate === 'commit' && !corpus) {
-    const materialised = materializeIndex(root);
+    const materialised = materialize(root);
     if (materialised.ok && materialised.empty) {
       // The working tree is gated and the index holds no corpus at all: research/ is
       // untracked. Reporting that as "your contract is missing" sends the operator to
@@ -194,9 +217,37 @@ export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = n
       scratch = materialised.dir;
       snapshot = readCorpus(materialised.dir);
       judged = 'index';
+    } else if (materialised.reason === 'not-a-repository') {
+      // No index exists to read, which is not a failure to read one. A gated project
+      // that is not a git repository has no staged bytes, so the working tree is the
+      // only thing there is and judging it is honest.
+      indexNote = `${materialised.reason}: no .git here, so there is no index to read - judging the working tree`;
     } else {
-      // Never silently: a gate that quietly changed which bytes it judges is the defect.
-      indexNote = `could not read the index (${materialised.reason}) - judging the working tree instead`;
+      // The index exists and could not be read. DO NOT judge the working tree instead.
+      //
+      // The commit gate's whole contract is that it judges the bytes being committed
+      // (ADR-0024). Falling back to the working tree silently changes which bytes those
+      // are, and the two differ exactly when it matters: stage a corpus with an unproven
+      // unknown, fix it only in the working tree, and a gate reading the tree passes a
+      // commit whose staged contents it never saw. That is the defect ADR-0024 exists to
+      // prevent, reintroduced by an environmental failure rather than by a code path.
+      //
+      // So this blocks, and says which failure it was. Blocking is the safe direction for
+      // a gate: a commit refused because the gate could not do its job is recoverable in
+      // one command, and an unnoticed commit of unproven evidence is not. The escape
+      // hatches remain what they always were - `--no-verify`, or `research/GATE_OFF` -
+      // and both are recorded rather than silent.
+      return {
+        ...base,
+        verdict: 'block',
+        allow: false,
+        judged: 'nothing',
+        indexNote: `could not read the index: ${materialised.detail ?? materialised.reason}`,
+        reason: `the commit gate judges the staged bytes and could not read them (${materialised.reason})`,
+        fix: 'check that git works here (git status), then commit again; '
+          + 'git commit --no-verify overrides, and is recorded',
+        findings: [],
+      };
     }
   }
 
