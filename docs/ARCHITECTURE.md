@@ -73,7 +73,7 @@ stale map a deliberate act rather than mere forgetting. A prompt, not a proof.
 | `core.mjs` | Generic primitives (fs, paths, dates, slugs) and the artifact constants — file paths and table headers. Knows no semantics. `makeSlug(text, fallback, limit)` slices **then** trims, so a cut that lands on a separator never leaves one dangling — it trimmed first until 2026-09-20, which is why every audit file written before then carries a doubled hyphen nobody chose. | — |
 | `audit.mjs` | The audit family: immutable single-file snapshots under `research/audits/` (one full-corpus, one per COVERED/GAP subtopic), their versioning (`nextVersion`, fingerprint-driven, never overwritten), the **manifest reader** (`listVersions` → `{ known, topics }` with the one ordering, `resolveVersion` → one version's path or null), and the **bundle** (`zipAudit` → the latest main audit plus every subtopic audit of that version, in one `.zip` named after them). `bin/audit.mjs` prints what those return; it used to walk the raw index itself with a second sort, which made the reader below it dead code and the ordering unsettleable. The bundle reads the manifest's `latest` pointers and never a directory listing, renders nothing, bumps nothing, and refuses rather than guesses: no audits / several topics unnamed / a manifest naming a file that is not on disk (ADR-0019). Derived artifact: reads the corpus, never writes back to it. Generated names are **budgeted**: `TOPIC_SLUG` (60) and `SUBTOPIC_SLUG` (28), because Windows MAX_PATH is 260 and the project root counts against it — this repository produced 114-character relative paths under a 157-character root, and `git add` refused until `core.longpaths` was set. The files already written are left as they are: they read, and renaming them would break both the manifest that names them and the history that holds them. | — |
 | `fi-validator.mjs` | **Ported 2026-09-20 (ADR-0029).** Read-only FI (field-integrity) bundle validator: evidence-manifest and sign-off-sidecar schema conformance, the `FI_IDS` set and `FI_STATUS_PRECEDENCE` reduction, and `readFiWorkbookProjection` — which inflates a workbook entry with `zlib.inflateRawSync` to read a projection out of it without unpacking anything to disk. Depends on `release-validator.mjs` for canonical hashing and schema running; nothing else. Writes nothing. | ADR-0029 |
-| `ledger-conformance.mjs` | **Ported 2026-09-20 (ADR-0029).** The offline, cross-language qualification-ledger conformance runner: four vector kinds (`canonical-json`, `self-excluding-hash`, `chain-hash`, `ed25519`), strict packet loading, and a deterministic report. Reads only; the sole `fs` call is `readFileSync`. `loadLedgerVectors` pins `packetVersion`, `profile`, the signature profile (`Ed25519` / `base64url-no-padding`), a non-empty vector list and unique vector ids — a packet that drifts is refused rather than partly run. Two details carry more weight than their size: `base64urlBytes` rejects a signature that does not survive a canonical base64url round-trip, so an alternative encoding of the same bytes is not quietly accepted; and the packet's own SHA-256 is attached with `enumerable: false`, so it can be reported without entering the canonical JSON that is hashed. **`reportSha256` covers `implementation.runtime`**, i.e. `process.version` — so it is a within-runtime determinism check, and cross-language agreement is asserted per-vector, never by comparing report hashes. | ADR-0029 |
+| `ledger-conformance.mjs` | **Ported 2026-09-20 (ADR-0029).** The offline, cross-language qualification-ledger conformance runner: five vector kinds (`canonical-json`, `canonical-float`, `self-excluding-hash`, `chain-hash`, `ed25519`), strict packet loading, and a deterministic report. Reads only; the sole `fs` call is `readFileSync`. `loadLedgerVectors` pins `packetVersion`, `profile`, the signature profile (`Ed25519` / `base64url-no-padding`), a non-empty vector list and unique vector ids — a packet that drifts is refused rather than partly run. Two details carry more weight than their size: `base64urlBytes` rejects a signature that does not survive a canonical base64url round-trip, so an alternative encoding of the same bytes is not quietly accepted; and the packet's own SHA-256 is attached with `enumerable: false`, so it can be reported without entering the canonical JSON that is hashed. **`reportSha256` covers `implementation.runtime`**, i.e. `process.version` — so it is a within-runtime determinism check, and cross-language agreement is asserted per-vector, never by comparing report hashes. | ADR-0029 |
 | `fi-sidecar-conformance.mjs` | **Ported 2026-09-20 (ADR-0029).** The second half of the conformance foundation: classifies FI sign-off sidecars and evidence manifests as valid, malformed or tampered, against a vector packet, with a Node and a Python runner that must agree. Read-only — no writes, network, spawn or eval in any of the three files. One of its four tests exists to check the FIXTURE rather than the code: that the vector packet stays synthetic and carries no completed evidence, so a conformance suite cannot quietly become a place real sign-offs are stored. | ADR-0029 |
 | `property-replay.mjs` | **Ported 2026-09-20 (ADR-0029).** Captures a failing property seed once, as a self-describing replay envelope, and replays it deterministically afterwards. The **only ported module that writes**, and it writes exactly one way: `fs.writeFileSync(file, …, { flag: 'wx' })` — `O_EXCL`, so write-once is the kernel's decision rather than a check that can race. Three layers guard it: an `existsSync` fast path, the exclusive flag, and an `EEXIST` catch that returns the **existing** envelope with `created: false`. A second failure on the same seed therefore cannot overwrite the first, which is the point — the first failure is the evidence. Identity binds `family`+`seed`+`iteration` three ways at once: the filename, the `caseId`, and `inputSha256`; `validateRegression` re-derives the `caseId` and refuses a mismatch. `regressionSha256` self-excludes before hashing, so tampering with any field is caught. Everything after capture is read-only. | ADR-0029 |
 | `property-vector-conformance.mjs` | **Ported 2026-09-20 (ADR-0029).** Exports the property suite's canonical-hash and graph findings as a static vector packet, and re-verifies them — in Node and in Python, against the same file. Read-only in all three files. Its value is that it turns property tests, which generate their own inputs and could drift with the generator, into **fixed vectors a second language can check**: canonical hashing invariant under object insertion order and sensitive to authored array order, predecessor closure across generated chains, and descendant invalidation that is transitive, sorted, duplicate-free and permutation-invariant. Two of its five tests guard the fixture rather than the code — that the exported vectors stay synthetic, and that the exported graph and hash values stay bound to the property seeds that produced them. | ADR-0029 |
@@ -115,10 +115,10 @@ variable (`CLAUDE_SETTINGS_PATH`) without ever honouring it. Owns the machine ro
 > | | |
 > |---|---|
 > | `lib/` modules | **36**, and every one has a row in this table |
-> | `bin/` | **23**, of which **3 are Python** conformance runners |
+> | `bin/` | **24**, of which **4 are Python**: 3 conformance runners and the module they now share |
 > | `schemas/` | **11** |
 > | `conformance/` vector packets | **3** |
-> | `test/` files | **40**, 556 tests, all passing offline |
+> | `test/` files | **44**, 565 tests, all passing offline |
 >
 > The **release-evidence validator layer ADR-0022 deferred is implemented** (ADR-0029).
 > Two rows of this table described modules that did not exist, unmarked, from the day it
@@ -210,6 +210,68 @@ The same module exposes pure `computeDescendantInvalidation`, which authenticate
 synthetic pointer identities, rejects cycles/missing roots before emitting output,
 walks target ancestry with duplicate convergence, and returns package/generation/
 record-ordered revocation projections for rollback planning.
+
+### The shared Python conformance boundary
+
+Added 2026-09-20. The Python runners exist to answer the same question a Node runner
+answers, about the same packet, and to disagree loudly when the two implementations
+differ. That only works if they canonicalise *identically* — and until this change they
+did not.
+
+Each of the three runners carried its own copy of the canonicaliser. Two were hand-written
+byte-for-byte alike; the third reached for `json.dumps(sort_keys=True)`, which is a
+different algorithm. The divergence was real and provable:
+
+```
+{"a": 1.0}    Node -> {"a":1}     sha 015abd7f...      Python -> {"a":1.0}   sha c29a44ab...
+{"a": -0.0}   Node -> {"a":0}     sha 45b619e9...      Python -> {"a":-0.0}  sha 952b7dc4...
+```
+
+Cross-language agreement held only because **no vector in any packet contained a float**.
+A suite that compares 28 chosen inputs does not establish that two functions agree; it
+establishes that they agree on 28 inputs. The tests were green and the claim was false.
+
+`bin/conformance_common.py` is now the single implementation — standard library only, like
+the runners it serves. It holds canonicalisation, ECMAScript number formatting, JSON string
+escaping, duplicate-key-rejecting parsing, the shared packet preflight, and report
+rendering. Each runner keeps a thin binding and nothing else.
+
+Two decisions in it are load-bearing:
+
+- **`js_number` implements ECMAScript `Number::toString` directly** rather than
+  post-processing Python's `repr`. Both languages produce shortest-round-trip digits, so
+  the digits were never the problem; everything around them was, and each difference is a
+  different SHA-256: `1.0`/`1`, `-0.0`/`0`, `1e-07`/`1e-7`, `1e+17`/`100000000000000000`,
+  `1e-05`/`0.00001`. Post-processing `repr` would have caught the first four and missed
+  the fifth, because the two languages switch to exponential notation at different
+  thresholds — not at different *formats*.
+- **`float_policy` is a required, named argument**, because the repository has two
+  deliberate policies that were previously indistinguishable from a bug. `reject` refuses
+  a float outright: the ledger and property vectors carry hashes and chain positions,
+  where a float is meaningless and its presence means the packet is wrong, so refusing
+  says more than canonicalising would. `normalize` formats it exactly as JavaScript
+  would, for FI vectors describing documents that may legitimately carry one. An
+  unrecognised policy raises rather than defaulting.
+
+`ConformanceError` subclasses `ValueError` deliberately. Every runner's domain logic
+already catches `ValueError` around a single document, because a malformed document is a
+*vector result* — the FI packet carries one with a duplicate `fiId` whose entire purpose
+is to be rejected and recorded as `FAIL`. A bare `Exception` escapes those handlers and
+turns an expected failure into a crash.
+
+**What the regression vectors can and cannot pin.** `qualification-ledger-vectors.json`
+gained thirteen `canonical-float` vectors (`QL-F-01`…`QL-F-13`) covering both exponent
+thresholds from both sides, the smallest denormal, the largest finite double, a repeating
+fraction, nested floats, and a float beside integers in one array. Each declares
+`floatPolicy` explicitly, and only `normalize` is expressible — which is itself worth
+recording: **in JavaScript `1.0` *is* `1`**, so a Node runner parsing the packet has no
+float left to reject by the time it sees the value. A `reject` vector would pass on the
+Node side for a reason unrelated to the policy it claims to test. The reject policy is
+therefore a Python-side property, tested directly in
+`test/canonical-float-policy.test.mjs`, which hands real Python floats to the module
+rather than routing them through JSON. That file also compares the two canonicalisers as
+*functions* over inputs nobody put in a packet, and asserts structurally that no runner
+has grown a fourth private copy.
 
 1. **Transport seam** — `runScrape`/`search`/`scrape`/`command`/`map` are injected
    adapters (ADR-0005), chosen by `lib/transport.mjs`. Two *fetch* adapters exist — the

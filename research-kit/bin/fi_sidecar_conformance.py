@@ -2,6 +2,10 @@
 """Offline cross-language FI sidecar/evidence-manifest schema conformance runner."""
 from __future__ import annotations
 
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))
+
 import argparse
 import copy
 import hashlib
@@ -11,6 +15,22 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Canonicalisation, hashing, packet parsing and report rendering are SHARED with the
+# other Python runners (research-kit/bin/conformance_common.py). They were duplicated
+# in three files until 2026-09-20, and two of the copies had already drifted.
+from conformance_common import (
+    ConformanceError,
+    canonical_json as _canonical_json,
+    digest,
+    js_number,
+    json_string,
+    parse_json_no_duplicates,
+    read_packet,
+    report_json,
+    require_unique_vector_ids,
+)
+
+
 PROFILE = "researcher-fi-schema-conformance-v1"
 VERSION = "1.0.0"
 SCHEMA_DIR = Path(__file__).resolve().parent.parent / "schemas"
@@ -18,25 +38,17 @@ SCHEMA_FILE = {"sidecar": "fi-signoff-sidecar.schema.json", "manifest": "fi-evid
 CODE_PRIORITY = ["JSON-DUPLICATE-KEY", "JSON-PARSE", "SCHEMA-ADDITIONAL", "SCHEMA-REQUIRED", "SCHEMA-ONE-OF", "SCHEMA-CONST", "SCHEMA-ENUM", "SCHEMA-PATTERN", "SCHEMA-MIN-ITEMS", "SCHEMA-TYPE"]
 
 
-class PacketError(ValueError):
-    pass
+class PacketError(ConformanceError):
+    """This runner's name for a refused packet. Shared base so the three agree."""
 
 
-def no_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise ValueError(f"duplicate object key {key!r}")
-        result[key] = value
-    return result
+# This runner's float policy, named rather than implied (see conformance_common).
+def canonical_json(value):
+    return _canonical_json(value, float_policy="normalize")
 
 
-def parse_json(text: str) -> Any:
-    return json.loads(text, object_pairs_hook=no_duplicates, parse_constant=lambda value: (_ for _ in ()).throw(ValueError(f"non-finite JSON constant {value}")))
-
-
-def canonical(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True, allow_nan=False)
+def canonical(value):
+    return canonical_json(value)
 
 
 def same(left: Any, right: Any) -> bool:
@@ -184,7 +196,7 @@ def load_packet(file: str | Path) -> dict[str, Any]:
     if raw.startswith(b"\xef\xbb\xbf"):
         raise PacketError("UTF-8 BOM is not permitted")
     try:
-        packet = parse_json(raw.decode("utf-8"))
+        packet = parse_json_no_duplicates(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
         raise PacketError(str(error)) from error
     if not isinstance(packet, dict) or packet.get("packetVersion") != VERSION or packet.get("profile") != PROFILE:
@@ -208,7 +220,7 @@ def load_packet(file: str | Path) -> dict[str, Any]:
 
 def run_vector(vector: dict[str, Any], documents: dict[str, Any], schemas: dict[str, dict[str, Any]]) -> dict[str, Any]:
     try:
-        value = parse_json(vector["rawDocument"]) if isinstance(vector.get("rawDocument"), str) else patch(documents[vector["base"]], vector["patches"])
+        value = parse_json_no_duplicates(vector["rawDocument"]) if isinstance(vector.get("rawDocument"), str) else patch(documents[vector["base"]], vector["patches"])
         errors: list[str] = []
         check(value, schemas[vector["target"]], schemas[vector["target"]], errors)
         codes = list(dict.fromkeys(errors))
@@ -221,7 +233,7 @@ def run_vector(vector: dict[str, Any], documents: dict[str, Any], schemas: dict[
 
 
 def run(packet: dict[str, Any]) -> dict[str, Any]:
-    schemas = {target: parse_json((SCHEMA_DIR / filename).read_text(encoding="utf-8")) for target, filename in SCHEMA_FILE.items()}
+    schemas = {target: parse_json_no_duplicates((SCHEMA_DIR / filename).read_text(encoding="utf-8")) for target, filename in SCHEMA_FILE.items()}
     vectors = [run_vector(vector, packet["documents"], schemas) for vector in packet["vectors"]]
     return {
         "validatorVersion": VERSION,
@@ -232,10 +244,6 @@ def run(packet: dict[str, Any]) -> dict[str, Any]:
         "status": "PASS" if all(row["result"] == "PASS" for row in vectors) else "FAIL",
         "vectors": vectors,
     }
-
-
-def report_json(report: dict[str, Any]) -> str:
-    return json.dumps(report, indent=2, ensure_ascii=False) + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -85,6 +85,14 @@ function ed25519Row(vector) {
 function runVector(vector) {
   if (!vector || typeof vector !== 'object' || Array.isArray(vector) || typeof vector.vectorId !== 'string' || !vector.vectorId || typeof vector.kind !== 'string') throw packetError('each vector needs vectorId and kind');
   if (vector.kind === 'canonical-json') return hashRow(vector, canonicalJson(vector.value));
+  if (vector.kind === 'canonical-float') {
+    // See the matching note in bin/ledger_conformance.py. Only "normalize" is
+    // expressible: this side has one number type, so `1.0` has already become `1` by
+    // the time the packet is parsed, and a "reject" vector would pass here for a
+    // reason unrelated to the policy it claims to test.
+    if (vector.floatPolicy !== 'normalize') throw packetError(`${vector.vectorId} must declare floatPolicy "normalize"`);
+    return hashRow(vector, canonicalJson(vector.value));
+  }
   if (vector.kind === 'self-excluding-hash') return hashRow(vector, canonicalJson(omitted(vector.value, vector.omitFields)));
   if (vector.kind === 'chain-hash') {
     if (!validHex(vector.recordHash, 32) || !validHex(vector.prevChainHash, 32) || !Number.isInteger(vector.physicalSequence) || vector.physicalSequence < 1) throw packetError(`${vector.vectorId} has invalid chain fields`);
