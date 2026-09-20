@@ -86,13 +86,24 @@ exits 1 and names whatever is missing. The remedy always lives on the collector:
 
 ## Cloning or zipping this repository
 
-The **dotfiles under `research/raw/` are part of the evidence, not byproducts.**
-`research/raw/.fetches.jsonl` is the hash-chained fetch ledger that proves every
-cached page in `research/EVIDENCE.md` was actually fetched; the other dotfiles
-(`.diagnostics.jsonl`, `.usage.jsonl`, `.failures.jsonl`) are the kit's local
-review logs. Zip tools, some sync tools, and certain git filters silently drop
-dotfiles — if `research/raw/.fetches.jsonl` is missing, the repository cannot
-pass its own gate (`node research-kit/bin/preflight.mjs` fails with
-`ledger-missing`). When copying this project by hand, copy `research/raw/.*`
-too. (The only machine-local file that never travels is the lock file,
-`research/raw/.fetches.lock`.)
+**One dotfile under `research/raw/` is evidence. The rest are byproducts, and the
+difference matters in both directions.**
+
+`research/raw/.fetches.jsonl` is the hash-chained fetch ledger that proves every cached
+page in `research/EVIDENCE.md` was actually fetched. It **must travel**. Zip tools, some
+sync tools, and certain git filters silently drop dotfiles — and if it is missing, the
+repository cannot pass its own gate (`node research-kit/bin/preflight.mjs` fails with
+`ledger-missing`). That has happened to this project once already. When copying by hand,
+copy `research/raw/.fetches.jsonl`.
+
+Everything else there is **machine-local state and must not travel**:
+`.diagnostics.jsonl` (what the gate decided, each time it ran), `.usage.jsonl` (what a
+collection spent), `.failures.jsonl` (what a collection failed to fetch), and
+`.fetches.lock`. All four are in `.gitignore`.
+
+The reason this paragraph is worded so carefully: `.diagnostics.jsonl` was tracked
+anyway, from the first commit of this repository until 2026-09-20 — added in the same
+commit as the `.gitignore` rule that excludes it, which `.gitignore` is powerless to undo
+once a file is in the index. The gate writes a line to it on **every** invocation, so
+every verification left the working tree dirty, and a read-only check that modifies the
+repository is a contradiction. A test now asserts that no ignored file is tracked.
