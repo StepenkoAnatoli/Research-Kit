@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "rosterSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "assignments": [
+    {
+      "principalId": "alice",
+      "roleId": "some-other-role",
+      "package": "R28",
+      "scope": "*",
+      "validFrom": "2025-01-01T00:00:00Z",
+      "validUntil": "2030-01-01T00:00:00Z",
+      "approval": {
+        "signature": "example-only-not-a-real-signature"
+      }
+    }
+  ]
+}

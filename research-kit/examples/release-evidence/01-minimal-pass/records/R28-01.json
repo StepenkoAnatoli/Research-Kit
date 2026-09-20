@@ -1,0 +1,19 @@
+{
+  "artifactId": "R28-01",
+  "schema": 1,
+  "benchmarkSpecVersion": "1.0.0",
+  "benchmarkSpecSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "package": "R28",
+  "recordId": "R28-01:example-1",
+  "ownerRole": "contract-custodian",
+  "ownerId": "alice",
+  "roleRosterSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "createdAt": "2026-01-01T00:00:00Z",
+  "predecessorHashes": [],
+  "payloadSha256": "9436e4626a28cbf4e42d55ddb4e2f87228db19cd88b046ecff85c37b42e4259e",
+  "state": "sealed",
+  "visibility": "grader-only",
+  "payload": {
+    "answer": "the contract is sealed"
+  }
+}

@@ -1,0 +1,2 @@
+The validator requires a pointers directory. R28 is sealed and promotes nothing,
+so it is empty - and git does not track empty directories without this file.
