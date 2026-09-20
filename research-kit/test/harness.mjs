@@ -105,6 +105,30 @@ export async function runPending({ log = (line) => process.stdout.write(`${line}
 
 export { assert };
 
+/**
+ * The two helpers the ported validator tests use that this harness lacked (ADR-0029).
+ *
+ * They come from the tree those tests were written in. Reproduced here rather than
+ * imported, because that tree is not a dependency of this one and must not become one -
+ * a port that leaves an import pointing at an unprovenanced directory has not ported
+ * anything.
+ *
+ *  is strict equality with a readable message. Deliberately NOT an alias
+ * for : the ported tests pass a message as the third argument and read
+ * the JSON of both sides on failure, and silently changing that would make their
+ * failures harder to read than they were at home.
+ */
+export function assertEqual(actual, expected, message) {
+  if (actual !== expected) {
+    throw new Error(`${message ?? 'assertEqual'}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+  }
+}
+
+/** Remove a temp directory a test made.  here tracks nothing, so this is the whole job. */
+export function cleanup(dir) {
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 // ---------------------------------------------------------------- fixtures
 
 export function tempDir(prefix = 'research-kit-') {
