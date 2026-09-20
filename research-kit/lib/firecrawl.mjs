@@ -339,4 +339,60 @@ export function cliVersion({ execFn = exec, ...opts } = {}) {
   return result.ok ? result.stdout.trim() : null;
 }
 
+/**
+ * The version of the Firecrawl CLI this adapter was written and tested against.
+ *
+ * The CLI is the one dependency outside this repository's control: no lockfile pins it,
+ * it is installed globally, and it can change under a working install. This adapter
+ * expects specific flags, a specific JSON shape, and a specific `--status` rendering, so
+ * a major-version bump is a payload contract change the tests cannot see - every one of
+ * them drives a stub.
+ */
+export const TESTED_CLI_VERSION = '1.23.3';
+export const SUPPORTED_CLI_MAJOR = 1;
+
+/**
+ * What this adapter will do with the installed CLI, and why.
+ *
+ * Three answers, deliberately, because "compatible or not" is the wrong shape:
+ *
+ *   supported   the major matches what the adapter was written against
+ *   untested    a version could not be read, or does not parse. NOT refused - a CLI that
+ *               prints its version differently is not evidence that scraping is broken,
+ *               and refusing on it would strand a working install
+ *   unsupported a DIFFERENT major. Semver says the payload contract may have changed, and
+ *               the adapter cannot tell a changed shape from an empty result
+ *
+ * Only `unsupported` stops a run, and it stops it BEFORE anything is spent. Discovering
+ * an incompatibility after the credits are gone is the failure worth engineering against.
+ */
+export function cliCompatibility(version = cliVersion()) {
+  if (!version) {
+    return { level: 'untested', version: null, supported: true,
+      detail: 'the Firecrawl CLI did not report a version; proceeding, since that is not evidence of a broken CLI' };
+  }
+  const match = String(version).trim().match(/^v?(\d+)\.(\d+)\.(\d+)/);
+  if (!match) {
+    return { level: 'untested', version, supported: true,
+      detail: `could not parse "${version}" as a version; proceeding, and this adapter was tested against ${TESTED_CLI_VERSION}` };
+  }
+  const major = Number(match[1]);
+  if (major !== SUPPORTED_CLI_MAJOR) {
+    return {
+      level: 'unsupported', version, supported: false, major,
+      detail: `Firecrawl CLI ${version} is major ${major}; this adapter was written against `
+        + `${TESTED_CLI_VERSION} and expects major ${SUPPORTED_CLI_MAJOR}. A major bump may change the `
+        + 'payload shape, the flags, or the status output, and the adapter cannot tell a changed '
+        + 'shape from an empty result - so this refuses BEFORE spending credits.',
+      remedy: `install a ${SUPPORTED_CLI_MAJOR}.x CLI, or use --transport http-keyless, which has no vendor CLI in the route`,
+    };
+  }
+  return {
+    level: 'supported', version, supported: true, major,
+    detail: version === TESTED_CLI_VERSION
+      ? `Firecrawl CLI ${version}, the version this adapter is tested against`
+      : `Firecrawl CLI ${version}; tested against ${TESTED_CLI_VERSION}, same major`,
+  };
+}
+
 export default { name, scrape, search, map, command, status, runScrape };
