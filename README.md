@@ -3,6 +3,42 @@
 Deep Research Agent — before build: topics / subtopics / scrape, and the
 research-first kit that gates the build on evidence (`research-kit/`).
 
+## Supported platforms
+
+**Linux and Windows are supported. macOS is best-effort and untested.**
+
+"Supported" here means one specific thing, and nothing vaguer: **every commit runs the
+full offline suite on that platform in CI.** Linux and Windows both do
+([`offline-suite.yml`](.github/workflows/offline-suite.yml)). macOS does not, so a macOS
+regression will not be caught before you hit it.
+
+| | Linux | Windows | macOS |
+|---|---|---|---|
+| full suite runs on every commit | ✅ | ✅ | ❌ |
+| platform-specific behaviour asserted | executable hook bit | LF checkout, `.cmd` argument guard | — |
+| a regression here is caught by CI | yes | yes | **no** |
+
+This is not a guess about where the code works — it is a statement about where it is
+*checked*. The distinction earned itself twice in one day:
+
+- `githooks/pre-commit` shipped as mode `100644`. Git **silently skips** a non-executable
+  hook, so the gate reported clean commits while doing nothing. The machine it was
+  authored on (Windows) has no executable bit and *could not* have detected it; the first
+  Linux run found it in minutes.
+- The single macOS run we did was not wasted either. It found a real containment bug —
+  `audit --zip` refused to package its own files whenever the project sat under a symlink.
+  **That one was never macOS-specific:** a symlinked `~/projects`, or `/home` → `/mnt/home`,
+  reproduces it on Linux. It is fixed.
+
+macOS is excluded deliberately rather than accidentally. A CI leg nobody intends to fix
+teaches people to ignore red, which costs more than the coverage is worth. If that
+changes, add `macos-latest` to the matrix in `offline-suite.yml` — there is a comment
+there saying so.
+
+**Requirements:** Node 22+ and Git. Python 3.12+ is needed for the cross-language
+conformance runners; without it those tests report `UNSUP` and **block** rather than
+silently passing.
+
 ## Bring your own keys
 
 **No credentials ship with this repository, and none ever will.** If you cloned this,
@@ -46,6 +82,99 @@ SerpAPI retains search data for 31 days. Tavily was evaluated and **deliberately
 wired in**, because its terms permit it and its AI providers to retain queries and
 outputs for training — a reasonable thing to opt into knowingly, and not a reasonable
 default ([research/BRIEF.md](research/BRIEF.md)).
+
+## Your first 30 minutes
+
+One path, in order. Nothing here needs a credential — steps 1–4 and 7 are entirely
+offline, and only step 6 can spend anything.
+
+**1. Check the machine.** This answers "is anything missing" before you spend time on it.
+
+```bash
+node research-kit/bin/doctor.mjs
+```
+
+**2. Say what this machine is for.** A *collector* holds a key and gathers evidence; a
+*builder* has no key and consumes what a collector pushed. The default is collector.
+
+```bash
+node research-kit/bin/install-hooks.mjs --role builder   # only on a build machine
+```
+
+**3. See a validator actually work, before you own any data.** Six synthetic packages —
+one that passes, five that fail one way each:
+
+```bash
+node research-kit/examples/release-evidence/run-example.mjs
+```
+
+Read [`examples/release-evidence/README.md`](research-kit/examples/release-evidence/README.md)
+next. It is the fastest way to learn what a release package *is*, because the schemas
+describe each file's shape and say nothing about how they refer to each other.
+
+**4. Prove the whole thing runs here.** Offline, no key, no network:
+
+```bash
+node research-kit/bin/selftest.mjs
+```
+
+**5. Scaffold a project.** The project is the **current working directory** — the kit
+takes no project argument, so `cd` there first.
+
+```bash
+node research-kit/bin/new-project.mjs . --topic "<your topic>"
+node research-kit/bin/decompose.mjs --topic "<your topic>"
+```
+
+Then open `research/MAP.md` and mark each row `COVERED`, `DISMISSED` or `GAP`. **This step
+is yours and is not automated** — deciding what counts as answered is the judgement the
+rest of the kit protects.
+
+**6. Collect.** The only step that spends credits:
+
+```bash
+node research-kit/bin/research.mjs --dry-run   # see what it would fetch, and the cost
+node research-kit/bin/research.mjs
+```
+
+**7. Ask whether you may build yet.**
+
+```bash
+node research-kit/bin/preflight.mjs
+```
+
+`PASS` means the twelve corpus checks agree the evidence supports starting. Anything else
+names what blocks and prints one fix.
+
+### Reading a verdict
+
+Every validating command maps its status to an exit code, so scripts can branch on it:
+
+| Status | Exit | Means |
+|---|---:|---|
+| `PASS` | 0 | checked, and correct |
+| `FAIL` / `REOPEN` | 1 | checked, and wrong |
+| `INCOMPLETE` | 2 | **could not be checked** — not the same as wrong |
+| `BLOCKED` | 3 | refused to start |
+
+The `INCOMPLETE` row is the one that catches people. A record the registry declares but
+which is absent produces no verdict *about that record*, so reporting `FAIL` would claim
+more than the validator knows.
+
+## When something fails
+
+The failure modes that actually happen, and what each one looks like:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Tests print `UNSUP  PYTHON-NOT-FOUND` and the suite exits non-zero | No Python; the cross-language conformance runners cannot run | Install Python 3.12+. This **blocks by design** — a green suite with no Python would claim Node and Python agree while testing neither |
+| `preflight` fails with `ledger-missing` | `research/raw/.fetches.jsonl` did not travel. Zip tools and some sync tools silently drop dotfiles | On the collector: push `research/raw/` **including its dotfiles** |
+| Commits succeed but the gate never seems to run | `githooks/pre-commit` is not executable; git skips a non-executable hook silently | `git update-index --chmod=+x research-kit/githooks/pre-commit` |
+| The gate blocks with "…is not staged with them" | You changed a declared code path without updating `docs/ARCHITECTURE.md` | Update the map, or `git commit --no-verify` (recorded) |
+| `audit --zip` says a file "resolves outside" its own directory | Fixed 2026-09-20. Older checkouts refuse whenever the project sits under a symlink | Update |
+| `researcher-release validate` rejects a package you believe is right | The files refer to each other; one link is wrong | `diff` your package against `examples/release-evidence/01-minimal-pass/` |
+| A `PASS` did not notice a file you know is broken | `validate` checks what the **registry declares**, not what the directory contains | See package `03` in the examples — it exists to document exactly this |
+| Windows: `git add` refuses with a long-path error | `MAX_PATH`; this repo has produced 114-character paths under a 157-character root | `git config core.longpaths true` |
 
 ## Run it from inside the project
 

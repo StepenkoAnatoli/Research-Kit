@@ -113,6 +113,19 @@ variable (`CLAUDE_SETTINGS_PATH`) without ever honouring it. Owns the machine ro
 | `render.mjs` | Terminal table rendering for CLI output. | — |
 | `timeline.mjs` | TIMELINE.md generation and the diagnostics-log appender the gate CLI records through. | — |
 
+**Not a module, but part of the map:** `examples/release-evidence/` (added 2026-09-20) is
+six synthetic release packages plus `build.mjs` (regenerates them, keeping their hashes
+correct) and `run-example.mjs` (validates what is **on disk**, and never calls `build.mjs`).
+It exists because `researcher-release validate` checks a *package* — files that refer to
+each other — and the schemas describe each file's shape while saying nothing about how
+they connect, so the only way in was to assemble something plausible and learn the
+relationships from error codes. One of the six **passes on purpose**: a record the registry
+does not list is never validated, so `PASS` means "everything declared is intact", not
+"nothing unexpected is here". `test/release-examples.test.mjs` asserts the packages still
+produce their documented verdicts, that the committed files match what `build.mjs`
+generates, and that the README's table names every package that exists and none that does
+not.
+
 
 > **Inventory, reconciled 2026-09-20.** Counted against the filesystem, not estimated:
 >

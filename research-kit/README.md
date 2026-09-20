@@ -6,6 +6,17 @@ gate that refuses to let a build start while a blocking fact is unproven.
 Plain Node, no dependencies, no `package.json`. It installs with one command and runs
 offline for everything except collection itself.
 
+**Supported on Linux and Windows; macOS is best-effort and untested.** "Supported" means
+the full offline suite runs on that platform in CI on every commit — see
+[the support policy](../README.md#supported-platforms) for why the distinction is worded
+that way and what it has already caught. Needs Node 22+, Git, and Python 3.12+ for the
+cross-language conformance runners.
+
+New here? [Your first 30 minutes](../README.md#your-first-30-minutes) is one ordered path
+from nothing to a `preflight` verdict, and
+[when something fails](../README.md#when-something-fails) lists the failure modes that
+actually happen.
+
 ## Install
 
 ```
