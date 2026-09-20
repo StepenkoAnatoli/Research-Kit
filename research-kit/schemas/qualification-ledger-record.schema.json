@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "researcher/qualification-ledger-record-1.0.0",
+  "title": "Researcher qualification ledger record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ledgerVersion", "physicalSequence", "recordKind", "txId", "eventId",
+    "package", "artifactId", "recordId", "benchmarkSpecVersion",
+    "benchmarkSpecSha256", "roleRosterSha256", "actorId", "actorRole",
+    "createdAt", "prevChainHash", "payloadSha256", "recordHash", "chainHash",
+    "state", "payload"
+  ],
+  "properties": {
+    "ledgerVersion": { "const": "1.0.0" },
+    "physicalSequence": { "type": "integer", "minimum": 1 },
+    "recordKind": { "enum": ["prepare", "commit", "abort", "promotion-intent", "promotion-commit", "promotion-revoke", "recovery", "checkpoint"] },
+    "txId": { "type": "string", "minLength": 1 },
+    "eventId": { "type": "string", "minLength": 1 },
+    "package": { "enum": ["R28", "R29", "R30", "R31", "R32", "ledger"] },
+    "artifactId": { "type": ["string", "null"] },
+    "recordId": { "type": ["string", "null"] },
+    "benchmarkSpecVersion": { "const": "1.0.0" },
+    "benchmarkSpecSha256": { "$ref": "#/$defs/hash" },
+    "roleRosterSha256": { "$ref": "#/$defs/hash" },
+    "actorId": { "type": "string", "minLength": 1 },
+    "actorRole": { "type": "string", "minLength": 1 },
+    "createdAt": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{3})?Z$" },
+    "prevChainHash": { "$ref": "#/$defs/hash" },
+    "payloadSha256": { "$ref": "#/$defs/hash" },
+    "recordHash": { "$ref": "#/$defs/hash" },
+    "chainHash": { "$ref": "#/$defs/hash" },
+    "state": { "enum": ["pending", "committed", "aborted", "revoked", "recovered"] },
+    "payload": { "type": "object" },
+    "signerKeyId": { "type": "string", "minLength": 1 },
+    "signature": { "type": "string", "minLength": 1 }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "researcher/qualification-ledger-checkpoint-1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ledgerVersion", "releaseId", "segment", "byteOffset", "physicalSequence", "chainHash", "lastCommittedEventHash", "snapshotHash", "genesisHash", "checkpointHash", "signerKeyId", "signature"],
+  "properties": {
+    "ledgerVersion": { "const": "1.0.0" },
+    "releaseId": { "type": "string", "minLength": 1 },
+    "segment": { "type": "string", "minLength": 1, "pattern": "^[^\\\\/]+\\.qlog$" },
+    "byteOffset": { "type": "integer", "minimum": 0 },
+    "physicalSequence": { "type": "integer", "minimum": 1 },
+    "chainHash": { "$ref": "#/$defs/hash" },
+    "lastCommittedEventHash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "snapshotHash": { "$ref": "#/$defs/hash" },
+    "genesisHash": { "$ref": "#/$defs/hash" },
+    "previousCheckpointHash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "checkpointHash": { "$ref": "#/$defs/hash" },
+    "signerKeyId": { "type": "string", "minLength": 1 },
+    "signature": { "type": "string", "minLength": 1 }
+  },
+  "$defs": { "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+}

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "researcher/qualification-ledger-genesis-1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ledgerVersion", "releaseId", "benchmarkSpecVersion", "benchmarkSpecSha256", "registrySha256", "roleRosterSha256", "externalRoots", "genesisHash", "signerKeyId", "signature"],
+  "properties": {
+    "ledgerVersion": { "const": "1.0.0" },
+    "releaseId": { "type": "string", "minLength": 1 },
+    "benchmarkSpecVersion": { "const": "1.0.0" },
+    "benchmarkSpecSha256": { "$ref": "#/$defs/hash" },
+    "registrySha256": { "$ref": "#/$defs/hash" },
+    "roleRosterSha256": { "$ref": "#/$defs/hash" },
+    "externalRoots": { "type": "object", "minProperties": 1, "additionalProperties": { "$ref": "#/$defs/hash" } },
+    "genesisHash": { "$ref": "#/$defs/hash" },
+    "signerKeyId": { "type": "string", "minLength": 1 },
+    "signature": { "type": "string", "minLength": 1 }
+  },
+  "$defs": { "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+}
