@@ -18,9 +18,20 @@ name: live-collection
 #   1. the vendor CLI is a major this adapter supports
 #   2. the collection command exited 0
 #   3. a ledger was written, and it parses
-#   4. handoff exits 0        - the corpus arrived whole
-#   5. preflight exits 0      - the corpus passes the same checks a synthetic one does
+#   4. handoff exits 0                  - the corpus arrived whole
+#   5. the INTEGRITY checks pass        - provenance, corpus-shape, citations,
+#                                         transport-provenance, hygiene
 #   6. the repository is unchanged
+#
+# NOT the whole preflight verdict, and this was found by running the predicate for real
+# rather than by reading it. `preflight` answers "is the RESEARCH sufficient to build",
+# which is a human-authored question: a scratch project has no unknowns in its contract,
+# so it fails `discovery-contract/no-unknowns` and exits 1 no matter how perfectly
+# collection worked. Requiring it would have made this workflow fail on every run, always,
+# for a reason having nothing to do with the transport it exists to test.
+#
+# The checks above are the ones collection can actually answer: the chain verifies, every
+# cited capture was fetched and is on disk, the corpus parses, rows carry URLs and claims.
 #
 # Diagnostics are still captured when a step fails, but they are captured in a way that
 # preserves the exit status rather than discarding it.
@@ -191,7 +202,7 @@ jobs:
             console.log(`${parsed.length} ledger entries, ${fetched.length} successful`);
           ' "$ledger"
 
-      - name: the corpus arrived whole, and passes its own checks
+      - name: the corpus arrived whole, and passes its integrity checks
         run: |
           set -e
           cd "$RUNNER_TEMP/live-project"
@@ -205,15 +216,19 @@ jobs:
             echo "::error::handoff failed: the collected corpus did not arrive whole"
             exit 1
           fi
-          if ! node "$kit/bin/preflight.mjs" --json > preflight.json; then
-            echo "::error::preflight failed on the collected corpus"
-            cat preflight.json || true
-            exit 1
-          fi
-          node -e '
-            const r = JSON.parse(require("fs").readFileSync("preflight.json", "utf8"));
-            console.log(`preflight: ${r.status ?? r.verdict}`);
-          '
+          # The INTEGRITY checks, one at a time, each required.
+          #
+          # Not the whole verdict: preflight also judges whether the research is
+          # sufficient to build, and a scratch project has no unknowns in its contract -
+          # so it fails and exits 1 however well collection worked. Verified by running
+          # it: `discovery-contract/no-unknowns` blocks a freshly scaffolded project.
+          for check in provenance corpus-shape citations transport-provenance hygiene; do
+            if ! node "$kit/bin/preflight.mjs" --check "$check"; then
+              echo "::error::integrity check '$check' failed on the collected corpus"
+              exit 1
+            fi
+          done
+          echo "all integrity checks passed on the collected corpus"
 
       - name: the repository is unchanged
         run: |
