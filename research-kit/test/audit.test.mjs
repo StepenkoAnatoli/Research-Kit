@@ -7,8 +7,8 @@
 
 import zlib from 'node:zlib';
 import { test, describe, assert, makePassingProject, corrupt, fs } from './harness.mjs';
-import { PATHS, resolve, readText, readJson, writeText } from '../lib/core.mjs';
-import { writeAudit, listVersions, resolveVersion, nextVersion, zipAudit, fingerprintOf, readManifest } from '../lib/audit.mjs';
+import { PATHS, resolve, readText, readJson, writeText, makeSlug } from '../lib/core.mjs';
+import { writeAudit, listVersions, resolveVersion, nextVersion, zipAudit, fingerprintOf, readManifest, TOPIC_SLUG, SUBTOPIC_SLUG } from '../lib/audit.mjs';
 import { crc32, buildZip, entryName } from '../lib/archive.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 
@@ -280,4 +280,52 @@ test('no subtopics is not an error: the archive holds the one main file', () => 
   const bundle = zipAudit(dir);
   assert.equal(bundle.ok, true);
   assert.equal(bundle.count, 1);
+});
+
+// ---------------------------------------------------------------- filename budget
+//
+// Windows MAX_PATH is 260 for tools without long-path support, and the project root
+// counts against it. This repository's own audit files are 114-character relative paths
+// under a 157-character root - 272 absolute - and `git add` refused until
+// `core.longpaths` was set. The files already written are left alone; the generator is
+// what stops producing more of them.
+
+test('makeSlug trims AFTER truncating, so a cut never leaves a dangling separator', () => {
+  // It trimmed first, so a slice landing on a hyphen kept it. That is why every audit
+  // file in this repository is named `...-metered-primary--d-1-access-model-...`, with
+  // a double hyphen nobody chose.
+  const cut = makeSlug('the research kits own protocol metered primary source collection', 'topic', 47);
+  assert.equal(cut.endsWith('-'), false, `a dangling separator survived: ${cut}`);
+  assert.equal(/--/.test(`${cut}-d-1-access`), false, 'composing with the cut slug still doubles the separator');
+});
+
+test('makeSlug honours an explicit limit and keeps its old default', () => {
+  assert.ok(makeSlug('a'.repeat(200)).length <= 60, 'the default cap moved');
+  assert.ok(makeSlug('a'.repeat(200), 'topic', 28).length <= 28);
+  assert.equal(makeSlug('', 'fallback'), 'fallback');
+  assert.equal(makeSlug('!!!', 'fallback'), 'fallback', 'a slug of pure punctuation must fall back');
+});
+
+test('a generated audit path stays inside the budget, however long the inputs', () => {
+  const dir = makePassingProject();
+  // Names far longer than anything a person would type.
+  writeText(resolve(dir, PATHS.map), readText(resolve(dir, PATHS.map), '')
+    .replace(/^# .*$/m, `# ${'Extremely Verbose Research Topic Name '.repeat(6)}`));
+
+  const out = writeAudit(dir, { date: '2026-09-20' });
+  assert.equal(out.written, true, out.reason);
+
+  const paths = [out.main, ...(out.subtopics ?? [])];
+  assert.ok(paths.length > 0, 'nothing was rendered, so nothing was measured');
+  for (const rel of paths) {
+    assert.ok(rel.length <= 120,
+      `generated a ${rel.length}-character relative path, which leaves no room for a deep project root: ${rel}`);
+    assert.equal(/--/.test(rel), false, `a doubled separator survived into ${rel}`);
+  }
+});
+
+test('the subtopic segment is capped independently of the topic slug', () => {
+  assert.ok(SUBTOPIC_SLUG < TOPIC_SLUG, 'the subtopic budget should be the smaller of the two');
+  assert.ok(TOPIC_SLUG + SUBTOPIC_SLUG + 'research/audits/'.length + '-v0.1-2026-09-20.md'.length <= 130,
+    'the two budgets together no longer fit the documented path ceiling');
 });

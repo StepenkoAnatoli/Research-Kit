@@ -18,6 +18,19 @@ import { runPreflight } from './preflight.mjs';
 import { briefSection, judgedSection, BRIEF_SECTIONS } from './brief.mjs';
 import { writeZip } from './archive.mjs';
 
+/**
+ * Filename budget, in characters, for the two variable segments of an audit path.
+ *
+ * Windows MAX_PATH is 260 for tools without long-path support, and the project root
+ * counts against it. A relative path this kit generates should leave room for a deep
+ * one: 60 + 28 plus the fixed parts keeps an audit under ~110 characters, which fits a
+ * ~145-character root. Beyond that an operator needs `core.longpaths`, and the kit
+ * should say so rather than letting them discover it when `git add` refuses - which is
+ * how this repository found out, at a 272-character absolute path.
+ */
+export const TOPIC_SLUG = 60;
+export const SUBTOPIC_SLUG = 28;
+
 const MANIFEST = 'index.json';
 
 function manifestPath(root) {
@@ -277,7 +290,13 @@ export function writeAudit(root, { date = today(), force = false, env = process.
   const subtopics = [];
   for (const row of corpus.subtopics) {
     if (row.status !== 'COVERED' && row.status !== 'GAP') continue;
-    const file = `${dir}/${slug}-${row.id.toLowerCase()}-v${version}-${date}.md`;
+    // The subtopic segment is capped for the same reason the slug is (SUBTOPIC_SLUG).
+    // Uncapped, the two together produced 114-character relative paths in this
+    // repository - which, under a 157-character project root, is 272 and past Windows'
+    // 260-character MAX_PATH. `git add` refused until `core.longpaths` was set. The
+    // files already written are left alone: they read fine, and renaming them would
+    // break both the manifest that names them and the history that contains them.
+    const file = `${dir}/${slug}-${makeSlug(row.id, 'row', SUBTOPIC_SLUG)}-v${version}-${date}.md`;
     writeImmutable(root, file, subtopicAudit(corpus, row, { version, date }));
     subtopics.push(file);
   }

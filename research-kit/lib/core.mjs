@@ -177,12 +177,21 @@ export function ageInDays(value, now = new Date()) {
   return Math.floor((now.getTime() - then) / 86400000);
 }
 
-export function makeSlug(text, fallback = 'topic') {
+/**
+ * A filename-safe slug, capped and never ending in a separator.
+ *
+ * The trim used to run BEFORE the truncation, so a cut that landed on a hyphen left one
+ * dangling - which is why every audit file in this repository is named
+ * `…-metered-primary--d-1-access-model-…`, with a double hyphen nobody chose. Order
+ * matters: slice, then trim.
+ */
+export function makeSlug(text, fallback = 'topic', limit = 60) {
   const slug = String(text ?? '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 60);
+    .slice(0, limit)
+    .replace(/-+$/g, '');
   return slug || fallback;
 }
 
