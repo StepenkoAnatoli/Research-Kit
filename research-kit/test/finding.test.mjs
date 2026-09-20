@@ -261,3 +261,93 @@ test('an FAQ answer is found even though its question is not a heading', () => {
   const result = findingWithContext(page, 'x');
   assert.ok(result.signals.includes('answers-a-question'), JSON.stringify(result.signals));
 });
+
+// ---------------------------------------------------------------- generalization probe
+//
+// Added 2026-09-20 after running the extractor against ten vendors it had never seen
+// (docs/extractor-generalization-2026-09-20.md). Every failure was a thing the model
+// could not REPRESENT, not a weight it got wrong, and these pin the four representations
+// that were fixed. The captures themselves are deliberately not in the repository - they
+// are not evidence for any unknown here - so each test carries the shape, not the page.
+
+test('a comparison row is detected even when its cells are phrases', () => {
+  // Resend and Twilio both lost to rows like this. The detector required a single token
+  // before each separator, so `Pro: No limit,` - a phrase - was invisible, and the row
+  // collected the table bonus instead of the comparison penalty.
+  const page = [
+    '## Sending & receiving',
+    '',
+    '| | Free | Pro | Scale |',
+    '| --- | --- | --- | --- |',
+    '| Daily limit | 100 | No limit | No limit |',
+    '',
+    'Resend automatically charges your plan overage rate for each additional bucket of emails.',
+  ].join('\n');
+  const result = findingWithContext(page, 'x');
+  assert.match(result.finding, /overage rate/, `a phrase-celled comparison row won: ${result.finding}`);
+});
+
+test('a heading keeps its section context through nested subheadings', () => {
+  // The extractor remembered the LAST heading at any level, so `#### Capacity` under
+  // `## Pricing` scored as if it were under nothing. A section's context survived exactly
+  // as long as no subheading appeared inside it.
+  const page = [
+    '## Pricing',
+    '',
+    '### Search',
+    '',
+    '#### Capacity',
+    '',
+    'Each query beyond the included allowance costs 40 cents per thousand requests.',
+  ].join('\n');
+  const result = findingWithContext(page, 'x');
+  assert.ok(result.signals.includes('evidence-heading'),
+    `"Pricing" was lost by the time the line under "Capacity" was scored: ${JSON.stringify(result.signals)}`);
+});
+
+test('money is recognised in the forms pages actually write it', () => {
+  // `[$]\d` could not see Stripe's rate at all. The page carries "2.9% + 30¢" eight times.
+  for (const text of [
+    'Processing costs 2.9% + 30¢ per successful transaction for domestic cards today.',
+    'Each additional lookup is billed at 45¢ under the standard agreement terms.',
+  ]) {
+    assert.ok(explainScore(text, {}).signals.includes('price'), `not seen as money: ${text}`);
+  }
+});
+
+test('a marketing heading is chrome, not neutral', () => {
+  // Headings were evidence-bearing, chrome, or NOTHING - and "nothing" is where marketing
+  // lives. Under "Key features" a capability boast competed level with a rate limit.
+  const page = [
+    '## Key features',
+    '',
+    'Our index includes over 30 billion pages, refreshed by 100 million updates daily.',
+    '',
+    '## Rate limits',
+    '',
+    'The free tier allows 60 requests per hour per key.',
+  ].join('\n');
+  const result = findingWithContext(page, 'x');
+  assert.match(result.finding, /60 requests per hour/, `a capability boast won: ${result.finding}`);
+});
+
+test('the joined paragraph is NOT a candidate, and the comment says why', () => {
+  // A reverted experiment, pinned so it is not re-tried blind. Joining adjacent lines
+  // recovers a claim split across two lines - but on a marketing page adjacent lines are
+  // list items, and the join produced collages that outscored real claims.
+  const source = fs.readFileSync(path.join(KIT_ROOT, 'lib', 'finding.mjs'), 'utf8');
+  assert.ok(/NOT a candidate: the joined paragraph/.test(source),
+    'the note explaining why paragraphs are not candidates is gone; without it this gets re-tried');
+
+  const page = [
+    '## Plan',
+    '',
+    'NeuralSearch AI',
+    'Smart Groups',
+    '99.99% availability',
+    '',
+    'Requests beyond 10,000 per month are billed at $0.60 per additional thousand.',
+  ].join('\n');
+  const result = findingWithContext(page, 'x');
+  assert.match(result.finding, /0\.60 per additional/, `a feature-list collage won: ${result.finding}`);
+});
