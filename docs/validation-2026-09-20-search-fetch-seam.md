@@ -4,8 +4,8 @@
 - **Requirements:** `docs/requirements-2026-09-19-search-fetch-seam.md`
 - **Decision:** `docs/adr/0027-search-and-fetch-are-two-seams.md`
 - **Commits:** `5ff0bdd` (spec) → `a536ec1` (build) → `8111c66` (tests) → this one
-- **Suite:** 471 passed, 0 failed
-- **Status:** the three gaps named in the first version are **closed** (2026-09-20). One smaller limit remains, stated at the bottom.
+- **Suite:** 472 passed, 0 failed
+- **Status:** every gap named in this document is **closed** (2026-09-20), including the live collecting run, which is now an opt-in test and has been executed.
 
 Every requirement is below. A requirement is only **VERIFIED** if something fails when it
 stops being true. Anything else says what it actually is.
@@ -140,7 +140,7 @@ admits both limits.
 
 | ID | Criterion | Status |
 |---|---|---|
-| AC-1 | New tests pass, the existing 348 still pass | **MET** — 471 passed, 0 failed (348 before this change, so 123 new) |
+| AC-1 | New tests pass, the existing 348 still pass | **MET** — 472 passed, 0 failed (348 before this change, so 124 new) |
 | AC-2 | No key ⇒ one provider, dry run unchanged | **MET** — TR-8 plus live `--status` |
 | AC-3 | With a key ⇒ two providers, confirmed against both meters | **MET** — live run: 1 SerpAPI search, Firecrawl 919→917 |
 | AC-4 | `preflight` PASSes and the chain verifies after a two-provider run | **MET** — PASS, 20 entries, chain verifies |
@@ -212,14 +212,49 @@ Two things that made it possible, and one that nearly stopped it:
   in that loop can never accept the connection. Parent waits for child, child waits for
   server, server waits for parent. The stand-in now runs in its own process.
 
-### What is still not verified
+### The last inch — closed 2026-09-20
 
-One thing, smaller than the three above and stated so it is not lost: **no test drives
-`research.mjs` through a full collecting run against a live provider.** The CLI tests stop
-at `--dry-run` because going further spends credits, and the end-to-end two-meter run
-recorded in `a536ec1` (1 SerpAPI search, Firecrawl 919→917) remains a session observation
-rather than a repeatable check. Every layer beneath it is covered; the last inch costs
-money to assert.
+The fourth limit, recorded here briefly and then closed, because the reason given for it
+was sloppy. It said a live collecting run "costs money to assert". That conflated two
+different things:
+
+- Running it **once** costs a couple of credits. That was never blocked.
+- Running it on **every `selftest.mjs`** costs a couple of credits every time, for every
+  developer, forever. That is the actual constraint, and it is a reason to make the test
+  opt-in — not a reason for it not to exist.
+
+`test/live-collect.test.mjs` drives `bin/research.mjs` through a real collecting run
+against both real providers. It is gated on `RESEARCH_KIT_LIVE=1` **and** a key being
+present; with the gate shut it registers one test that asserts the gate is shut, for the
+right reasons, including that a truthy-looking value like `yes` does not open it. So the
+file is never dead code and the opt-in mechanism is itself covered.
+
+```bash
+RESEARCH_KIT_LIVE=1 SERPAPI_API_KEY=... node research-kit/bin/selftest.mjs
+```
+
+It scaffolds a temp project, so a live run never touches this repository's corpus — and a
+second test asserts exactly that, because a live test quietly collecting into the real
+corpus would put unreviewed captures behind the gate.
+
+**Run for real on 2026-09-20. Both tests passed.** What it measured:
+
+| | |
+|---|---|
+| Firecrawl credits | **917 → 916** — one credit, for one page |
+| SerpAPI | 1 search, on its own meter |
+| Ledger entry | `transport: firecrawl-cli`, `discoveredBy: serpapi` |
+| Usage log | `searchTransport: serpapi`, `searchesUsed: 1`, `degraded: 0` |
+| This repository | untouched; chain still verifies at 20 entries |
+
+That single number is the thesis of ADR-0027, measured end to end through the shipped
+binary rather than argued. **Before the split the same run cost three Firecrawl credits**
+— two for the search, one for the page. It now costs one, because the search is not on
+that budget any more.
+
+The assertion is written as a range (`>= 1` and `<= 3` credits) rather than an exact
+figure, so it survives a vendor changing a price but still fails if the search ever comes
+back onto the fetch meter.
 
 ## Requirements that changed during the work
 
