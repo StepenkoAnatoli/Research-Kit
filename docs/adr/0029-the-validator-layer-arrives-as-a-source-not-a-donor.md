@@ -100,6 +100,47 @@ gave was that the artifacts were unavailable, and they are on this machine.
 - ADR-0022 keeps its decision about *everything else* it deferred. This discharges it only
   for the four modules named above.
 
+## Scope, measured — updated 2026-09-20
+
+The plan this port began from named four modules. Those are the four the specs name, and
+the layer is about twice that. Counted against the filesystem rather than estimated:
+
+**Ported (5 commits, each independently revertible):**
+
+| | Tests |
+|---|---|
+| `test/harness.mjs` — `assertEqual`, `cleanup` | — |
+| `lib/release-validator.mjs` + 7 schemas | 10 |
+| `lib/path-authority-validator.mjs` + `bin/path-authority.mjs` + 1 schema | 5 |
+| `lib/fi-validator.mjs` + 2 schemas | 4 |
+| `bin/researcher-release.mjs` | (unblocked 2 of the 10) |
+
+**Remaining:**
+
+- **5 library modules** — `fi-sidecar-conformance.mjs` (82), `ledger-conformance.mjs`
+  (140), `property-replay.mjs` (326), `property-vector-conformance.mjs` (143),
+  `r29-workbook-linkage-validator.mjs` (58)
+- **7 binaries** — `property-replay.mjs`; three Node conformance runners
+  (`fi-sidecar-conformance`, `ledger-conformance`, `property-vector-conformance`); and
+  **three Python runners** (`fi_sidecar_conformance.py`, `ledger_conformance.py`,
+  `property_vector_conformance.py`), which exist so cross-language equivalence is a test
+  rather than a claim
+- **2 schemas** — `r29-workbook-linkage`, `trap-register`
+- **4 fixture sets** — `conformance/`: dashboard-status, fi-sidecar-evidence-manifest,
+  property-graph-hash, qualification-ledger vectors
+- **11 test files**, not 8. Beyond the nine already identified there are
+  `hostile-argv-property.test.mjs` and `ledger-anchor-verification.test.mjs`, which no
+  earlier count had caught — including mine. Both are named for behaviour this repository
+  should want.
+
+Plus at least one test helper (`test/fi-e2e-bundle.mjs`) that the adapter and e2e tests
+share. Helpers are why two of those test files could not travel with `fi-validator.mjs`.
+
+**Next milestone: the conformance foundation** — `ledger-conformance.mjs` and
+`fi-sidecar-conformance.mjs` with their vectors and both language runners. That settles
+the shared evidence format before replay and R29 linkage are ported on top of it, which
+is the right order: the format is the thing the other modules agree about.
+
 ## What this ADR does not claim
 
 That the ported code is good. It claims only that it will have been read, tested here, and
