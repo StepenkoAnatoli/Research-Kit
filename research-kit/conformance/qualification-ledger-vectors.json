@@ -1,0 +1,151 @@
+{
+  "packetVersion": "1.0.0",
+  "profile": "researcher-benchmark-c14n-v1",
+  "signatureAlgorithm": "Ed25519",
+  "signatureEncoding": "base64url-no-padding",
+  "vectors": [
+    {
+      "vectorId": "QL-H-01",
+      "kind": "canonical-json",
+      "value": {"package":"R28","count":2,"answer":"yes"},
+      "expectedCanonical": "{\"answer\":\"yes\",\"count\":2,\"package\":\"R28\"}",
+      "expectedSha256": "dfc3e0e86c626e58e9d0ea13ded6fbaf5e48c1fed48e1c59690e232bb0077bde"
+    },
+    {
+      "vectorId": "QL-H-02",
+      "kind": "self-excluding-hash",
+      "omitFields": ["recordHash", "chainHash", "signature"],
+      "value": {
+        "ledgerVersion": "1.0.0",
+        "physicalSequence": 7,
+        "recordKind": "promotion-commit",
+        "txId": "tx-0007",
+        "eventId": "evt-0007",
+        "package": "R28",
+        "artifactId": "R28-04",
+        "recordId": "record-0007",
+        "benchmarkSpecVersion": "1.0.0",
+        "benchmarkSpecSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "roleRosterSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "actorId": "release-bot",
+        "actorRole": "evidence-custodian",
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "prevChainHash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "payloadSha256": "dfc3e0e86c626e58e9d0ea13ded6fbaf5e48c1fed48e1c59690e232bb0077bde",
+        "recordHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "chainHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "state": "committed",
+        "payload": {"package":"R28","count":2,"answer":"yes"},
+        "signature": "synthetic"
+      },
+      "expectedCanonical": "{\"actorId\":\"release-bot\",\"actorRole\":\"evidence-custodian\",\"artifactId\":\"R28-04\",\"benchmarkSpecSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"benchmarkSpecVersion\":\"1.0.0\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"eventId\":\"evt-0007\",\"ledgerVersion\":\"1.0.0\",\"package\":\"R28\",\"payload\":{\"answer\":\"yes\",\"count\":2,\"package\":\"R28\"},\"payloadSha256\":\"dfc3e0e86c626e58e9d0ea13ded6fbaf5e48c1fed48e1c59690e232bb0077bde\",\"physicalSequence\":7,\"prevChainHash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"recordId\":\"record-0007\",\"recordKind\":\"promotion-commit\",\"roleRosterSha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"state\":\"committed\",\"txId\":\"tx-0007\"}",
+      "expectedSha256": "fb51c74d841813df6af030b89c6ba41fed1439bd57bfc5f409464750c9e01d4f"
+    },
+    {
+      "vectorId": "QL-H-03",
+      "kind": "chain-hash",
+      "recordHash": "fb51c74d841813df6af030b89c6ba41fed1439bd57bfc5f409464750c9e01d4f",
+      "prevChainHash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "physicalSequence": 7,
+      "expectedCanonical": "benchmark-ledger-chain-v1\u0000fb51c74d841813df6af030b89c6ba41fed1439bd57bfc5f409464750c9e01d4f\u00001111111111111111111111111111111111111111111111111111111111111111\u00007",
+      "expectedSha256": "09ed663857dd39ee7fe3ae91351c4ec678f9c65b0c68f2369ad9f29691355650"
+    },
+    {
+      "vectorId": "QL-H-04",
+      "kind": "self-excluding-hash",
+      "omitFields": ["pointerHash", "signature"],
+      "value": {
+        "package": "R28",
+        "promotion": {
+          "state": "ready",
+          "package": "R28",
+          "generation": 1,
+          "targetArtifactId": "R28-04",
+          "targetHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "promotionCommitHash": "09ed663857dd39ee7fe3ae91351c4ec678f9c65b0c68f2369ad9f29691355650",
+          "predecessorClosureHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "requiredGate": "Q0",
+          "publishedAt": "2026-01-01T00:00:00.000Z",
+          "previousPointerHash": null,
+          "revokedDescendantHashes": []
+        },
+        "pointerHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "signerKeyId": "release-key",
+        "signature": ""
+      },
+      "expectedCanonical": "{\"package\":\"R28\",\"promotion\":{\"generation\":1,\"package\":\"R28\",\"predecessorClosureHash\":\"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\"previousPointerHash\":null,\"promotionCommitHash\":\"09ed663857dd39ee7fe3ae91351c4ec678f9c65b0c68f2369ad9f29691355650\",\"publishedAt\":\"2026-01-01T00:00:00.000Z\",\"requiredGate\":\"Q0\",\"revokedDescendantHashes\":[],\"state\":\"ready\",\"targetArtifactId\":\"R28-04\",\"targetHash\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\"},\"signerKeyId\":\"release-key\"}",
+      "expectedSha256": "400319bea9dd1068e0f7864b58cc23da4181ced8376af0375f1862b1cf3140c1"
+    },
+    {
+      "vectorId": "QL-H-05",
+      "kind": "self-excluding-hash",
+      "omitFields": ["genesisHash", "signature"],
+      "value": {
+        "ledgerVersion": "1.0.0",
+        "releaseId": "benchmark-v1.0.0",
+        "benchmarkSpecVersion": "1.0.0",
+        "benchmarkSpecSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "registrySha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "roleRosterSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "externalRoots": {"R27":"2222222222222222222222222222222222222222222222222222222222222222","G3":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","R26":"1111111111111111111111111111111111111111111111111111111111111111"},
+        "genesisHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "signerKeyId": "release-key",
+        "signature": ""
+      },
+      "expectedCanonical": "{\"benchmarkSpecSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"benchmarkSpecVersion\":\"1.0.0\",\"externalRoots\":{\"G3\":\"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\",\"R26\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"R27\":\"2222222222222222222222222222222222222222222222222222222222222222\"},\"ledgerVersion\":\"1.0.0\",\"registrySha256\":\"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\",\"releaseId\":\"benchmark-v1.0.0\",\"roleRosterSha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"signerKeyId\":\"release-key\"}",
+      "expectedSha256": "7ea4e3aed1e7e956d284cf031e532db1c5ba1fcea40c05d6dc629d447d0b8783"
+    },
+    {
+      "vectorId": "QL-H-06",
+      "kind": "self-excluding-hash",
+      "omitFields": ["checkpointHash", "signature"],
+      "value": {
+        "ledgerVersion": "1.0.0",
+        "releaseId": "benchmark-v1.0.0",
+        "segment": "00000001.qlog",
+        "byteOffset": 123,
+        "physicalSequence": 7,
+        "chainHash": "09ed663857dd39ee7fe3ae91351c4ec678f9c65b0c68f2369ad9f29691355650",
+        "lastCommittedEventHash": "fb51c74d841813df6af030b89c6ba41fed1439bd57bfc5f409464750c9e01d4f",
+        "snapshotHash": "3333333333333333333333333333333333333333333333333333333333333333",
+        "genesisHash": "7ea4e3aed1e7e956d284cf031e532db1c5ba1fcea40c05d6dc629d447d0b8783",
+        "previousCheckpointHash": null,
+        "checkpointHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "signerKeyId": "release-key",
+        "signature": ""
+      },
+      "expectedCanonical": "{\"byteOffset\":123,\"chainHash\":\"09ed663857dd39ee7fe3ae91351c4ec678f9c65b0c68f2369ad9f29691355650\",\"genesisHash\":\"7ea4e3aed1e7e956d284cf031e532db1c5ba1fcea40c05d6dc629d447d0b8783\",\"lastCommittedEventHash\":\"fb51c74d841813df6af030b89c6ba41fed1439bd57bfc5f409464750c9e01d4f\",\"ledgerVersion\":\"1.0.0\",\"physicalSequence\":7,\"previousCheckpointHash\":null,\"releaseId\":\"benchmark-v1.0.0\",\"segment\":\"00000001.qlog\",\"signerKeyId\":\"release-key\",\"snapshotHash\":\"3333333333333333333333333333333333333333333333333333333333333333\"}",
+      "expectedSha256": "5fa9d0f6100a15b6770dc538f932ad277c17e308eec32fffb484d9efe6db6086"
+    },
+    {
+      "vectorId": "QL-S-01",
+      "kind": "ed25519",
+      "messageHex": "400319bea9dd1068e0f7864b58cc23da4181ced8376af0375f1862b1cf3140c1",
+      "publicKeyHex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "signature": "yD1bj_Tu5BoziO1bWRavrh9sw1zUEOjAqUQbG4e8VBTvkkutZbsIClvFAWTWz2oYMDsS2VkbPs4cN2XjHKGXBA"
+    },
+    {
+      "vectorId": "QL-S-02",
+      "kind": "ed25519",
+      "messageHex": "7ea4e3aed1e7e956d284cf031e532db1c5ba1fcea40c05d6dc629d447d0b8783",
+      "publicKeyHex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "signature": "7ZPxLcbd85MVtxAv-o9o4HyMO0V6UI_UcnX4rKhznuC7LLPbvgESI4gAp-hIzfUVOfWcnu-likhTzM8r9jD0Ag"
+    },
+    {
+      "vectorId": "QL-S-03",
+      "kind": "ed25519",
+      "messageHex": "5fa9d0f6100a15b6770dc538f932ad277c17e308eec32fffb484d9efe6db6086",
+      "publicKeyHex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "signature": "jbexpCtfuO5jF-NYQwUu-fzDZ0zeZU2OJ82fiw_fyMYqrhER3bGnX6ZWwdHj1M9dXGN7uYT9JzyWob_wmk8nBA"
+    },
+    {
+      "vectorId": "QL-S-04",
+      "kind": "ed25519",
+      "expectedResult": "FAIL",
+      "expectedReason": "signature.invalid",
+      "messageHex": "5fa9d0f6100a15b6770dc538f932ad277c17e308eec32fffb484d9efe6db6086",
+      "publicKeyHex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+      "signature": "jbexpCtfuO5jF-NYQwUu-fzDZ0zeZU2OJ82fiw_fyMYqrhER3bGnX6ZWwdHj1M9dXGN7uYT9JzyWob_wmk8nBB"
+    }
+  ]
+}
