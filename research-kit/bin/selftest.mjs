@@ -6,6 +6,7 @@
 // is a stop-the-line event, and the cwd is printed with it because some tests are
 // cwd-sensitive and a red without a cwd is a failure that cannot be localised.
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseFlags, listFiles } from '../lib/core.mjs';
@@ -57,5 +58,30 @@ if (blocking) {
   process.stdout.write(`\nA red suite stops work. cwd: ${process.cwd()}\n`);
   process.exit(1);
 }
+
+// The README states a test count in the present tense, and it has now gone stale TWICE:
+// it said 326 when there were 565, and 565 when there were 582. No test could catch it,
+// because the true number only exists here - after the run - and a test cannot count a
+// suite it is part of without importing every file a second time.
+//
+// So the check lives where the number is. Only on a FULL run: a filtered run
+// (`selftest.mjs gate hook`) legitimately produces a smaller count and must not rewrite
+// the claim or fail against it.
+if (!positional.length) {
+  const readme = path.join(KIT_ROOT, 'README.md');
+  try {
+    const text = fs.readFileSync(readme, 'utf8');
+    const claim = text.match(/^(\d[\d,]*) tests, offline/m);
+    const actual = passed + unsupported.length;
+    if (claim && Number(claim[1].replace(/,/g, '')) !== actual) {
+      process.stdout.write(
+        `\nresearch-kit/README.md claims ${claim[1]} tests; this run has ${actual}.\n`
+        + `A stale count is the first claim a reader checks, and the cheapest one to lose trust over.\n`
+        + `Fix: change "${claim[1]} tests, offline" to "${actual} tests, offline" in research-kit/README.md\n`);
+      process.exit(1);
+    }
+  } catch { /* no README (a scaffolded or partial copy) - nothing to keep honest */ }
+}
+
 process.stdout.write('all tests passed\n');
 process.exit(0);

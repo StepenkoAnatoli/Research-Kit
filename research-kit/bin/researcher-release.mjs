@@ -82,7 +82,12 @@ function main(argv = process.argv.slice(2)) {
       schemaPath: path.resolve(parsed.schema),
     });
   } else if (parsed.command === 'fi-validate') {
-    if (!parsed.root || !parsed.workbook || !parsed.records || !parsed.manifest) { console.error(usage()); return 4; }
+    // 2, like `validate` and `conform` above. It returned 4 until 2026-09-20, which meant
+    // the SAME mistake - forgetting a required flag - reported a different code depending
+    // on which subcommand you typed. 4 is this CLI's "unrecognised status" fallback, so a
+    // caller branching on it was being told the validator produced something unknown,
+    // when in fact it had never run.
+    if (!parsed.root || !parsed.workbook || !parsed.records || !parsed.manifest) { console.error(usage()); return 2; }
     result = validateFiBundle({
       root: path.resolve(parsed.root),
       workbook: path.resolve(parsed.workbook),
