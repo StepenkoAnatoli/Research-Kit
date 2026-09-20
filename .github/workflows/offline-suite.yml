@@ -1,0 +1,88 @@
+name: offline-suite
+
+# Everything here runs with NO credentials and no network egress to a vendor.
+# That is the property worth protecting: a reviewer, or a fork, must be able to
+# re-run every check without being given a key. The collector is the only part of
+# this kit that spends anything, and it is deliberately not exercised here.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  suite:
+    name: suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Three of the conformance runners ship twice, in Node and in Python, and
+      # must agree per vector. Without Python those tests cannot run at all.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: versions
+        run: |
+          node --version
+          python --version
+
+      - name: no credentials are present
+        run: |
+          for v in SERPAPI_API_KEY FIRECRAWL_API_KEY TAVILY_API_KEY; do
+            if [ -n "${!v:-}" ]; then echo "$v is set in CI; the offline suite must not need one"; exit 1; fi
+          done
+          echo "no vendor credentials in the environment"
+
+      - name: selftest
+        run: node research-kit/bin/selftest.mjs
+
+      - name: preflight
+        run: node research-kit/bin/preflight.mjs
+
+      - name: cross-language conformance
+        run: |
+          set -e
+          for pair in \
+            "ledger-conformance.mjs:ledger_conformance.py:qualification-ledger-vectors.json" \
+            "fi-sidecar-conformance.mjs:fi_sidecar_conformance.py:fi-sidecar-evidence-manifest-vectors.json" \
+            "property-vector-conformance.mjs:property_vector_conformance.py:property-graph-hash-vectors.json"
+          do
+            n="${pair%%:*}"; rest="${pair#*:}"; p="${rest%%:*}"; v="${rest##*:}"
+            node "research-kit/bin/$n" --vectors "research-kit/conformance/$v" --json > /tmp/node.json
+            python "research-kit/bin/$p" --vectors "research-kit/conformance/$v" --json > /tmp/py.json
+            node -e '
+              const fs = require("fs");
+              const rows = (f) => {
+                const r = JSON.parse(fs.readFileSync(f, "utf8"));
+                return JSON.stringify((r.vectors ?? r.rows ?? []).map((x) => [x.vectorId ?? x.id, x.result]));
+              };
+              // Report hashes are NOT compared: reportSha256 covers implementation.runtime,
+              // so it differs between languages by design. Equivalence is per vector.
+              if (rows("/tmp/node.json") !== rows("/tmp/py.json")) {
+                console.error("node and python disagree for " + process.argv[1]);
+                process.exit(1);
+              }
+              console.log("agree: " + process.argv[1]);
+            ' "$v"
+          done
+
+      - name: validator inputs are unchanged
+        run: |
+          if ! git diff --quiet -- research-kit/conformance research-kit/schemas; then
+            echo "a validator mutated its own inputs"
+            git --no-pager diff --stat -- research-kit/conformance research-kit/schemas
+            exit 1
+          fi
+          echo "conformance/ and schemas/ are byte-for-byte unchanged"

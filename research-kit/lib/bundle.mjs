@@ -42,6 +42,14 @@ export const EXPECTED_TO_DRIFT = Object.freeze([
   // The map and the decision log, which ADR-0007 requires to move with the code.
   'docs/ARCHITECTURE.md',
   'docs/adr/README.md',
+  // The vocabulary record and the front door. Both are documentation ABOUT the code, so
+  // both go stale the moment the code moves and neither can be frozen without becoming
+  // wrong. Added 2026-09-20, when this very check caught them drifting — the validator
+  // layer introduced terms CONTEXT.md had to gain, and a public repository needed a
+  // README that said whose keys these are. They are not planning documents: those are
+  // records of a past state, and a test below asserts none of them is ever exempted.
+  'CONTEXT.md',
+  'README.md',
   // The index cannot record its own digest and be correct about it.
   BUNDLE_INDEX,
 ]);
