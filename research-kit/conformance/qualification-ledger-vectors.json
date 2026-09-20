@@ -7,14 +7,22 @@
     {
       "vectorId": "QL-H-01",
       "kind": "canonical-json",
-      "value": {"package":"R28","count":2,"answer":"yes"},
+      "value": {
+        "package": "R28",
+        "count": 2,
+        "answer": "yes"
+      },
       "expectedCanonical": "{\"answer\":\"yes\",\"count\":2,\"package\":\"R28\"}",
       "expectedSha256": "dfc3e0e86c626e58e9d0ea13ded6fbaf5e48c1fed48e1c59690e232bb0077bde"
     },
     {
       "vectorId": "QL-H-02",
       "kind": "self-excluding-hash",
-      "omitFields": ["recordHash", "chainHash", "signature"],
+      "omitFields": [
+        "recordHash",
+        "chainHash",
+        "signature"
+      ],
       "value": {
         "ledgerVersion": "1.0.0",
         "physicalSequence": 7,
@@ -35,7 +43,11 @@
         "recordHash": "0000000000000000000000000000000000000000000000000000000000000000",
         "chainHash": "0000000000000000000000000000000000000000000000000000000000000000",
         "state": "committed",
-        "payload": {"package":"R28","count":2,"answer":"yes"},
+        "payload": {
+          "package": "R28",
+          "count": 2,
+          "answer": "yes"
+        },
         "signature": "synthetic"
       },
       "expectedCanonical": "{\"actorId\":\"release-bot\",\"actorRole\":\"evidence-custodian\",\"artifactId\":\"R28-04\",\"benchmarkSpecSha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"benchmarkSpecVersion\":\"1.0.0\",\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"eventId\":\"evt-0007\",\"ledgerVersion\":\"1.0.0\",\"package\":\"R28\",\"payload\":{\"answer\":\"yes\",\"count\":2,\"package\":\"R28\"},\"payloadSha256\":\"dfc3e0e86c626e58e9d0ea13ded6fbaf5e48c1fed48e1c59690e232bb0077bde\",\"physicalSequence\":7,\"prevChainHash\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"recordId\":\"record-0007\",\"recordKind\":\"promotion-commit\",\"roleRosterSha256\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"state\":\"committed\",\"txId\":\"tx-0007\"}",
@@ -53,7 +65,10 @@
     {
       "vectorId": "QL-H-04",
       "kind": "self-excluding-hash",
-      "omitFields": ["pointerHash", "signature"],
+      "omitFields": [
+        "pointerHash",
+        "signature"
+      ],
       "value": {
         "package": "R28",
         "promotion": {
@@ -79,7 +94,10 @@
     {
       "vectorId": "QL-H-05",
       "kind": "self-excluding-hash",
-      "omitFields": ["genesisHash", "signature"],
+      "omitFields": [
+        "genesisHash",
+        "signature"
+      ],
       "value": {
         "ledgerVersion": "1.0.0",
         "releaseId": "benchmark-v1.0.0",
@@ -87,7 +105,11 @@
         "benchmarkSpecSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "registrySha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
         "roleRosterSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-        "externalRoots": {"R27":"2222222222222222222222222222222222222222222222222222222222222222","G3":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","R26":"1111111111111111111111111111111111111111111111111111111111111111"},
+        "externalRoots": {
+          "R27": "2222222222222222222222222222222222222222222222222222222222222222",
+          "G3": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "R26": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
         "genesisHash": "0000000000000000000000000000000000000000000000000000000000000000",
         "signerKeyId": "release-key",
         "signature": ""
@@ -98,7 +120,10 @@
     {
       "vectorId": "QL-H-06",
       "kind": "self-excluding-hash",
-      "omitFields": ["checkpointHash", "signature"],
+      "omitFields": [
+        "checkpointHash",
+        "signature"
+      ],
       "value": {
         "ledgerVersion": "1.0.0",
         "releaseId": "benchmark-v1.0.0",
@@ -146,6 +171,159 @@
       "messageHex": "5fa9d0f6100a15b6770dc538f932ad277c17e308eec32fffb484d9efe6db6086",
       "publicKeyHex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
       "signature": "jbexpCtfuO5jF-NYQwUu-fzDZ0zeZU2OJ82fiw_fyMYqrhER3bGnX6ZWwdHj1M9dXGN7uYT9JzyWob_wmk8nBB"
+    },
+    {
+      "vectorId": "QL-F-01",
+      "kind": "canonical-float",
+      "floatPolicy": "normalize",
+      "note": "the original divergence: Node \"1\", the drifted Python \"1.0\"",
+      "value": {
+        "a": 1.0
+      },
+      "expectedCanonical": "{\"a\":1}",
+      "expectedSha256": "015abd7f5cc57a2dd94b7590f04ad8084273905ee33ec5cebeae62276a97f862"
+    },
+    {
+      "vectorId": "QL-F-02",
+      "kind": "canonical-float",
+      "floatPolicy": "normalize",
+      "note": "the original divergence: Node \"0\", the drifted Python \"-0.0\"",
+      "value": {
+        "a": -0.0
+      },
+      "expectedCanonical": "{\"a\":0}",
+      "expectedSha256": "45b619e97b5d9b029af4522e9ffb02fa99ff2bf226c82ee22a7cc10269a557e8"
+    },
+    {
+      "vectorId": "QL-F-03",
+      "kind": "canonical-float",
+      "floatPolicy": "normalize",
+      "note": "a float both sides always agreed on, as the control",
+      "value": {
+        "a": 1.5
+      },
+      "expectedCanonical": "{\"a\":1.5}",
+      "expectedSha256": "3b1cb40b22933d83e9242f8ac724f114d812ddd49909917b365375c24b69a455"
+    },
+    {
+      "vectorId": "QL-F-04",
+      "kind": "canonical-float",
+      "floatPolicy": "normalize",
+      "note": "0.1 + 0.2: shortest round-trip digits must agree",
+      "value": {
+        "a": 0.30000000000000004
+      },
+      "expectedCanonical": "{\"a\":0.30000000000000004}",
+      "expectedSha256": "29e5dbf7117c7b85bd446837b66c63ef1020f8eb93226b77db3928ddf09aa353"
+    },
+    {
+      "vectorId": "QL-F-05",
+      "kind": "canonical-float",
+      "floatPolicy": "normalize",
+      "note": "JavaScript switches to exponential AT 1e21",
+      "value": {
+        "a": 1e+21
+      },
+      "expectedCanonical": "{\"a\":1e+21}",
+      "expectedSha256": "a18fbc0bcef4f91fedea4a6ff70089101462846a93a65795324a14b10cb5c4d9"
+    },
+    {
+      "vectorId": "QL-F-06",
+      "kind": "canonical-float",
+      "floatPolicy": "normalize",
+      "note": "and not below it",
+      "value": {
+        "a": 1e+20
+      },
+      "expectedCanonical": "{\"a\":100000000000000000000}",
+      "expectedSha256": "c125828e7797f96ed628b16510a00360bfb7ea19ea08f003b43c9668f195f087"
+    },
+    {
+      "vectorId": "QL-F-07",
+      "kind": "canonical-float",
+      "floatPolicy": "normalize",
+      "note": "JavaScript stays positional down to 1e-6",
+      "value": {
+        "a": 1e-06
+      },
+      "expectedCanonical": "{\"a\":0.000001}",
+      "expectedSha256": "73316665f7916cb06cb29b316b8987b6cc89a7fea4a4fff0ce661eb6ad1eeffb"
+    },
+    {
+      "vectorId": "QL-F-08",
+      "kind": "canonical-float",
+      "floatPolicy": "normalize",
+      "note": "and goes exponential at 1e-7, unpadded: Python repr says 1e-07",
+      "value": {
+        "a": 1e-07
+      },
+      "expectedCanonical": "{\"a\":1e-7}",
+      "expectedSha256": "b248271d18d09a840564eafaaeb935f11a4d44d6d90ac5b3baa9714420782816"
+    },
+    {
+      "vectorId": "QL-F-09",
+      "kind": "canonical-float",
+      "floatPolicy": "normalize",
+      "note": "Python repr says 1e+17; JavaScript spells the digits out",
+      "value": {
+        "a": 1e+17
+      },
+      "expectedCanonical": "{\"a\":100000000000000000}",
+      "expectedSha256": "10e28b3dc1836bdd4affc0d58805559b142aebc9adef96f244cacdab67498fc9"
+    },
+    {
+      "vectorId": "QL-F-10",
+      "kind": "canonical-float",
+      "floatPolicy": "normalize",
+      "note": "smallest positive denormal",
+      "value": {
+        "a": 5e-324
+      },
+      "expectedCanonical": "{\"a\":5e-324}",
+      "expectedSha256": "7496f25994a875ed4269000497c1e2cccfe55d0a6c2078b65b32eef2700d750a"
+    },
+    {
+      "vectorId": "QL-F-11",
+      "kind": "canonical-float",
+      "floatPolicy": "normalize",
+      "note": "largest finite double",
+      "value": {
+        "a": 1.7976931348623157e+308
+      },
+      "expectedCanonical": "{\"a\":1.7976931348623157e+308}",
+      "expectedSha256": "bf1da90ca7a9fda2ad93c0377d3355e67dfd54ac28852da8b2ba2a6727f1780c"
+    },
+    {
+      "vectorId": "QL-F-12",
+      "kind": "canonical-float",
+      "floatPolicy": "normalize",
+      "note": "nested floats, and key order around them",
+      "value": {
+        "b": [
+          1.0,
+          -0.0
+        ],
+        "a": {
+          "x": 1.5
+        }
+      },
+      "expectedCanonical": "{\"a\":{\"x\":1.5},\"b\":[1,0]}",
+      "expectedSha256": "e4ac12c2da2c2f8099dbf539c9192d2a7bfdb0537b7fcee1c46499e3762430ce"
+    },
+    {
+      "vectorId": "QL-F-13",
+      "kind": "canonical-float",
+      "floatPolicy": "normalize",
+      "note": "a float beside integers in one array",
+      "value": {
+        "a": [
+          1,
+          2.5,
+          3
+        ]
+      },
+      "expectedCanonical": "{\"a\":[1,2.5,3]}",
+      "expectedSha256": "cbcac6a3e7edd7b919b7a80de59d2e9288214c13313dab6a7a42621c37e68a62"
     }
   ]
 }

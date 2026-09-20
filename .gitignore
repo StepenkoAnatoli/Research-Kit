@@ -17,6 +17,14 @@ research/raw/.usage.jsonl
 research/raw/.failures.jsonl
 research/raw/.fetches.lock
 
+# CPython bytecode. New as of 2026-09-20: the three Python conformance runners now
+# IMPORT a shared module (bin/conformance_common.py) instead of each carrying its own
+# copy, and importing a sibling is what makes CPython write a cache directory. Before
+# that they imported nothing local and produced none. Unignored, every conformance run
+# would leave the working tree dirty - the same defect `.diagnostics.jsonl` had above.
+__pycache__/
+*.pyc
+
 # Deliberately NOT ignored: research/raw/.fetches.jsonl. The fetch ledger is the
 # provenance chain - a repository that ships evidence without it cannot pass its own
 # gate, which is exactly what happened when this project was uploaded without its

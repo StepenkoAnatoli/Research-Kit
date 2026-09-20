@@ -8,6 +8,10 @@ creates, reads, or writes private key material.
 
 from __future__ import annotations
 
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))
+
 import argparse
 import base64
 import hashlib
@@ -16,6 +20,22 @@ import re
 import sys
 from pathlib import Path
 from typing import Any
+
+# Canonicalisation, hashing, packet parsing and report rendering are SHARED with the
+# other Python runners (research-kit/bin/conformance_common.py). They were duplicated
+# in three files until 2026-09-20, and two of the copies had already drifted.
+from conformance_common import (
+    ConformanceError,
+    canonical_json as _canonical_json,
+    digest,
+    js_number,
+    json_string,
+    parse_json_no_duplicates,
+    read_packet,
+    report_json,
+    require_unique_vector_ids,
+)
+
 
 
 PROFILE = "researcher-benchmark-c14n-v1"
@@ -34,21 +54,13 @@ BASE = (
 )
 
 
-class VectorPacketError(ValueError):
-    """A packet is syntactically or semantically outside the conformance contract."""
+class VectorPacketError(ConformanceError):
+    """This runner's name for a refused packet. Shared base so the three agree."""
 
 
-def reject_constant(value: str) -> None:
-    raise VectorPacketError(f"non-finite JSON constant {value}")
-
-
-def reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for key, value in pairs:
-        if key in result:
-            raise VectorPacketError(f"duplicate object key {key!r}")
-        result[key] = value
-    return result
+# This runner's float policy, named rather than implied (see conformance_common).
+def canonical_json(value):
+    return _canonical_json(value, float_policy="reject")
 
 
 def load_vectors(path: str | Path) -> dict[str, Any]:
@@ -56,8 +68,8 @@ def load_vectors(path: str | Path) -> dict[str, Any]:
     if raw.startswith(b"\xef\xbb\xbf"):
         raise VectorPacketError("UTF-8 BOM is not permitted")
     try:
-        packet = json.loads(raw.decode("utf-8"), object_pairs_hook=reject_duplicate_pairs, parse_constant=reject_constant)
-    except (UnicodeDecodeError, json.JSONDecodeError, VectorPacketError) as error:
+        packet = parse_json_no_duplicates(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError, ConformanceError) as error:
         raise VectorPacketError(str(error)) from error
     if not isinstance(packet, dict):
         raise VectorPacketError("packet must be an object")
@@ -78,37 +90,6 @@ def load_vectors(path: str | Path) -> dict[str, Any]:
         ids.add(vector_id)
     packet["_vectorPacketSha256"] = hashlib.sha256(raw).hexdigest()
     return packet
-
-
-def json_string(value: str) -> str:
-    if any(0xD800 <= ord(char) <= 0xDFFF for char in value):
-        raise VectorPacketError("unpaired surrogate is not canonical JSON")
-    return json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
-
-
-def canonical_json(value: Any) -> str:
-    if value is None:
-        return "null"
-    if value is True:
-        return "true"
-    if value is False:
-        return "false"
-    if isinstance(value, str):
-        return json_string(value)
-    if isinstance(value, int):
-        return str(value)
-    if isinstance(value, float):
-        raise VectorPacketError("floating-point values are not accepted by this vector runner")
-    if isinstance(value, list):
-        return "[" + ",".join(canonical_json(item) for item in value) + "]"
-    if isinstance(value, dict):
-        keys = sorted(value, key=lambda key: key.encode("utf-16-be"))
-        return "{" + ",".join(f"{json_string(key)}:{canonical_json(value[key])}" for key in keys) + "}"
-    raise VectorPacketError(f"unsupported canonical JSON value {type(value).__name__}")
-
-
-def digest(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def valid_hex(value: Any, byte_length: int) -> bool:
@@ -201,6 +182,20 @@ def run_vector(vector: dict[str, Any]) -> dict[str, Any]:
     kind = vector["kind"]
     if kind == "canonical-json":
         return hash_row(vector, canonical_json(vector.get("value")))
+    if kind == "canonical-float":
+        # The float boundary, pinned as data. This runner's default policy is "reject",
+        # because a float in a ledger record is meaningless -- but the FI runner
+        # normalizes, and that path had no vectors at all, which is how Node and Python
+        # drifted to different digests for {"a": 1.0} without a single test going red.
+        #
+        # Only "normalize" is expressible here, and the reason is worth stating: in
+        # JavaScript `1.0` IS `1`, so a Node runner parsing this packet cannot see a
+        # float to reject. A "reject" vector would pass in Node for the wrong reason.
+        # The reject policy is a Python-side property, tested directly in
+        # test/canonical-float-policy.test.mjs where real floats are handed to Python.
+        if vector.get("floatPolicy") != "normalize":
+            raise VectorPacketError(f"{vector['vectorId']} must declare floatPolicy \"normalize\"")
+        return hash_row(vector, _canonical_json(vector.get("value"), float_policy="normalize"))
     if kind == "self-excluding-hash":
         value = vector.get("value")
         fields = vector.get("omitFields")
@@ -258,10 +253,6 @@ def run_conformance(packet: dict[str, Any]) -> dict[str, Any]:
     }
     report["reportSha256"] = digest(canonical_json(report))
     return report
-
-
-def report_json(report: dict[str, Any]) -> str:
-    return json.dumps(report, ensure_ascii=False, indent=2) + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:
