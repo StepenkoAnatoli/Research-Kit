@@ -158,7 +158,14 @@ so `ok` means the assertions settled; ADR-0021).
 
 ### Not lib, not bin — but load-bearing
 
-- `githooks/pre-commit` — POSIX sh commit-gate wrapper. Fail-open when node or the kit is
+- `githooks/pre-commit` — POSIX sh commit-gate wrapper. **Tracked as mode 100755**, and
+  that is part of its contract, not a detail: git *skips a hook it cannot execute, and
+  says nothing*. It was tracked 100644 until 2026-09-20, so every Linux and macOS clone
+  of this repository had a commit gate that silently never ran — invisible on Windows,
+  where `core.filemode` is off, and found in ten seconds by the first CI run on Ubuntu.
+  `hooks/edit-gate.mjs` is deliberately *not* executable: it is invoked as
+  `node hooks/edit-gate.mjs`, never directly. See ADR-0001 and `hookExecutability`.
+  Fail-open when node or the kit is
   missing, with the one self-contained posture reader pinned to `lib/machine.mjs` by test (ADR-0002).
   The staged-path list is **piped** into the gate (`git diff … | node bin/gate.mjs …
   --staged-stdin`), never accumulated into argv: the old `set -- "$@" --staged "$p"` loop
