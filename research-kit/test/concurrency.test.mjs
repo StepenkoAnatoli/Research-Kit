@@ -4,7 +4,7 @@
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { test, describe, assert, makeProject, makePassingProject, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, makeProject, makePassingProject, tempDir, cleanup, fs, path, KIT_ROOT } from './harness.mjs';
 import { PATHS, resolve, readText, writeText } from '../lib/core.mjs';
 import { readCorpus, readLedger } from '../lib/corpus.mjs';
 import { repairLedgerTail } from '../lib/provenance.mjs';
@@ -224,4 +224,62 @@ test('F12: after the documented repair, collection resumes', () => {
   assert.equal(outcome.status, 'collected');
   assert.equal(verifyLedger(dir).ok, true);
   assert.equal(readLedger(dir).entries.length, 2);
+});
+
+// ---------------------------------------------------------------- lock ownership
+//
+// Added 2026-09-21. `release()` read the lock, and if it could not PARSE it, unlinked it
+// anyway:
+//
+//     try { holder = JSON.parse(readText(file, '')); } catch { holder = null; }
+//     if (holder && holder.nonce !== token.nonce) return;   // <- skipped when null
+//     fs.unlinkSync(file);
+//
+// The dangerous case is not a missing lock, it is a REPLACED one. While a collector
+// works, its lock can be truncated, recovered as stale by a second collector, and
+// replaced by that collector's own lock. Releasing then deleted the second collector's
+// lock and opened the section to a third - duplicate sequence numbers, conflicting
+// ledger appends, a torn chain.
+
+test('release does not remove a lock it cannot prove it owns', async () => {
+  const dir = makeProject();
+  const lock = path.join(dir, 'research', 'raw', '.fetches.lock');
+  try {
+    let observed = null;
+    withLock(dir, () => {
+      // Someone else's lock is now at the path this holder is about to release.
+      fs.writeFileSync(lock, JSON.stringify({ nonce: 'a-different-collector', pid: process.pid, host: 'elsewhere' }), 'utf8');
+      observed = fs.readFileSync(lock, 'utf8');
+    });
+    assert.equal(fs.existsSync(lock), true, 'release deleted a lock belonging to another holder');
+    assert.equal(fs.readFileSync(lock, 'utf8'), observed, 'the other holder\'s lock was modified');
+  } finally { cleanup(dir); }
+});
+
+test('release does not remove an UNREADABLE lock', () => {
+  // The exact shape of the defect: an unparseable lock used to fall through the ownership
+  // check. Leaving it behind is the safe direction - the staleness path recovers a lock
+  // nobody holds, and no path recovers a lock that was wrongly deleted.
+  const dir = makeProject();
+  const lock = path.join(dir, 'research', 'raw', '.fetches.lock');
+  try {
+    withLock(dir, () => {
+      fs.writeFileSync(lock, '{ truncated', 'utf8');   // a torn write, or another holder mid-write
+    });
+    assert.equal(fs.existsSync(lock), true,
+      'an unreadable lock was deleted on release; if it belonged to another collector, two are now inside the section');
+  } finally { cleanup(dir); }
+});
+
+test('release DOES remove the lock it actually owns', () => {
+  // The other half. A fix that never releases is not a fix - it would wedge every
+  // subsequent collection behind a lock that only times out.
+  const dir = makeProject();
+  const lock = path.join(dir, 'research', 'raw', '.fetches.lock');
+  try {
+    withLock(dir, () => {
+      assert.equal(fs.existsSync(lock), true, 'the lock was not created inside the section');
+    });
+    assert.equal(fs.existsSync(lock), false, 'the holder did not release its own lock');
+  } finally { cleanup(dir); }
 });

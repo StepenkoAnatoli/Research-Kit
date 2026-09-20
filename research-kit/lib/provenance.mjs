@@ -166,7 +166,21 @@ function release(root, token) {
   const file = lockFile(root);
   let holder = null;
   try { holder = JSON.parse(readText(file, '')); } catch { holder = null; }
-  if (holder && holder.nonce !== token.nonce) return; // not our acquisition
+
+  // Ownership must be POSITIVELY confirmed. An unreadable lock is not permission to
+  // remove one.
+  //
+  // This read `if (holder && holder.nonce !== token.nonce) return;` - so a lock that
+  // failed to parse fell through to the unlink. That is the dangerous case, not the
+  // harmless one: while this process worked, its lock could have been truncated, then
+  // recovered as stale by a second collector, which acquired its OWN lock. Releasing
+  // here would delete that second collector's lock, and a third could then enter the
+  // section beside it - duplicate sequence numbers, conflicting ledger appends, a torn
+  // chain.
+  //
+  // Failing to release is the safe direction: the lock is left behind and the existing
+  // staleness path recovers it. Deleting someone else's is not recoverable.
+  if (!holder || holder.nonce !== token.nonce) return;
   try { fs.unlinkSync(file); } catch { /* already gone */ }
 }
 
