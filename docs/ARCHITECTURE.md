@@ -12,6 +12,14 @@ it. What the rule proves is deliberately modest: the gate checks this file was *
 with the code, not that it is current — a whitespace edit satisfies it, which makes a
 stale map a deliberate act rather than mere forgetting. A prompt, not a proof.
 
+**This file describes what exists now.** Historical rationale — the defects that motivated
+a design, the benchmarks behind a threshold, the alternatives that were rejected — lives in
+[`adr/`](adr/), in the dated reports beside it, and in
+[`architecture-history/`](architecture-history/README.md), and is linked from here. That
+boundary was drawn on 2026-09-20, when this file had grown to 531 lines and a reader asking
+*"where does this behaviour live?"* had to walk through several hundred lines of narrative
+about defects that were already fixed. Nothing was deleted; it was moved and linked.
+
 ## The one picture
 
 ```
@@ -64,14 +72,42 @@ stale map a deliberate act rather than mere forgetting. A prompt, not a proof.
    lib/installer.mjs ── installs the hooks, records/restores prior state
 ```
 
+Release validation is a **separate path** — it shares the canonical primitives and nothing
+else, and it never touches the corpus:
+
+```
+ bin/researcher-release.mjs ──── validate | conform | fi-validate
+              │                  usage error -> exit 2, always
+              ▼
+   lib/release-validator.mjs ─── the facade: all 21 exports, unchanged
+              │                  R28-R32 semantics, ledger anchoring, reduction
+              ├── lib/release/json.mjs       duplicate-key-safe parsing
+              ├── lib/release/canonical.mjs  canonical JSON, hashing, record shape
+              ├── lib/release/schema.mjs     the JSON Schema subset
+              └── lib/release/paths.mjs      containment
+              │
+              ▼
+   schemas/ · ledgers · pointers · evidence manifests · FI sidecars
+   read-only; CI diffs conformance/ and schemas/ after every run
+
+ Node                                     Python
+ bin/ledger-conformance.mjs           ─┬─ bin/ledger_conformance.py            ─┐
+ bin/fi-sidecar-conformance.mjs       ─┼─ bin/fi_sidecar_conformance.py        ─┤ agree
+ bin/property-vector-conformance.mjs  ─┴─ bin/property_vector_conformance.py   ─┤ PER
+                                          bin/conformance_common.py            ─┘ VECTOR
+                                          one canonicaliser, one float policy
+ Never by report hash: reportSha256 covers implementation.runtime, so it differs
+ between languages by design.
+```
+
 ## Modules — what each one owns
 
 ### lib/ (the policy and the machinery)
 
 | Module | Owns | Governed by |
 |---|---|---|
-| `core.mjs` | Generic primitives (fs, paths, dates, slugs) and the artifact constants — file paths and table headers. Knows no semantics. `makeSlug(text, fallback, limit)` slices **then** trims, so a cut that lands on a separator never leaves one dangling — it trimmed first until 2026-09-20, which is why every audit file written before then carries a doubled hyphen nobody chose. | — |
-| `audit.mjs` | The audit family: immutable single-file snapshots under `research/audits/` (one full-corpus, one per COVERED/GAP subtopic), their versioning (`nextVersion`, fingerprint-driven, never overwritten), the **manifest reader** (`listVersions` → `{ known, topics }` with the one ordering, `resolveVersion` → one version's path or null), and the **bundle** (`zipAudit` → the latest main audit plus every subtopic audit of that version, in one `.zip` named after them). `bin/audit.mjs` prints what those return; it used to walk the raw index itself with a second sort, which made the reader below it dead code and the ordering unsettleable. The bundle reads the manifest's `latest` pointers and never a directory listing, renders nothing, bumps nothing, and refuses rather than guesses: no audits / several topics unnamed / a manifest naming a file that is not on disk (ADR-0019). Derived artifact: reads the corpus, never writes back to it. Generated names are **budgeted**: `TOPIC_SLUG` (60) and `SUBTOPIC_SLUG` (28), because Windows MAX_PATH is 260 and the project root counts against it — this repository produced 114-character relative paths under a 157-character root, and `git add` refused until `core.longpaths` was set. The files already written are left as they are: they read, and renaming them would break both the manifest that names them and the history that holds them. **Containment resolves both sides the same way (fixed 2026-09-20).** `bundle` realpath'd the file and compared it against a boundary that was not realpath'd, so any project reached through a symlink refused to bundle its own files — on macOS `/var` is a symlink to `/private/var`, so a file at `/var/…/audits/x.md` "resolved outside" a directory it was literally inside. Not a macOS quirk: a symlinked `~/projects`, or `/home` → `/mnt/home`, does the same on Linux. Both comparisons are kept, because plain-against-plain still catches a manifest naming `../..` when the target does not exist and realpath can say nothing. Found by the macOS CI leg on its first run. | — |
+| `core.mjs` | Generic primitives (fs, paths, dates, slugs) and the artifact constants — file paths and table headers. Knows no semantics. `makeSlug(text, fallback, limit)` slices **then** trims, so a cut landing on a separator never leaves one dangling. | — |
+| `audit.mjs` | The audit family: immutable single-file snapshots under `research/audits/` (one full-corpus, one per COVERED/GAP subtopic), their versioning (`nextVersion`, fingerprint-driven, never overwritten), the **manifest reader** (`listVersions` → `{ known, topics }` with the one ordering, `resolveVersion` → one version's path or null), and the **bundle** (`zipAudit` → the latest main audit plus every subtopic audit of that version, in one `.zip` named after them). `bin/audit.mjs` prints what those return and does no ordering of its own, so there is exactly one place the ordering is decided. The bundle reads the manifest's `latest` pointers and never a directory listing, renders nothing, bumps nothing, and refuses rather than guesses: no audits / several topics unnamed / a manifest naming a file that is not on disk (ADR-0019). Derived artifact: reads the corpus, never writes back to it. Generated names are **budgeted**: `TOPIC_SLUG` (60) and `SUBTOPIC_SLUG` (28), because Windows MAX_PATH is 260 and the project root counts against it — this repository produced 114-character relative paths under a 157-character root, and `git add` refused until `core.longpaths` was set. The files already written are left as they are: they read, and renaming them would break both the manifest that names them and the history that holds them. **Containment resolves both sides the same way**: the file and the boundary are each realpath'd before comparison, so a project reached through a symlink still bundles its own files, and the plain-path comparison is kept alongside it to catch a manifest naming `../..` when the target does not exist ([history](architecture-history/README.md)). | — |
 | `fi-validator.mjs` | **Ported 2026-09-20 (ADR-0029).** Read-only FI (field-integrity) bundle validator: evidence-manifest and sign-off-sidecar schema conformance, the `FI_IDS` set and `FI_STATUS_PRECEDENCE` reduction, and `readFiWorkbookProjection` — which inflates a workbook entry with `zlib.inflateRawSync` to read a projection out of it without unpacking anything to disk. Depends on `release-validator.mjs` for canonical hashing and schema running; nothing else. Writes nothing. | ADR-0029 |
 | `ledger-conformance.mjs` | **Ported 2026-09-20 (ADR-0029).** The offline, cross-language qualification-ledger conformance runner: five vector kinds (`canonical-json`, `canonical-float`, `self-excluding-hash`, `chain-hash`, `ed25519`), strict packet loading, and a deterministic report. Reads only; the sole `fs` call is `readFileSync`. `loadLedgerVectors` pins `packetVersion`, `profile`, the signature profile (`Ed25519` / `base64url-no-padding`), a non-empty vector list and unique vector ids — a packet that drifts is refused rather than partly run. Two details carry more weight than their size: `base64urlBytes` rejects a signature that does not survive a canonical base64url round-trip, so an alternative encoding of the same bytes is not quietly accepted; and the packet's own SHA-256 is attached with `enumerable: false`, so it can be reported without entering the canonical JSON that is hashed. **`reportSha256` covers `implementation.runtime`**, i.e. `process.version` — so it is a within-runtime determinism check, and cross-language agreement is asserted per-vector, never by comparing report hashes. | ADR-0029 |
 | `fi-sidecar-conformance.mjs` | **Ported 2026-09-20 (ADR-0029).** The second half of the conformance foundation: classifies FI sign-off sidecars and evidence manifests as valid, malformed or tampered, against a vector packet, with a Node and a Python runner that must agree. Read-only — no writes, network, spawn or eval in any of the three files. One of its four tests exists to check the FIXTURE rather than the code: that the vector packet stays synthetic and carries no completed evidence, so a conformance suite cannot quietly become a place real sign-offs are stored. | ADR-0029 |
@@ -89,7 +125,7 @@ stale map a deliberate act rather than mere forgetting. A prompt, not a proof.
 | `finding.mjs` | The auto-extracted **Finding** cell: `firstFinding(markdown, fallback)` — page markdown in, one line of prose out — over the heuristics behind it (boilerplate/tracking/nav/campaign regex families, the sentence splitter, the table reader, the tier-hero block skip, the graded score, the 220-character cap). Two arguments over ~460 lines: a deep module that was buried in the middle of another one until ADR-0016. Pure by construction — no filesystem, no corpus, no adapter — the one module a caller can exercise with a string. | ADR-0016 (superseding ADR-0009) |
 | `research-run.mjs` | Many URLs, one run: plan/query/url fan-out, discovery, candidate selection, budget tiers (`DEPTH_SCRAPES`), cache policy. The coordinator; collectOne does the writing. Since ADR-0027 it drives **two** providers: `searchAdapter` defaults to the fetch adapter, so an un-updated caller is unaffected, and one bounded fallback covers a search-provider outage — reported, never absorbed, because it moves spend back onto the fetch budget. `searchUsage(root)` counts the search meter from the usage log per hour and per month; it **reports and does not block**, because the count is this machine's only and cannot tell a free cached repeat from a billed search, so a guard built on it would refuse work on a number wrong in the blocking direction. | ADR-0027 |
 | `firecrawl.mjs` | **All** vendor knowledge: the CLI transport (`exec` seam, which carries an **argv array** and spawns with `shell: false` — no URL or query is ever concatenated into a shell string), the Windows `.cmd`-shim resolution (`resolveProgramPath`/`resolveInvocation`: full path off PATH+PATHEXT, a real `.exe` spawned directly, a `.cmd`/`.bat` run through cmd.exe as argv and only after every argument passes `cmdSafeArg` — a **denylist** of cmd.exe metacharacters (`CMD_UNSAFE_CHARS`), refused and never re-quoted; it was an allowlist until 2026-09-19, which refused every search query containing a space. `unsafeCmdArgs(argv)` is the plural reporting form and the **single owner** of "which arguments would be refused": `resolveInvocation` calls it rather than filtering inline, so the refusal and the message naming the offenders cannot drift apart. Measured against the allowlist the ADR-0029 source tree still uses, the two agree on every character that can break out of cmd quoting — `"` `%` `&` `|` `<` `>` `^` `(` `)` `` ` `` tab newline — and differ on `'` `{` `}` `\` and **any non-ASCII character**, which an allowlist of ASCII punctuation refuses by construction. That is why `é` is a permitted argument here and a hostile one there, and why that tree's hostile-argv corpus could not be ported), payload normalisation (`normalizeSearch`/`normalizeScrape`/`normalizeMap` — `normalizeSearch` reads the CLI's real `{success, data: {web: […]}, creditsUsed}` object, pinned at `test/fixtures/firecrawl-search-1.23.3.json`), status parsing (`--status`, the flag; `firecrawl status` is not a command), `map`/`search`/`scrape` adapters. `command(args)` survives as a **display-only** rendering (dry-run output, the ledger's `cmd` annotation) that nothing executes. Stamps `transport: 'firecrawl-cli'` — narrowed to `firecrawl-cli-anonymous` by `transport.mjs` when the CLI has no credential — and **grades** completeness at the 1500-character bar rather than asserting `full`. | ADR-0005, ADR-0020 |
-| `bin/researcher-release.mjs` | The release CLI. **Usage errors return 2 from every subcommand (fixed 2026-09-20).** `fi-validate` returned 4 while `validate` and `conform` returned 2, so the same mistake — a missing required flag — reported a different code depending on which subcommand you typed; worse, 4 is this CLI's *unrecognised status* fallback, so a caller branching on it was told the validator produced something unknown when in fact it had never run. Status codes are unchanged: `PASS` 0, `FAIL`/`REOPEN` 1, `INCOMPLETE` 2, `BLOCKED` 3. | — |
+| `bin/researcher-release.mjs` | The release CLI: `validate`, `conform`, `fi-validate`. **A usage error returns 2 from every subcommand**, and a status maps to its own code — `PASS` 0, `FAIL`/`REOPEN` 1, `INCOMPLETE` 2, `BLOCKED` 3. `4` is the unrecognised-status fallback and never a usage error, so a caller can distinguish "did not run" from "ran and produced something unknown". | — |
 | `release-validator.mjs` | **Ported 2026-09-20 (ADR-0029), decomposed the same day.** Read-only R28–R32 release evidence validation: envelope/predecessor/role/visibility/promotion checks, ledger anchoring, and deterministic `PASS`/`INCOMPLETE`/`FAIL`/`REOPEN` reduction. It never rewrites records, pointers, registries, or role rosters. **Also the facade** over the four primitives below: all 21 of its original exports are re-exported unchanged, so the eighteen files importing from it were not touched. 1324 → ~1010 lines. | R28–R32 validator contract |
 | `release/json.mjs` | **Extracted 2026-09-20.** Duplicate-key-safe JSON parsing. `JSON.parse` keeps the *last* duplicate key silently, which for a hashed record is the difference between one payload and a different payload with the same digest; it also refuses a UTF-8 BOM, which `JSON.parse` accepts and hashing does not. | — |
 | `release/canonical.mjs` | **Extracted 2026-09-20.** Canonical JSON, SHA-256, `same` (canonical equality), and the flat-vs-nested record shape (`metaOf`/`payloadOf`/`nestedRecord`) plus the hashes built on it. The most-reused primitive in the kit, and the one place duplication has already cost this repository — three Python runners each carried their own copy of this algorithm, two drifted, and one document hashed to two different digests. | — |
@@ -99,7 +135,7 @@ stale map a deliberate act rather than mere forgetting. A prompt, not a proof.
 | `decompose.mjs` | Phase 0 coordination: recipe parsing, docs-host discovery, material gathering (scrape-budget accounting via the corpus's `cacheDecision` — a cache hit is not an attempt), draft MAP writing. Contains **no judgment** — it seeds the checklist and gathers material; it never writes a status. | — |
 | `dimensions.mjs` | The universal, domain-agnostic subtopic checklist and its mechanical presence-matching (`coverageOfUniversals`). Recipes add on top of it; nothing replaces it. | — |
 | `provenance.mjs` | The tamper-evident fetch ledger: `appendFetch`, `verifyLedger`, `rebuildLedger` (the one metadata-migration path — guarded, per-entry `migrations` records, chained `op: 'migration'` boundary), and the overrides log writer. Also **the collector's exclusive section** (`withLock`), acquired with `O_EXCL` (`flag: 'wx'`) so the kernel refuses a second creator instead of letting it overwrite; staleness is judged only *after* EEXIST proves someone holds the file, and a fresh lock that names no pid — the window `O_EXCL` leaves between create and write — is waited for, never broken. Reentrant in-process, so `appendFetch` can serialize its own read-modify-write inside a run that already holds the lock, and release removes only the acquisition it made (pid + nonce). Every writer of the chain — append, tail repair, rebuild — goes through that one lock. `verifyLedger` also **classifies** a body hash that does not recompute (`isLineEndingRewrite`, `hashText`): folding CRLF back to LF either restores the recorded hash or it does not, so `body-unmodified` problems carry `kind: 'line-endings' | 'modified'` and the consumer can name the right cause instead of guessing (ADR-0020). | ADR-0003 (corpus-adjacent), ADR-0020 |
-| `checks.mjs` | The **ordered contract-check registry**: discovery-contract, citations, provenance, transport-provenance, gate-integrity, unknown-closure, subtopic-coverage, capture-completeness, **evidence-supersession**, collection-attempts, hygiene, corpus-shape — twelve, in a pinned order. Every check is a pure function of the corpus snapshot + options; none reads the filesystem. **`supersededRows(corpus)`** is the one shared answer to "which rows have been replaced by a fresher capture of the same URL": `evidence-supersession` refuses an unknown still resting on a replaced row, `transport-provenance` goes quiet about a replaced row nothing relies on (but not about one still cited), and `hygiene` stops calling a refresh a duplicate while still catching two rows of one URL fetched the same day. Those last two knew nothing about ADR-0026 until 2026-09-20, when the first real refresh made them warn about the state that ADR requires. | ADR-0004, ADR-0026 |
+| `checks.mjs` | The **ordered contract-check registry**: discovery-contract, citations, provenance, transport-provenance, gate-integrity, unknown-closure, subtopic-coverage, capture-completeness, **evidence-supersession**, collection-attempts, hygiene, corpus-shape — twelve, in a pinned order. Every check is a pure function of the corpus snapshot + options; none reads the filesystem. **`supersededRows(corpus)`** is the one shared answer to "which rows have been replaced by a fresher capture of the same URL": `evidence-supersession` refuses an unknown still resting on a replaced row, `transport-provenance` goes quiet about a replaced row nothing relies on (but not about one still cited), and `hygiene` stops calling a refresh a duplicate while still catching two rows of one URL fetched the same day. Those last two are ADR-0026-aware: they warn about the state that ADR requires. | ADR-0004, ADR-0026 |
 | `preflight.mjs` | **The verdict** and the **verdict context**. Assembles findings from CHECKS into pass/fail; one function, three callers (commit gate, edit gate, CLI) so they cannot disagree. Owns the verdict's input unit: `verdictContext(root)` reads the corpus, the gate state (`readGateState`), and the operator's `evidencePolicy` together — same snapshot, same verdict, by construction. | ADR-0004 |
 | `gate.mjs` | Gate policy: `isGated` (the four markers), `evaluate` (commit/edit), the GATE_OFF override recording, and the architecture-map rule (`architectureMapBreach` over `loadGateConfig` — guarded paths are project configuration, `research/kit.json`, defaults `src/lib/bin/scripts/app`). Contains no repo-specific path. **One deliberate exception to "no CLI parsing"**: the commit gate's staged-path list arrives as *data on a pipe* (`stagedPathsFromStdin` / `splitPathList`), because argv was O(n²) to build and bounded besides. It returns **null for "stdin could not be read" and `[]` for "read, and empty"** — conflating them would hand the verdict an empty staged set, which it allows, i.e. a gate that silently stops gating. `stdinIsReadable()` asks `isatty(0)` rather than inferring from the file type, which gets two cases wrong in opposite directions (a socketpair is not a FIFO; `/dev/null` is a character device but reads as immediate EOF). | ADR-0002, ADR-0007, ADR-0008, ADR-0020 |
 | `doctor.mjs` | Read-only diagnostics: machine + project + gate + chain health in one report. Consumes the verdict context (`verdictContext` / `readGateState`) for the chain-verified corpus and the gate-state triple; adds one machine read of its own (the git-resolved `hooksPathEffective`) for report. **Role-aware** (ADR-0010): the Firecrawl findings are informational on a `builder`, and the handoff findings (ADR-0011) are blockers there — the collection entrypoints' refusal is what makes that split honest. The handoff findings come from the owner, not from a second composition: doctor passes the corpus it already read to `verifyHandoff(root, { corpus })`, so the arrival question has one implementation and one set of pins. One deliberate write: the repository-local hooksPath override log (the third override is silent by nature — the bypassed hook cannot report it). `gateHealth` and `runDoctor` accept explicit Git/config/settings paths and a child environment so diagnostics can run against disposable machine fixtures without consulting host state. | ADR-0010, ADR-0011 |
@@ -126,29 +162,6 @@ does not list is never validated, so `PASS` means "everything declared is intact
 produce their documented verdicts, that the committed files match what `build.mjs`
 generates, and that the README's table names every package that exists and none that does
 not.
-
-
-> **Inventory, reconciled 2026-09-20.** Counted against the filesystem, not estimated:
->
-> | | |
-> |---|---|
-> | `lib/` modules | **40** (36 + the 4 extracted into `lib/release/`), and every one has a row in this table |
-> | `bin/` | **24**, of which **4 are Python**: 3 conformance runners and the module they now share |
-> | `schemas/` | **11** |
-> | `conformance/` vector packets | **3** |
-> | `test/` files | **44**, 565 tests, all passing offline |
->
-> The **release-evidence validator layer ADR-0022 deferred is implemented** (ADR-0029).
-> Two rows of this table described modules that did not exist, unmarked, from the day it
-> was written until 2026-09-20; both are real now. One module - `config.mjs` - was
-> missing from the table entirely, and surfaced only by counting files against rows.
->
-> **Two artifacts are deliberately excluded**, which is why the counts are 11 and 3
-> rather than 12 and 4: `trap-register.schema.json` and
-> `dashboard-status-vectors.json` exist in the source tree and are referenced by
-> nothing here - no module, binary, test or fixture names either. A schema no code
-> validates against drifts silently until somebody trusts it, so they arrive with the
-> code that needs them or not at all (ADR-0029 rule 4).
 
 `research.mjs` (→ research-run, refused on a builder by role), `researcher-release.mjs` (→
 read-only R28–R32 validation and schema conformance), `handoff.mjs` (→
@@ -366,121 +379,58 @@ has grown a fourth private copy.
 7. **Phase-0 seam** — decompose gathers, dimensions seed, the agent fills, `subtopic-coverage`
    judges. The tool never writes a status; the check refuses omission but accepts dismissal.
 
-## Current shape, for the record
+## Current invariants
 
-- 11 checks in the registry; the four gate markers; the three overrides (`--no-verify`,
-  `GATE_OFF`, repository-local `core.hooksPath`); 9 universal dimensions; recipes ×5;
-  LAYOUT 12 entries (kit.json, this file, and `.gitattributes` among them, none gating).
-- Two transports behind one seam (ADR-0005): the Firecrawl CLI and the keyless HTTP
-  adapter, selected by `lib/transport.mjs` from the operator's choice or a probe.
-- **No data reaches a shell** (ADR-0020): the CLI is spawned as an argv array with
-  `shell: false`, and the one route that still has an interpreter in it — a Windows
-  `.cmd` shim, which Node refuses to spawn shell-less — validates every argument
-  against a strict character set and refuses rather than re-quotes. The cost is named,
-  not hidden: percent-encoded URLs are refused on Windows under `firecrawl-cli`, with
-  `--transport http-keyless` as the interpreter-free escape hatch. POSIX pays nothing.
-- **A path list is data, not arguments** (ADR-0020): the commit gate's staged list
-  travels on a pipe. Measured on one machine, same git shim — before: 1,000 paths
-  0.4s, 3,000 → 2.4s, 10,000 → 24.3s, 30,000 → 225.2s (quadratic, no output);
-  after: 30,000 → 0.15s and 100,000 → 0.21s. The structural pin is an argument
-  count, not a clock: at 5,000 staged paths the gate received **10,005 arguments
-  before and 6 after**.
-- **One lock, one flag** (ADR-0020): the collector's exclusive section is acquired with
-  `wx` (`O_EXCL`), so exclusivity is the kernel's decision rather than a
-  check-then-act the module performs. The ledger's `seq` is derived from the ledger
-  as read *under* that lock, and every writer of the chain takes it. Rejected: more
-  staleness heuristics on the old `exists()`-then-write, which cannot be made correct
-  by adding conditions — the race is in the shape, not in the judgement.
-- **A test verdict is earned, not printed** (ADR-0021): `runPending` is async and awaits
-  every test, so `ok` is printed only once the test's assertions have actually settled and
-  the returned failure count includes async failures. It was synchronous and caught only a
-  synchronous throw, so an async test printed `ok` the instant it returned its promise —
-  before any assertion inside it had run — its failure arrived later as an unhandled
-  rejection, and the runner's own `process.exit(0)` pre-empted even that. Reproduced: a
-  fixture holding one failing async test printed `ok`, then `all tests passed`, then
-  **exited 0**. Each test is raced against a watchdog (`RESEARCH_KIT_TEST_TIMEOUT`, default
-  60s; the whole suite runs in 9s and the slowest single file in 3.2s, so the bound is ~19x
-  the slowest file — chosen by measurement, not by guess), because an awaited test that
-  never settles would hang the suite printing nothing, which is the trap the commit gate
-  fell into before it got a watchdog. A timed-out test's promise is then swallowed, so its
-  late rejection cannot crash the runner over a test already judged and attributed.
-  `test/harness.test.mjs` pins all of it in child processes, including the old runner
-  beside the new one, so the false green cannot return unnoticed.
-- **A posture is read in three states** (ADR-0020): `absent` / `readable` /
-  **`unreadable`**. The old reader was `try { parse } catch {}` returning the defaults, which
-  collapsed "never configured" and "configured, and the file is now corrupt" into one
-  answer - so `{"failOpen": false}` truncated to `{"failOpen": fal` came back as the default
-  set and a hardened machine started allowing commits again with nothing in any output
-  saying the posture had changed. Every other knob reverted with it: a `hard-block` edit
-  gate became `ask`, `strict` became `pluralist`, and a `builder` became a `collector` - the
-  role that may collect and spend credits. An unreadable config now holds the last one that
-  parsed (snapshotted beside it whenever a read succeeds), and with nothing to hold it fails
-  **closed**; doctor makes it a blocking `CRITICAL` finding. This **refines ADR-0002**, whose
-  "a broken config never blocks work" is right for a config that was never written and wrong
-  for one that was; ADR-0002 is left unedited, in its own words, and ADR-0020 records the
-  supersession. Only `failOpen` is tightened in the no-snapshot fallback: the other knobs
-  have no safe restrictive default, and they cannot be lost anyway - a machine can only have
-  set them in a config that parsed, and every parse snapshots it.
-- **Line endings are corpus integrity** (ADR-0020): a body hash is over the LF bytes the
-  collector fetched, and git's smudge filter rewrites every text file on a default Windows
-  checkout (`core.autocrlf=true`), so the whole corpus failed `body-unmodified` on arrival
-  with nothing actually wrong with it. Pinned at both ends: `.gitattributes`
-  (`research/raw/* text eol=lf`, `*.jsonl text eol=lf`) ships in the repository *and* in
-  `research-kit/template/`, so a scaffolded project cannot be born without it. And the
-  failure is **classified, not guessed** — `isLineEndingRewrite` folds CRLF back and
-  re-hashes, which either reproduces the recorded hash or does not; a genuinely tampered
-  capture stays `kind: 'modified'` and still gets the push remedy. Rejected: one blanket
-  remedy text, which is what sent operators to the collector (and, in practice, to
-  re-collect) for a corpus that was already on disk.
-- Every module under `lib/` is named in this map, and so is every `bin/` entrypoint:
-  the two that were missing until the 2026-09-15 review (`audit.mjs`, `brief.mjs`) and
-  the two behind the transport seam (`transport.mjs`, `http-transport.mjs`), added
-  after it. `finding.mjs` is the 25th file under `lib/` (23 modules plus the two
-  compatibility shims), named from the commit that created it (ADR-0016).
-  `archive.mjs` is the 26th — a second module for a second concept, the container
-  an audit bundle ships in, on the same reasoning as ADR-0016 (ADR-0019).
-- The extractor has its own module (ADR-0016): 460 of the collector's 658 lines were
-  a different concept with a different reason to change, so `lib/collect.mjs` is now
-  200 lines that read as one URL's journey and `lib/finding.mjs` is 472 lines behind
-  a two-argument interface. The count is 472, not the 471 ADR-0016 records for the
-  same file: the ADR stays in its own words and the map carries the correction
-  (`docs/adr-0016-verification-2026-09-15.md`, 2026-09-15).
-- Two machine roles (`collector` default, `builder` — ADR-0010), one handoff check with
-  four named failures (ADR-0011), and one rule that follows from the split: a
-  builder-role machine does not collect, and its collection CLIs refuse before they reach
-  an adapter.
-- Recovery after an interruption is read from repository state, never inferred:
-  `doctor` and preflight answer *where this project is* from disk alone, so a dead
-  session costs context and not position, and the last commit report plus this map say
-  what was happening. The instructions are prose in `AGENTS.md` and the scaffold
-  template (CONTEXT term **resume**); enforcement was rejected on purpose — a check
-  that judged whether an agent oriented properly would be wrong (ADR-0013).
-- *Where* an agent stands is protocol, not a flag: the project is the current working
-  directory, and a cwd that is not the project the operator meant is a question, never
-  a filesystem search, an inference from a name, or a remote lookup. Prose in
-  `AGENTS.md` and the template (CONTEXT term **wrong project**), inherited by every
-  scaffolded project, unenforced for the same reason as **resume** — a gate cannot
-  judge whether an agent guessed or was told (ADR-0017). There is no `--project`: the
-  gate resolves one root from where it stands, and a second root is a second thing to
-  be wrong about.
-- Two files face two readers, and both ship: `AGENTS.md` binds the agent (and now
-  tells it to ask rather than search when the cwd is not the project — ADR-0017),
-  `START_HERE.md` answers the operator, from `template/`, so a project the kit has
-  never seen still tells the person standing in it where his files are (ADR-0018).
-- Enforcement surfaces stay at two: the git commit gate and the project-level
-  edit-time hook. In hosted and cloud sessions neither runs — what binds there is
-  the protocol as text (ADR-0006 covers that gap).
-- The kit names no runtime (ADR-0012): one anchored, overridable statement of where a
-  runtime keeps its settings file and its skill roots (`RUNTIME_ANCHORS`, read through
-  `runtimePaths()` / `skillLocations()`), capability names for everything the kit owns
-  (`editGate`, `--edit-only`, `hooks/edit-gate.mjs`), and retired names kept only so a
-  rename can be recognised and repaired — or, where the kit cannot reach it (an export),
-  reported by doctor while it persists.
-- One attachment, not ten pasted files: `zipAudit` bundles a topic's latest audits
-  into `research/audits/<slug>-v<version>-<date>.zip`, read from the manifest's
-  `latest` pointers. The container is written here (`lib/archive.mjs`) because the
-  kit has no dependencies and cannot assume a `zip` binary; the refusal shape is
-  A11's — name the options, do not guess (ADR-0019).
+What holds now. *Why* it holds — the defects, benchmarks and rejected alternatives behind
+each line — is in the ADR named beside it and in
+[`architecture-history/`](architecture-history/README.md).
+
+| Invariant | Where it is decided |
+|---|---|
+| Search and fetch providers resolve **independently**; one seam, two sides | [ADR-0027](adr/0027-search-and-fetch-are-two-seams.md) |
+| The fetch ledger is **append-only and hash-chained**; the chain is evidence, not truth | ADR-0011 |
+| No data reaches a shell: argv arrays, `shell: false`; the one Windows `.cmd` route **refuses** rather than re-quotes | ADR-0020 |
+| A path list is **data on a pipe**, not arguments | ADR-0020 |
+| Exclusivity is the kernel's: `wx` / `O_EXCL`, never check-then-act | ADR-0020 |
+| A test verdict is **awaited**, never printed early; each test is raced against a watchdog | ADR-0021 |
+| A machine config is read in **three** states — absent / readable / **unreadable** — and an unreadable one fails closed | ADR-0020 (refines ADR-0002) |
+| Line endings are corpus integrity: `.gitattributes` pins LF in the repo *and* in `template/` | ADR-0020 |
+| A **builder** machine does not collect; its collection CLIs refuse before reaching an adapter | ADR-0010, ADR-0011 |
+| An unsupported prerequisite **blocks**; it is never a silent skip | ADR-0021 |
+| Validators are **read-only**; the only writes are `fi-validate --report` and `property-replay`, both explicitly requested | ADR-0029 |
+| Validator inputs are not mutated — CI diffs `conformance/` and `schemas/` after every run | ADR-0029 |
+| `researcher-release` **usage errors return exit 2** from every subcommand | — |
+| Supported CI platforms are **Linux and Windows**; macOS is best-effort and untested | [README](../README.md#supported-platforms) |
+| The project is the **current working directory**; there is no `--project` | ADR-0017 |
+| Enforcement surfaces stay at **two**: the git commit gate and the edit-time hook | ADR-0006 |
+| The kit names **no runtime**: anchors are overridable, retired names are kept only to be recognised and repaired | ADR-0012 |
+| Two languages answer per vector, never by comparing report hashes | ADR-0029 |
+
+## Current inventory
+
+Counted against the filesystem, not estimated:
+
+| | |
+|---|---|
+| `lib/` modules | **40** (36, plus the 4 extracted into `lib/release/`) — every one has a row above |
+| `bin/` entrypoints | **24**, of which **4 are Python**: 3 conformance runners and the module they share |
+| `schemas/` | **11** |
+| `conformance/` vector packets | **3** |
+| checks in the registry | **12** |
+| supported CI platforms | **2** |
+
+**Two artifacts are deliberately absent**, which is why the counts are 11 and 3 rather
+than 12 and 4: `trap-register.schema.json` and `dashboard-status-vectors.json` exist in
+the tree this layer was ported from and are referenced by nothing here — no module,
+binary, test or fixture names either. A schema no code validates against drifts silently
+until somebody trusts it, so they arrive with the code that needs them or not at all
+([ADR-0029](adr/0029-the-validator-layer-arrives-as-a-source-not-a-donor.md) rule 4).
+
+**The full-suite test count is reported by `selftest.mjs` and is deliberately not repeated
+here.** A manually maintained total went stale twice — the kit README claimed 326 when
+there were 565, then 565 when there were 584. `selftest.mjs` now owns that number and
+fails the run if the one claim that remains, in `research-kit/README.md`, disagrees with
+it.
 
 ## Property-regression replay seam
 
@@ -519,13 +469,3 @@ reduces case state with `REOPEN > FAIL > BLOCKED > ROLLED-BACK > INCOMPLETE > PA
 Its deliberately narrow XLSX reader reads ZIP/XML projection cells only; it never invokes an
 office application or changes the source package. `researcher-release fi-validate` exposes the
 same seam with explicit paths and writes a report only when `--report` is supplied.
-
-## One working note, not a rule
-
-`gh pr edit` on this repository exits 0 while a GraphQL deprecation warning
-("Projects (classic) is being deprecated") silently drops the mutation: title and
-body changes are lost, and nothing in the command's output says so. Use
-`gh api -X PATCH repos/<owner>/<repo>/pulls/<n> -F title=… -F body=@file`. Found on
-2026-09-15 by re-reading PR state, not by any signal the tool gave. This is one
-observed quirk of one tool, not a checkable class — nothing detects it, and
-nothing should; it is written here so the next PR edit does not repeat it.
