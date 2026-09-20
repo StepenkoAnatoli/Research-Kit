@@ -66,6 +66,8 @@ ${heading('machine')}
 role               ${policy.role}${policy.mayCollect ? '' : ' - this machine must NOT collect'}
 transport          ${transport ? `${transport.name} (${transport.why})` : 'unresolved'}
 search transport   ${transport ? `${transport.search.name}${transport.search.sameAsFetch ? ' - same meter as fetch' : ` (${transport.search.why})`}` : 'unresolved'}
+searches (this box) ${usage.search.lastHour} in the last hour, ${usage.search.thisMonth} this month${usage.search.providers.length ? ` (${usage.search.providers.join(', ')})` : ''}
+                   free-tier caps are ${usage.search.perHourCap}/hour and ${usage.search.perMonthCap}/month; ${usage.search.caveat}
 `);
   process.exit(0);
 }

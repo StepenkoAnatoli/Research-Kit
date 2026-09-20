@@ -141,6 +141,28 @@ export function searchesUsed(payload) {
  * The shape deliberately mirrors what `command()` produces for the CLI adapters so the
  * ledger's `cmd` annotation and `--dry-run` output read the same whichever provider ran.
  */
+/**
+ * The exact request, as a URL. Every parameter this kit sends is decided here.
+ *
+ * Exported so the request shape is TESTABLE rather than buried in the child. Three
+ * project defects have come from assuming a vendor parameter, and the guarantee worth
+ * pinning is negative: `no_cache` and `async` are never sent, because their defaults are
+ * what we want and the free 1-hour cache is only served when the query and ALL
+ * parameters match exactly (E-09). There is no result-count parameter for the same
+ * reason there is no throttle - none is documented, and `limit` costs nothing to apply
+ * at home.
+ *
+ * The one string in this system that carries the credential. It is built in the child
+ * and never returned to the parent.
+ */
+export function requestUrl(query, apiKey) {
+  const url = new URL(ENDPOINT);
+  url.searchParams.set('engine', 'google');
+  url.searchParams.set('q', String(query ?? ''));
+  url.searchParams.set('api_key', String(apiKey ?? ''));
+  return url;
+}
+
 export function command(query, key = '') {
   // Defence in depth for the case `search()` refuses outright: if the query itself holds
   // the credential, this string must still not carry it. `cmd` is written into the
@@ -298,12 +320,7 @@ async function child() {
     return;
   }
 
-  const url = new URL(ENDPOINT);
-  url.searchParams.set('engine', 'google');
-  url.searchParams.set('q', String(job.query ?? ''));
-  url.searchParams.set('api_key', String(job.apiKey ?? ''));
-  // `no_cache` and `async` are deliberately not set: the defaults are what we want, and
-  // the free 1-hour cache depends on the query and ALL parameters matching exactly.
+  const url = requestUrl(job.query, job.apiKey);
 
   try {
     const response = await fetch(url, {

@@ -414,3 +414,95 @@ test('AR-4: a search provider is never handed the fetch job', () => {
   assert.equal(isSearchOnly(chosen.adapter), false, 'the FETCH adapter is search-only - captures would be impossible');
   assert.equal(satisfies(chosen.adapter, FETCH_SHAPE), true);
 });
+
+// ---------------------------------------------------------------- IR-1..IR-3  the request
+
+test('IR-1: the request carries EXACTLY engine, q and api_key - nothing else', () => {
+  const url = serpapi.requestUrl('a query', SENTINEL);
+  assert.equal(url.origin + url.pathname, 'https://serpapi.com/search');
+  assert.deepEqual([...url.searchParams.keys()].sort(), ['api_key', 'engine', 'q']);
+  assert.equal(url.searchParams.get('engine'), 'google');
+  assert.equal(url.searchParams.get('q'), 'a query');
+  assert.equal(url.searchParams.get('api_key'), SENTINEL);
+});
+
+test('IR-2/IR-3/IR-4: no_cache, async and any count parameter are NEVER sent', () => {
+  // The guarantee is negative, and negative guarantees are the ones that rot silently.
+  // no_cache would forfeit the vendor's free 1-hour cache; async would require a second
+  // endpoint; a count parameter is not documented at all.
+  const url = serpapi.requestUrl('a query', SENTINEL);
+  for (const forbidden of ['no_cache', 'async', 'num', 'start', 'zero_trace', 'output', 'json_restrictor']) {
+    assert.equal(url.searchParams.has(forbidden), false, `the request sent "${forbidden}"`);
+  }
+});
+
+test('IR-1: a query with reserved characters is encoded, not injected', () => {
+  const url = serpapi.requestUrl('a&b=c#d e', SENTINEL);
+  assert.equal(url.searchParams.get('q'), 'a&b=c#d e', 'the query did not round-trip - parameters were split');
+  assert.deepEqual([...url.searchParams.keys()].sort(), ['api_key', 'engine', 'q'],
+    'a crafted query introduced a parameter');
+});
+
+test('IR-1: a query that tries to OVERRIDE a parameter cannot', () => {
+  const url = serpapi.requestUrl('x&api_key=stolen&engine=evil', SENTINEL);
+  assert.equal(url.searchParams.get('api_key'), SENTINEL);
+  assert.equal(url.searchParams.get('engine'), 'google');
+  assert.equal(url.searchParams.getAll('api_key').length, 1, 'a second api_key parameter was injected');
+});
+
+// ---------------------------------------------------------------- DR-5, DR-6
+
+test('DR-5: cost is counted by the vendor\'s RULE, because the payload reports none', () => {
+  // search_metadata carries id, status, json_endpoint and total_time_taken - no cost.
+  assert.equal('creditsUsed' in REAL, false, 'the payload gained a cost field; DR-5 should be revisited');
+  assert.equal(serpapi.searchesUsed(REAL), 1, 'a successful response is one search');
+  assert.equal(serpapi.searchesUsed({ error: 'Invalid API key.' }), 0, 'a failed search was counted as spend');
+  assert.equal(serpapi.searchesUsed(null), 0);
+});
+
+test('DR-6: the vendor\'s own response id is recorded, as the only reconciliation handle', () => {
+  assert.equal(serpapi.searchId(REAL), REAL.search_metadata.id);
+  assert.equal(serpapi.searchId({}), null);
+  assert.equal(serpapi.searchId({ search_metadata: { id: '' } }), null, 'an empty id is not an id');
+});
+
+// ---------------------------------------------------------------- NFR-1, NFR-3, AR-1
+
+test('NFR-1: the provider adds no dependency - node builtins only', () => {
+  const source = fs.readFileSync(path.join(KIT_ROOT, 'lib/serpapi.mjs'), 'utf8');
+  const imports = [...source.matchAll(/^import .*? from '([^']+)';/gm)].map((m) => m[1]);
+  for (const spec of imports) {
+    assert.ok(spec.startsWith('node:') || spec.startsWith('./'),
+      `serpapi.mjs imports "${spec}" - this kit has no dependencies`);
+  }
+});
+
+test('NFR-3: the vendor is named in its own adapter and the registry, and nowhere else', () => {
+  // A vendor name leaking into the collector or the checks is how a seam stops being one.
+  const offenders = [];
+  for (const file of fs.readdirSync(path.join(KIT_ROOT, 'lib'))) {
+    if (!file.endsWith('.mjs') || file === 'serpapi.mjs' || file === 'transport.mjs') continue;
+    const text = fs.readFileSync(path.join(KIT_ROOT, 'lib', file), 'utf8');
+    // Comments may discuss it; code may not.
+    const code = text.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+    if (/serpapi/i.test(code)) offenders.push(file);
+  }
+  assert.deepEqual(offenders, ['machine.mjs'],
+    'the vendor name reached a module that should not know it. machine.mjs is the one '
+    + 'allowed exception: it owns the config schema, and serpapiKey is a config key.');
+});
+
+test('AR-1: ONE module resolves provider choice, for both sides', () => {
+  const offenders = [];
+  for (const dir of ['lib', 'bin']) {
+    for (const file of fs.readdirSync(path.join(KIT_ROOT, dir))) {
+      if (!file.endsWith('.mjs')) continue;
+      const full = path.join(KIT_ROOT, dir, file);
+      if (full.endsWith(`${path.sep}transport.mjs`)) continue;
+      const text = fs.readFileSync(full, 'utf8');
+      // Importing the answer is fine; deciding it independently is not.
+      if (/SEARCH_PROVIDERS\s*\[/.test(text)) offenders.push(`${dir}/${file}`);
+    }
+  }
+  assert.deepEqual(offenders, [], 'a second module resolves a provider by itself');
+});

@@ -8,8 +8,9 @@
 
 import { test, describe, assert, tempDir, fs, path } from './harness.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
-import { runResearch } from '../lib/research-run.mjs';
+import { runResearch, searchUsage, FREE_TIER_PER_HOUR, FREE_TIER_PER_MONTH } from '../lib/research-run.mjs';
 import { decompose } from '../lib/decompose.mjs';
+import * as serpapi from '../lib/serpapi.mjs';
 import { readLedger } from '../lib/corpus.mjs';
 import { readText } from '../lib/core.mjs';
 
@@ -336,4 +337,87 @@ test('RR-1: decompose degrades too, and records which provider was down', () => 
   assert.ok(out.failures.length > 0, 'the outage was not recorded');
   assert.equal(out.failures[0].provider, 'stub-search');
   assert.equal(out.failures[0].degraded, true);
+});
+
+// ---------------------------------------------------------------- RR-4  the timeout
+
+test('RR-4: a hung socket cannot outlive the timeout, so it cannot hold the corpus lock', () => {
+  // The collector is synchronous and holds an O_EXCL lock for the whole operation
+  // (ADR-0025). A search that never returns would hold it forever, so the bound has to
+  // be real rather than argued. It is `spawnSync`'s own timeout: the child is killed,
+  // and the parent gets an error instead of waiting.
+  //
+  // Driven through the real rendezvous with a child that deliberately never answers.
+  const started = Date.now();
+  const answer = serpapi.runJob(
+    { kind: 'serpapi-search', query: 'x', apiKey: 'a'.repeat(40), timeout: 50 },
+    { timeout: 300, spawn: (cmd, args, opts) => {
+      // Stand in for a child that hangs: report what spawnSync reports when it kills one.
+      assert.ok(Number.isFinite(opts.timeout), 'no timeout was passed to spawnSync - nothing bounds the wait');
+      assert.equal(opts.timeout, 300);
+      return { error: new Error('spawnSync node ETIMEDOUT'), stdout: '', stderr: '' };
+    } },
+  );
+  assert.equal(answer.ok, false);
+  assert.match(answer.error, /ETIMEDOUT/);
+  assert.ok(Date.now() - started < 5000, 'the call did not return promptly');
+});
+
+test('RR-4: the timeout reaches the child too, not only the parent', () => {
+  const job = { kind: 'serpapi-search', query: 'x', apiKey: 'a'.repeat(40), timeout: 1234 };
+  let seen = null;
+  serpapi.runJob(job, { timeout: 1234, spawn: (cmd, args, opts) => { seen = JSON.parse(opts.input); return { stdout: '{"ok":true,"payload":{}}', stderr: '' }; } });
+  assert.equal(seen.timeout, 1234, 'the child would use its default and could outlive the parent\'s bound');
+});
+
+// ---------------------------------------------------------------- RR-5  the meter
+
+test('RR-5: search spend is COUNTED and reported, per hour and per month', () => {
+  const root = project();
+  const now = new Date('2026-09-20T12:00:00.000Z');
+  const write = (at, used, provider = 'serpapi') =>
+    fs.appendFileSync(path.join(root, 'research/raw/.usage.jsonl'),
+      `${JSON.stringify({ at, searchesUsed: used, searchTransport: provider, spent: 0 })}\n`);
+
+  write('2026-09-20T11:30:00.000Z', 3);   // inside the hour
+  write('2026-09-20T09:00:00.000Z', 5);   // this month, not this hour
+  write('2026-08-31T23:59:00.000Z', 99);  // last month - must not count
+  write('2026-09-20T11:45:00.000Z', 0);   // a run that searched nothing
+
+  const usage = searchUsage(root, { now });
+  assert.equal(usage.lastHour, 3);
+  assert.equal(usage.thisMonth, 8, 'the month window leaked into August, or dropped September');
+  assert.deepEqual(usage.providers, ['serpapi']);
+  assert.equal(usage.perHourCap, FREE_TIER_PER_HOUR);
+  assert.equal(usage.perMonthCap, FREE_TIER_PER_MONTH);
+});
+
+test('RR-5: the count is honest about what it cannot see', () => {
+  const root = project();
+  const usage = searchUsage(root);
+  assert.match(usage.caveat, /this machine/, 'the report does not admit it is machine-local');
+  assert.match(usage.caveat, /cache/, 'the report does not admit it over-counts cached repeats');
+  assert.equal(usage.lastHour, 0, 'an empty project should report no spend, not NaN');
+  assert.equal(usage.thisMonth, 0);
+});
+
+test('RR-5: a damaged usage log is skipped line by line, not fatal', () => {
+  const root = project();
+  const file = path.join(root, 'research/raw/.usage.jsonl');
+  fs.appendFileSync(file, 'not json\n');
+  fs.appendFileSync(file, `${JSON.stringify({ at: new Date().toISOString(), searchesUsed: 2, searchTransport: 'serpapi' })}\n`);
+  fs.appendFileSync(file, '{"at": broken\n');
+
+  const usage = searchUsage(root);
+  assert.equal(usage.lastHour, 2, 'one unparseable line discarded the whole record');
+});
+
+test('RR-5: a run records spend that the meter then reads back', () => {
+  // End to end rather than against a hand-written log: the writer and the reader must
+  // agree about the field names, which is the thing that actually breaks.
+  const root = project();
+  runResearch(root, { adapter: fetchStub(), searchAdapter: searchStub(), plan: plan() });
+  const usage = searchUsage(root);
+  assert.equal(usage.thisMonth, 1);
+  assert.deepEqual(usage.providers, ['stub-search']);
 });

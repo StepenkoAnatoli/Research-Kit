@@ -6,7 +6,7 @@
 // Every scrape spends a credit, so the budget is a first-class input: a tier caps the
 // run, a cache hit is never an attempt, and `--dry-run` spends nothing.
 
-import { PATHS, resolve, readJson, today, hostOf, uniq } from './core.mjs';
+import { PATHS, resolve, readJson, readText, today, hostOf, uniq } from './core.mjs';
 import { readCorpus, cacheDecision, appendJsonLine } from './corpus.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
 
@@ -241,5 +241,58 @@ export function usageSummary(root) {
     failures,
     evidence: corpus.evidence.length,
     ledgerEntries: corpus.ledger.entries.length,
+    search: searchUsage(root),
+  };
+}
+
+/**
+ * What the SEARCH meter has cost lately, read from the usage log this kit already keeps.
+ *
+ * This is RR-5, narrowed deliberately. The requirement asked for a throttle that keeps
+ * the kit under 50 requests an hour. A throttle was the wrong instrument: it would be
+ * the kit refusing work on a guess about a counter it cannot see, when the vendor
+ * already answers a throttled request with an error that RR-3 handles by degrading. A
+ * guard that duplicates the vendor's own answer can only add a way to be wrong.
+ *
+ * What was genuinely missing is the operator being able to SEE the meter. So this counts
+ * rather than blocks, and the caps it names are the free tier's (E-07), stated as
+ * context rather than enforced.
+ *
+ * Counts this kit's own spend. It cannot see searches made from another machine on the
+ * same account, and it over-counts a repeat served from the vendor's free 1-hour cache
+ * (E-09), which the payload gives no way to detect. Both limits are reported.
+ */
+export const FREE_TIER_PER_HOUR = 50;
+export const FREE_TIER_PER_MONTH = 250;
+
+export function searchUsage(root, { now = new Date(), provider = '' } = {}) {
+  const lines = readText(resolve(root, PATHS.usage), '').trim();
+  const rows = lines ? lines.split('\n').map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean) : [];
+
+  const hourAgo = now.getTime() - 3600_000;
+  const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+  let lastHour = 0;
+  let thisMonth = 0;
+  const providers = new Set();
+
+  for (const row of rows) {
+    const used = Number(row.searchesUsed);
+    if (!Number.isFinite(used) || used <= 0) continue;
+    if (provider && row.searchTransport !== provider) continue;
+    const at = Date.parse(row.at);
+    if (!Number.isFinite(at)) continue;
+    if (row.searchTransport) providers.add(row.searchTransport);
+    if (at >= hourAgo) lastHour += used;
+    if (at >= monthStart) thisMonth += used;
+  }
+
+  return {
+    lastHour,
+    thisMonth,
+    providers: [...providers],
+    perHourCap: FREE_TIER_PER_HOUR,
+    perMonthCap: FREE_TIER_PER_MONTH,
+    // Named so nobody reads these numbers as the vendor's.
+    caveat: 'counted from this machine\'s own runs; a repeat served from the provider\'s free cache is counted here but not billed',
   };
 }
