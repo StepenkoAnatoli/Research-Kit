@@ -128,8 +128,8 @@ export const RULES = [
     test: (t) => /\b(count(s|ed|ing)? (toward|as|against)|are not counted|billed|charged|consumed|deducted|does not count)\b/i.test(t) },
   { name: 'limit-vocabulary', weight: 3, why: 'the words a page uses when it is stating a bound',
     test: (t) => /\b(limit|quota|rate|maximum|max|minimum|per team|per key|concurrent)\b/i.test(t) },
-  { name: 'price', weight: 3, why: 'a currency amount is concrete and checkable',
-    test: (t) => /[$€£]\s?\d/.test(t) },
+  { name: 'price', weight: 3, why: 'a currency amount is concrete and checkable, in every form a page writes one - Stripe states its rate as "2.9% + 30 cents per successful card charge", which a leading-symbol pattern cannot see at all',
+    test: (t) => /[$€£¥]\s?\d/.test(t) || /\d\s?[¢€£]/.test(t) || /\d+(\.\d+)?%\s*\+/.test(t) || /\bper (successful|transaction|charge)\b/i.test(t) },
   { name: 'obligation', weight: 2, why: 'must/requires/prohibits is a rule, not a description',
     test: (t) => /\b(must|requires?|supports?|returns?|allows?|prohibit(s|ed)?|permitted|includes?)\b/i.test(t) },
   { name: 'version', weight: 2, why: 'a version pins a claim to something that can be re-checked',
@@ -145,9 +145,9 @@ export const RULES = [
   { name: 'answers-a-question', weight: 3, why: 'an FAQ answer states terms plainly, and the question above it is usually plain text rather than a heading - so the heading rules cannot see it',
     test: (t, c) => c.answersQuestion === true },
   { name: 'evidence-heading', weight: 3, why: 'the cheapest signal a page gives about which claims are load-bearing',
-    test: (t, c) => Boolean(c.heading) && EVIDENCE_HEADING.test(c.heading) },
+    test: (t, c) => EVIDENCE_HEADING.test(c.headings ?? c.heading ?? '') },
   { name: 'chrome-heading', weight: -3, why: 'blog and careers copy is not terms, however concrete it sounds',
-    test: (t, c) => Boolean(c.heading) && CHROME_HEADING.test(c.heading) },
+    test: (t, c) => CHROME_HEADING.test(c.headings ?? c.heading ?? '') },
 
   // --- shape ------------------------------------------------------------------------
   { name: 'full-sentence', weight: 3, why: 'long enough to carry a claim, short enough to be one',
@@ -179,7 +179,21 @@ export const RULES = [
  * well on every other rule, so it needs a penalty of its own rather than a smaller bonus
  * for tables generally: a table of endpoint limits is still worth reading.
  */
-const COMPARISON_ROW = /(:\s*\S+[,;].*){2,}|\b(plan|tier)\b.*\b(month|year|user)\b.*\d/i;
+function COMPARISON_ROW_TEST(text) {
+  // Counted, not matched by repetition.
+  //
+  // This was `(:\s*\S+[,;].*){2,}`, then `(:[^,;]+[,;]){2,}`, and both failed on real
+  // rows for the same reason: `{2,}` requires the matches to be ADJACENT, and a row reads
+  // `Free: 100, Pro: No limit, Scale: No limit` — there is a tier name between one pair
+  // and the next, so the second repetition never starts where the first ended.
+  //
+  // The table reader builds these rows itself, joining `name: value` with ", ". So the
+  // honest test is to count the pairs it made, not to describe them with a pattern that
+  // has now been wrong twice.
+  const pairs = (String(text).match(/: /g) ?? []).length;
+  return pairs >= 3 || /\b(plan|tier)\b.*\b(month|year|user)\b.*\d/i.test(text);
+}
+const COMPARISON_ROW = { test: COMPARISON_ROW_TEST };
 
 /**
  * Score a candidate against the rule table.
@@ -218,7 +232,24 @@ export function explainScore(text, context = {}) {
 const EVIDENCE_HEADING = /\b(pricing|plans?|limits?|rate limits?|quotas?|usage|api|endpoints?|terms|policy|policies|privacy|retention|billing|credits?|authentication|errors?)\b/i;
 
 /** Headings that mark the parts of a page nobody is citing. */
-const CHROME_HEADING = /\b(blog|news|announcements?|careers|about us|community|testimonials?|customers?|get started free|sign ?up|newsletter)\b/i;
+/**
+ * Headings that mark the parts of a page nobody is citing.
+ *
+ * Two families, and the second was missing entirely until the 2026-09-20 generalization
+ * probe. Headings were classified as evidence-bearing, chrome, or *nothing* — and the
+ * "nothing" class is where marketing copy lives. Under "Key features" or "Build with the
+ * power of the web", a capability boast ("our index includes over 30 billion pages")
+ * scored level with a rate limit, because neither heading family claimed it. Leaving
+ * that middle unclassified was a modelling choice nobody made deliberately.
+ */
+const CHROME_HEADING = new RegExp([
+  // the obviously-not-terms parts of a site
+  '\\b(blog|news|announcements?|careers|about us|community|testimonials?|customers?)\\b',
+  '|\\b(get started free|sign ?up|newsletter)\\b',
+  // the marketing middle: a section selling the product rather than stating its terms
+  '|\\b(key |special |core |top )?features?\\b|\\bwhy (choose|use)\\b|\\bbuild with\\b',
+  '|\\bcapabilit(y|ies)\\b|\\bwhat you can build\\b|\\buse cases?\\b|\\bhow it works\\b',
+].join(''), 'i');
 
 /**
  * The extractor, with its reasoning kept.
@@ -238,9 +269,23 @@ export function findingWithContext(markdown, fallback = '') {
   const candidates = [];
   let inFence = false;
   let heading = '';
+  const stack = [];
+  let blockStart = 0;
   let block = [];
   let lastLine = '';
 
+  // NOT a candidate: the joined paragraph.
+  //
+  // Tried on 2026-09-20 and reverted the same hour, because it was measured. Stripe
+  // splits one claim over two lines - `**2.9% + 30 cents**` then `per successful
+  // transaction for domestic cards` - and joining adjacent lines recovers it. But on a
+  // marketing page adjacent lines are LIST ITEMS, not continuations, so the same join
+  // produced collages: Algolia went from "10,000 requests/mo included then $0.60 per
+  // additional 1K requests" to "NeuralSearch AI Collections Smart Groups Real-time
+  // personalization 99.99% availability", which scores well and says nothing.
+  //
+  // The idea is not wrong, the representation is: recovering a split claim needs to know
+  // a continuation from a list item, and line adjacency does not carry that.
   const flushBlock = () => { const text = block.join(' ').trim(); block = []; return text; };
 
   for (let i = 0; i < lines.length; i += 1) {
@@ -248,14 +293,28 @@ export function findingWithContext(markdown, fallback = '') {
     if (/^\s*```/.test(raw)) { inFence = !inFence; continue; }
     if (inFence) continue;
 
-    const head = raw.match(/^\s{0,3}#{1,6}\s+(.*)$/);
-    if (head) { heading = stripMarkdown(head[1]); flushBlock(); continue; }
+    // A heading STACK, not the last heading seen.
+    //
+    // Pages nest: `## Plans` / `### Search` / `#### Capacity`, with the pricing under the
+    // deepest one. Remembering only the last heading meant "Plans" - the word that makes
+    // the section evidence-bearing - was overwritten twice before anything under it was
+    // scored. A section's context survived exactly as long as no subheading appeared
+    // inside it, which on a marketing page is never.
+    const head = raw.match(/^\s{0,3}(#{1,6})\s+(.*)$/);
+    if (head) {
+      const depth = head[1].length;
+      stack.length = Math.min(stack.length, depth - 1);
+      stack[depth - 1] = stripMarkdown(head[2]);
+      heading = stripMarkdown(head[2]);
+      flushBlock();
+      continue;
+    }
     if (!raw.trim()) { flushBlock(); continue; }
 
     if (raw.trim().startsWith('|')) {
       const row = fromTable(lines, i);
       // A table row is its own context: the row IS the excerpt.
-      if (row && !isNoise(row)) candidates.push({ text: row, fromTable: true, heading, excerpt: row });
+      if (row && !isNoise(row)) candidates.push({ text: row, fromTable: true, heading, headings: stack.filter(Boolean).join(' / '), excerpt: row });
       continue;
     }
 
@@ -263,7 +322,7 @@ export function findingWithContext(markdown, fallback = '') {
     // An FAQ question is usually plain text, not a heading, so the heading rules cannot
     // see it. Remember whether the previous non-empty line asked something.
     const answersQuestion = lastLine.endsWith('?');
-    if (line) { block.push(line); lastLine = line; }
+    if (line) { if (!block.length) blockStart = i; block.push(line); lastLine = line; }
     if (isNoise(line)) continue;
     for (const sentence of sentences(line)) {
       const text = sentence.trim();
@@ -271,7 +330,7 @@ export function findingWithContext(markdown, fallback = '') {
       if (isNoise(text)) continue;
       // The excerpt is resolved after the paragraph closes, so a sentence carries the
       // whole paragraph it came from rather than just itself.
-      candidates.push({ text, fromTable: false, heading, answersQuestion, lineIndex: i });
+      candidates.push({ text, fromTable: false, heading, headings: stack.filter(Boolean).join(' / '), answersQuestion, lineIndex: i });
     }
   }
   flushBlock();
@@ -285,6 +344,7 @@ export function findingWithContext(markdown, fallback = '') {
   for (const candidate of candidates) {
     const { total, signals } = explainScore(candidate.text, {
       heading: candidate.heading,
+      headings: candidate.headings ?? candidate.heading ?? '',
       fromTable: candidate.fromTable === true,
       answersQuestion: candidate.answersQuestion === true,
     });
