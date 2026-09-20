@@ -126,44 +126,114 @@ export function score(text) {
  * Page markdown in, one line of prose out.
  * `fallback` is returned verbatim when nothing in the page beats noise.
  */
-export function firstFinding(markdown, fallback = '') {
+/**
+ * Headings under which a page states its actual terms.
+ *
+ * A sentence about a rate limit sitting under "Rate limits" is far more likely to BE the
+ * rate limit than the same sentence in a feature tour. This is the cheapest signal a
+ * page gives about which of its claims are load-bearing, and it costs one regex.
+ */
+const EVIDENCE_HEADING = /\b(pricing|plans?|limits?|rate limits?|quotas?|usage|api|endpoints?|terms|policy|policies|privacy|retention|billing|credits?|authentication|errors?)\b/i;
+
+/** Headings that mark the parts of a page nobody is citing. */
+const CHROME_HEADING = /\b(blog|news|announcements?|careers|about us|community|testimonials?|customers?|get started free|sign ?up|newsletter)\b/i;
+
+/**
+ * The extractor, with its reasoning kept.
+ *
+ * `firstFinding` returns only the sentence, which is what the collector writes into the
+ * evidence table. But a one-line finding is exactly the thing a person has to go and
+ * verify by hand, so this also returns WHERE it came from: the heading it sat under, the
+ * surrounding paragraph, and which signals fired. Same selection, more of the working
+ * shown — `firstFinding` is now a thin wrapper over it, so the two cannot disagree.
+ */
+export function findingWithContext(markdown, fallback = '') {
   const source = String(markdown ?? '');
-  if (!source.trim()) return fallback;
+  const none = { finding: fallback, excerpt: '', heading: '', signals: [], score: 0 };
+  if (!source.trim()) return none;
 
   const lines = source.split(/\r?\n/);
   const candidates = [];
   let inFence = false;
+  let heading = '';
+  let block = [];
+
+  const flushBlock = () => { const text = block.join(' ').trim(); block = []; return text; };
 
   for (let i = 0; i < lines.length; i += 1) {
     const raw = lines[i];
     if (/^\s*```/.test(raw)) { inFence = !inFence; continue; }
     if (inFence) continue;
 
+    const head = raw.match(/^\s{0,3}#{1,6}\s+(.*)$/);
+    if (head) { heading = stripMarkdown(head[1]); flushBlock(); continue; }
+    if (!raw.trim()) { flushBlock(); continue; }
+
     if (raw.trim().startsWith('|')) {
       const row = fromTable(lines, i);
-      if (row && !isNoise(row)) candidates.push({ text: row, bonus: 2 });
+      // A table row is its own context: the row IS the excerpt.
+      if (row && !isNoise(row)) candidates.push({ text: row, bonus: 2, heading, excerpt: row });
       continue;
     }
 
     const line = stripMarkdown(raw);
+    if (line) block.push(line);
     if (isNoise(line)) continue;
     for (const sentence of sentences(line)) {
       const text = sentence.trim();
       if (text.length < 25) continue;
       if (isNoise(text)) continue;
-      candidates.push({ text, bonus: 0 });
+      // The excerpt is resolved after the paragraph closes, so a sentence carries the
+      // whole paragraph it came from rather than just itself.
+      candidates.push({ text, bonus: 0, heading, at: candidates.length, lineIndex: i });
     }
   }
+  flushBlock();
 
-  if (!candidates.length) return fallback;
+  if (!candidates.length) return none;
 
   let best = null;
   for (const candidate of candidates) {
-    const value = score(candidate.text) + candidate.bonus;
-    if (!best || value > best.value) best = { ...candidate, value };
+    const signals = [];
+    let value = score(candidate.text) + candidate.bonus;
+    if (candidate.bonus) signals.push('table-row');
+
+    if (candidate.heading && EVIDENCE_HEADING.test(candidate.heading)) { value += 3; signals.push('evidence-heading'); }
+    if (candidate.heading && CHROME_HEADING.test(candidate.heading)) { value -= 3; signals.push('chrome-heading'); }
+    if (/\b\d+(\.\d+)?\s*%/.test(candidate.text)) { value += 2; signals.push('percentage'); }
+    if (/\b(retain(s|ed)?|retention|delete[sd]?|stored? for|for \d+ days?)\b/i.test(candidate.text)) { value += 3; signals.push('retention'); }
+    if (/\b\d{4}-\d{2}-\d{2}\b|\b(19|20)\d{2}\b/.test(candidate.text)) { value += 1; signals.push('date'); }
+    if (/\b(sign in|sign up|log in|create an account|cookie|consent|subscribe)\b/i.test(candidate.text)) { value -= 4; signals.push('account-or-consent'); }
+    if (/\d/.test(candidate.text)) signals.push('number');
+
+    if (!best || value > best.value) best = { ...candidate, value, signals };
   }
-  if (!best || best.value <= 0) return fallback;
-  return cap(best.text);
+  if (!best || best.value <= 0) return none;
+
+  // Recover the paragraph the winner sat in, bounded. A table row already has one.
+  let excerpt = best.excerpt ?? '';
+  if (!excerpt && best.lineIndex !== undefined) {
+    const para = [];
+    for (let i = best.lineIndex; i >= 0 && lines[i]?.trim() && !/^\s{0,3}#{1,6}\s/.test(lines[i]); i -= 1) para.unshift(stripMarkdown(lines[i]));
+    for (let i = best.lineIndex + 1; i < lines.length && lines[i]?.trim() && !/^\s{0,3}#{1,6}\s/.test(lines[i]); i += 1) para.push(stripMarkdown(lines[i]));
+    excerpt = para.filter(Boolean).join(' ').trim();
+  }
+  if (excerpt.length > EXCERPT_CHARS) excerpt = `${excerpt.slice(0, EXCERPT_CHARS).trimEnd()}…`;
+
+  return { finding: cap(best.text), excerpt, heading: best.heading ?? '', signals: best.signals, score: best.value };
+}
+
+/** How much of the surrounding paragraph a reviewer needs to confirm the sentence. */
+export const EXCERPT_CHARS = 420;
+
+/**
+ * Page markdown in, one line of prose out.
+ *
+ * A wrapper over `findingWithContext`, so the sentence the collector writes and the
+ * excerpt a reviewer reads are chosen by one piece of code and cannot drift apart.
+ */
+export function firstFinding(markdown, fallback = '') {
+  return findingWithContext(markdown, fallback).finding;
 }
 
 function cap(text) {

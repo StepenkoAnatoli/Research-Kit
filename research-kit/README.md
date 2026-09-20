@@ -73,6 +73,7 @@ node research-kit/bin/handoff.mjs     # did the corpus arrive whole?
 | `fi-sidecar-conformance.mjs` + `.py` | FI sidecar and manifest vectors, in two languages |
 | `property-vector-conformance.mjs` + `.py` | exported property vectors, in two languages |
 | `property-replay.mjs` | replay a captured property failure deterministically |
+| `evidence-context.mjs` | what one unknown rests on (`--unknown U-5`, `--all`, `--json`), read-only |
 | `selftest.mjs` | the whole suite, offline |
 
 ## Transports
@@ -187,7 +188,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-594 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+610 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

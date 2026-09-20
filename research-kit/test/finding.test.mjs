@@ -2,7 +2,7 @@
 // Page markdown in, one line of prose out.
 
 import { test, describe, assert } from './harness.mjs';
-import { firstFinding, sentences, score, MAX_CHARS } from '../lib/finding.mjs';
+import { firstFinding, findingWithContext, sentences, score, MAX_CHARS, EXCERPT_CHARS } from '../lib/finding.mjs';
 
 describe('finding');
 
@@ -101,4 +101,91 @@ test('score rewards numbers, limits and prices, and penalises questions and mark
   assert.ok(score('The free plan allows 10 requests per minute and 1,000 credits.') > score('It is a great product for teams.'));
   assert.ok(score('Pricing starts at $16 per month for the Hobby plan.') > 0);
   assert.ok(score('What are the rate limits for the free plan on this service?') < score('The rate limit is 10 requests per minute.'));
+});
+
+// ---------------------------------------------------------------- evidence-first ranking
+//
+// Added 2026-09-20. The extractor already preferred concrete sentences; these cover the
+// signals it gained - where a sentence sits on the page, and what kind of claim it makes -
+// and the excerpt, which is what lets a reviewer confirm a finding without opening the
+// capture.
+
+test('a heading that promises terms outranks one that promises news', () => {
+  // The cheapest signal a page gives about which of its claims are load-bearing. The
+  // announcement below is longer, has a year in it, and would otherwise compete.
+  const page = [
+    '# Acme',
+    '',
+    '## Blog',
+    '',
+    'We announced our Series B in 2024 and processed 5,000,000 requests that quarter.',
+    '',
+    '## Rate limits',
+    '',
+    'The free plan allows 10 requests per minute per team.',
+  ].join('\n');
+  const result = findingWithContext(page, 'x');
+  assert.match(result.finding, /10 requests per minute/);
+  assert.equal(result.heading, 'Rate limits');
+  assert.ok(result.signals.includes('evidence-heading'), JSON.stringify(result.signals));
+});
+
+test('a retention period beats a bare number elsewhere on the page', () => {
+  const page = [
+    '## Features',
+    '',
+    'Our dashboard shows 12 charts and refreshes every 30 seconds for every account.',
+    '',
+    '## Data retention',
+    '',
+    'Search data is retained for 31 days after the search is completed, then deleted.',
+  ].join('\n');
+  const result = findingWithContext(page, 'x');
+  assert.match(result.finding, /31 days/);
+  assert.ok(result.signals.includes('retention'), JSON.stringify(result.signals));
+});
+
+test('sign-in and consent text is pushed down even when it carries a number', () => {
+  const page = [
+    '## Limits',
+    '',
+    'Sign in to unlock 500 requests per minute on your account today.',
+    '',
+    'The free plan allows 10 requests per minute per team.',
+  ].join('\n');
+  assert.match(findingWithContext(page, 'x').finding, /10 requests per minute/);
+});
+
+test('the excerpt carries the surrounding paragraph, bounded, so a reviewer can confirm it', () => {
+  const page = [
+    '## Rate limits',
+    '',
+    'The free plan allows 10 requests per minute per team.',
+    'Requests beyond that return HTTP 429 with a Retry-After header.',
+  ].join('\n');
+  const result = findingWithContext(page, 'x');
+  assert.ok(result.excerpt.includes('HTTP 429'), `the excerpt lost the sentence that qualifies the claim: ${result.excerpt}`);
+  assert.ok(result.excerpt.length <= EXCERPT_CHARS + 1, `excerpt is ${result.excerpt.length} chars, which is not bounded`);
+});
+
+test('firstFinding is exactly findingWithContext.finding, so the two cannot drift', () => {
+  // firstFinding is what the collector writes into the evidence table; findingWithContext
+  // is what a reviewer reads. If they ever selected differently, the excerpt would be
+  // supporting a sentence nobody recorded.
+  const pages = [
+    '## Pricing\n\nThe Starter plan costs $25 per month for 1,000 searches.',
+    '',
+    'No headings here, just one sentence about a 10 request per minute limit.',
+    '## Blog\n\nWe are excited to announce our new brand and our 2024 results.',
+  ];
+  for (const page of pages) {
+    assert.equal(firstFinding(page, 'fb'), findingWithContext(page, 'fb').finding, JSON.stringify(page));
+  }
+});
+
+test('a page with nothing concrete still returns the fallback, and says so', () => {
+  const page = '## About us\n\nWe are a team that loves building things people want.';
+  const result = findingWithContext(page, 'the fallback');
+  assert.equal(result.finding, 'the fallback');
+  assert.equal(result.excerpt, '', 'a fallback finding must not carry an excerpt that supports something else');
 });
