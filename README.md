@@ -3,6 +3,45 @@
 Deep Research Agent — before build: topics / subtopics / scrape, and the
 research-first kit that gates the build on evidence (`research-kit/`).
 
+## Bring your own keys
+
+**No credentials ship with this repository, and none ever will.** If you cloned this,
+the keys are yours to supply.
+
+You can run the whole kit with **no key at all**:
+
+```
+node research-kit/bin/research.mjs --transport http-keyless
+```
+
+That route has no vendor, no credential and no metering. It is slower and its captures
+are often graded `partial`, which the corpus records honestly rather than hiding.
+
+For the metered routes, the kit reads a credential from exactly two places — the
+environment, or the machine config at `~/.agents/research-kit.config.json`:
+
+| Provider | Used for | How to supply it |
+|---|---|---|
+| Firecrawl | fetching pages, and searching by default | `firecrawl login` — the CLI stores it. **Never run `firecrawl env` inside a repository**: it writes the key into `.env`. |
+| SerpAPI | searching only, entirely optional | `SERPAPI_API_KEY`, or `serpapiKey` in the machine config |
+
+Both have free tiers, and the kit is designed around them: Firecrawl gives 1,000 credits
+a month, SerpAPI 250 searches. Adding the SerpAPI key is worth it not because it is
+cheaper but because it is a *second meter* — search stops competing with fetching for the
+same budget ([ADR-0027](docs/adr/0027-search-and-fetch-are-two-seams.md)).
+
+**The kit never reads a key from the repository, and never writes one into it.** That is
+a checked property, not a promise: `doctor` runs a secret scan over every tracked text
+file on each invocation, the tests assert the key never reaches a rendered command, a log
+line or an error string, and a query that *contains* your key is refused before it is
+sent — because it would otherwise be stored as a search term on the vendor's systems.
+
+One disclosure, since it is your data: a search sends your query text to the provider.
+SerpAPI retains search data for 31 days. Tavily was evaluated and **deliberately not
+wired in**, because its terms permit it and its AI providers to retain queries and
+outputs for training — a reasonable thing to opt into knowingly, and not a reasonable
+default ([research/BRIEF.md](research/BRIEF.md)).
+
 ## Run it from inside the project
 
 The kit takes no project argument — the project is the current working directory. `cd`
