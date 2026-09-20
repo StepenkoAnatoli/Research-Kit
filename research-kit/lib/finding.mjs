@@ -102,24 +102,106 @@ function fromTable(lines, index) {
 }
 
 /**
- * Score a candidate. Concrete beats vague: a sentence carrying a number, a limit, a
- * price, or a version says something a design can rest on.
+ * The ranking policy, in one table.
+ *
+ * Every weight the extractor applies is declared here, named, with the reason beside it.
+ * It used to be a run of `if (...) value += n` statements in one function and a second
+ * run of them inside the selector, which meant nobody could state the priority order
+ * without executing the code — and adding a signal meant guessing how it interacted with
+ * the eight already there.
+ *
+ * Read it top to bottom and the policy is legible: a measured quantity is the strongest
+ * single signal, where the sentence sits on the page is worth as much as what it says,
+ * and the things that look concrete but are not — a price in a comparison table, a
+ * number inside a sign-up prompt — are pushed down hard enough to lose to plain prose.
+ *
+ * `context` carries what the sentence alone cannot say: the heading it sits under, and
+ * whether it came from a table row.
  */
-export function score(text) {
-  let value = 0;
-  const length = text.length;
-  if (length >= 60 && length <= MAX_CHARS) value += 3;
-  else if (length >= 35) value += 1;
-  if (/\d/.test(text)) value += 2;
-  if (/\b\d[\d,]*\s*(credits?|requests?|pages?|calls?|tokens?|rpm|per (minute|second|hour|day|month))\b/i.test(text)) value += 4;
-  if (/[$€£]\s?\d/.test(text)) value += 3;
-  if (/\b(limit|quota|rate|maximum|max|minimum|per team|per key|concurrent)\b/i.test(text)) value += 3;
-  if (/\b(must|requires?|supports?|returns?|allows?|prohibit(s|ed)?|permitted|includes?)\b/i.test(text)) value += 2;
-  if (/\bv?\d+\.\d+(\.\d+)?\b/.test(text)) value += 2;
-  if (/\?$/.test(text)) value -= 3;
-  if (/\b(we|our|you'll love|amazing|powerful|simply)\b/i.test(text)) value -= 2;
-  if (length > MAX_CHARS) value -= 1;
-  return value;
+export const RULES = [
+  // --- what the sentence says -------------------------------------------------------
+  { name: 'measured-quantity', weight: 4, why: 'a counted limit is the thing a design rests on',
+    test: (t) => /\b\d[\d,]*\s*(credits?|requests?|pages?|calls?|tokens?|rpm|per (minute|second|hour|day|month))\b/i.test(t) },
+  { name: 'retention', weight: 3, why: 'how long data is kept is a decision input, and pages state it plainly',
+    test: (t) => /\b(retain(s|ed)?|retention|delete[sd]?|stored? for|for \d+ days?)\b/i.test(t) },
+  { name: 'metering-rule', weight: 4, why: 'HOW usage is counted decides a collector design as much as the limit itself, and such sentences often carry no digit at all',
+    test: (t) => /\b(count(s|ed|ing)? (toward|as|against)|are not counted|billed|charged|consumed|deducted|does not count)\b/i.test(t) },
+  { name: 'limit-vocabulary', weight: 3, why: 'the words a page uses when it is stating a bound',
+    test: (t) => /\b(limit|quota|rate|maximum|max|minimum|per team|per key|concurrent)\b/i.test(t) },
+  { name: 'price', weight: 3, why: 'a currency amount is concrete and checkable',
+    test: (t) => /[$€£]\s?\d/.test(t) },
+  { name: 'obligation', weight: 2, why: 'must/requires/prohibits is a rule, not a description',
+    test: (t) => /\b(must|requires?|supports?|returns?|allows?|prohibit(s|ed)?|permitted|includes?)\b/i.test(t) },
+  { name: 'version', weight: 2, why: 'a version pins a claim to something that can be re-checked',
+    test: (t) => /\bv?\d+\.\d+(\.\d+)?\b/.test(t) },
+  { name: 'number', weight: 2, why: 'any digit beats none, weakly',
+    test: (t) => /\d/.test(t) },
+  { name: 'percentage', weight: 2, why: 'a rate or share, usually from a terms page',
+    test: (t) => /\b\d+(\.\d+)?\s*%/.test(t) },
+  { name: 'date', weight: 1, why: 'a claim that dates itself can be re-checked against the page later, weakly',
+    test: (t) => /\b\d{4}-\d{2}-\d{2}\b|\b(19|20)\d{2}\b/.test(t) },
+
+  // --- where it sits ----------------------------------------------------------------
+  { name: 'answers-a-question', weight: 3, why: 'an FAQ answer states terms plainly, and the question above it is usually plain text rather than a heading - so the heading rules cannot see it',
+    test: (t, c) => c.answersQuestion === true },
+  { name: 'evidence-heading', weight: 3, why: 'the cheapest signal a page gives about which claims are load-bearing',
+    test: (t, c) => Boolean(c.heading) && EVIDENCE_HEADING.test(c.heading) },
+  { name: 'chrome-heading', weight: -3, why: 'blog and careers copy is not terms, however concrete it sounds',
+    test: (t, c) => Boolean(c.heading) && CHROME_HEADING.test(c.heading) },
+
+  // --- shape ------------------------------------------------------------------------
+  { name: 'full-sentence', weight: 3, why: 'long enough to carry a claim, short enough to be one',
+    test: (t) => t.length >= 60 && t.length <= MAX_CHARS },
+  { name: 'short-sentence', weight: 1, why: 'a claim can be brief, and brevity alone should not disqualify it',
+    test: (t) => t.length >= 35 && t.length < 60 },
+  { name: 'over-length', weight: -1, why: 'past the cap it will be truncated anyway',
+    test: (t) => t.length > MAX_CHARS },
+
+  // --- things that look like evidence and are not -----------------------------------
+  { name: 'account-or-consent', weight: -4, why: 'a sign-up prompt carrying a number is the classic false positive',
+    test: (t) => /\b(sign in|sign up|log in|create an account|cookie|consent|subscribe)\b/i.test(t) },
+  { name: 'comparison-row', weight: -4, why: 'one row of a pricing matrix describes ONE tier, and rarely the one being asked about',
+    test: (t, c) => c.fromTable === true && COMPARISON_ROW.test(t) },
+  { name: 'question', weight: -3, why: 'an FAQ heading asks; it does not answer',
+    test: (t) => /\?$/.test(t) },
+  { name: 'marketing-voice', weight: -2, why: 'first person and superlatives are the vendor talking about itself',
+    test: (t) => /\b(we|our|you'll love|amazing|powerful|simply)\b/i.test(t) },
+  { name: 'table-row', weight: 2, why: 'a table states terms densely - but only when it is not a comparison matrix, or this bonus would cancel the penalty below',
+    test: (t, c) => c.fromTable === true && !COMPARISON_ROW.test(t) },
+];
+
+/**
+ * A pricing-matrix row: several tier fields strung together by the table reader.
+ *
+ * This is the SerpApi pricing case, which was a known weakness — the extractor picked
+ * "Plan: Starter$25 / month, Searches / month: 1,000, Throughput / hour: 200" over the
+ * prose that actually answered the question. Such a row is dense with numbers and scores
+ * well on every other rule, so it needs a penalty of its own rather than a smaller bonus
+ * for tables generally: a table of endpoint limits is still worth reading.
+ */
+const COMPARISON_ROW = /(:\s*\S+[,;].*){2,}|\b(plan|tier)\b.*\b(month|year|user)\b.*\d/i;
+
+/**
+ * Score a candidate against the rule table.
+ *
+ * Returns the total only, so the existing callers and tests are unaffected. Use
+ * `explainScore` when the reason matters — the selector does, because the signals it
+ * reports to a reviewer must be the ones that actually moved the number.
+ */
+export function score(text, context = {}) {
+  return explainScore(text, context).total;
+}
+
+/** The same scoring, with the rules that fired. One evaluation, so the two cannot differ. */
+export function explainScore(text, context = {}) {
+  const fired = [];
+  let total = 0;
+  for (const rule of RULES) {
+    if (!rule.test(text, context)) continue;
+    fired.push(rule.name);
+    total += rule.weight;
+  }
+  return { total, signals: fired };
 }
 
 /**
@@ -157,6 +239,7 @@ export function findingWithContext(markdown, fallback = '') {
   let inFence = false;
   let heading = '';
   let block = [];
+  let lastLine = '';
 
   const flushBlock = () => { const text = block.join(' ').trim(); block = []; return text; };
 
@@ -172,12 +255,15 @@ export function findingWithContext(markdown, fallback = '') {
     if (raw.trim().startsWith('|')) {
       const row = fromTable(lines, i);
       // A table row is its own context: the row IS the excerpt.
-      if (row && !isNoise(row)) candidates.push({ text: row, bonus: 2, heading, excerpt: row });
+      if (row && !isNoise(row)) candidates.push({ text: row, fromTable: true, heading, excerpt: row });
       continue;
     }
 
     const line = stripMarkdown(raw);
-    if (line) block.push(line);
+    // An FAQ question is usually plain text, not a heading, so the heading rules cannot
+    // see it. Remember whether the previous non-empty line asked something.
+    const answersQuestion = lastLine.endsWith('?');
+    if (line) { block.push(line); lastLine = line; }
     if (isNoise(line)) continue;
     for (const sentence of sentences(line)) {
       const text = sentence.trim();
@@ -185,28 +271,24 @@ export function findingWithContext(markdown, fallback = '') {
       if (isNoise(text)) continue;
       // The excerpt is resolved after the paragraph closes, so a sentence carries the
       // whole paragraph it came from rather than just itself.
-      candidates.push({ text, bonus: 0, heading, at: candidates.length, lineIndex: i });
+      candidates.push({ text, fromTable: false, heading, answersQuestion, lineIndex: i });
     }
   }
   flushBlock();
 
   if (!candidates.length) return none;
 
+  // One evaluation, against the one table. The selector used to apply a second run of
+  // weights of its own on top of score(), so the number a reviewer saw and the number
+  // that chose the sentence were computed by two pieces of code that could disagree.
   let best = null;
   for (const candidate of candidates) {
-    const signals = [];
-    let value = score(candidate.text) + candidate.bonus;
-    if (candidate.bonus) signals.push('table-row');
-
-    if (candidate.heading && EVIDENCE_HEADING.test(candidate.heading)) { value += 3; signals.push('evidence-heading'); }
-    if (candidate.heading && CHROME_HEADING.test(candidate.heading)) { value -= 3; signals.push('chrome-heading'); }
-    if (/\b\d+(\.\d+)?\s*%/.test(candidate.text)) { value += 2; signals.push('percentage'); }
-    if (/\b(retain(s|ed)?|retention|delete[sd]?|stored? for|for \d+ days?)\b/i.test(candidate.text)) { value += 3; signals.push('retention'); }
-    if (/\b\d{4}-\d{2}-\d{2}\b|\b(19|20)\d{2}\b/.test(candidate.text)) { value += 1; signals.push('date'); }
-    if (/\b(sign in|sign up|log in|create an account|cookie|consent|subscribe)\b/i.test(candidate.text)) { value -= 4; signals.push('account-or-consent'); }
-    if (/\d/.test(candidate.text)) signals.push('number');
-
-    if (!best || value > best.value) best = { ...candidate, value, signals };
+    const { total, signals } = explainScore(candidate.text, {
+      heading: candidate.heading,
+      fromTable: candidate.fromTable === true,
+      answersQuestion: candidate.answersQuestion === true,
+    });
+    if (!best || total > best.value) best = { ...candidate, value: total, signals };
   }
   if (!best || best.value <= 0) return none;
 

@@ -182,3 +182,66 @@ test('this repository answers for its own unknowns', () => {
     assert(typeof renderContext(context) === 'string');
   }
 });
+
+// ---------------------------------------------------------------- structural guards
+//
+// The "no verdict" test above forbids a list of conclusion PHRASES, which catches an
+// obvious regression and cannot catch a newly worded one - "the supplied evidence
+// strongly supports moving forward" passes every phrase check ever written. Wording tests
+// are a tripwire, not a property.
+//
+// These are the property: the module cannot reach the machinery that produces verdicts,
+// and cannot write. A conclusion it is architecturally unable to compute is one nobody
+// has to notice in a code review.
+
+test('it cannot import the machinery that decides anything', () => {
+  const source = fs.readFileSync(path.join(KIT_ROOT, 'lib', 'evidence-context.mjs'), 'utf8');
+  const imports = [...source.matchAll(/^import\s+(?:.+?)\s+from\s+'([^']+)'/gm)].map((m) => m[1]);
+
+  // checks.mjs is imported for supersededRows - a pure lookup of which row replaced which.
+  // The verdict lives in preflight/gate, and reaching either would let a future edit turn
+  // "here is the evidence" into "here is the answer" without anything structural objecting.
+  const forbidden = ['./preflight.mjs', './gate.mjs', './doctor.mjs', './brief.mjs'];
+  const reached = imports.filter((name) => forbidden.includes(name));
+  assertEqual(reached.length, 0,
+    `evidence-context imports verdict machinery (${reached.join(', ')}); it is meant to gather, not decide`);
+
+  // Comments are stripped first. The first version of this test scanned the raw file for
+  // the word "verdict" and went red on the module's own comment saying it offers none -
+  // the guard caught the prose explaining the absence of the thing it guards against.
+  const code = source
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .split('\n').map((line) => line.replace(/\/\/.*$/, '')).join('\n');
+  for (const banned of ['runPreflight', 'runChecks', 'evaluate(', 'verdict']) {
+    assert(!code.includes(banned), `evidence-context calls ${banned}, which is verdict machinery`);
+  }
+});
+
+test('it contains no write call at all', () => {
+  // Read-only asserted structurally rather than by watching one run: a runtime check can
+  // only prove the paths it happened to walk.
+  for (const file of ['lib/evidence-context.mjs', 'bin/evidence-context.mjs']) {
+    const source = fs.readFileSync(path.join(KIT_ROOT, file), 'utf8');
+    for (const write of ['writeFile', 'appendFile', 'mkdir', 'rm(', 'rmSync', 'unlink', 'rename', 'appendJsonLine']) {
+      assert(!source.includes(write), `${file} calls ${write}; this command must not change the corpus`);
+    }
+  }
+});
+
+test('the recorded status is labelled as a recording, and comes after the evidence', () => {
+  // It used to head the report as "Status: CLOSED". Read from the corpus, decided by
+  // nothing - but a verdict printed BEFORE the evidence is an anchor, and a reviewer who
+  // sees CLOSED first reads to confirm rather than to judge.
+  const root = fixture();
+  try {
+    const text = renderContext(evidenceContext(readCorpus(root), 'U-1'));
+    assert(/Recorded status/.test(text), 'the status is no longer labelled as a recording');
+    assert(!/^Status:/m.test(text), 'the bare "Status:" line is back, and it anchors the reader');
+
+    const statusAt = text.indexOf('Recorded status');
+    const evidenceAt = text.indexOf('E-01');
+    assert(evidenceAt >= 0 && statusAt > evidenceAt,
+      'the recorded status appears before the evidence it is supposed to be judged against');
+    assert(/not a judgement by this command/i.test(text), 'the status is shown without saying whose it is');
+  } finally { cleanup(root); }
+});

@@ -101,7 +101,22 @@ jobs:
           echo "working tree is LF"
 
       - name: selftest
-        run: node research-kit/bin/selftest.mjs
+        run: |
+          set -o pipefail
+          node research-kit/bin/selftest.mjs | tee "$RUNNER_TEMP/suite.txt"
+
+      # Publish the count where a reviewer can read it WITHOUT running anything.
+      #
+      # An external audit of this repository could not confirm the claimed test count
+      # from the source alone: the number is only produced by executing the suite, and
+      # `selftest.mjs` enforcing it proves consistency, not the value. The job summary is
+      # the cheapest place a third party can read what actually ran, per platform, on a
+      # machine that is not the author's.
+      - name: publish the count
+        if: always()
+        run: |
+          line=$(grep -E '^[0-9]+ passed, [0-9]+ failed' "$RUNNER_TEMP/suite.txt" || echo 'suite produced no count')
+          echo "| ${{ matrix.os }} | \`$line\` |" >> "$GITHUB_STEP_SUMMARY"
 
       - name: preflight
         run: node research-kit/bin/preflight.mjs

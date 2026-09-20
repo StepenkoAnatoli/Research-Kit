@@ -149,7 +149,7 @@ export function renderContext(context) {
   const { unknown, cited, related, gaps } = context;
   const out = [`${unknown.id} — ${unknown.text}`, ''];
   if (unknown.why) out.push(`Why it blocks: ${unknown.why}`, '');
-  out.push(`Status: ${unknown.status || '(blank)'}    cites: ${cited.length || 'none'}`, '');
+  out.push(`${cited.length || 'no'} cited row${cited.length === 1 ? '' : 's'}`, '');
 
   for (const row of cited) {
     if (row.missing) { out.push(`${row.id} — CITED BUT NOT FOUND`, ''); continue; }
@@ -191,7 +191,16 @@ export function renderContext(context) {
     out.push('');
   }
 
-  // Deliberately the last line, and deliberately not a verdict.
+  // The recorded status comes LAST, and is labelled as a recording rather than a finding.
+  //
+  // It used to head the report as "Status: CLOSED", above the evidence. That was read
+  // from the corpus and decided nothing — but a verdict printed before the evidence is
+  // an anchor, and a reviewer who sees CLOSED first is reading to confirm rather than to
+  // judge. The whole point of this command is that the judgement happens after the
+  // reading, so the inherited answer waits until after it too.
+  out.push(`Recorded status in ${PATHS.discovery}: ${unknown.status || '(blank)'}`);
+  out.push('That is what the corpus says today, not a judgement by this command.');
+  out.push('');
   out.push('This command reads. Whether the evidence closes the unknown is your call.');
   return out.join('\n');
 }
