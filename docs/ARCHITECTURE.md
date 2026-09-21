@@ -407,6 +407,9 @@ each line — is in the ADR named beside it and in
 | An artifact's **authorization is derived, never supplied**: `artifact.mjs` has no `--build-authorized`, **refuses** it (and every near spelling) with the reason rather than ignoring it, and `deriveState` runs the real gate with `env` defaulting to `{}` so a packaging shell's override cannot travel | [ADR-0032](adr/0032-one-artifact-contract-for-every-consumer.md) |
 | A package being **valid is not a package being authorized**: `status: PASS` and `buildAuthorized` are separate fields, and the CLI says so in words on a valid collected corpus | ADR-0032 |
 | A ZIP's structural faults are refused from the **central directory, before inflation**; the inflation ceiling is `maxOutputLength`, not a field the archive declared about itself | ADR-0032 |
+| **No dispatch input reaches a shell**: `${{ inputs.x }}` inside a `run:` block is substitution *before* the shell parses, so inputs arrive through `env:` and then an argv array. Enforced across **every** workflow, not only the newest | [ADR-0033](adr/0033-the-collector-refuses-rather-than-degrades.md), ADR-0020 |
+| The collector's spend gate is a **protected environment whose existence is proven**, because GitHub silently creates an *unprotected* one when a workflow names a missing environment; a missing credential **refuses** rather than falling back to a keyless route | ADR-0033 |
+| A template token substituted into a **`.json`** file is JSON-escaped; markdown gets it verbatim | ADR-0033 (found by a hostile topic) |
 | Supported CI platforms are **Linux and Windows**; macOS is best-effort and untested | [README](../README.md#supported-platforms) |
 | The project is the **current working directory**; there is no `--project` | ADR-0017 |
 | Enforcement surfaces stay at **two**: the git commit gate and the edit-time hook | ADR-0006 |

@@ -144,3 +144,34 @@ test('THE guarantee: a freshly scaffolded project holds no token anywhere, code 
     assert.doesNotMatch(text, /\{\{[A-Z_]+\}\}/, `${rel} shipped with an unrendered token`);
   }
 });
+
+test('a topic containing JSON punctuation still scaffolds a plan that parses', () => {
+  // Found by feeding the Actions collector a deliberately hostile topic. The substitution
+  // into `plan.json` is textual, so `Why "agentic" search costs more` ended the JSON
+  // string early and wrote a plan.json that does not parse - after which `research.mjs`
+  // reads an empty plan and collects nothing, blaming a file the operator never touched.
+  //
+  // Nothing about this needed a workflow: any operator typing a quote in their topic hit it.
+  const hostile = 'Why "agentic" search costs more \ and when it does not\tand a tab';
+  const dir = scaffoldProject(tempDir(), { topic: hostile, kit: KIT_ROOT }).dir;
+
+  const planText = readText(resolve(dir, PATHS.plan), '');
+  let plan;
+  assert.doesNotThrow(() => { plan = JSON.parse(planText); },
+    `a topic with a double quote produced a plan.json that does not parse:\n${planText}`);
+  assert.equal(plan.topic, hostile, 'the topic must survive escaping byte for byte, not be stripped');
+
+  // The markdown templates want it VERBATIM: escaping everywhere would put \" into prose.
+  const discovery = readText(resolve(dir, PATHS.discovery), '');
+  assert.ok(discovery.includes('Why "agentic" search costs more'),
+    'the topic should reach markdown unescaped; only JSON files need encoding');
+  assert.ok(!discovery.includes('\\"agentic\\"'), 'markdown must not carry JSON escapes');
+});
+
+test('every scaffolded .json file parses, whatever the topic', () => {
+  const dir = scaffoldProject(tempDir(), { topic: 'A "quoted" topic', kit: KIT_ROOT }).dir;
+  for (const rel of templateFiles().filter((r) => r.endsWith('.json'))) {
+    const text = readText(resolve(dir, rel), '');
+    assert.doesNotThrow(() => JSON.parse(text), `${rel} does not parse after scaffolding`);
+  }
+});

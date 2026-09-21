@@ -167,6 +167,51 @@ repository, so a filename leaks before anybody opens anything. And
 `safeForPublicDistribution` is `false` by default: a package with no secrets in it can
 still disclose what was being researched.
 
+## Collecting from GitHub Actions
+
+`.github/workflows/collect.yml` is the collector a non-technical operator triggers. It is
+**manual only** — ordinary CI can never start a paid run — and it runs on
+`ubuntu-latest` or `windows-latest`. See
+[ADR-0033](../docs/adr/0033-the-collector-refuses-rather-than-degrades.md).
+
+```
+gh api -X POST repos/OWNER/REPO/actions/workflows/collect.yml/dispatches   -H "X-GitHub-Api-Version: 2026-03-10"   -f ref=main -f 'inputs[topic]=...' -f 'inputs[max_pages]=8'
+→ 200 {"workflow_run_id": 35548135379, "run_url": "...", "html_url": "..."}
+```
+
+That run id is the correlation key, and it is what the artifact's manifest records. Under
+the default `2022-11-28` the same call returns `204 No Content` and the caller learns
+nothing.
+
+**One-time setup, and the workflow refuses to spend until it exists.** Settings >
+Environments > `research-collection`:
+
+| What | Why |
+|---|---|
+| required reviewers | the only spend gate GitHub enforces before a step runs |
+| environment **secret** `FIRECRAWL_API_KEY` | the metered credential |
+| environment **variable** `RESEARCH_KIT_COLLECTION_ENV=research-collection` | proves the environment exists |
+
+The variable is not ceremony. A workflow naming an environment that does **not** exist does
+not fail — GitHub creates one, with no protection rules and no secrets. A typo in the name
+would remove the approval gate silently, so the collector requires a marker only a
+configured environment can supply.
+
+**A missing credential refuses; it never degrades.** There is no keyless fallback: that
+would return a measurably worse corpus under the same artifact name, and the person who
+asked for research would have no way to tell.
+
+**Privacy, stated honestly.** The topic is in neither the run name nor the artifact name,
+because an anonymous caller can read both listings on a public repository. But
+`workflow_dispatch` inputs *are* visible on the run page to anyone with read access — this
+reduces incidental exposure, it does not make a public run private. Sensitive research
+belongs in a private repository on a plan that supports environments there; converting a
+GitHub Free repository to private makes its protection rules and environment secrets
+**ignored** rather than refused.
+
+**Still unproven:** the runner-side `npm install -g firecrawl@<version>` path has never
+executed. Closing it needs the environment, the secret, and one real dispatch.
+
 **An artifact is transport, not archival storage.** Workflow artifacts last at most 90
 days on a public repository and vanish with the run that produced them. Anything that must
 persist gets committed.
@@ -283,7 +328,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-726 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+753 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

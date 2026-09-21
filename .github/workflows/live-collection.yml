@@ -91,19 +91,25 @@ jobs:
           node-version: '22'
 
       - name: announce the run, its budget and its policy
+        env:
+          TRANSPORT: ${{ inputs.transport }}
+          MAX_PAGES: ${{ inputs.max_pages }}
+          CLI_VERSION: ${{ inputs.cli_version }}
         run: |
           {
             echo "| setting | value |"
             echo "|---|---|"
-            echo "| run | ${{ github.run_id }} |"
-            echo "| transport | ${{ inputs.transport }} |"
-            echo "| max pages | ${{ inputs.max_pages }} |"
-            echo "| CLI policy | ${{ inputs.cli_version }} |"
+            echo "| run | $GITHUB_RUN_ID |"
+            echo "| transport | $TRANSPORT |"
+            echo "| max pages | $MAX_PAGES |"
+            echo "| CLI policy | $CLI_VERSION |"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: refuse an unbounded run
+        env:
+          MAX_PAGES: ${{ inputs.max_pages }}
         run: |
-          pages='${{ inputs.max_pages }}'
+          pages="$MAX_PAGES"
           case "$pages" in (''|*[!0-9]*) echo "max_pages must be a whole number"; exit 1;; esac
           if [ "$pages" -lt 1 ] || [ "$pages" -gt 10 ]; then
             echo "max_pages=$pages is outside 1..10."
@@ -118,10 +124,12 @@ jobs:
       - name: install the vendor CLI
         id: cli
         if: inputs.transport == 'firecrawl-cli'
+        env:
+          CLI_VERSION: ${{ inputs.cli_version }}
         run: |
           set -e
           tested=$(node -e 'import("./research-kit/lib/firecrawl.mjs").then(m => process.stdout.write(m.TESTED_CLI_VERSION))')
-          if [ '${{ inputs.cli_version }}' = 'tested' ]; then
+          if [ "$CLI_VERSION" = 'tested' ]; then
             spec="firecrawl@$tested"
             echo "pinning to the version this adapter was written against: $spec"
           else
@@ -151,8 +159,9 @@ jobs:
       - name: the key is present, and is never printed
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          TRANSPORT: ${{ inputs.transport }}
         run: |
-          if [ -z "${FIRECRAWL_API_KEY:-}" ] && [ '${{ inputs.transport }}' = 'firecrawl-cli' ]; then
+          if [ -z "${FIRECRAWL_API_KEY:-}" ] && [ "$TRANSPORT" = 'firecrawl-cli' ]; then
             echo "::error::FIRECRAWL_API_KEY is not set for the live-collection environment."
             echo "Add it under Settings > Environments > live-collection, or run with transport=http-keyless."
             exit 1
@@ -164,6 +173,7 @@ jobs:
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
           RESEARCH_KIT_TRANSPORT: ${{ inputs.transport }}
+          MAX_PAGES: ${{ inputs.max_pages }}
         run: |
           set -e
           kit="$PWD/research-kit"
@@ -182,7 +192,7 @@ jobs:
           node "$kit/bin/doctor.mjs" || echo "doctor reported findings (not required to pass)"
 
           node "$kit/bin/research.mjs" --dry-run --depth quick
-          node "$kit/bin/research.mjs" --depth quick --max-scrapes '${{ inputs.max_pages }}'
+          node "$kit/bin/research.mjs" --depth quick --max-scrapes "$MAX_PAGES"
 
       - name: a ledger was written, and it parses
         run: |
