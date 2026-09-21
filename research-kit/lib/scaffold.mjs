@@ -106,10 +106,27 @@ export function scaffoldProject(dir, { topic = 'Untitled topic', kit = '~/.agent
   }
 
   const tokens = { TOPIC: topic, DATE: date, KIT: kit, SLUG: topic.toLowerCase().replace(/[^a-z0-9]+/g, '-') };
+
+  // A token substituted into JSON must be escaped FOR JSON.
+  //
+  // `template/research/plan.json` holds `"topic": "{{TOPIC}}"`, and the substitution is
+  // textual. A topic containing a double quote - `Why "agentic" search costs more` - ends
+  // the string early and writes a plan.json that does not parse, so `research.mjs` reads
+  // an empty plan and collects nothing, reporting a corpus problem about a file the
+  // operator never edited. A backslash or a newline does the same.
+  //
+  // Escaped per FILE rather than per token: the markdown templates want the topic
+  // verbatim, and escaping it there would put `\"` into prose. `JSON.stringify` minus its
+  // surrounding quotes is exactly the string-interior encoding these templates need.
+  const jsonTokens = Object.fromEntries(
+    Object.entries(tokens).map(([name, value]) => [name, JSON.stringify(String(value)).slice(1, -1)]),
+  );
+
   for (const rel of templateFiles(templateDir)) {
     const target = resolve(dir, rel);
     if (exists(target) && !force) { skipped.push(rel); continue; }
-    const body = renderTemplate(readText(path.join(templateDir, ...rel.split('/')), ''), tokens);
+    const source = readText(path.join(templateDir, ...rel.split('/')), '');
+    const body = renderTemplate(source, rel.endsWith('.json') ? jsonTokens : tokens);
     writeText(target, body);
     written.push(rel);
   }
