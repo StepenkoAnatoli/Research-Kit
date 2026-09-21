@@ -150,6 +150,33 @@ test('capture-completeness: partial without a reason is flagged too', () => {
   assert.ok(runCheck('capture-completeness', snapshot(dir)).some((f) => f.rule === 'partial-unnamed'));
 });
 
+test('capture-completeness: a page that SAYS it failed to render is flagged, though it arrived whole', () => {
+  // The gap `completeness` cannot see. It grades the TRANSPORT - how much of the response
+  // arrived - and a page whose body is built by script arrives complete and empty. Found
+  // when a GitHub Discussion graded `full` while carrying page furniture and no discussion.
+  const dir = makePassingProject();
+  const capture = readCorpus(dir).captures.entries[0];
+  corrupt(dir, capture.file, (text) => `${text}\n\nThere was an error while loading. Please reload this page.\n`);
+
+  const findings = runCheck('capture-completeness', snapshot(dir));
+  const hit = findings.find((f) => f.rule === 'partial-render');
+  assert.ok(hit, 'a page reporting its own load failure must be reported');
+  assert.equal(hit.severity, 'warn', 'three of four real matches were usable captures, so this cannot block');
+  assert.match(hit.detail, /Confirm the text cited from it is present/);
+
+  // The grade is untouched: the bytes really did all arrive. Saying otherwise would make
+  // `completeness` lie about the transport in order to describe the content.
+  assert.equal(readCorpus(dir).captures.entries[0].completeness, 'full');
+});
+
+test('capture-completeness: an ordinary capture is not accused of failing to render', () => {
+  // The false-positive guard. This rule matches sentences a page PRINTS, so a corpus of
+  // normal pages must stay silent - otherwise the warning becomes noise and gets ignored,
+  // which is worse than not having it.
+  const findings = runCheck('capture-completeness', snapshot(makePassingProject()));
+  assert.ok(!findings.some((f) => f.rule === 'partial-render'));
+});
+
 test('hygiene: a capture nobody cites is a warning, never a failure', () => {
   const dir = makePassingProject();
   writeText(resolve(dir, `${PATHS.raw}/2026-01-01-orphan-example-00000000.md`), '---\nurl: https://example.invalid/orphan\nretrieved: 2026-01-01\n---\n\nbody\n');

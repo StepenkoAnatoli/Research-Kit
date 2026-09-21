@@ -287,6 +287,12 @@ function subtopicCoverage(corpus) {
 
 // ---------------------------------------------------------------- 8. capture-completeness
 
+/** How many render-failure notices this capture's page printed, or 0. */
+function renderFailureMarkers(corpus, capture) {
+  return corpus.captures.renderFailures?.get(capture.file) ?? 0;
+}
+
+
 function captureCompleteness(corpus) {
   const out = [];
   for (const unknown of corpus.unknowns) {
@@ -309,6 +315,29 @@ function captureCompleteness(corpus) {
       out.push(finding('warn', 'capture-completeness', 'partial-unnamed',
         `${capture.file} is graded partial but does not say what was omitted`, { file: capture.file }));
     }
+  }
+
+  // A page that SAYS it failed to render, in its own words.
+  //
+  // `completeness` grades the TRANSPORT - how much of the response arrived - and a page
+  // whose body is built by script arrives whole and empty. That gap was found the hard way:
+  // a GitHub Discussion graded `full` while carrying page furniture and no discussion.
+  //
+  // This does NOT claim a capture is empty, and the distinction is the whole reason it is
+  // worded the way it is. Measured over the 60 captures in this repository, four carry such
+  // a marker and THREE OF THOSE WERE USED AND CITED - GitHub renders the main content while
+  // some side widget fails. So the honest finding is "part of this page reported a failure,
+  // confirm the text you cite actually arrived", which was true in all four cases.
+  //
+  // Detecting emptiness itself was attempted and abandoned; ADR-0037 records the
+  // measurements, because both obvious heuristics fail in opposite directions.
+  for (const capture of corpus.captures.entries) {
+    const hits = renderFailureMarkers(corpus, capture);
+    if (!hits) continue;
+    out.push(finding('warn', 'capture-completeness', 'partial-render',
+      `${capture.file} contains ${hits} render-failure notice(s) from the page itself - `
+      + 'it arrived whole, so `completeness` cannot see this. Confirm the text cited from it is present',
+      { file: capture.file }));
   }
   if (!out.length) out.push(finding('pass', 'capture-completeness', 'completeness', 'no closed unknown rests on a partial capture alone'));
   return out;
