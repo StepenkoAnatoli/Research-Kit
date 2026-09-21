@@ -98,6 +98,7 @@ node research-kit/bin/handoff.mjs     # did the corpus arrive whole?
 | `artifact.mjs` | the portable package: `create` (derives authorization, never takes it) and `validate` (offline, read-only) |
 | `collect-remote.mjs` | run the collector on GitHub and bring the result back (`--repository`, `--topic`, `--json`) |
 | `mcp-server.mjs` | the collector as an MCP server over stdio, for an agent that speaks the protocol |
+| `disclosure.mjs` | what a stranger can read of a workflow run (`--repository`, `--run`, `--topic`), unauthenticated and read-only |
 | `selftest.mjs` | the whole suite, offline |
 
 ## The portable artifact
@@ -245,16 +246,38 @@ name, both readable by anyone who can read the repository. Use an opaque job id
 (`job-0417`); never put the subject in it. `layoff-plan-q3` fits the permitted shape
 perfectly, which is why the workflow warns rather than pretending a regex could judge it.
 
-**Privacy, stated honestly.** The topic is in neither the run name nor the artifact name,
-because an anonymous caller can read both listings on a public repository. But
-`workflow_dispatch` inputs *are* visible on the run page to anyone with read access — this
-reduces incidental exposure, it does not make a public run private. Sensitive research
-belongs in a private repository on a plan that supports environments there; converting a
-GitHub Free repository to private makes its protection rules and environment secrets
-**ignored** rather than refused.
+**Privacy, measured rather than assumed.** An earlier version of this paragraph said
+dispatch inputs are visible on the run page to anyone with read access. That was asserted,
+not checked, and checking it found the opposite. Measure it yourself:
 
-**Still unproven:** the runner-side `npm install -g firecrawl@<version>` path has never
-executed. Closing it needs the environment, the secret, and one real dispatch.
+```bash
+node research-kit/bin/disclosure.mjs --repository OWNER/REPO --run <id> --topic "..."
+```
+
+Unauthenticated, on this repository, 2026-09-21:
+
+| probe | result |
+|---|---|
+| run metadata, step names, timing, artifact **listing** | `200` readable |
+| artifact **download** | `401` refused |
+| job **logs** | `403` refused |
+| repository secrets | `401` refused |
+
+The topic appeared in **none** of the readable responses. A stranger learns the *shape* of
+a run — that one happened, when, how long, what the steps were called, that an artifact of
+N bytes exists — and not its subject or its contents.
+
+That is why keeping the topic out of the run name and the artifact name is the *primary*
+control rather than a minor one: those names are the disclosure surface, and they are the
+part the workflow governs.
+
+**Not measured, and so not claimed:** what a signed-in user sees in the web UI, which is a
+different surface from the REST API. Treat it as unknown rather than as safe.
+
+**Going private is not the reflex fix.** On a GitHub Free plan — which this account is on —
+converting a repository to private makes its protection rules and environment secrets
+**ignored** rather than refused. The collector would stop working, safely but confusingly.
+That is a plan change, not a visibility toggle.
 
 **An artifact is transport, not archival storage.** Workflow artifacts last at most 90
 days on a public repository and vanish with the run that produced them. Anything that must
@@ -372,7 +395,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-815 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+824 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

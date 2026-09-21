@@ -39,13 +39,33 @@ name: collect
 # and artifact listing all return 200 unauthenticated; secrets 401 and raw logs 403). A
 # name leaks before anybody opens anything, so neither carries the topic.
 #
-# BUT READ THIS BEFORE RESEARCHING ANYTHING SENSITIVE ON A PUBLIC REPOSITORY.
-# `workflow_dispatch` inputs are themselves visible on the run page to anyone with read
-# access. Keeping the topic out of the names reduces incidental exposure in listings; it
-# does NOT make a public run private. Sensitive research belongs in a private repository
-# on a plan that supports environments there - and per E-06, converting a GitHub Free
+# WHAT A PUBLIC RUN ACTUALLY EXPOSES, MEASURED RATHER THAN ASSUMED.
+#
+# An earlier version of this comment said dispatch inputs are visible on the run page to
+# anyone with read access. That was asserted, not checked, and checking it found the
+# opposite. Unauthenticated, on this repository, on 2026-09-21:
+#
+#   200  run metadata, jobs and step names, timing, artifact LISTING   readable
+#   401  artifact DOWNLOAD                                             refused
+#   403  job LOGS                                                      refused
+#   401  repository secrets                                            refused
+#
+# The topic appeared in none of the readable responses. So a stranger learns the SHAPE of
+# a run - that one happened, when, how long it took, what the steps were called, that an
+# artifact of N bytes exists - and not its subject or its contents.
+#
+# That is why the naming rules above are the primary control rather than a minor one: the
+# names are the disclosure surface, and they are the part this workflow governs.
+#
+# Re-run the measurement instead of trusting this comment, which can go stale:
+#   node research-kit/bin/disclosure.mjs --repository OWNER/REPO --run <id> --topic "..."
+#
+# What is NOT measured here: what a signed-in user with read access sees in the web UI,
+# which is a different surface from the REST API. Treat that as unknown rather than safe.
+#
+# And the reason going private is not the reflex fix: per E-06, converting a GitHub Free
 # repository from public to private makes its protection rules and environment secrets
-# IGNORED rather than refused, so that is a plan change, not a visibility toggle.
+# IGNORED rather than refused. That is a plan change, not a visibility toggle.
 #
 # NOTHING IS INTERPOLATED INTO A SHELL
 #
