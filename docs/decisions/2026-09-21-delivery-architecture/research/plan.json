@@ -1,0 +1,22 @@
+{
+  "topic": "How Research-Kit should be delivered to a non-technical user",
+  "notes": "Direct URLs only, no search queries: every page here was chosen because it owns one unknown in research/DISCOVERY.md, and a search would spend credits ranking pages already known. Each URL was confirmed to answer HTTP 200 before collection, so no credit is spent on a 404 (a page that 404s is still delivered and still charged - E-13 in the parent corpus).",
+  "depth": "normal",
+  "refreshDays": 30,
+  "limit": 6,
+  "perQuery": 2,
+  "maxScrapes": 12,
+  "prefer": ["docs.github.com", "nodejs.org"],
+  "queries": [],
+  "urls": [
+    "https://docs.github.com/en/rest/actions/workflows",
+    "https://docs.github.com/en/actions/concepts/workflows-and-actions/workflow-artifacts",
+    "https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository",
+    "https://docs.github.com/en/billing/concepts/product-billing/github-actions",
+    "https://nodejs.org/api/single-executable-applications.html",
+    "https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments",
+    "https://docs.github.com/en/actions/concepts/security/secrets",
+    "https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows",
+    "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax"
+  ]
+}
