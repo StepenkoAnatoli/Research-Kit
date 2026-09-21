@@ -157,6 +157,25 @@ reaches 1.1, or if artifact download proves too awkward in practice.
 > sentence that looks like a citation. `corroboration` could not have caught it; the claim
 > was not under-sourced, it was unsourced and adjacent to a sourced one.
 
+> **Decision, 2026-09-21 — the `.exe` is REJECTED, not deferred.** Operator's call, taken
+> once the stability objection was withdrawn and the question was no longer technical.
+>
+> The `.exe` was argued for a person who does not use a terminal. That person is now served
+> without one: `bin/collect-remote.mjs` dispatches a collection and fetches the corpus, and
+> `bin/mcp-server.mjs` exposes the same seam to an agent. Neither needs a packaged binary,
+> and both already work.
+>
+> What rejecting it costs, stated so it is not discovered later: there is still **no offline
+> path**. Everything routes through a GitHub runner, so a machine with no network, or an
+> operator without a GitHub account, cannot collect at all. That is a real limitation and it
+> is accepted deliberately rather than papered over — the kit itself already runs locally
+> from a terminal for anyone who has one.
+>
+> **Reopening is cheap and the research is now done.** The route is an asset-aware branch in
+> `lib/scaffold.mjs`, `lib/decompose.mjs` and `lib/artifact-validator.mjs`, at Stability 1.1,
+> evidenced in `docs/decisions/2026-09-21-sea-assets/`. If an offline operator ever turns up,
+> nothing here has to be re-researched.
+
 **Hybrid first.** The strongest long-term shape and the most work, and it needs the
 collector anyway. It is what the collector grows into, not an alternative to building it.
 
@@ -180,6 +199,17 @@ it.
 
   The second is still open and always will be by this route — it is a usability question,
   and no vendor page answers it.
+
+  **Closed by decision, 2026-09-21, not by evidence.** With the `.exe` rejected above, the
+  question "is artifact download ergonomic enough to justify building a binary instead" no
+  longer has a decision hanging on it: there is no alternative left for it to be compared
+  against. It stops being a gap and becomes ordinary feedback — if download proves painful
+  in use, that is a reason to reopen the `.exe`, and the route is already researched.
+
+  Recording *how* it closed matters as much as that it did. A usability question was never
+  going to be answered by collection, and carrying it as an open gap indefinitely would have
+  made the gap list less honest, not more: an item nothing could ever close reads like
+  diligence while functioning as noise.
 - The preliminary note keeps its text. It was right about the behaviour it observed and
   wrong about the cause, and rewriting it would erase the most useful thing in this
   decision: that reading a page and running the call gave different answers, and only

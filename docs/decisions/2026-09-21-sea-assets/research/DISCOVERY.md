@@ -46,7 +46,7 @@ would have made the corpus look broader than it is.
 
 ## Questions for the human (maximum 3)
 
-1. Is a Windows `.exe` still wanted now that the agent path exists? The MCP server and
+1. ~~Is a Windows `.exe` still wanted~~ **ANSWERED 2026-09-21: no.** Rejected on scope by the operator; ADR-0031 records it. Original question kept as asked: Is a Windows `.exe` still wanted now that the agent path exists? The MCP server and
    `collect-remote.mjs` reach the collector without one, and the `.exe` was argued for a
    person who does not use a terminal rather than for an agent.
 

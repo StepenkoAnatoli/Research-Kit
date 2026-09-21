@@ -44,6 +44,15 @@ wanted now that the agent path exists. The MCP server and `collect-remote.mjs` a
 the collector without one, and the `.exe` was argued for a person who does not use a
 terminal rather than for an agent. That is the single question carried to the human.
 
+> **Answered 2026-09-21: not wanted.** The operator rejected the `.exe` on scope once the
+> stability objection was gone. ADR-0031 records it as rejected rather than deferred, along
+> with what that costs — there is still no offline path — and the fact that reopening it
+> needs no new research, because this corpus is the research.
+>
+> Worth noting what this brief did *not* do: it did not recommend building the thing it had
+> just unblocked. Removing an objection is not the same as making a case, and the corpus had
+> nothing to say about whether anyone wanted it.
+
 The cost is also now visible rather than assumed: taking the 1.1 route means the three
 runtime reads in `lib/scaffold.mjs`, `lib/decompose.mjs` and `lib/artifact-validator.mjs`
 need an asset-aware branch. That is real work, and it is a different objection from the one

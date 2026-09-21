@@ -63,9 +63,15 @@ what has been established.
   that is exactly why the gap deserved naming rather than assuming: the workflow installed
   `firecrawl`, which on npm is the SDK and ships no binary at all. The CLI is
   `firecrawl-cli`, and no amount of reading the documentation would have found it.
-- **Whether artifact download is ergonomic for the intended operator.** A usability
-  question. No quantity of vendor documentation answers it, and this corpus does not
-  pretend to.
+- ~~**Whether artifact download is ergonomic for the intended operator.**~~ **Closed by
+  decision 2026-09-21, not by evidence.** A usability question. No quantity of vendor
+  documentation answers it, and this corpus never pretended to — it was carried because the
+  answer would have decided between the artifact route and a local `.exe`.
+  `docs/decisions/2026-09-21-sea-assets/` removed the technical objection to the `.exe`, and
+  the operator then rejected it on scope: the agent path already serves a person without a
+  terminal. With no alternative left to compare against, the question stops being a gap and
+  becomes ordinary feedback. If download proves painful in use, that reopens the `.exe`, and
+  the route is already researched.
 
 ## Corroboration, 2026-09-21
 
