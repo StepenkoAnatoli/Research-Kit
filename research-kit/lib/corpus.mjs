@@ -13,6 +13,7 @@ import {
   PATHS, HEADERS, resolve, relative, exists, isDirectory, readText, readJson,
   writeText, appendLine, listFiles, sha256File, ageInDays, hostOf,
 } from './core.mjs';
+import { sketch } from './similarity.mjs';
 
 // ---------------------------------------------------------------- table machinery
 
@@ -161,6 +162,7 @@ export function readCaptures(root) {
   const dir = resolve(root, PATHS.raw);
   const entries = [];
   const problems = [];
+  const sketches = new Map();
   for (const name of listFiles(dir).sort()) {
     if (name.startsWith('.')) continue;
     const abs = path.join(dir, name);
@@ -172,6 +174,7 @@ export function readCaptures(root) {
     if (!front.url) {
       problems.push({ kind: 'capture-no-url', file: rel, detail: 'capture has no url in its front-matter' });
     }
+    sketches.set(rel, sketch(body));
     entries.push(captureEntry({
       file: rel,
       url: front.url,
@@ -193,7 +196,10 @@ export function readCaptures(root) {
     const held = byUrl.get(entry.url);
     if (!held || String(entry.retrieved) >= String(held.retrieved)) byUrl.set(entry.url, entry);
   }
-  return { entries, byUrl, byFile, problems };
+  // Sketches ride alongside the index rather than inside `captureEntry`, because an entry
+  // is serialised into artifact manifests and a 128-value fingerprint per capture would
+  // bloat every package to answer a question only one check asks (ADR-0036 amendment).
+  return { entries, byUrl, byFile, sketches, problems };
 }
 
 /** The one writer of the in-memory index, for a URL collected mid-run. */

@@ -160,6 +160,9 @@ be one witness; ADR-0036 already said that. It is that two hosts can be one witn
 staleness the freshness check cannot see*, because `freshness` grades when the page was
 **fetched** and this one was fetched today.
 
+> **Superseded the same day — the "no code changes" conclusion below was wrong, and is
+> now implemented as `lib/similarity.mjs`. See the amendment that follows.**
+
 **No code changes.** Detecting mirrors means comparing document content or parsing version
 strings out of vendor pages, and a check that guessed at either would be the reasoning-grader
 ADR-0013 refused. What changes is what a reviewer is told to do: **`independent` is a prompt
@@ -169,6 +172,72 @@ Recorded live rather than reasoned about: the corpus that found it
 (`docs/decisions/2026-09-21-sea-assets/`) keeps the mirror as an uncited row and accepts two
 `single-source` warnings instead — the correct trade, and the one the check's grades
 currently push against.
+
+## Amendment, 2026-09-21 — the mirror IS detectable, and "grading meaning" was a dodge
+
+The amendment above concluded that a mirror could only be caught by "comparing document
+content … which would be the reasoning-grader ADR-0013 refused". **The first half named the
+solution and the second half talked itself out of it.**
+
+Comparing document content is not grading meaning. It asks whether two byte streams are
+substantially the same text, which is arithmetic. It judges nothing, cannot tell a correct
+page from a wrong one, and does not try — `lib/similarity.mjs` says so at the top. ADR-0013
+refuses checks that grade *how an agent reasoned*; it does not refuse checks that measure.
+Reaching for it here was an argument for doing nothing.
+
+### What was built
+
+`corroboration` no longer counts hosts. It groups an unknown's rows into distinct
+**documents** first, then counts hosts among those:
+
+| rule | when | severity |
+|---|---|---|
+| `single-source` | one row | `warn` |
+| `one-voice` | several rows, one host after grouping | `warn` |
+| `mirror` | several hosts, but all one document | `warn` |
+| `independent` | several distinct documents, several hosts | `pass` |
+
+A three-row unknown where two rows mirror each other still counts the third, and the
+`independent` detail now states how many rows were folded — so three rows buying two
+witnesses is visible rather than absorbed.
+
+### The threshold is measured, not chosen
+
+Every capture pair in this repository was compared — 47 captures, 1081 pairs:
+
+| | Jaccard |
+|---|---|
+| the known stale mirror (`nodejs.org` × `lira.epac.to`, six majors apart) | **0.3879** |
+| highest-scoring genuinely *different* cross-host pair | **0.0275** |
+| median cross-host pair | 0.0000 |
+
+A fourteen-fold gap. `MIRROR_THRESHOLD = 0.25` sits ~9× above the strongest false-positive
+candidate and below the hardest true positive — and the *stale* mirror is the hard case,
+because a current one scores ~0.99. The 128-hash sketch tracks exact Jaccard to within
+0.048 across all 1081 pairs, verified rather than assumed.
+
+### Two properties that matter more than the threshold
+
+**`null` never means "different".** A document below `MIN_SHINGLES` is unjudgeable, and two
+unjudgeable rows stay two documents rather than merging into an invented mirror. The
+conservative direction for a check that can only ever *reduce* apparent corroboration.
+
+**Hashing is seeded FNV-1a, not `Math.random`.** A fingerprint that decides a gate finding
+has to grade the same corpus identically on every machine, or a corpus passes on one
+developer's laptop and fails in CI for reasons nobody can reproduce.
+
+### What it changed in this repository
+
+Nothing, and that is the finding. All five corpora report identical verdicts — no existing
+citation was secretly a mirror. The check was built for a hole found by collection, not for
+a defect already in the corpus, and it now stands in front of the corroboration sweep that
+will add ~30 second sources, where a mirror slipping in as `independent` is a live risk
+rather than a hypothetical one.
+
+One existing assertion moved: `corroboration: two hosts is independent support` matched
+`2 rows across 2 hosts` and now matches `2 distinct documents across 2 hosts`. Its two rows
+name a capture the fixture does not have, so neither has a sketch — which makes it the
+regression test for the `null` rule as well.
 
 ## What this ADR does not claim
 

@@ -9,6 +9,7 @@
 
 import { hostOf, PATHS, resolve, exists, ageInDays } from './core.mjs';
 import { captureOf, traceOf, citedIds } from './corpus.mjs';
+import { documentGroups } from './similarity.mjs';
 import { coverageOfUniversals } from './dimensions.mjs';
 import { verifyLedger } from './provenance.mjs';
 
@@ -534,8 +535,31 @@ function corroboration(corpus) {
       continue;
     }
 
+    // Several hosts is where the host heuristic used to stop and say `independent`. A
+    // mirror passes that test while carrying LESS than either genuine page, so the rows
+    // are grouped into distinct DOCUMENTS before the hosts are counted again.
+    const groups = documentGroups(rows.map((row) => corpus.captures.sketches?.get(captureOf(corpus, row)?.file) ?? null));
+    if (groups.length === 1) {
+      out.push(finding('warn', 'corroboration', 'mirror',
+        `${unknown.id} cites ${rows.length} rows across ${hosts.size} hosts but they are the same document - a republished copy is one witness, and the copy may be the stale one`,
+        { row: unknown.id, line: unknown.line }));
+      continue;
+    }
+
+    // Hosts that survive as DISTINCT documents. A three-row unknown where two rows mirror
+    // each other still counts the third, so this reports what is actually independent.
+    const distinctHosts = new Set(groups.map((g) => hostOf(rows[g[0]].url)).filter(Boolean));
+    if (distinctHosts.size === 1) {
+      out.push(finding('warn', 'corroboration', 'one-voice',
+        `${unknown.id} cites ${rows.length} rows across ${hosts.size} hosts, but after grouping republished copies only ${[...distinctHosts][0]} remains - one voice`,
+        { row: unknown.id, line: unknown.line }));
+      continue;
+    }
+
+    const mirrored = rows.length - groups.length;
     out.push(finding('pass', 'corroboration', 'independent',
-      `${unknown.id} rests on ${rows.length} rows across ${hosts.size} hosts`,
+      `${unknown.id} rests on ${groups.length} distinct documents across ${distinctHosts.size} hosts`
+        + (mirrored ? ` (${mirrored} of ${rows.length} rows are republished copies and were not counted twice)` : ''),
       { row: unknown.id, line: unknown.line }));
   }
 
