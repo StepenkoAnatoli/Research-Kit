@@ -67,6 +67,13 @@ what has been established.
   question. No quantity of vendor documentation answers it, and this corpus does not
   pretend to.
 
+## Corroboration, 2026-09-21
+
+Three more pages, into the same ledger - twelve entries, one unbroken chain. They are
+second sources for the three claims that carry decisions (U-1, U-3, U-5), not new
+subtopics, so no row above changes status. What changed is that those three rows no longer
+rest on a single reading.
+
 ## Candidate material
 
 Gathered 2026-09-21. No search was run: the nine URLs were chosen directly, one per

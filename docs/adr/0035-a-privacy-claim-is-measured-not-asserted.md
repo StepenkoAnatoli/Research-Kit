@@ -99,6 +99,26 @@ group), and the API refuses them to a stranger with `403 Must have admin rights 
 Repository`. Whether the UI is equally strict for a signed-in reader is **unknown**, and
 "unknown" is what the documentation now says rather than "safe".
 
+### Corroborated, 2026-09-21 — and going private fails earlier than this ADR said
+
+Decision 1 rested on E-06 alone. E-11, an independent reference page, states the same rule
+as availability rather than as consequence: "If you are using GitHub Free, environment
+secrets are only available in public repositories", with the identical note for required
+reviewers, wait timers, administrator bypass and custom protection rules.
+
+It also carries the part E-06 did not, and it changes the predicted failure. Environment
+**variables** are governed the same way — available for all public repositories, and for
+private ones only on Pro or Team. So a Free repository converted to private loses
+`RESEARCH_KIT_COLLECTION_ENV` as well as `FIRECRAWL_API_KEY`.
+
+This ADR predicted the collector would stop at the **credential** check. It would in fact
+stop one step earlier, at "the protected environment is the one that approved this run",
+reporting that the environment did not supply its marker — which reads as a missing or
+auto-created environment rather than as a plan limitation. Still a refusal rather than a
+silent spend, and a worse diagnostic than expected. The step's message already names the
+right fix for the wrong reason; anybody hitting it on a Free private repository should read
+this paragraph first.
+
 ## Alternatives considered
 
 **Go private anyway, to be safe.** Breaks the collector on this plan, for an exposure the
