@@ -1,7 +1,157 @@
 # Deep-Research-Agent
 
-Deep Research Agent — before build: topics / subtopics / scrape, and the
-research-first kit that gates the build on evidence (`research-kit/`).
+**Research first, build second.** This is a research kit that collects evidence from real
+sources, keeps a tamper-evident record of where every claim came from, and then *refuses to
+let a build start* until a person has reviewed it.
+
+It is for the case where an AI would otherwise guess: API limits, pricing, what a licence
+actually permits, whether a platform can do the thing you are planning around.
+
+---
+
+## Start here if this is new to you
+
+Five steps. You need a GitHub account and this repository. You do **not** need to install
+anything for steps 1-4.
+
+> **Two ways in, and this is the easier one.** These steps run everything on GitHub, from
+> the website. If you would rather install the kit and run it on your own machine, skip to
+> [Your first 30 minutes](#your-first-30-minutes) instead - same kit, same gate, more
+> control and more setup.
+
+### 1. Get a Firecrawl key
+
+Sign up at [firecrawl.dev](https://www.firecrawl.dev) and copy your API key from the
+dashboard. The free tier is 1,000 credits a month, no card, and it stops at zero rather
+than billing you.
+
+### 2. Put the key where only the collector can read it
+
+In **your** repository on GitHub:
+
+> **Settings** → **Environments** → **New environment** → name it `research-collection`
+>
+> → **Add secret**: name `FIRECRAWL_API_KEY`, value = your key
+> → **Add variable**: name `RESEARCH_KIT_COLLECTION_ENV`, value `research-collection`
+
+Both are needed. The *variable* is how the collector checks the environment really exists —
+GitHub silently creates an unprotected environment if a workflow names a missing one, and
+that would leave your key somewhere it should not be.
+
+⚠️ **Do not put the key in Settings → Secrets and variables → Actions.** That makes it
+readable by *every* workflow in the repository, including one added in a pull request. The
+collector has a check that refuses to run if it finds it there.
+
+### 3. Run a collection from the website
+
+> **Actions** tab → **collect** in the left sidebar → **Run workflow**
+
+Type your topic, leave the rest alone for a first run, press the green button. Start small:
+`max_pages: 1` and `depth: probe` costs about 3 credits.
+
+When it finishes, scroll to **Artifacts** at the bottom of the run and download the ZIP.
+
+### 4. Read what came back
+
+Open the ZIP and read **`README-FIRST.md`**. It will say:
+
+> **COLLECTED CORPUS — HUMAN REVIEW REQUIRED**
+
+**That is the correct result, not a problem.** The collector gathers evidence; it does not
+decide whether the research is any good. Three steps are yours, and no tool does them:
+
+1. Classify every row in `project/research/MAP.md`
+2. Rewrite every Finding in `project/research/EVIDENCE.md` into a claim you would defend
+3. Run preflight, then write and review the brief
+
+Until those are done, `manifest.json` says `"buildAuthorized": false` — meaning **do not
+start building from this yet**, and any AI reading it should refuse to as well.
+
+### 5. Check the package is intact (optional)
+
+```bash
+node research-kit/bin/artifact.mjs validate --file research-kit-corpus-v1-<something>.zip
+```
+
+`PASS` means the package is undamaged and its evidence chain verifies. It does **not** mean
+you may build — that is the separate `buildAuthorized` line, and the two are kept apart on
+purpose.
+
+---
+
+## Letting an AI agent run the collector
+
+An agent can do steps 3–5 for you. It needs a token, and that token should be able to do
+**one thing only**.
+
+### Where to get the token
+
+> **[github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new)**
+>
+> (or: your avatar → **Settings** → **Developer settings** → **Personal access tokens** →
+> **Fine-grained tokens** → **Generate new token**)
+
+| Field | Value |
+|---|---|
+| Token name | something recognisable, e.g. `research-collector-agent` |
+| Expiration | 30 days. Short is good — you can always make another |
+| Repository access | **Only select repositories** → pick this one |
+| Permissions → Repository → **Actions** | **Read and write** |
+| Everything else | leave alone |
+
+**`Actions: Read and write` is the only permission it needs.** With just that, the agent can
+start a collection and read the result. It **cannot** read or change your code, read your
+secrets, change settings, or reach any other repository. If it misbehaves, revoke the token
+— one click, and nothing else breaks.
+
+Copy the token when it is shown. GitHub will not show it again.
+
+### Give it to the agent
+
+Set it in the environment. **Never on a command line** — that ends up in your shell
+history, in the process list, and in any log that echoes the command. There is no
+`--token` flag, deliberately.
+
+```bash
+export RESEARCH_KIT_GITHUB_TOKEN=github_pat_...
+
+node research-kit/bin/collect-remote.mjs \
+  --repository OWNER/REPO \
+  --topic "What are the rate limits on the Stripe API" \
+  --max-pages 5 --json
+```
+
+Windows PowerShell:
+
+```powershell
+$env:RESEARCH_KIT_GITHUB_TOKEN = "github_pat_..."
+node research-kit/bin/collect-remote.mjs --repository OWNER/REPO --topic "..." --json
+```
+
+One command: it dispatches the run, prints the run id immediately, waits, downloads the
+artifact, unwraps it, and validates it.
+
+| Exit | Meaning |
+|---|---|
+| 0 | collected and valid — **still does not authorize building** |
+| 1 | the package is invalid |
+| 2 | the run failed, or the package is incomplete |
+| 3 | could not start: no token, bad repository, or no permission |
+| 4 | dispatched and still running when the wait ran out; the run id is on stdout |
+
+### What the agent must not do
+
+Read `buildAuthorized` and stop if it is `false`. **It will be `false` for everything this
+command returns**, because a freshly collected corpus has not been reviewed by anyone. An
+agent treating exit 0 as permission to build has skipped the only part that needed a person.
+
+---
+
+## Reference
+
+- [`research-kit/README.md`](research-kit/README.md) — every command, the artifact format, the transports
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — what each module owns
+- [`docs/adr/`](docs/adr/README.md) — why things are the way they are
 
 ## Supported platforms
 
@@ -84,6 +234,10 @@ outputs for training — a reasonable thing to opt into knowingly, and not a rea
 default ([research/BRIEF.md](research/BRIEF.md)).
 
 ## Your first 30 minutes
+
+**The local path**, for running the kit on your own machine rather than on GitHub. If you
+just want research back and do not care where it runs,
+[Start here](#start-here-if-this-is-new-to-you) is shorter.
 
 One path, in order. Nothing here needs a credential — steps 1–4 and 7 are entirely
 offline, and only step 6 can spend anything.

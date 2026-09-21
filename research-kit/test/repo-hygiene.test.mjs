@@ -73,3 +73,20 @@ test('the gate writes only to paths git is told to ignore', () => {
     'the gate appends to research/raw/.diagnostics.jsonl on every invocation, and that '
     + 'path is no longer ignored - so every verification will dirty the working tree');
 });
+
+test('the kit README has no parent-relative link, because it ships standalone', () => {
+  // `install.mjs` deploys research-kit/ to ~/.agents/research-kit with its README. There
+  // is no ~/.agents/README.md, so a `](../README.md)` link is broken for everybody using
+  // the installed kit - which is everybody not reading the repository. Absolute URLs
+  // resolve from both places; a relative one resolves from exactly one.
+  const readme = path.join(KIT_ROOT, 'README.md');
+  if (!fs.existsSync(readme)) return;
+  const text = fs.readFileSync(readme, 'utf8');
+  const broken = text.split('\n')
+    .map((line, i) => ({ line, at: i + 1 }))
+    .filter(({ line }) => /\]\(\.\.\//.test(line))
+    .map(({ line, at }) => `README.md:${at}  ${line.trim()}`);
+
+  assert.deepEqual(broken, [],
+    'these links assume a parent directory that does not exist in a deployed kit:\n  ' + broken.join('\n  '));
+});
