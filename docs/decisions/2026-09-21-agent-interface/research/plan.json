@@ -1,0 +1,15 @@
+{
+  "topic": "Model Context Protocol MCP server transports authentication and long running tool calls",
+  "notes": "Second pass, 2026-09-21: the gate refused the brief because D-9 (output obtainability) and D-11 (specification governance) were GAPs. These two URLs are chosen to close them. Appending to the SAME project so the additions join the same hash chain - two separate runs would be two chains, and a merged chain is a forged one.",
+  "depth": "quick",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 3,
+  "maxScrapes": 4,
+  "prefer": [],
+  "queries": [],
+  "urls": [
+    "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
+    "https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning"
+  ]
+}
