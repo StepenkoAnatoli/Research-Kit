@@ -7,7 +7,7 @@
 // A check emits findings. It never decides what a finding MEANS for the build - that is
 // the verdict's single judgement, in lib/preflight.mjs.
 
-import { PATHS, resolve, exists, ageInDays } from './core.mjs';
+import { hostOf, PATHS, resolve, exists, ageInDays } from './core.mjs';
 import { captureOf, traceOf, citedIds } from './corpus.mjs';
 import { coverageOfUniversals } from './dimensions.mjs';
 import { verifyLedger } from './provenance.mjs';
@@ -477,6 +477,72 @@ function corpusShape(corpus) {
   return out;
 }
 
+
+// ---------------------------------------------------------------- 13. corroboration
+
+/**
+ * How many independent readings does a closed unknown rest on?
+ *
+ * WHY THIS EXISTS. Every check before it asks whether a claim is BACKED - is there a row,
+ * is there a capture, does the chain verify, is it fresh, is it primary. None of them asks
+ * whether it is backed more than once, so a corpus in which every unknown rested on a
+ * single page passed preflight and `--strict` with nothing to say about it. From inside
+ * such a corpus, a single CORRECT source and a single LUCKY one are indistinguishable.
+ *
+ * Found in this repository's own delivery-architecture corpus on 2026-09-21: nine rows,
+ * all primary, all complete, all fresh - and eight unknowns each resting on exactly one of
+ * them. Three of those eight carried architecture decisions.
+ *
+ * WHY IT IS A WARNING. Single-sourcing is often the right answer: a vendor's own API
+ * reference is the authority on that API, and demanding a second opinion about it would be
+ * ceremony. This check refuses to make that judgement - it reports the shape of the
+ * support so a reviewer can make it. `evidencePolicy=strict` or `--strict` is where an
+ * operator says they want the harder rule.
+ *
+ * WHY THE HOST MATTERS. Two pages from one vendor are not two witnesses. They are one
+ * witness read twice, which catches a misreading and cannot catch a vendor being wrong
+ * about itself. The finding says which of those it found, because the remedies differ:
+ * one wants another page, the other wants another party.
+ */
+function corroboration(corpus) {
+  const out = [];
+  const byId = new Map(corpus.evidence.map((row) => [row.id.toUpperCase(), row]));
+
+  for (const unknown of corpus.unknowns) {
+    // A KNOWN-UNKNOWN rests on nothing by definition, and unknown-closure already owns
+    // the case of a CLOSED one citing no row at all.
+    if (unknown.status !== 'CLOSED') continue;
+
+    const rows = unknown.cites
+      .filter((id) => /^E-\d+$/i.test(id))
+      .map((id) => byId.get(id.toUpperCase()))
+      .filter(Boolean);
+    if (!rows.length) continue;
+
+    if (rows.length === 1) {
+      out.push(finding('warn', 'corroboration', 'single-source',
+        `${unknown.id} rests on ${rows[0].id} alone - one reading, so a correct source and a lucky one look the same`,
+        { row: unknown.id, line: unknown.line }));
+      continue;
+    }
+
+    const hosts = new Set(rows.map((row) => hostOf(row.url)).filter(Boolean));
+    if (hosts.size === 1) {
+      out.push(finding('warn', 'corroboration', 'one-voice',
+        `${unknown.id} cites ${rows.length} rows and all are ${[...hosts][0]} - a second reading of one source, which catches a misreading and not a source that is wrong about itself`,
+        { row: unknown.id, line: unknown.line }));
+      continue;
+    }
+
+    out.push(finding('pass', 'corroboration', 'independent',
+      `${unknown.id} rests on ${rows.length} rows across ${hosts.size} hosts`,
+      { row: unknown.id, line: unknown.line }));
+  }
+
+  if (!out.length) out.push(finding('pass', 'corroboration', 'support', 'no closed unknown to weigh'));
+  return out;
+}
+
 // ---------------------------------------------------------------- the registry
 
 /** Order is part of the interface: a failure a person must act on precedes a warning. */
@@ -493,6 +559,7 @@ export const CHECKS = Object.freeze([
   { name: 'collection-attempts', about: 'a known-unknown was reached for before it was declared unreachable', run: collectionAttempts },
   { name: 'hygiene', about: 'duplicate rows, uncited captures, unparseable dates', run: hygiene },
   { name: 'corpus-shape', about: 'the corpus parses and the shape is there', run: corpusShape },
+  { name: 'corroboration', about: 'how many independent readings a closed unknown rests on', run: corroboration },
 ]);
 
 export const CHECK_NAMES = Object.freeze(CHECKS.map((c) => c.name));

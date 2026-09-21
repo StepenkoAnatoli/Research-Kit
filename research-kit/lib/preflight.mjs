@@ -9,8 +9,16 @@ import { verifyLedger } from './provenance.mjs';
 import { runChecks, CHECK_NAMES } from './checks.mjs';
 import { evidencePolicy, loadConfig, localHooksPathOverride } from './machine.mjs';
 
-/** Findings these checks raise are warnings under `pluralist`, failures under `strict`. */
-const POLICY_CHECKS = new Set(['transport-provenance', 'capture-completeness']);
+/**
+ * Findings these checks raise are warnings under `pluralist`, failures under `strict`.
+ *
+ * All three are questions an EVIDENCE POLICY should answer rather than the kit: how the
+ * capture was fetched, how much of the page arrived, and how many independent readings a
+ * claim rests on. Each has a defensible lenient answer - an agent page-fetch is still a
+ * fetch, a partial capture can still contain the sentence, and a vendor's own reference
+ * is the authority on that vendor. `strict` is where an operator says otherwise.
+ */
+const POLICY_CHECKS = new Set(['transport-provenance', 'capture-completeness', 'corroboration']);
 
 export function readGateState(root, env = process.env) {
   return {
