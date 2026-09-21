@@ -412,6 +412,7 @@ each line — is in the ADR named beside it and in
 | **No dispatch input reaches a shell**: `${{ inputs.x }}` inside a `run:` block is substitution *before* the shell parses, so inputs arrive through `env:` and then an argv array. Enforced across **every** workflow, not only the newest | [ADR-0033](adr/0033-the-collector-refuses-rather-than-degrades.md), ADR-0020 |
 | The collector's spend gate is a **protected environment whose existence is proven**, because GitHub silently creates an *unprotected* one when a workflow names a missing environment; a missing credential **refuses** rather than falling back to a keyless route | ADR-0033 |
 | A credential that resolves in a job declaring **no** environment is **not behind the approval gate**, and fails the run: the scope question GitHub will not answer directly is answered by asking it from a context that can see only one scope | ADR-0033 |
+| A module **exports only what something else imports** — a test-only seam counts, a promise with no reader does not. Eleven such exports arrived with the artifact and dispatch work and were narrowed back to module scope on 2026-09-21 | — |
 | A template token substituted into a **`.json`** file is JSON-escaped; markdown gets it verbatim | ADR-0033 (found by a hostile topic) |
 | Supported CI platforms are **Linux and Windows**; macOS is best-effort and untested | [README](../README.md#supported-platforms) |
 | The project is the **current working directory**; there is no `--project` | ADR-0017 |
