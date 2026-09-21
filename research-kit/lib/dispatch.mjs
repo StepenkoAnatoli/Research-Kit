@@ -121,7 +121,20 @@ export async function dispatchCollection({
     response = await doFetch(url, {
       method: 'POST',
       headers: { ...headers(token), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ref, inputs: stringifyInputs(inputs) }),
+      // BOTH belts. The pinned API version makes run details the default, and
+      // `return_run_details` asks for them explicitly - the parameter GitHub added on
+      // 2026-02-19 for callers still on 2022-11-28 (E-13 of the delivery corpus).
+      //
+      // Sending both is measured-safe, not assumed-safe. Four calls against this
+      // repository on 2026-09-21, no parameter unless stated:
+      //   2022-11-28, no param                    -> 204 No Content
+      //   2026-03-10, no param                    -> 200 + workflow_run_id
+      //   2022-11-28, return_run_details=true     -> 200 + workflow_run_id
+      //   2026-03-10, return_run_details=true     -> 200 + workflow_run_id
+      //
+      // So a server that ignores or downgrades the pinned header still answers with a run
+      // id, and NO_RUN_ID stops being reachable by version drift alone.
+      body: JSON.stringify({ ref, inputs: stringifyInputs(inputs), return_run_details: true }),
     });
   } catch (err) {
     throw new DispatchError('NETWORK', `could not reach ${api}: ${redact(err.message)}`,
@@ -134,9 +147,11 @@ export async function dispatchCollection({
       'the dispatch succeeded but returned 204 No Content, so the run it started cannot be identified',
       {
         status: 204,
-        remedy: `the server served API version 2022-11-28 despite the pinned header. `
-          + `Confirm X-GitHub-Api-Version: ${API_VERSION} reached it; without a run id the only fallback is `
-          + 'polling /actions/runs and correlating by created_at, which races other dispatches.',
+        remedy: `the server ignored BOTH routes to a run id: the pinned `
+          + `X-GitHub-Api-Version: ${API_VERSION} and the return_run_details parameter. `
+          + 'That is a server old enough to predate 2026-02-19, or a proxy stripping one and '
+          + 'rejecting the other. Polling /actions/runs and correlating by created_at is the '
+          + 'last resort and races other dispatches.',
       });
   }
   if (response.status === 404) {

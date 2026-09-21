@@ -383,6 +383,22 @@ function withRealPages(pages) {
   return withEvidence(dir, rows, pages.map((_, i) => `E-0${i + 1}`).join(' and '));
 }
 
+test('corroboration: a row named twice in the prose is one source, not a mirror of itself', () => {
+  // Found by running the document grouping over a real corpus. `citedIds` returns every
+  // E-## mention in the Evidence cell, so prose that names E-01 twice yielded the SAME row
+  // twice; grouping then folded the duplicate and reported a "republished copy" about a row
+  // that was only ever mentioned twice. Host-counting hid it - duplicates inflated the row
+  // count but collapsed in the host Set, so the old finding was right by accident.
+  const dir = withEvidence(makePassingProject(), [
+    '| E-01 | 2026-09-14 | P | https://example.invalid/docs/limits | ten a minute | research/raw/x.md |',
+  ], 'E-01 says ten a minute, and E-01 also gives the credit total');
+
+  const findings = runCheck('corroboration', snapshot(dir));
+  assert.equal(findings[0].rule, 'single-source', 'one row mentioned twice is still one row');
+  assert.match(findings[0].detail, /rests on E-01 alone/);
+  assert.doesNotMatch(findings[0].detail, /republished/);
+});
+
 test('corroboration: a stale mirror on a second host is one document, not two witnesses', () => {
   const dir = withRealPages([
     { url: 'https://nodejs.org/api/single-executable-applications.html', markdown: realCapture('-nodejs-') },

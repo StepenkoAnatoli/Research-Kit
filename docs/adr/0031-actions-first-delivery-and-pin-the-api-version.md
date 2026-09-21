@@ -53,6 +53,31 @@ reads `workflow_run_id` from the `200` body. Polling `/runs` and correlating by
 is the durable rule: the endpoint's contract demonstrably differs between versions, and the
 unpinned default is the deprecated one.
 
+> **Amendment, 2026-09-21 — the fallback was wrong, and a corroborating source found it.**
+> Evidence: E-13/E-14 of the delivery corpus, plus four measured calls in its `BRIEF.md`.
+>
+> The rule above stands. The **fallback** does not: a caller stuck on `2022-11-28` never
+> needed to poll and race. GitHub added an optional `return_run_details` parameter on
+> 2026-02-19, and it returns `200` with `workflow_run_id` **on the old version**. Measured,
+> not read — `2022-11-28` + `return_run_details=true` → `200`.
+>
+> The two facts looked contradictory at first. The changelog says that *without* the
+> parameter the endpoint "will continue to return the current `204`", which flatly denies
+> what this repository had measured. Both are true: the parameter is the opt-in route on the
+> old version, and `2026-03-10` makes run details the **default**. Optional parameters are
+> non-breaking and reach every version, so making one the default is precisely the kind of
+> response-shape change a new calendar version exists to carry.
+>
+> `lib/dispatch.mjs` now sends **both** the pinned header and the parameter — safe rather
+> than merely plausible, because the fourth measured call confirms `2026-03-10` accepts the
+> parameter instead of rejecting it as unknown. `NO_RUN_ID` now means both routes were
+> ignored.
+>
+> **Worth being precise about what corroboration bought here: not a corrected error.** E-01
+> was right and this decision was right. A second host supplied the *mechanism and its date*,
+> and with them a fallback that removes a race from the design — which the corpus could not
+> have known while everything it had read came from `docs.github.com`.
+
 **3. The artifact is labelled honestly, inside the package.** The corpus a collector
 produces fails its own preflight by design — a freshly scaffolded project has no unknowns
 in its contract, so `discovery-contract/no-unknowns` blocks it, verified by running it
