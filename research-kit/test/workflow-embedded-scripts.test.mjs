@@ -1,0 +1,123 @@
+// The JavaScript embedded in workflow YAML must actually be JavaScript.
+//
+// WHY THIS FILE EXISTS, precisely.
+//
+// The first live collection died on this line:
+//
+//   console.log(`::warning::client_ref "${value}" is PUBLIC: it is this run's name ...`)
+//
+// Every `node -e '...'` block in a workflow is a SINGLE-QUOTED SHELL STRING. A single
+// quote inside it ends the string, so the apostrophe in "run's" handed node a truncated
+// program and the step failed with `Unterminated template`. It cost no credits only
+// because it happened to sit before the credential check.
+//
+// The existing workflow tests could not have caught it. They assert properties of the
+// YAML as TEXT - that a string is present, that an input is not interpolated - and this
+// defect is invisible at that level: the text was exactly what was intended. The bug is
+// in what the shell does to the text before node sees it.
+//
+// So this file does the one thing text assertions cannot: it extracts each embedded
+// script the way the shell would deliver it, and parses it. A syntax error here is a step
+// that will fail on a runner, found offline instead of after an approval.
+
+import vm from 'node:vm';
+import { test, describe, assert, fs, path, KIT_ROOT } from './harness.mjs';
+
+describe('workflow-embedded-scripts');
+
+const WORKFLOWS = path.join(path.resolve(KIT_ROOT, '..'), '.github', 'workflows');
+
+/**
+ * Every `node -e '<script>'` block, as the shell would hand it over.
+ *
+ * The opening line ends with `node -e '` and the block ends at a line whose only
+ * non-whitespace character is the closing quote. Deliberately simple: a parser clever
+ * enough to handle the escaped-quote dance would be able to parse the very thing this
+ * test exists to forbid.
+ */
+export function embeddedScripts(text, file) {
+  const lines = text.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!/node\s+-e\s+'\s*$/.test(lines[i])) continue;
+    const start = i + 1;
+    let end = -1;
+    for (let j = start; j < lines.length; j += 1) {
+      if (lines[j].trim() === "'" || /^\s*'\s*\S/.test(lines[j])) { end = j; break; }
+    }
+    assert.ok(end !== -1, `${file}:${i + 1} opens an embedded script that is never closed`);
+    out.push({ file, line: start + 1, body: lines.slice(start, end).join('\n') });
+    i = end;
+  }
+  return out;
+}
+
+const all = fs.readdirSync(WORKFLOWS)
+  .filter((n) => n.endsWith('.yml') || n.endsWith('.yaml'))
+  .flatMap((n) => embeddedScripts(fs.readFileSync(path.join(WORKFLOWS, n), 'utf8'), n));
+
+test('there are embedded scripts to check, so this file is not vacuously green', () => {
+  assert.ok(all.length >= 5, `expected several embedded scripts across the workflows, found ${all.length}`);
+});
+
+test('no embedded script contains an apostrophe, which would end its shell string', () => {
+  // The rule in its simplest form, and the one that actually failed. It covers comments
+  // too: a possessive in a comment breaks the script exactly as one in a string does,
+  // and that is the version a reviewer is least likely to notice.
+  const offenders = all
+    .flatMap((script) => script.body.split('\n').map((text, offset) => ({
+      file: script.file,
+      // The script's first line, plus how far into it this line sits. Spelled out because
+      // the first attempt collapsed both into one `line` field and printed `:NaN` - a
+      // guard that cannot say WHERE is half a guard, and nobody trusts the other half.
+      at: script.line + offset,
+      text,
+    })))
+    .filter(({ text }) => text.includes("'"))
+    .map(({ file, at, text }) => `${file}:${at}  ${text.trim()}`);
+
+  assert.deepEqual(offenders, [],
+    'an apostrophe inside `node -e \'...\'` ends the shell string early and hands node a '
+    + 'truncated program. Rewrite the wording; do not try to escape it:\n  ' + offenders.join('\n  '));
+});
+
+test('every embedded script parses as JavaScript', () => {
+  // The stronger check, and the one that survives a future quoting style this test does
+  // not anticipate. `new vm.Script` compiles without running: no side effects, no network,
+  // nothing from the workflow executes here.
+  const broken = [];
+  for (const script of all) {
+    try {
+      new vm.Script(script.body, { filename: `${script.file}:${script.line}` });
+    } catch (err) {
+      broken.push(`${script.file}:${script.line}  ${err.message}`);
+    }
+  }
+  assert.deepEqual(broken, [],
+    'an embedded script does not compile, so the step will fail on a runner:\n  ' + broken.join('\n  '));
+});
+
+test('the regression that produced this file is pinned', () => {
+  // The exact shape, asserted directly rather than only through the general rule above,
+  // so that weakening the general rule cannot silently un-fix this.
+  const collect = fs.readFileSync(path.join(WORKFLOWS, 'collect.yml'), 'utf8');
+  const warning = collect.split('\n').find((l) => l.includes('::warning::client_ref'));
+  assert.ok(warning, 'the client_ref warning is gone; it was the point of the change that introduced this bug');
+  assert.ok(!warning.includes("'"),
+    `the client_ref warning carries an apostrophe again, which is what broke the first live run: ${warning.trim()}`);
+});
+
+test('the extractor finds a deliberately broken script, so the check is not asleep', () => {
+  // A test whose subject is another test. `embeddedScripts` returning nothing would make
+  // every assertion above pass for the worst possible reason, and that failure is silent.
+  const fixture = [
+    '      - name: made up',
+    "        run: |",
+    "          node -e '",
+    '            const x = "unterminated',
+    "          '",
+  ].join('\n');
+  const found = embeddedScripts(fixture, 'fixture.yml');
+  assert.equal(found.length, 1, 'the extractor did not find an obvious embedded script');
+  assert.throws(() => new vm.Script(found[0].body), 'a broken script compiled cleanly, so the parse check proves nothing');
+});

@@ -144,10 +144,23 @@ jobs:
     needs: scope-check
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 30
-    # THE SPEND GATE. Protection rules on this environment - required reviewers, a wait
-    # timer - are what actually stand between a dispatch and the meter. They are enforced
-    # by GitHub before the first step runs, which is the only enforcement in this file
-    # that does not depend on a step behaving.
+    # THE CREDENTIAL SCOPE. Naming an environment is what lets the Firecrawl key live
+    # somewhere only this job can read it; a repository secret is readable by every
+    # workflow in the repository, including one added in a pull request. The `scope-check`
+    # job above proves that is where it actually lives.
+    #
+    # It is ALSO where protection rules would go - required reviewers, a wait timer - and
+    # this repository deliberately has NONE configured. A reviewer approving a dispatch is
+    # a spend gate, not a review: there is nothing collected yet to review, and a human in
+    # that position cannot tell a good run from a bad one. The research review happens at
+    # the end, where the corpus exists, and is carried by `buildAuthorized` rather than by
+    # a button.
+    #
+    # So what bounds the spend is not approval. It is `max_pages` (1..25), the depth tier,
+    # and the vendor's own account cap, which returns 402 at zero rather than billing over.
+    # Worst case is a month's allowance, not an open-ended bill. Add required reviewers
+    # here if that trade ever stops being the right one - nothing in the workflow depends
+    # on their absence.
     environment: research-collection
     defaults:
       run:
@@ -190,7 +203,13 @@ jobs:
             // honest ids and pass `layoff-plan-q3` anyway - it fits the shape perfectly.
             // What this can do is make sure nobody can say they were not told, on the run
             // that used it, where they will see it.
-            console.log(`::warning::client_ref "${value}" is PUBLIC: it is this run's name and the artifact's name, both readable by anyone who can read this repository. If it names the subject, that subject is disclosed.`);
+            // NO APOSTROPHE ANYWHERE IN THIS SCRIPT, including in a comment. The whole
+            // block is a single-quoted shell string, so one apostrophe ends it early and
+            // hands node a truncated program. Not hypothetical: the phrase "this run" plus
+            // a possessive s did exactly that on the first live run, and the offline tests
+            // could not see it because they check the YAML as TEXT and never parse what
+            // the text contains. A test now extracts every embedded script and parses it.
+            console.log(`::warning::client_ref "${value}" is PUBLIC. It becomes the name of this run and the name of the artifact, both readable by anyone who can read this repository. If it names the subject, the subject is disclosed.`);
             console.log("client_ref accepted");
           '
 

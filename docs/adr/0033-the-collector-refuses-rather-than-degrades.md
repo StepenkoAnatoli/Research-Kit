@@ -46,6 +46,29 @@ request. Setting a repository-level variable of that name would defeat it — wh
 circumvention a deliberate, visible act, and leaves the enforcement that matters where it
 belongs: on the environment's protection rules.
 
+### Amendment, 2026-09-21 — the required reviewer is dropped; the environment stays
+
+The paragraph above calls the environment's protection rules "the only enforcement in this
+file that does not depend on a step behaving". That was true and it conflated two things
+the operator was right to separate.
+
+**A reviewer approving a dispatch is a spend gate, not a review.** Nothing has been
+collected at that moment, so there is nothing to judge; asking a person to approve it asks
+them to certify something that does not exist. The research review is the three human steps
+and `buildAuthorized`, at the end, where the corpus is. A required reviewer also makes
+autonomous dispatch impossible - and an agent that must wait for a click is the thing this
+collector exists to avoid.
+
+**The environment is kept, because it was never about approval.** It is the only place the
+credential can live such that every other workflow in the repository cannot read it, which
+`scope-check` proves on every run. Dropping the reviewer does not touch that.
+
+What bounds the spend without a reviewer: `max_pages` (1..25), the depth tier, and the
+vendor cap returning 402 at zero rather than billing over. The exposure accepted is that
+anyone with write access, or any token carrying `actions: write`, can spend up to a month's
+allowance unattended. That is a bounded, deliberate trade rather than an inherited default,
+and adding required reviewers later needs no change to the workflow.
+
 ### Correction, 2026-09-21 — the limit above was real but the conclusion was too weak
 
 The paragraph above is correct that GitHub tells a job nothing about where a resolved
