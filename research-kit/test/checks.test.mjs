@@ -2,8 +2,11 @@
 // building a whole project and fishing one finding out of an array is a rule nobody
 // tests (ADR-0004).
 
+import path from 'node:path';
 import { test, describe, assert, makePassingProject, corrupt, fs } from './harness.mjs';
 import { PATHS, resolve, writeText, readText } from '../lib/core.mjs';
+import { KIT_ROOT } from '../lib/scaffold.mjs';
+import { writeRaw } from '../lib/collect.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { CHECKS, CHECK_NAMES, runCheck, runChecks, supersededRows } from '../lib/checks.mjs';
 import { verifyLedger, rebuildLedger } from '../lib/provenance.mjs';
@@ -337,7 +340,86 @@ test('corroboration: two hosts is independent support, and passes', () => {
   const findings = runCheck('corroboration', snapshot(dir));
   assert.equal(findings[0].severity, 'pass');
   assert.equal(findings[0].rule, 'independent');
-  assert.match(findings[0].detail, /2 rows across 2 hosts/);
+  // Both rows name a raw file the fixture does not have, so neither has a sketch. An
+  // unjudgeable pair must stay two documents: "I cannot fingerprint these" is not
+  // "these are the same page", and the wrong choice here would invent a mirror.
+  assert.match(findings[0].detail, /2 distinct documents across 2 hosts/);
+});
+
+// The mirror regression. `lira.epac.to` republishes Node's single-executable
+// documentation six major versions behind `nodejs.org`, and the host heuristic graded
+// that pair `independent` - its BEST grade - for one witness plus a staleness the
+// freshness check cannot see, because freshness grades when a page was FETCHED.
+//
+// These use the real two captures rather than synthetic near-duplicates: the whole
+// question is whether the threshold survives contact with a genuinely stale mirror,
+// which two copies of lorem ipsum would not test.
+
+const seaRawDir = path.join(KIT_ROOT, '..', 'docs', 'decisions', '2026-09-21-sea-assets', 'research', 'raw');
+
+function realCapture(needle) {
+  const name = fs.readdirSync(seaRawDir).find((f) => f.includes(needle) && f.endsWith('.md'));
+  assert.ok(name, `no capture matching ${needle}`);
+  const text = fs.readFileSync(path.join(seaRawDir, name), 'utf8');
+  return text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
+}
+
+/** Put real page bodies into the fixture under chosen URLs, and cite them all. */
+function withRealPages(pages) {
+  const dir = makePassingProject();
+  const rows = [];
+  pages.forEach((page, i) => {
+    const entry = writeRaw(dir, {
+      url: page.url,
+      title: `page ${i + 1}`,
+      markdown: page.markdown,
+      cmd: `firecrawl scrape ${page.url}`,
+      statusCode: 200,
+      transport: 'firecrawl-cli',
+      completeness: 'full',
+    }, { date: '2026-09-21' });
+    rows.push(`| E-0${i + 1} | 2026-09-21 | P | ${page.url} | finding ${i + 1} | ${entry.file} |`);
+  });
+  return withEvidence(dir, rows, pages.map((_, i) => `E-0${i + 1}`).join(' and '));
+}
+
+test('corroboration: a stale mirror on a second host is one document, not two witnesses', () => {
+  const dir = withRealPages([
+    { url: 'https://nodejs.org/api/single-executable-applications.html', markdown: realCapture('-nodejs-') },
+    { url: 'https://lira.epac.to/DOCS/nodejs/api/single-executable-applications.html', markdown: realCapture('epac') },
+  ]);
+  const findings = runCheck('corroboration', snapshot(dir));
+
+  // The precondition that made the old behaviour wrong: these ARE two different hosts,
+  // so host-counting alone had every reason to call this independent. It still must not.
+  assert.equal(findings[0].rule, 'mirror');
+  assert.equal(findings[0].severity, 'warn');
+  assert.match(findings[0].detail, /across 2 hosts but they are the same document/);
+});
+
+test('corroboration: a mirror does not outrank two genuinely different pages', () => {
+  // The inversion stated as an ordering. A mirror must never grade better than the
+  // honest `one-voice` that two real pages from one vendor earn.
+  const mirrored = runCheck('corroboration', snapshot(withRealPages([
+    { url: 'https://nodejs.org/api/single-executable-applications.html', markdown: realCapture('-nodejs-') },
+    { url: 'https://lira.epac.to/DOCS/nodejs/api/single-executable-applications.html', markdown: realCapture('epac') },
+  ])))[0];
+  assert.notEqual(mirrored.severity, 'pass', 'a mirror must not pass while one-voice warns');
+});
+
+test('corroboration: a third, genuinely different page rescues a mirrored pair', () => {
+  const dir = withRealPages([
+    { url: 'https://nodejs.org/api/single-executable-applications.html', markdown: realCapture('-nodejs-') },
+    { url: 'https://lira.epac.to/DOCS/nodejs/api/single-executable-applications.html', markdown: realCapture('epac') },
+    { url: 'https://github.com/nodejs/single-executable/discussions/17', markdown: realCapture('bundling') },
+  ]);
+  const findings = runCheck('corroboration', snapshot(dir));
+  assert.equal(findings[0].severity, 'pass');
+  assert.equal(findings[0].rule, 'independent');
+  // Two documents, not three rows - and the count of folded copies is stated rather
+  // than silently absorbed, so a reader can see why three rows bought two witnesses.
+  assert.match(findings[0].detail, /2 distinct documents across 2 hosts/);
+  assert.match(findings[0].detail, /1 of 3 rows are republished copies/);
 });
 
 test('corroboration: a KNOWN-UNKNOWN is not asked for sources it was never going to have', () => {
