@@ -100,6 +100,27 @@ decision 6 and the credential store it depends on.
 **Research whose subject is sensitive needs a paid plan, not just a visibility change.**
 That should be settled before anything depends on it.
 
+### Corroborated, 2026-09-21 — and the pin turns out to have a deadline
+
+Decision 2 above ("any client pins `X-GitHub-Api-Version`") rested on a single page. A
+second, independent one (E-10) confirms the cause and supplies what the first did not.
+
+"Requests without the `X-GitHub-Api-Version` header will default to use the `2022-11-28`
+version" — so the 204 was never a broken endpoint, it was a three-year-old version
+answering exactly as specified. "Removing or renaming a response field" is listed among
+breaking changes, which is why both shapes are correct at once.
+
+The new part: an API version is supported "at least 24 more months" after its successor,
+announced by `Deprecation` and then `Sunset` — the two headers this repository already
+observed on its own 204 response, dated `Tue, 10 Mar 2026` and `Fri, 10 Mar 2028`. After
+retirement, "requests that do not specify an API version default to the **next oldest
+supported version**, not the closing down version. If you rely on unversioned requests, you
+may observe behavioral changes as older versions are removed from support."
+
+**So an unpinned integration does not keep working — it moves.** Pinning was argued here as
+the way to get a run id; it is also the only way to stop the contract changing underneath a
+caller on a date nobody chose.
+
 ## Alternatives considered
 
 **Local Windows `.exe` first.** Deferred, not rejected. Node's single-executable feature is

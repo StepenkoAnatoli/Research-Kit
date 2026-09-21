@@ -14,3 +14,6 @@ carries the design, `S` secondary is context, `L` lead-only is a hint and never 
 | https://docs.github.com/en/actions/concepts/security/secrets | P | Secrets - GitHub Docs | 2026-09-21 |  |
 | https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows | P | Events that trigger workflows - GitHub Docs | 2026-09-21 |  |
 | https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax | P | Workflow syntax for GitHub Actions - GitHub Docs | 2026-09-21 |  |
+| https://docs.github.com/en/rest/about-the-rest-api/api-versions | P | API Versions - GitHub Docs | 2026-09-21 |  |
+| https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments | P | Deployments and environments - GitHub Docs | 2026-09-21 |  |
+| https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job | P | Choosing the runner for a job - GitHub Docs | 2026-09-21 |  |

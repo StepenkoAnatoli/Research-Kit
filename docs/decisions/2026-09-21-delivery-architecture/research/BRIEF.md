@@ -163,6 +163,38 @@ private, so the approval gate and the credential store both disappear silently. 
 research needs a paid plan, not just a visibility toggle. That should be decided before
 anything depends on it.
 
+## Corroboration pass, 2026-09-21
+
+Every unknown in this brief originally rested on **one** capture, and the corpus passed
+preflight and `--strict` anyway - no check in this kit notices single-sourcing. Three
+unknowns carry decisions, and each now cites a second independent page. All three agreed,
+and each added a fact the original did not carry:
+
+**U-1 / E-10 - the pin has a deadline.** "Requests without the `X-GitHub-Api-Version`
+header will default to use the `2022-11-28` version", which is why the unpinned dispatch
+returned 204: a three-year-old version answering correctly. But support runs "at least 24
+more months", signalled by `Deprecation` then `Sunset` - the same headers this repository
+saw on its own 204 - and afterwards "requests that do not specify an API version default to
+the next oldest supported version". **An unpinned client does not keep working; it changes
+behaviour on a date.** Pinning stops being a preference.
+
+**U-5 / E-11 - going private breaks more than the secret.** E-06 said a Free repository
+converted to private has its rules and secrets "ignored". E-11 states it as availability -
+"If you are using GitHub Free, environment secrets are only available in public
+repositories" - and adds the part nobody had: environment **variables** are governed the
+same way. A Free repository gone private would lose `RESEARCH_KIT_COLLECTION_ENV` as well
+as `FIRECRAWL_API_KEY`, so `collect.yml` would refuse at the *environment* check rather
+than the credential one. A better failure than spending, and a more confusing one than
+either ADR predicted.
+
+**U-3 / E-12 - free is also unlimited.** "Use of the standard GitHub-hosted runners is free
+and **unlimited** on public repositories." There is no minute quota to exhaust here, so the
+only meter on this repository is the Firecrawl credit.
+
+The other five unknowns remain single-sourced, and that is stated rather than left: they
+are GitHub documenting its own product on pages that cross-link, and nothing rests on them
+that a second reading of the same vendor would test.
+
 ## Next steps
 
 1. Record this as an ADR in `../../adr/`, citing this brief as its evidence basis.
