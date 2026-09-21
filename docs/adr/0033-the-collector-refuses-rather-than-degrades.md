@@ -224,10 +224,16 @@ vulnerability: the substitution happens before the validation can run.
 - `live-collection.yml` loses four shell interpolations and gains four `env:` blocks.
 - The collector runs on `ubuntu-latest` and `windows-latest`, with `shell: bash` pinned so
   one script serves both.
-- **The runner path is still unproven.** `npm install -g firecrawl@<version>` on a runner,
-  and `cliCompatibility()` against the CLI it installs, have never executed. This change
-  makes that the only remaining gap and does not close it — closing it needs the
-  environment, the secret, and one real dispatch, all of which are the owner's.
+- **The runner path was unproven when this was written, and is now closed.** It needed the
+  environment, the secret and one real dispatch, all of which were the owner's to provide —
+  and all of which arrived the same day. Runs `35600022797` and `35608301287` both executed
+  `npm install -g firecrawl-cli@1.23.3` and `cliCompatibility()` against the CLI the runner
+  installed, successfully.
+
+  The first attempt failed, which is the point of having run it at all: both workflows had
+  been installing a package called `firecrawl` since they were written. On npm that is the
+  JavaScript SDK, and it ships no binary. The CLI is `firecrawl-cli`. Nothing offline could
+  have caught it — every test drives a stub.
 
 ## What this ADR does not claim
 

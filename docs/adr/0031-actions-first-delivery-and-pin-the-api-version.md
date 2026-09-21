@@ -141,9 +141,18 @@ it.
 
 - The next build step is a `workflow_dispatch` collector that uploads a labelled artifact,
   with the five properties above.
-- Two things remain unproven and are recorded as gaps rather than claimed: the runner-side
-  `npm install -g firecrawl@<version>` path, which has never executed, and whether artifact
-  download is ergonomic for the intended operator, which documentation cannot answer.
+- Two things remained unproven when this was written and were recorded as gaps rather than
+  claimed: the runner-side install path, and whether artifact download is ergonomic for the
+  intended operator.
+
+  **The first is closed, later the same day.** The install path has executed on a real
+  runner and succeeded, in runs `35600022797` and `35608301287` — both reporting `install
+  the vendor CLI` and `the CLI is a major this adapter supports` as successful. Getting
+  there took a fix no amount of reading would have found: the npm package is
+  `firecrawl-cli`, and the one called `firecrawl` is the SDK, which ships no binary.
+
+  The second is still open and always will be by this route — it is a usability question,
+  and no vendor page answers it.
 - The preliminary note keeps its text. It was right about the behaviour it observed and
   wrong about the cause, and rewriting it would erase the most useful thing in this
   decision: that reading a page and running the call gave different answers, and only

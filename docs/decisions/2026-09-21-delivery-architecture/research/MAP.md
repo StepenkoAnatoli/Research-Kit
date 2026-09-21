@@ -57,12 +57,12 @@ Neither is an unknown in the contract, because neither blocks *this* decision - 
 block the thing the decision recommends building, and omitting them would misrepresent
 what has been established.
 
-- **The runner-side install path has still never executed.** `npm install -g firecrawl@<v>`
-  on `ubuntu-latest`, and `cliCompatibility()` against the CLI it installs, are asserted by
-  `.github/workflows/live-collection.yml` and proven nowhere. The local metered route was
-  verified on 2026-09-21 (`../../live-predicate-verification-2026-09-21.md`); the runner
-  route was not. Closing it needs the `live-collection` environment, its secret, and one
-  dispatch - all of which are the repository owner's to create.
+- ~~**The runner-side install path has still never executed.**~~ **Closed 2026-09-21.** It
+  now has, on a real runner, twice - runs `35600022797` and `35608301287` - including
+  `cliCompatibility()` against the CLI the runner installed. The first attempt failed, and
+  that is exactly why the gap deserved naming rather than assuming: the workflow installed
+  `firecrawl`, which on npm is the SDK and ships no binary at all. The CLI is
+  `firecrawl-cli`, and no amount of reading the documentation would have found it.
 - **Whether artifact download is ergonomic for the intended operator.** A usability
   question. No quantity of vendor documentation answers it, and this corpus does not
   pretend to.
