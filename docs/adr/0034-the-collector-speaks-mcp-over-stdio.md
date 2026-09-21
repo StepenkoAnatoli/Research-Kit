@@ -1,0 +1,132 @@
+# ADR-0034 — The collector speaks MCP over stdio, and the brief that decided it passed the gate first
+
+- **Date:** 2026-09-21
+- **Status:** accepted
+- **Area:** agent interface, protocol, credentials
+- **Evidence basis:** `docs/decisions/2026-09-21-agent-interface/research/BRIEF.md` — gate PASS, 7 unknowns closed, 5 cited captures, chain verifies
+- **Depends on:** ADR-0030 (decision research lives in a nested project), ADR-0032 (the artifact contract), ADR-0033 (no token in an argument)
+
+## Context
+
+The operator's goal is that any agent they build can run a collection. `collect-remote.mjs`
+already does that with a fine-grained token, so the question was not *can* an agent reach
+the collector — it was whether MCP, the standard way an agent acquires a tool, buys
+anything that seam does not, and what it would cost.
+
+**This is the first thing in the repository built from research that passed the gate.**
+Every decision below cites an `E-` row in the nested project, each of which points at a
+cached page committed beside it. That is the arrangement the whole kit exists to produce,
+and this ADR is the first time it has been used rather than described.
+
+## Decision
+
+**A local `stdio` MCP server wrapping the seam `lib/dispatch.mjs` already drives.**
+
+### stdio, not Streamable HTTP
+
+E-03: "Protocol semantics are identical on every transport. A transport is a **binding**."
+So this is an operational choice, not a capability one. A stdio server is a subprocess the
+client launches on the operator's own machine.
+
+A remote one costs the whole OAuth 2.1 chain before an agent can say hello (E-01): a `401`
+with `WWW-Authenticate: Bearer resource_metadata=...`, a Protected Resource Metadata
+document at a well-known path (RFC 9728), authorization-server metadata discovery via
+RFC 8414 or OIDC, client registration either pre-arranged or through DCR, and a browser
+authorization-code exchange. That is an identity product. Nothing asked for one.
+
+### The credential is the one we already have
+
+E-01, on stdio specifically: "you can use environment-based credentials or credentials
+provided by third-party libraries embedded directly in the MCP server instead." So
+`tokenFromEnv` is not a shortcut here — it is the documented route for this transport, and
+ADR-0033's rule that no token may be an argument survives unchanged.
+
+`x-mcp-header` is deliberately unused: E-04 warns that developers "**SHOULD NOT** mark
+sensitive parameters (passwords, API keys, tokens, PII)" that way, "as header values are
+visible to network intermediaries".
+
+### Two tools, not one
+
+E-03: "servers do not initiate JSON-RPC requests and clients do not send JSON-RPC
+responses. No other message direction exists." A server therefore cannot announce that a
+collection finished.
+
+The alternative to two calls is one call held open for several minutes, kept alive by
+`notifications/progress` (E-02). That works, and it means an agent whose process dies
+mid-call has lost a run it paid for. `collect` returns the run id immediately;
+`fetch_corpus` takes that id. An agent that crashes has something to retry against.
+
+### A link, never the bytes
+
+E-04 defines both `resource_link` and embedded resources — and **states no maximum size
+anywhere on the page**. A corpus ZIP is tens of kilobytes. A `file://` URI is the
+defensible option rather than the merely available one, and it suits a local server
+exactly. The spec also warns that a returned link "is not guaranteed to appear in the
+results of a `resources/list` request", so the URI is the handle and there is nothing to
+rediscover it by.
+
+### The protocol version is pinned
+
+E-05: version is declared per request with no handshake, and a server that cannot serve one
+**MUST** answer `UnsupportedProtocolVersionError` (`-32022`) carrying `data.supported`.
+This protocol has already broken compatibility once — modern revisions (`2026-07-28`+)
+carry version and capabilities as per-request metadata, legacy ones (`2025-11-25` and
+earlier) establish a session with an `initialize` handshake. Pinning is the same discipline
+ADR-0031 applied to `X-GitHub-Api-Version`, for the same reason.
+
+### One implementation of bringing the corpus home
+
+`fetchCorpus` lives in `lib/dispatch.mjs` and is called by both `bin/collect-remote.mjs`
+and the MCP server. The brief is explicit about why: a second copy of dispatch logic is how
+the vendor package name came to be wrong in two workflows at once (ADR-0033).
+
+## What the gate refused, and why that is recorded here
+
+The first attempt at this brief **failed preflight**. Two map rows were `GAP`, one
+load-bearing: nothing in the first three captures said how a tool returns a 71 KB artifact,
+which is the whole output of this design.
+
+Two more pages were collected **into the same ledger** — five entries, one unbroken
+sequence, rather than two chains that could never honestly be merged. `resource_link` came
+from that second pass, and so did the versioning rule above. Had the row been marked
+`DISMISSED` instead, the gate would have passed and this ADR would be recommending an
+interface with an unanswered question at its centre.
+
+The other `GAP` was **split** rather than fudged. How a break is detected and survived is a
+design question and is closed. Who governs the specification was never collected and is
+dismissed with that said plainly: it moves the planning horizon, not the architecture.
+
+## Alternatives considered
+
+**A remote/hosted MCP server.** Deferred with the whole of E-01's OAuth chain, until
+somebody other than the operator needs to reach it.
+
+**One tool that blocks until the corpus is ready.** Simpler to call and loses a paid run
+whenever a client times out or restarts.
+
+**Embedding the corpus in the tool result.** Permitted, and the specification names no size
+limit, so "permitted" is not the same as "known to work".
+
+**Replacing `collect-remote.mjs`.** The CLI is the right shape for a human and for CI. Both
+now call the same `fetchCorpus`.
+
+## Consequences
+
+- `lib/mcp.mjs` is pure apart from injected transport, so the whole protocol surface is
+  tested offline — including what a real server process answers, driven over its own stdio.
+- `createStdioLoop` serialises chunk processing through one promise chain. Overlapping
+  `data` events were mutating the read buffer concurrently, which drops or doubles a
+  message; a test caught it, and the fix costs concurrency a stdio server has no use for.
+- A corpus returned over MCP is `HUMAN_REVIEW_REQUIRED` exactly as one downloaded by hand
+  is. Both tool descriptions say so, because a description is the only text a model
+  reliably reads before calling, and a test asserts the warning is present.
+- `new-project.mjs` gains `--kit`, and `collect.yml` passes the documented install location
+  rather than the runner's resolved one. Found by reading a real returned corpus: every
+  package the collector produced carried `C:\Users\runneradmin\.agents\research-kit`, a
+  path that existed on nothing but that runner, for the ten minutes it lived.
+
+## What this ADR does not claim
+
+That MCP is better than the CLI. It is a second door onto the same room, opened because
+agents know how to find that kind of door. The CLI remains the right interface for a person
+and for CI, and both go through the same seam.

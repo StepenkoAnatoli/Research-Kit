@@ -139,6 +139,32 @@ artifact, unwraps it, and validates it.
 | 3 | could not start: no token, bad repository, or no permission |
 | 4 | dispatched and still running when the wait ran out; the run id is on stdout |
 
+### Or register it as an MCP tool
+
+If your agent speaks the Model Context Protocol, it can have the collector as a tool
+instead of a command:
+
+```json
+{
+  "mcpServers": {
+    "research-kit": {
+      "command": "node",
+      "args": ["<path>/research-kit/bin/mcp-server.mjs"],
+      "env": { "RESEARCH_KIT_GITHUB_TOKEN": "github_pat_..." }
+    }
+  }
+}
+```
+
+Two tools: `collect` starts a run and returns its id; `fetch_corpus` takes that id and
+returns a link to the validated package. The same token, the same one permission, and the
+same rule at the end - the result carries `buildAuthorized`, and it is `false` for every
+freshly collected corpus.
+
+Why it is a local server and not a hosted one, and why it hands back a link rather than the
+file: [ADR-0034](docs/adr/0034-the-collector-speaks-mcp-over-stdio.md), which was written
+from research that passed the gate first.
+
 ### What the agent must not do
 
 Read `buildAuthorized` and stop if it is `false`. **It will be `false` for everything this

@@ -18,6 +18,9 @@ if (flags.help) {
 
   --layout   print the ${LAYOUT.length} entries of the canonical shape and exit
   --force    overwrite existing content (structure is always repaired anyway)
+  --kit <p>  how the project should SPELL the kit's location, for a project that will
+             be read somewhere else. Default: this machine's deployed kit. Pass
+             ~/.agents/research-kit when the project will travel.
 
 The four gate markers: ${GATE_MARKERS.join(', ')}
 `);
@@ -32,9 +35,18 @@ if (flags.layout) {
 }
 
 const dir = path.resolve(positional[0] ?? process.cwd());
+// `--kit` exists because a scaffolded project can OUTLIVE THE MACHINE THAT MADE IT.
+//
+// KIT_HOME is this machine's deployed kit, which is right for a project somebody works in
+// locally and wrong for one that travels. The Actions collector scaffolds on a runner, so
+// every corpus it returned carried `C:/Users/runneradmin/.agents/research-kit` in its
+// AGENTS.md - a path that existed on nothing but that runner, for the ten minutes it
+// lived, and that the recipient could only be confused by.
+//
+// Found by reading a real returned corpus, not by reasoning about the code.
 const result = scaffoldProject(dir, {
   topic: typeof flags.topic === 'string' ? flags.topic : 'Untitled topic',
-  kit: KIT_HOME,
+  kit: typeof flags.kit === 'string' && flags.kit.trim() ? flags.kit.trim() : KIT_HOME,
   force: Boolean(flags.force),
 });
 
