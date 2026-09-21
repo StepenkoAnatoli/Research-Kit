@@ -151,6 +151,20 @@ test('the step summary reports hosts and counts, never URLs', () => {
     'the summary prints a whole URL; a path or query string discloses what was being researched');
 });
 
+test('the caller reference is declared PUBLIC where a dispatcher will read it', () => {
+  // Everything this workflow does to keep the topic out of the run and artifact names is
+  // undone by a caller who puts the subject in the reference - `layoff-plan-q3` fits the
+  // permitted shape perfectly. No regex can judge that, so the defence is that nobody can
+  // say they were not told, in the place they are actually looking: the dispatch form.
+  const input = body.slice(body.indexOf('client_ref:'));
+  const description = (input.match(/^\s*description:.*$/m) ?? [''])[0];
+  assert.ok(/PUBLIC/.test(description),
+    `the client_ref input does not warn that it becomes the public run and artifact name: ${description.trim()}`);
+
+  assert.ok(/::warning::client_ref/.test(body),
+    'the run should also warn on the run itself, where the reference was actually used');
+});
+
 // ---------------------------------------------------------------- correlation
 
 test('the dispatch API version is pinned, and the documented one', () => {

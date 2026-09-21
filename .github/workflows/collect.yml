@@ -25,6 +25,13 @@ name: collect
 # `client_ref` is OPTIONAL insurance for a caller stuck on the old API version, and for
 # display. It is not the correlation mechanism.
 #
+# AND IT IS PUBLIC. It becomes the run name and the artifact name, both of which an
+# anonymous caller can read on a public repository. Everything this file does to keep the
+# topic out of those names is undone by a caller who puts the subject in the reference -
+# `layoff-plan-q3` fits the permitted shape perfectly. Treat it as an opaque job id.
+# The input description says so at the point of entry, which is the only place a
+# dispatcher is actually looking.
+#
 # THE TOPIC IS NOT IN THE RUN NAME OR THE ARTIFACT NAME
 #
 # An artifact listing and a run listing are readable by an ANONYMOUS caller on a public
@@ -65,7 +72,7 @@ on:
         type: choice
         options: [probe, quick, normal]
       client_ref:
-        description: 'Optional caller reference for display and retries: [A-Za-z0-9][A-Za-z0-9._-]{0,63}. Correlation does not need it - pin X-GitHub-Api-Version and read workflow_run_id.'
+        description: 'PUBLIC on a public repository - it becomes the run name and the artifact name. Use an opaque id (job-0417), never the subject. Optional: correlation does not need it - pin X-GitHub-Api-Version and read workflow_run_id. Shape [A-Za-z0-9][A-Za-z0-9._-]{0,63}.'
         required: false
         default: ''
       runner:
@@ -135,6 +142,12 @@ jobs:
               console.error("Refused rather than rewritten: a sanitised token means you poll for a reference the artifact does not carry.");
               process.exit(1);
             }
+            // A WARNING, not a refusal. Whether a reference discloses a subject is a
+            // judgement about meaning, and a regex that tried to make it would refuse
+            // honest ids and pass `layoff-plan-q3` anyway - it fits the shape perfectly.
+            // What this can do is make sure nobody can say they were not told, on the run
+            // that used it, where they will see it.
+            console.log(`::warning::client_ref "${value}" is PUBLIC: it is this run's name and the artifact's name, both readable by anyone who can read this repository. If it names the subject, that subject is disclosed.`);
             console.log("client_ref accepted");
           '
 
