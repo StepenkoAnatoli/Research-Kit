@@ -38,15 +38,17 @@ node ..\..\..\research-kit\bin\preflight.mjs
 node ..\..\..\research-kit\bin\handoff.mjs
 ```
 
-As of 2026-09-21: `PASS  0 blocking, 2 warning(s), 12 passing` and `handoff OK - 3 ledger
-entries, chain verifies`.
+As of 2026-09-21: `PASS  0 blocking, 0 warning(s), 14 passing` and `handoff OK - 5 ledger
+entries, chain verifies`. It passes `--strict` as well.
 
-**Under `--strict` this corpus fails**, 2 blocking, and that is expected. Both warnings are
-`corroboration/single-source` on U-1 and U-2, both accepted on the record rather than
-cleared - the only available second source was the stale mirror, and citing it would have
-made the corpus read stronger while making it weaker. `research/BRIEF.md` argues it.
+**It did not, at first**, and the reason is worth the two minutes. Both unknowns rested on
+`nodejs.org` alone, and this brief argued at length that they should stay that way: the only
+second source found was a stale mirror, and citing a mirror to clear a warning makes a corpus
+read stronger while making it weaker.
 
-So does every other corpus here: since ADR-0036 added `corroboration` to `POLICY_CHECKS`,
-**nothing in this repository passes `--strict` or `evidencePolicy=strict`**, measured and
-tabulated at the end of `research/BRIEF.md`. That is a property of the repository, not of
-this corpus.
+That argument was sound about the evidence in hand and **wrong about the evidence that
+existed.** A second look found the two pull requests - the assets API proposed 2023-11-29,
+the VFS proposed 2026-01-22, two years apart, on a different host - which is primary evidence
+that was there all along. A `single-source` warning sometimes means "a vendor is authoritative
+about itself" and sometimes means **"nobody looked twice"**, and the check cannot tell those
+apart. `research/BRIEF.md` keeps both the original argument and the correction.

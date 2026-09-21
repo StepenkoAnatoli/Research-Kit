@@ -7,12 +7,17 @@
   "perQuery": 3,
   "maxScrapes": 6,
   "prefer": [],
-  "queries": [
+  "queries": [],
+  "urls": [
     {
-      "q": "Node.js single executable application bundling assets getAsset stability without virtual file system",
-      "why": "the dispatched topic",
-      "prefer": []
+      "url": "https://github.com/nodejs/node/pull/50960",
+      "type": "P",
+      "why": "U-1: the PR that ADDED the assets API, March 2024 - primary evidence it predates the VFS"
+    },
+    {
+      "url": "https://github.com/nodejs/node/pull/61478",
+      "type": "P",
+      "why": "U-2: the PR that added useVfs - primary evidence the VFS is the separate, newer part"
     }
-  ],
-  "urls": []
+  ]
 }
