@@ -177,7 +177,12 @@ not.
 
 `research.mjs` (→ research-run, refused on a builder by role), `researcher-release.mjs` (→
 read-only R28–R32 validation and schema conformance), `handoff.mjs` (→
-verifyHandoff, the builder's first command), `preflight.mjs` (→ the verdict), `gate.mjs`
+verifyHandoff, the builder's first command), `preflight.mjs` (→ the verdict; its summary
+line names **the setting that decided the verdict**, printing `[--strict, over
+evidencePolicy=pluralist]` rather than the declared policy alone — `--strict` promotes every
+warning while `evidencePolicy=strict` promotes only the three `POLICY_CHECKS`, and labelling
+a flag-driven failure with the policy name told a reader the policy had failed them),
+`gate.mjs`
 (→ evaluate; `--staged-stdin` reads the piped path list; `--posture` answers 0 allow /
 1 fail-closed / 2 unreadable-and-closed, so no shell has to parse JSON), `doctor.mjs` (`--fix-arity`), `install.mjs` (deploy + `--into` per-project
 binding, role-aware next steps), `install-hooks.mjs` (`--fail-closed`, `--role`),
