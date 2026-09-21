@@ -26,6 +26,137 @@ from nothing to a `preflight` verdict, and
 [when something fails](../README.md#when-something-fails) lists the failure modes that
 actually happen.
 
+## Start here if this is new to you
+
+Five steps, in order. You need a GitHub account and the repository. You do **not** need to
+install anything for steps 1-4.
+
+### 1. Get a Firecrawl key
+
+Sign up at [firecrawl.dev](https://www.firecrawl.dev) and copy your API key from the
+dashboard. The free tier is 1,000 credits a month, no card, and it stops at zero rather
+than billing you.
+
+### 2. Put the key where only the collector can read it
+
+In **your repository** on GitHub:
+
+> **Settings** -> **Environments** -> **New environment** -> name it `research-collection`
+> -> **Add secret** -> name `FIRECRAWL_API_KEY`, value = your key
+> -> **Add variable** -> name `RESEARCH_KIT_COLLECTION_ENV`, value `research-collection`
+
+Both are needed. The *variable* is how the collector checks the environment really exists:
+GitHub silently creates an unprotected environment if a workflow names one that is missing,
+and that would leave your key somewhere it should not be.
+
+**Do not put the key in Settings -> Secrets and variables -> Actions.** That makes it
+readable by every workflow in the repository. The collector has a check that refuses to run
+if it finds it there.
+
+### 3. Run a collection from the website
+
+> **Actions** tab -> **collect** in the left sidebar -> **Run workflow**
+
+Fill in the topic, leave the rest as they are for a first run, and press the green button.
+Start small: `max_pages: 1` and `depth: probe` costs about 3 credits.
+
+Watch it finish, then scroll to **Artifacts** at the bottom of the run and download the ZIP.
+
+### 4. Read what came back
+
+Open the ZIP and read **`README-FIRST.md`** first. It will say:
+
+> **COLLECTED CORPUS - HUMAN REVIEW REQUIRED**
+
+That is normal and correct. The collector gathers evidence; it does not decide whether the
+research is any good. Three steps are yours, and no tool does them for you:
+
+1. Classify every row in `project/research/MAP.md`
+2. Rewrite every Finding in `project/research/EVIDENCE.md` into a claim you would defend
+3. Run preflight, then write and review the brief
+
+Until those are done, `manifest.json` says `"buildAuthorized": false` - which means
+**do not start building from this yet**, and any AI reading it should refuse to as well.
+
+### 5. Check the package is intact (optional)
+
+```
+node research-kit/bin/artifact.mjs validate --file research-kit-corpus-v1-<something>.zip
+```
+
+`PASS` means the package is undamaged and its evidence chain verifies. It does **not** mean
+you may build - that is the separate `buildAuthorized` line.
+
+---
+
+## Letting an AI agent run the collector
+
+An agent can do steps 3-5 for you. It needs a token, and the token should be able to do
+**one thing only**.
+
+### Where to get the token
+
+> [github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new)
+>
+> (or: your avatar -> **Settings** -> **Developer settings** -> **Personal access tokens**
+> -> **Fine-grained tokens** -> **Generate new token**)
+
+Fill it in like this:
+
+| Field | Value |
+|---|---|
+| Token name | something you will recognise, e.g. `research-collector-agent` |
+| Expiration | 30 days. Short is good; you can always make another |
+| Repository access | **Only select repositories** -> pick this one |
+| Permissions -> Repository -> **Actions** | **Read and write** |
+| Everything else | leave alone |
+
+**Actions: Read and write is the only permission it needs.** With just that, the agent can
+start a collection and read the result. It cannot read or change your code, read your
+secrets, change settings, or touch any other repository. If the agent misbehaves, revoke
+the token - it takes one click and breaks nothing else.
+
+Copy the token when it is shown. GitHub will not show it again.
+
+### Give it to the agent
+
+Set it in the environment. **Never** on a command line - a command line ends up in your
+shell history, in the process list, and in any log that echoes the command. There is no
+`--token` flag, deliberately.
+
+```bash
+export RESEARCH_KIT_GITHUB_TOKEN=github_pat_...
+node research-kit/bin/collect-remote.mjs \
+  --repository OWNER/REPO \
+  --topic "What are the rate limits on the Stripe API" \
+  --max-pages 5 --json
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:RESEARCH_KIT_GITHUB_TOKEN = "github_pat_..."
+node research-kit/bin/collect-remote.mjs --repository OWNER/REPO --topic "..." --json
+```
+
+That one command dispatches the run, prints the run id immediately, waits, downloads the
+artifact, unwraps it, and validates it. Exit codes:
+
+| Exit | Meaning |
+|---|---|
+| 0 | collected and valid - **still does not authorize building** |
+| 1 | the package is invalid |
+| 2 | the run failed, or the package is incomplete |
+| 3 | could not start: no token, bad repository, or no permission |
+| 4 | dispatched and still running when the wait ran out; the run id is on stdout |
+
+### What the agent must not do
+
+Read `buildAuthorized` and stop if it is `false`. It will be `false` for everything this
+command returns, because a freshly collected corpus has not been reviewed by anyone. An
+agent that treats exit 0 as permission to build has skipped the only part of this that
+needed a person.
+
 ## Install
 
 ```
@@ -84,6 +215,7 @@ node research-kit/bin/handoff.mjs     # did the corpus arrive whole?
 | `property-replay.mjs` | replay a captured property failure deterministically |
 | `evidence-context.mjs` | what one unknown rests on (`--unknown U-5`, `--all`, `--json`), read-only |
 | `artifact.mjs` | the portable package: `create` (derives authorization, never takes it) and `validate` (offline, read-only) |
+| `collect-remote.mjs` | run the collector on GitHub and bring the result back (`--repository`, `--topic`, `--json`) |
 | `selftest.mjs` | the whole suite, offline |
 
 ## The portable artifact
@@ -360,7 +492,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-762 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+781 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

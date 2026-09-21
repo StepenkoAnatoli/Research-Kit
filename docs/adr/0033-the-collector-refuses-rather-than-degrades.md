@@ -168,6 +168,36 @@ for `.json` templates and left verbatim for markdown — escaping everywhere wou
 into prose. Two regression tests, both confirmed red against the unfixed module before the
 fix was restored.
 
+### The agent seam, 2026-09-21 — a token that can do one thing
+
+With no required reviewer, the control that replaces it is the **scope of the token an
+agent holds**. A fine-grained personal access token restricted to this repository with
+repository permission **Actions: read and write** - and nothing else - can start a
+collection and read the result. It cannot read or change code, read secrets, alter
+settings, or reach any other repository. Revoking it is one click and breaks nothing else.
+
+That is a better control than the reviewer was, because it bounds *what* rather than
+gating *when*, and it does not require a person to be awake.
+
+`lib/dispatch.mjs` and `bin/collect-remote.mjs` are that seam. Three properties are
+enforced rather than documented:
+
+- **No token may be passed as an argument.** `tokenFromEnv` is the only way in, and a test
+  asserts the source contains no token flag. A credential on a command line reaches the
+  shell history, `ps`, and any log that echoes its own command. An unknown flag matching
+  token/auth/key/secret/pat is refused with that reason rather than with a spelling hint.
+- **Redaction is pattern-based**, not "remove the token we hold", so it also catches a
+  credential the process was never given - one echoed back by a server, a proxy or a
+  redirect. That is the case a hand-written message forgets.
+- **A `204` is a named failure**, `NO_RUN_ID`, explaining that the server served
+  `2022-11-28` despite the pinned header. Returning a partial result would hand the caller
+  "the run started and I cannot tell which one", which is the failure they are least
+  equipped to diagnose from a status code.
+
+Every request goes through an injectable `fetch`, so the whole seam is tested offline: what
+header was actually sent, that a token never reaches an error, that `waiting` is reported as
+a status rather than a stall. The live path is verified by running it, separately.
+
 ## Alternatives considered
 
 **One workflow for both testing and collecting.** Fewer files, one approval list for two
