@@ -25,9 +25,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseFlags, canonicalJson } from '../lib/core.mjs';
 import { requireRuntime } from '../lib/runtime.mjs';
-import { validateArtifact } from '../lib/artifact-validator.mjs';
 import {
-  dispatchCollection, waitForRun, listArtifacts, downloadArtifact, unwrapArtifact,
+  dispatchCollection, waitForRun, fetchCorpus,
   tokenFromEnv, redact, DispatchError, API_VERSION, TOKEN_VARS,
 } from '../lib/dispatch.mjs';
 
@@ -168,39 +167,23 @@ if (run.conclusion !== 'success') {
 
 // ---------------------------------------------------------------- collect the artifact
 
-let artifacts;
+// ONE implementation of "bring it home and judge it", shared with the MCP server. The
+// approved brief is explicit about why: a second copy of this logic is how the vendor
+// package name came to be wrong in two workflows at once.
+let got;
 try {
-  artifacts = await listArtifacts({ repository, runId: started.workflowRunId, token });
-} catch (err) {
-  die(EXIT.RUN_FAILED, { error: redact(err.message), workflowRunId: started.workflowRunId });
-}
-const wanted = artifacts.filter((a) => !a.expired && a.name.startsWith('research-kit-corpus-v1-'));
-if (wanted.length !== 1) {
-  die(EXIT.RUN_FAILED, {
-    error: `expected one corpus artifact on run ${started.workflowRunId}, found ${wanted.length}`,
-    workflowRunId: started.workflowRunId,
-    remedy: 'the run succeeded but produced no package; check the upload step',
+  got = await fetchCorpus({
+    repository, runId: started.workflowRunId, token,
+    outDir, expectedClientRef: inputs.client_ref ?? null,
   });
-}
-
-let bytes;
-try {
-  bytes = await downloadArtifact({ repository, artifactId: wanted[0].id, token });
 } catch (err) {
   const e = err instanceof DispatchError ? err : new DispatchError('UNKNOWN', err.message);
   die(EXIT.RUN_FAILED, { error: `${e.code}: ${e.message}`, code: e.code, remedy: e.remedy, workflowRunId: started.workflowRunId });
 }
+const { file, validation: result } = got;
+say(`saved ${file}`);
 
-// GitHub wraps every artifact in a ZIP of its own, so this is a ZIP holding our ZIP.
-const { bytes: packageBytes, unwrapped, name } = unwrapArtifact(bytes);
-fs.mkdirSync(outDir, { recursive: true });
-const file = path.join(outDir, unwrapped ? name : `${wanted[0].name}.zip`);
-fs.writeFileSync(file, packageBytes);
-say(`saved ${file} (${packageBytes.length} bytes)`);
 
-// ---------------------------------------------------------------- judge it
-
-const result = validateArtifact({ file, expectedClientRef: inputs.client_ref ?? null });
 const payload = {
   ...result,
   file,

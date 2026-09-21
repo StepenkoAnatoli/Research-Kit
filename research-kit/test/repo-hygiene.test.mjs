@@ -90,3 +90,40 @@ test('the kit README has no parent-relative link, because it ships standalone', 
   assert.deepEqual(broken, [],
     'these links assume a parent directory that does not exist in a deployed kit:\n  ' + broken.join('\n  '));
 });
+
+test('no collector byproduct is tracked at any depth', () => {
+  // `.gitignore` rules with a slash in them are anchored to the file that declares them,
+  // so the root rules cover `research/raw/` and nothing else. A NESTED decision project
+  // (ADR-0030) is covered by its own `.gitignore` - which protects it only once that
+  // project is committed.
+  //
+  // The window between is real and it caught me: a byproduct written into a nested
+  // project on one branch survives the switch away as an untracked orphan, because it was
+  // ignored there and so was never removed. `git add -A` on a branch that has not got
+  // the nested ignore file yet then commits it.
+  //
+  // This asserts the invariant rather than the rules: these four are machine-local state,
+  // they are never evidence, and they must not be in the index anywhere.
+  if (!inGitRepo) return;
+
+  const byproducts = /(^|\/)\.(usage|diagnostics|failures)\.jsonl$|(^|\/)\.fetches\.lock$|(^|\/)overrides\.log$/;
+  const tracked = (git(['ls-files']) ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const offenders = tracked.filter((f) => byproducts.test(f));
+
+  assert.deepEqual(offenders, [],
+    'these are machine-local byproducts and must never be tracked:\n  ' + offenders.join('\n  '));
+});
+
+test('the ledger is still not swept up by the broader rules', () => {
+  // The mirror of the test above, and the reason it is worded as a denylist of four names
+  // rather than "ignore everything hidden under research/raw". The chain is evidence and
+  // must travel - including in a nested project.
+  if (!inGitRepo) return;
+  const ledgers = (git(['ls-files']) ?? '').split('\n').map((l) => l.trim())
+    .filter((f) => f.endsWith('research/raw/.fetches.jsonl'));
+
+  assert.ok(ledgers.length >= 1, 'no fetch ledger is tracked anywhere; the corpus cannot prove itself');
+  for (const ledger of ledgers) {
+    assert.equal(git(['check-ignore', '-q', ledger]), null, `${ledger} is matched by an ignore rule; it is evidence and must travel`);
+  }
+});
