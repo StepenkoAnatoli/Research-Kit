@@ -84,6 +84,25 @@ test('the API version is pinned on the request, not merely documented', async ()
   assert.equal(init.method, 'POST');
 });
 
+test('BOTH routes to a run id are requested, not just the pinned version', async () => {
+  // The pin makes run details the default; `return_run_details` asks for them outright, and
+  // works on 2022-11-28 as well. Measured on 2026-09-21 against this repository: the old
+  // version with the parameter returns 200 + workflow_run_id, and the new version accepts
+  // the parameter rather than rejecting it as unknown. Sending both means a server that
+  // ignores or downgrades the header still answers with a run id.
+  //
+  // Asserted on the REQUEST BODY because that is the whole change - a stub returning 200
+  // would pass whatever we sent, so only the outgoing bytes prove it.
+  const doFetch = stubFetch([jsonResponse(200, { workflow_run_id: 7, run_url: 'u', html_url: 'h' })]);
+  await dispatchCollection({ repository: REPO, token: TOKEN, fetch: doFetch, inputs: { topic: 'x' } });
+
+  const sent = JSON.parse(doFetch.calls[0].init.body);
+  assert.equal(sent.return_run_details, true);
+  assert.equal(doFetch.calls[0].init.headers['X-GitHub-Api-Version'], API_VERSION);
+  assert.equal(sent.ref, 'main', 'the belt-and-braces parameter must not disturb the rest of the body');
+  assert.deepEqual(sent.inputs, { topic: 'x' });
+});
+
 test('a 200 with the run id is the whole point', async () => {
   const doFetch = stubFetch([jsonResponse(200, { workflow_run_id: 35590767944, run_url: 'r', html_url: 'h' })]);
   const out = await dispatchCollection({ repository: REPO, token: TOKEN, fetch: doFetch });
@@ -100,7 +119,11 @@ test('a 204 is a NAMED failure explaining the cause, not an empty success', asyn
       assert.ok(err instanceof DispatchError);
       assert.equal(err.code, 'NO_RUN_ID');
       assert.match(err.message, /cannot be identified/);
-      assert.match(err.remedy, /2022-11-28/);
+      // The remedy named 2022-11-28 while the pinned header was the only route to a run id.
+      // There are now two, so a 204 means BOTH were ignored - a narrower and more useful
+      // diagnosis, and the assertion follows the explanation rather than the old wording.
+      assert.match(err.remedy, /return_run_details/);
+      assert.match(err.remedy, /X-GitHub-Api-Version/);
       return true;
     },
   );

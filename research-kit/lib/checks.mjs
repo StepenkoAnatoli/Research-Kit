@@ -514,9 +514,15 @@ function corroboration(corpus) {
     // the case of a CLOSED one citing no row at all.
     if (unknown.status !== 'CLOSED') continue;
 
-    const rows = unknown.cites
-      .filter((id) => /^E-\d+$/i.test(id))
-      .map((id) => byId.get(id.toUpperCase()))
+    // DEDUPED BY ID, and that is load-bearing. `citedIds` returns every E-## mention in the
+    // cell, so an unknown whose prose names E-10 twice - "E-10 says X … as E-10 also notes"
+    // - yields the same row twice. Counting it twice would inflate the support, and once
+    // `documentGroups` folds the duplicate it reports a "republished copy" about a row that
+    // was only ever mentioned twice. Host-counting masked this: duplicates inflated
+    // `rows.length` but collapsed in the host Set, so the finding stayed right by accident.
+    // Found 2026-09-21 by running the new grouping over the delivery-architecture corpus.
+    const rows = [...new Set(unknown.cites.filter((id) => /^E-\d+$/i.test(id)).map((id) => id.toUpperCase()))]
+      .map((id) => byId.get(id))
       .filter(Boolean);
     if (!rows.length) continue;
 

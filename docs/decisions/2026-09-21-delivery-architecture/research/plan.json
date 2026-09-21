@@ -5,15 +5,47 @@
   "refreshDays": 30,
   "limit": 6,
   "perQuery": 2,
-  "maxScrapes": 5,
+  "maxScrapes": 8,
   "prefer": [
     "docs.github.com",
     "nodejs.org"
   ],
   "queries": [],
   "urls": [
-    "https://docs.github.com/en/rest/about-the-rest-api/api-versions",
-    "https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments",
-    "https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job"
+    {
+      "url": "https://github.blog/changelog/2026-02-19-workflow-dispatch-api-now-returns-run-ids/",
+      "type": "P",
+      "why": "U-1 second source: how the dispatch endpoint came to return a run id"
+    },
+    {
+      "url": "https://github.blog/changelog/2026-03-12-rest-api-version-2026-03-10-is-now-available/",
+      "type": "P",
+      "why": "U-1 second source: the 2026-03-10 version announcement and the unpinned default"
+    },
+    {
+      "url": "https://github.com/actions/upload-artifact",
+      "type": "P",
+      "why": "U-2 second source: retention-days, by the action team rather than the docs team"
+    },
+    {
+      "url": "https://github.com/pricing",
+      "type": "P",
+      "why": "U-3 second source: Actions minutes on a different host from docs.github.com"
+    },
+    {
+      "url": "https://github.blog/changelog/2020-12-15-github-actions-environments-environment-protection-rules-and-environment-secrets-beta/",
+      "type": "P",
+      "why": "U-5 second source: required reviewers pause the job BEFORE secrets are released"
+    },
+    {
+      "url": "https://github.blog/changelog/2020-07-06-github-actions-manual-triggers-with-workflow_dispatch/",
+      "type": "P",
+      "why": "U-7 second source: the Run workflow button and dispatch inputs, as announced"
+    },
+    {
+      "url": "https://github.blog/changelog/2022-09-26-github-actions-dynamic-names-for-workflow-runs/",
+      "type": "P",
+      "why": "U-8 second source: run-name accepts expressions"
+    }
   ]
 }

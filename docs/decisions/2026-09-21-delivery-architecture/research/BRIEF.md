@@ -202,3 +202,63 @@ that a second reading of the same vendor would test.
 2. Hand this file to the builder (phase 2). Re-running `node bin/brief.mjs`
    after edits will refuse without `--force` so your judgements are preserved.
 3. The two gaps above are the first things to close if the collector is built.
+
+## Corroboration pass, 2026-09-21 - and it found a contradiction worth having
+
+Seven more captures into the same ledger - nineteen entries, one unbroken chain. Six of the
+eight unknowns now report `independent`; two are left single-sourced on purpose and the
+contract says which and why.
+
+The pass paid for itself on U-1. **E-13, GitHub's own changelog of 2026-02-19, appears to
+deny E-01 outright:**
+
+> "you can pass in a new optional boolean parameter, `return_run_details`, which will return
+> a `200 OK` response … **If you do not pass in this parameter, it will continue to return
+> the current `204 No Content` status code.**"
+
+E-01 and this repository's own earlier measurement say the `200` arrives from pinning
+`X-GitHub-Api-Version: 2026-03-10`, with no such parameter. One of those had to be wrong, or
+incomplete.
+
+### Resolved by measuring, four calls, no parameter unless stated
+
+Run against `offline-suite.yml` - a workflow that spends no credits - on 2026-09-21:
+
+| API version selected | `return_run_details` | result |
+|---|---|---|
+| `2022-11-28` (default) | absent | **204 No Content** |
+| `2026-03-10` (pinned) | absent | **200** + `workflow_run_id` |
+| `2022-11-28` (default) | `true` | **200** + `workflow_run_id` |
+| `2026-03-10` (pinned) | `true` | **200** + `workflow_run_id` |
+
+**Both sources are correct and neither is complete.** The parameter is the opt-in route, and
+it works on the old version - which is what E-13 documents. The new calendar version makes
+run details the **default**, which is a response-shape change and therefore exactly what a
+breaking-change version is for; E-14 supplies that rule in the same sentence that resolves
+the conflict: optional parameters are non-breaking and reach every version, so *making one
+the default* is the part that needs `2026-03-10`.
+
+### What changed because of it
+
+ADR-0031 told a caller stuck on `2022-11-28` to poll `/actions/runs` and correlate by
+`created_at` - a race it acknowledged. **There was a better fallback the whole time**, and
+the corpus had no way to know because nothing outside `docs.github.com` had been read.
+
+`lib/dispatch.mjs` now sends **both**: the pinned header and `return_run_details: true`. The
+fourth row of the table is why that is safe rather than merely plausible - the new version
+accepts the parameter instead of rejecting it as unknown. `NO_RUN_ID` now means both routes
+were ignored, which is a far narrower diagnosis than "confirm your header arrived".
+
+### The honest shape of what corroboration bought
+
+Not "the corpus was wrong". E-01 was right, and the decision built on it was right. What a
+second host bought was the **mechanism and its date**, and with them a fallback that removes
+a race from the design. That is a better argument for corroborating than "catching errors",
+because no error was caught.
+
+Two unknowns were deliberately left alone, and the reasoning is in the contract rather than
+implied by silence: U-4 because a stability marker is Node's statement about Node, and U-6
+because GitHub is the only witness to its own permission model - and for U-6 the stronger
+evidence is a measurement that already exists (`lib/disclosure.mjs`, and the
+`public-run-visibility` project), deliberately not filed as an evidence row because a probe
+is not a fetched page.
