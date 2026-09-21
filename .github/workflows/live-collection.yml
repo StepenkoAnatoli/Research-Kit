@@ -129,11 +129,15 @@ jobs:
         run: |
           set -e
           tested=$(node -e 'import("./research-kit/lib/firecrawl.mjs").then(m => process.stdout.write(m.TESTED_CLI_VERSION))')
+          # Package name from the adapter, never spelled here. `firecrawl` on npm is the
+          # SDK and ships no binary; the CLI is `firecrawl-cli`. Surveillance mode was the
+          # dangerous half: `firecrawl@latest` RESOLVES, so this step would have reported a
+          # clean install and the next one would have failed with no binary to run.
           if [ "$CLI_VERSION" = 'tested' ]; then
-            spec="firecrawl@$tested"
+            spec=$(node -e 'import("./research-kit/lib/firecrawl.mjs").then(m => process.stdout.write(m.cliInstallSpec()))')
             echo "pinning to the version this adapter was written against: $spec"
           else
-            spec="firecrawl@latest"
+            spec=$(node -e 'import("./research-kit/lib/firecrawl.mjs").then(m => process.stdout.write(m.cliInstallSpec("latest")))')
             echo "SURVEILLANCE MODE: installing $spec. A refusal here is the workflow doing its job."
           fi
           if ! npm install -g "$spec"; then

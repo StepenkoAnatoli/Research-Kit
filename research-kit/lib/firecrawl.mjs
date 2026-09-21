@@ -352,6 +352,34 @@ export const TESTED_CLI_VERSION = '1.23.3';
 export const SUPPORTED_CLI_MAJOR = 1;
 
 /**
+ * The npm package that provides the `firecrawl` binary - and it is NOT called `firecrawl`.
+ *
+ * Both workflows installed `firecrawl@<version>` for weeks. Nobody noticed, because the
+ * install had never run. The first real dispatch failed with
+ * `npm error notarget No matching version found for firecrawl@1.23.3`, and the reason is
+ * that two different packages are in play:
+ *
+ *   firecrawl-cli   1.23.3   bin: { firecrawl: ... }   the CLI this adapter drives
+ *   firecrawl       4.41.0   no bin at all             the JavaScript SDK
+ *
+ * The ETARGET failure was the lucky outcome. `firecrawl@latest` RESOLVES - to the SDK, at
+ * a major this adapter has never seen - so the surveillance mode of `live-collection.yml`
+ * would have reported a successful install and then failed on `firecrawl --version` with
+ * no binary to run, which reads as a compatibility problem rather than as the wrong
+ * package.
+ *
+ * It lives here because ADR-0005 puts all vendor knowledge in this adapter: a workflow
+ * that spells the package name itself is a second place for it to be wrong, and that is
+ * exactly how this happened.
+ */
+export const CLI_PACKAGE = 'firecrawl-cli';
+
+/** `firecrawl-cli@1.23.3` or `firecrawl-cli@latest` - never a bare package name. */
+export function cliInstallSpec(version = TESTED_CLI_VERSION) {
+  return `${CLI_PACKAGE}@${version}`;
+}
+
+/**
  * What this adapter will do with the installed CLI, and why.
  *
  * Three answers, deliberately, because "compatible or not" is the wrong shape:

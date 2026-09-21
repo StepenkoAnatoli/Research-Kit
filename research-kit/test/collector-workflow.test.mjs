@@ -236,6 +236,43 @@ test('integrity is required, research sufficiency is not', () => {
   }
 });
 
+test('no workflow spells the vendor package name itself', () => {
+  // The defect this file exists to prevent the next of. Both workflows installed
+  // `firecrawl@<version>` for weeks and nobody noticed, because the install had never
+  // run. Two different packages are in play:
+  //
+  //   firecrawl-cli  1.23.3  bin: { firecrawl }  the CLI the adapter drives
+  //   firecrawl      4.41.0  no bin at all       the JavaScript SDK
+  //
+  // The pinned spelling failed loudly with ETARGET. `firecrawl@latest` RESOLVES, to the
+  // SDK, so surveillance mode would have reported a clean install and then failed with no
+  // binary to run - which reads as a compatibility problem rather than the wrong package.
+  //
+  // ADR-0005 puts vendor knowledge in the adapter. A workflow spelling the package is a
+  // second place for it to be wrong, which is precisely what happened.
+  const offenders = [];
+  for (const name of fs.readdirSync(WORKFLOWS)) {
+    if (!name.endsWith('.yml') && !name.endsWith('.yaml')) continue;
+    const text = executable(fs.readFileSync(path.join(WORKFLOWS, name), 'utf8'));
+    text.split('\n').forEach((line, i) => {
+      if (!/npm (install|i) .*-g/.test(line)) return;
+      if (/\$\{?spec\}?/.test(line)) return;               // resolved from the adapter
+      offenders.push(`${name}:${i + 1}  ${line.trim()}`);
+    });
+  }
+  assert.deepEqual(offenders, [],
+    `a workflow names the package to install instead of asking lib/firecrawl.mjs:\n  ${offenders.join('\n  ')}`);
+});
+
+test('the adapter names the package that actually ships the binary', async () => {
+  const { CLI_PACKAGE, cliInstallSpec, TESTED_CLI_VERSION } = await import('../lib/firecrawl.mjs');
+  assert.equal(CLI_PACKAGE, 'firecrawl-cli',
+    'the npm package called `firecrawl` is the SDK and ships no binary; the CLI is `firecrawl-cli`');
+  assert.equal(cliInstallSpec(), `firecrawl-cli@${TESTED_CLI_VERSION}`);
+  assert.equal(cliInstallSpec('latest'), 'firecrawl-cli@latest',
+    'surveillance mode must survey the CLI, not a different package that happens to resolve');
+});
+
 // ---------------------------------------------------------------- cost and blast radius
 
 test('ordinary CI never triggers a paid collection', () => {
