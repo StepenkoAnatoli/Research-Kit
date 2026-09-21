@@ -1,15 +1,37 @@
-# Phase 1 research — how Research-Kit should be delivered
+# PRELIMINARY note — how Research-Kit should be delivered
 
 **Question:** Actions-only collector, local Windows `.exe`, hybrid desktop-over-Actions, or
 REST/API seam only?
 
-**Status: research complete, decision NOT taken.** The recommendation below is the
-agent's, and the three human-judgment steps this kit refuses to automate apply to *this
-document too*: the findings want reading against their sources before anyone builds from
-them.
+> ## This is NOT a completed Phase 1 handoff
+>
+> **Formal Phase 1 collection remains outstanding.** This note has no discovery contract,
+> no evidence rows, no cached captures and no ledger entries in this repository, so it
+> has not passed — and cannot pass — the gate this project applies to research.
+>
+> **Why, plainly: I deleted the evidence.** Nine pages were collected on 2026-09-21
+> through the metered route into a scratch project outside the repository, to avoid mixing
+> a second research question into the corpus that answers this kit's own unknowns. The
+> findings below were read from those captures. Then the scratch project was removed as
+> routine cleanup, and with it the captures, the hash-chained ledger and the provenance
+> for every claim here.
+>
+> That is the exact failure this kit exists to prevent, committed while using the kit. The
+> repository's clean preflight validates its EXISTING corpus; it says nothing about this
+> note.
 
-Collected 2026-09-21 through the metered route, 9 primary pages, 9 credits. All sources
-are vendor documentation, re-readable at the URLs given.
+## What is and is not independently checkable
+
+The findings are not equally weak, and the difference matters more than the label:
+
+| Finding | Status |
+|---|---|
+| `dispatches` returns `204 No Content` | **Independently re-verifiable in one command** — `gh api -X POST .../dispatches -f ref=main -i`. Does not depend on my captures at all. |
+| Two dispatches are distinguishable only by timestamp | **Re-verifiable** — run IDs `35546279728` and `35546293660` are in GitHub's API and can be listed today. |
+| Artifact retention, Actions billing, SEA stability, environment protection rules | **Citations, not evidence.** Live vendor URLs anyone can re-read, but with no capture, no hash and no chain behind them. Treat as leads to confirm, not as proven. |
+
+The recommendation below rests mostly on the first two, which is why it survives the
+downgrade. The supporting facts want re-collecting before anything is built on them.
 
 ---
 
@@ -105,7 +127,32 @@ world. But topics, collected URLs, evidence text and error output all become pub
 moment they reach a log, an artifact listing, or a PR. Research whose *subject* is
 sensitive should run in a private repository, where finding 1 stops being free.
 
-## What this research does not establish
+## The structural gap that caused this, which will recur
+
+The scratch project was not carelessness — it was the only option the kit offers, and that
+is worth fixing before the next decision needs evidence.
+
+`readCorpus(root)` reads `research/` relative to one project root, and a project has
+exactly one discovery contract. This repository's contract enumerates U-1..U-8, all about
+transports. Architecture-decision unknowns are a *different question*, and putting them in
+the same contract would mean one corpus asserting two unrelated sets of claims, with
+`unknown-closure` and `subtopic-coverage` judging them together.
+
+So there are three options and the kit currently supports none of them well:
+
+1. **A nested project** — `docs/decisions/<name>/research/...`, self-contained and
+   committed, runnable by `cd`-ing into it. Works with the kit as built, since the project
+   is the working directory. Costs a convention nobody has agreed.
+2. **A second repository** per decision. Clean, heavyweight, and scatters the reasoning
+   away from the thing it reasons about.
+3. **One contract, multiple topics** — a change to the protocol, not to a directory
+   layout, and the most invasive.
+
+Option 1 is the cheapest and needs no code. What it needs is a decision that decision
+research lives there, so the next person does not reach for a scratch directory and
+delete the evidence as I did.
+
+## What this note does not establish
 
 - The runner-side `npm install -g firecrawl@1.23.3` path, which has still never executed.
 - Whether artifact download is ergonomic enough for the intended beginner; that is a
