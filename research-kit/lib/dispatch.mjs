@@ -26,7 +26,7 @@ import { openZip } from './artifact-zip.mjs';
 /** The version whose dispatch response carries the run id. Changing this is a decision. */
 export const API_VERSION = '2026-03-10';
 
-export const GITHUB_API = 'https://api.github.com';
+const GITHUB_API = 'https://api.github.com';
 
 /** Environment names checked, in order. The first non-empty one wins. */
 export const TOKEN_VARS = Object.freeze(['RESEARCH_KIT_GITHUB_TOKEN', 'GITHUB_TOKEN']);
@@ -174,7 +174,7 @@ function stringifyInputs(inputs) {
 
 // ---------------------------------------------------------------- waiting
 
-export async function getRun({ repository, runId, token, fetch: doFetch = globalThis.fetch, api = GITHUB_API }) {
+async function getRun({ repository, runId, token, fetch: doFetch = globalThis.fetch, api = GITHUB_API }) {
   const [owner, name] = splitRepository(repository);
   const response = await doFetch(`${api}/repos/${owner}/${name}/actions/runs/${runId}`, { headers: headers(token) });
   if (!response.ok) throw new DispatchError('HTTP', `could not read run ${runId}: HTTP ${response.status}`, { status: response.status });

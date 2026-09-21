@@ -43,14 +43,13 @@ const KIT_ROOT = path.resolve(here, '..');
 export const MANIFEST_PATH = 'manifest.json';
 export const MANIFEST_DIGEST_PATH = 'manifest.sha256';
 export const README_PATH = 'README-FIRST.md';
-export const LEDGER_PATH = 'project/research/raw/.fetches.jsonl';
-export const SCHEMA_PATH = 'schemas/artifact-manifest.schema.json';
+const LEDGER_PATH = 'project/research/raw/.fetches.jsonl';
 
 /** The major version this validator implements. A different major is UNSUPPORTED, not invalid. */
 export const SUPPORTED_FORMAT_MAJOR = 1;
 
 /** Files a package must never carry. Machine-local state, overrides, and credentials. */
-export const FORBIDDEN_PAYLOAD = Object.freeze([
+const FORBIDDEN_PAYLOAD = Object.freeze([
   'project/research/raw/.usage.jsonl',
   'project/research/raw/.diagnostics.jsonl',
   'project/research/raw/.failures.jsonl',
@@ -62,7 +61,7 @@ export const FORBIDDEN_PAYLOAD = Object.freeze([
 /** Secret-bearing filenames, refused by NAME as well as by content. */
 const FORBIDDEN_NAME = /(^|\/)\.env(\.|$)|\.pem$|\.key$/i;
 
-export function loadArtifactSchema(root = KIT_ROOT) {
+function loadArtifactSchema(root = KIT_ROOT) {
   const file = path.join(root, 'schemas', 'artifact-manifest.schema.json');
   return parseJsonNoDuplicates(fs.readFileSync(file, 'utf8'));
 }
@@ -211,10 +210,7 @@ export function validateArtifact({
       // So the authorization rule is ALSO run here and named in its own words before
       // returning. The one rule the whole format exists to carry should never reach a
       // reader disguised as a schema detail, whichever check happened to notice first.
-      for (const finding of authorizationProblems(manifest)) {
-        reject('FAIL', 'AUTHORIZATION-INCONSISTENT', finding,
-          { path: MANIFEST_PATH, remedy: 'do not build from this package; its authorization fields contradict its review and gate state' });
-      }
+      checkAuthorization();
       return report();
     }
 
@@ -316,10 +312,7 @@ export function validateArtifact({
     }
 
     // ---- authorization consistency -----------------------------------------------------
-    for (const finding of authorizationProblems(manifest)) {
-      reject('FAIL', 'AUTHORIZATION-INCONSISTENT', finding,
-        { path: MANIFEST_PATH, remedy: 'do not build from this package; its authorization fields contradict its review and gate state' });
-    }
+    checkAuthorization();
 
     // ---- provenance -----------------------------------------------------------------
     const ledgerRoles = declaredFiles.filter((f) => f.role === 'PROVENANCE_LEDGER');
@@ -369,6 +362,14 @@ export function validateArtifact({
     return report();
   } finally {
     if (workdir) { try { fs.rmSync(workdir, { recursive: true, force: true }); } catch { /* a temp dir that will not go is the OS's business */ } }
+  }
+
+  /** Called on both routes out - schema-refused and schema-clean - so the wording cannot drift. */
+  function checkAuthorization() {
+    for (const finding of authorizationProblems(manifest)) {
+      reject('FAIL', 'AUTHORIZATION-INCONSISTENT', finding,
+        { path: MANIFEST_PATH, remedy: 'do not build from this package; its authorization fields contradict its review and gate state' });
+    }
   }
 
   function report() {

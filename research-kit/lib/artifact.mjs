@@ -42,13 +42,13 @@ import { validateArtifact, MANIFEST_PATH, MANIFEST_DIGEST_PATH, README_PATH } fr
 const here = path.dirname(fileURLToPath(import.meta.url));
 const KIT_ROOT = path.resolve(here, '..');
 
-export const FORMAT = 'research-kit-artifact';
-export const FORMAT_VERSION = '1.0.0';
+const FORMAT = 'research-kit-artifact';
+const FORMAT_VERSION = '1.0.0';
 /** The API version this format's `source.workflowRunId` is defined against. */
 export const GITHUB_API_VERSION = '2026-03-10';
 
 /** `[A-Za-z0-9][A-Za-z0-9._-]{0,63}` - refused, never silently rewritten. */
-export const CLIENT_REF_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+const CLIENT_REF_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
 export function checkClientRef(value) {
   if (value === null || value === undefined || value === '') return { ok: true, value: null };
@@ -232,7 +232,7 @@ export function findingsReviewState(root, corpus) {
 
 // ---------------------------------------------------------------- the human file
 
-export function renderReadme(derived) {
+function renderReadme(derived) {
   const { state } = derived;
   if (state === 'APPROVED_BRIEF') {
     return `# APPROVED RESEARCH — BUILDING IS AUTHORIZED
@@ -286,7 +286,7 @@ Start by opening:
 `;
 }
 
-export function renderSummary(derived, manifestish) {
+function renderSummary(derived, manifestish) {
   const c = manifestish.collection;
   const lines = [
     '# Collection summary',
@@ -325,7 +325,7 @@ export function renderSummary(derived, manifestish) {
   return lines.join('\n');
 }
 
-export function renderProblems(derived) {
+function renderProblems(derived) {
   return `${canonicalJson({
     state: derived.state,
     buildAuthorized: derived.buildAuthorized,
@@ -480,7 +480,7 @@ function transportOf(corpus) {
   return null;
 }
 
-export function nextActionsFor(derived) {
+function nextActionsFor(derived) {
   if (derived.state === 'APPROVED_BRIEF') {
     return [{ id: 'READ_BRIEF', label: 'Read the approved brief and begin building', path: 'project/research/BRIEF.md', required: true }];
   }
