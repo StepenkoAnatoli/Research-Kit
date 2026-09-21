@@ -19,12 +19,13 @@ function snapshot(dir) {
 
 const failures = (findings) => findings.filter((f) => f.severity === 'fail');
 
-test('the registry holds twelve checks in a pinned order', () => {
-  assert.equal(CHECKS.length, 12);
+test('the registry holds thirteen checks in a pinned order', () => {
+  assert.equal(CHECKS.length, 13);
   assert.deepEqual(CHECK_NAMES, [
     'discovery-contract', 'citations', 'provenance', 'transport-provenance',
     'gate-integrity', 'unknown-closure', 'subtopic-coverage', 'capture-completeness',
     'evidence-supersession', 'collection-attempts', 'hygiene', 'corpus-shape',
+    'corroboration',
   ]);
 });
 
@@ -287,5 +288,78 @@ test('an unrefreshed corpus has nothing superseded, and no check changes behavio
   assert.equal(supersededRows(corpus).size, 0);
   for (const name of CHECK_NAMES) {
     assert.equal(failures(runCheck(name, corpus, { localHooksPath: null })).length, 0, name);
+  }
+});
+
+// ---------------------------------------------------------------- corroboration
+
+/** Rewrite the fixture's evidence table and the unknown that cites it. */
+function withEvidence(dir, rows, cites) {
+  const header = readText(resolve(dir, PATHS.evidence)).split('\n').slice(0, 4).join('\n');
+  writeText(resolve(dir, PATHS.evidence), `${header}
+| ID | Retrieved | Type | URL | Finding | Raw |
+|---|---|---|---|---|---|
+${rows.join('\n')}
+`);
+  corrupt(dir, PATHS.discovery, (text) => text.replace(/\| CLOSED \|[^|]*\|/, `| CLOSED | ${cites} |`));
+  return dir;
+}
+
+test('corroboration: one row is reported, because one reading proves one reading', () => {
+  // The hole this check was added for. Before it, a corpus in which every unknown rested
+  // on a single page passed preflight AND --strict with nothing to say - and from inside
+  // such a corpus a single correct source and a single lucky one are the same thing.
+  const findings = runCheck('corroboration', snapshot(makePassingProject()));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].severity, 'warn');
+  assert.equal(findings[0].rule, 'single-source');
+  assert.match(findings[0].detail, /rests on E-01 alone/);
+});
+
+test('corroboration: two rows from ONE host is a second reading, not a second witness', () => {
+  // The distinction that matters and that the count alone cannot make. Two pages from one
+  // vendor catch a misreading; they cannot catch the vendor being wrong about itself.
+  const dir = withEvidence(makePassingProject(), [
+    '| E-01 | 2026-09-14 | P | https://example.invalid/docs/limits | ten a minute | research/raw/x.md |',
+    '| E-02 | 2026-09-14 | P | https://example.invalid/docs/pricing | ten a minute | research/raw/x.md |',
+  ], 'E-01 and E-02 agree');
+  const findings = runCheck('corroboration', snapshot(dir));
+  assert.equal(findings[0].rule, 'one-voice');
+  assert.equal(findings[0].severity, 'warn');
+  assert.match(findings[0].detail, /all are example\.invalid/);
+});
+
+test('corroboration: two hosts is independent support, and passes', () => {
+  const dir = withEvidence(makePassingProject(), [
+    '| E-01 | 2026-09-14 | P | https://example.invalid/docs/limits | ten a minute | research/raw/x.md |',
+    '| E-02 | 2026-09-14 | P | https://other.invalid/reference | ten a minute | research/raw/x.md |',
+  ], 'E-01 and E-02 agree');
+  const findings = runCheck('corroboration', snapshot(dir));
+  assert.equal(findings[0].severity, 'pass');
+  assert.equal(findings[0].rule, 'independent');
+  assert.match(findings[0].detail, /2 rows across 2 hosts/);
+});
+
+test('corroboration: a KNOWN-UNKNOWN is not asked for sources it was never going to have', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace('| CLOSED |', '| KNOWN-UNKNOWN |'));
+  const findings = runCheck('corroboration', snapshot(dir));
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].severity, 'pass');
+  assert.match(findings[0].detail, /no closed unknown to weigh/);
+});
+
+test('corroboration: it never fails on its own, whatever it finds', () => {
+  // Deliberately incapable of blocking a build by itself. Single-sourcing is often the
+  // right answer - a vendor's own reference is the authority on that vendor - so this
+  // check reports the SHAPE of the support and leaves the judgement to a reviewer, or to
+  // an operator who has chosen `evidencePolicy=strict`.
+  for (const dir of [makePassingProject(), withEvidence(makePassingProject(), [
+    '| E-01 | 2026-09-14 | P | https://example.invalid/a | x | research/raw/x.md |',
+    '| E-02 | 2026-09-14 | P | https://example.invalid/b | x | research/raw/x.md |',
+  ], 'E-01 and E-02')]) {
+    for (const f of runCheck('corroboration', snapshot(dir))) {
+      assert.notEqual(f.severity, 'fail', 'corroboration must never fail a corpus on its own');
+    }
   }
 });

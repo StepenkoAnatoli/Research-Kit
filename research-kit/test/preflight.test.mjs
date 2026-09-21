@@ -21,7 +21,20 @@ test('a corpus that deserves it passes, with every check reporting', () => {
   const verdict = runPreflight(makePassingProject());
   assert.equal(verdict.pass, true);
   assert.equal(verdict.counts.fail, 0);
-  assert.equal(verdict.counts.pass, CHECK_NAMES.length, 'each check reports once when it has nothing to say');
+
+  // EVERY check reports - that is the invariant, and it is what stops a check being
+  // silently skipped. It used to be asserted as "every check reports a PASS", which was
+  // true only while no check had anything to say about the fixture. `corroboration` does:
+  // the fixture's single unknown rests on a single row, which is precisely the shape it
+  // exists to report. Renaming the fixture or padding it with a second source to keep the
+  // old wording would have been tuning the world to fit the assertion.
+  assert.equal(new Set(verdict.findings.map((f) => f.check)).size, CHECK_NAMES.length,
+    'each check must report, even when it has nothing to say');
+
+  // And the one thing it does have to say is named, rather than left as a count nobody
+  // would notice changing.
+  assert.deepEqual(verdict.warnings.map((f) => `${f.check}/${f.rule}`), ['corroboration/single-source'],
+    'the fixture is single-sourced on purpose; any other warning here is a regression');
 });
 
 test('the verdict names what blocks, and prints one fix', () => {
@@ -61,11 +74,31 @@ test('evidencePolicy=strict fails transport and completeness findings; pluralist
   assert.ok(strict.failures.some((f) => f.check === 'transport-provenance' && f.promoted === 'evidencePolicy=strict'));
 });
 
-test('the policy applies to exactly the two checks it names, not to hygiene', () => {
+test('the evidence policy hardens evidence checks, and leaves hygiene alone', () => {
+  // Rewritten 2026-09-21, when `corroboration` joined the policy set and this test went
+  // red. It had inferred "hygiene is not hardened" from the WHOLE verdict passing, which
+  // was always a proxy: any other policy check firing on the fixture breaks it, and one
+  // did - the fixture project has a single unknown resting on a single row, which is
+  // exactly what corroboration exists to report.
+  //
+  // So it now isolates the claim instead of inferring it.
   const dir = makePassingProject();
   writeText(resolve(dir, `${PATHS.raw}/2026-01-01-orphan-x-00000000.md`), '---\nurl: https://x.invalid/orphan\nretrieved: 2026-01-01\n---\n\nbody\n');
-  const strict = runPreflight(dir, { env: envWith({ evidencePolicy: 'strict' }) });
-  assert.equal(strict.pass, true, 'an uncited capture is untidy, not unproven');
+
+  const strictEnv = envWith({ evidencePolicy: 'strict' });
+  const hygieneOnly = runPreflight(dir, { env: strictEnv, only: ['hygiene'] });
+  assert.equal(hygieneOnly.pass, true, 'an uncited capture is untidy, not unproven - hygiene is not an evidence-policy check');
+  assert.ok(hygieneOnly.warnings.length > 0, 'and it should still have said something');
+
+  // The mirror: a check that IS in the policy set does harden, on the same project.
+  const corroborationOnly = runPreflight(dir, { env: strictEnv, only: ['corroboration'] });
+  assert.equal(corroborationOnly.pass, false, 'a single-sourced unknown must fail under evidencePolicy=strict');
+  assert.ok(corroborationOnly.failures.some((f) => f.promoted === 'evidencePolicy=strict'),
+    'and the promotion must be attributed, so a reader can tell a policy failure from a rule failure');
+
+  // And under the default policy, neither of them blocks.
+  const pluralist = runPreflight(dir, { env: envWith({ evidencePolicy: 'pluralist' }) });
+  assert.equal(pluralist.pass, true, 'adding a check must not break every corpus that was passing');
 });
 
 test('--check runs a subset, and an unknown name is an error naming the registry', () => {

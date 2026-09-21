@@ -415,6 +415,7 @@ each line — is in the ADR named beside it and in
 | A ZIP's structural faults are refused from the **central directory, before inflation**; the inflation ceiling is `maxOutputLength`, not a field the archive declared about itself | ADR-0032 |
 | **No dispatch input reaches a shell**: `${{ inputs.x }}` inside a `run:` block is substitution *before* the shell parses, so inputs arrive through `env:` and then an argv array. Enforced across **every** workflow, not only the newest | [ADR-0033](adr/0033-the-collector-refuses-rather-than-degrades.md), ADR-0020 |
 | The collector's spend gate is a **protected environment whose existence is proven**, because GitHub silently creates an *unprotected* one when a workflow names a missing environment; a missing credential **refuses** rather than falling back to a keyless route | ADR-0033 |
+| A claim's **support is weighed, not just checked**: `corroboration` reports whether a closed unknown rests on one reading, several readings of one source, or several hosts — it never fails a corpus on its own, because single-sourcing is often the right answer | [ADR-0036](adr/0036-the-gate-can-see-single-sourcing.md) |
 | A privacy claim is **measured, not asserted**: `bin/disclosure.mjs` re-runs the probe, and a report never lets an unchecked thing read as a clean one | [ADR-0035](adr/0035-a-privacy-claim-is-measured-not-asserted.md) |
 | A credential that resolves in a job declaring **no** environment is **not behind the approval gate**, and fails the run: the scope question GitHub will not answer directly is answered by asking it from a context that can see only one scope | ADR-0033 |
 | The vendor **package name** lives in `lib/firecrawl.mjs` (`CLI_PACKAGE`, `cliInstallSpec`), never in a workflow: the CLI is **`firecrawl-cli`**, and the npm package called `firecrawl` is the SDK and ships no binary. Both workflows installed the wrong one for weeks, and only a real dispatch could find it | ADR-0005, ADR-0033 |
@@ -436,7 +437,7 @@ Counted against the filesystem, not estimated:
 | `bin/` entrypoints | **29**, of which **4 are Python**: 3 conformance runners and the module they share |
 | `schemas/` | **12** |
 | `conformance/` vector packets | **3** |
-| checks in the registry | **12** |
+| checks in the registry | **13** |
 | supported CI platforms | **2** |
 
 The `schemas/` count became 12 on 2026-09-21 when `artifact-manifest.schema.json` arrived
