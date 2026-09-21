@@ -97,6 +97,39 @@ corpus existed, and the corpus was used to make two architecture decisions in th
   verdict passing, and now isolates the claim. That proxy only ever worked while nothing
   else in the policy set fired.
 
+## Amendment, 2026-09-21 — a mirror is the case where `independent` is actively worse
+
+The closing section below says `independent` means only "this check found no reason to flag
+the support". Hours later a collection found a concrete failure mode sharper than that hedge,
+and it deserves naming rather than being covered by a general disclaimer.
+
+Collecting on Node's single-executable API returned `nodejs.org` **and**
+`lira.epac.to/DOCS/nodejs/api/single-executable-applications.html`. Two hosts. Cite both for
+one unknown and this check reports `independent` — its best grade.
+
+They are **the same document**, and the mirror is six major versions stale: v20.19.2 against
+the v26.9.0 nodejs.org serves. It predates the entire section that the current page's only
+`Stability: 1.0` marker sits under. A reader corroborating against it would have their
+reading of an *older* edition confirmed by an *older* edition, and the gate would call it
+independent support.
+
+**So the host heuristic does not merely fail to notice a mirror — it inverts on one.** A
+mirror scores better than the honest `one-voice` that two genuine pages from one vendor get,
+while carrying strictly less information than either. The failure is not that two hosts can
+be one witness; ADR-0036 already said that. It is that two hosts can be one witness *plus a
+staleness the freshness check cannot see*, because `freshness` grades when the page was
+**fetched** and this one was fetched today.
+
+**No code changes.** Detecting mirrors means comparing document content or parsing version
+strings out of vendor pages, and a check that guessed at either would be the reasoning-grader
+ADR-0013 refused. What changes is what a reviewer is told to do: **`independent` is a prompt
+to check that the sources are different documents, not a certificate that they are.**
+
+Recorded live rather than reasoned about: the corpus that found it
+(`docs/decisions/2026-09-21-sea-assets/`) keeps the mirror as an uncited row and accepts two
+`single-source` warnings instead — the correct trade, and the one the check's grades
+currently push against.
+
 ## What this ADR does not claim
 
 That two hosts make a claim true. Two vendors can repeat one another, and a specification
