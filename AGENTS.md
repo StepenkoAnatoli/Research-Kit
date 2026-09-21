@@ -94,6 +94,37 @@ whose topic is plainly about something else. Any one of them is a reason to ask,
 of them is a reason to search. An existing corpus about another topic is the signal doing
 its job - the answer is not to write over it, and not to search past it, but to ask.
 
+## Researching a decision ABOUT this repository: a nested project, never a scratch dir
+
+This repository's contract (`research/DISCOVERY.md`) enumerates U-1..U-8, all about
+transports and vendors. A decision about the repository itself - how it should be
+delivered, packaged, hosted - is a **different question**, and putting it in that contract
+would leave one corpus asserting two unrelated sets of claims with `unknown-closure` and
+`subtopic-coverage` judging them together.
+
+**Scaffold a nested project instead** (ADR-0030):
+
+```
+node research-kit/bin/new-project.mjs docs/decisions/<date>-<decision-name> --topic "<question>"
+cd docs/decisions/<date>-<decision-name>
+```
+
+Then work there exactly as in any project, and **commit the corpus including
+`research/raw/.fetches.jsonl`**. The worked example is
+`docs/decisions/2026-09-21-delivery-architecture/`.
+
+Two things this rule exists to prevent, both of which have already happened once:
+
+- **Do not collect into a temporary directory.** The first attempt at that decision
+  collected nine pages into a scratch project outside the repository, read the findings,
+  and deleted the directory as routine cleanup - destroying the captures, the ledger and
+  the provenance for every claim. Scratch projects stay legitimate for *experiments*: what
+  they cannot do is support a committed decision. The moment a scratch finding is going to
+  be cited, it belongs in a nested project.
+- **Do not cite this repository's preflight as validation for a nested one.** The root
+  verdict judges the root corpus. A nested project is verified with its own directory as
+  the working directory, and nothing else counts.
+
 ## Resuming after an interruption: resume, do not restart
 
 A session can die mid-task - the sandbox resets, the turn is cut, the working tree is

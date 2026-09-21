@@ -184,8 +184,32 @@ test('order is part of the interface: findings arrive in registry order', () => 
  * prescribes, built through the real files so the real parser sees it.
  */
 function withRefresh(dir, { transportOfOld = 'agent page fetch (no Firecrawl egress)', citeOld = false } = {}) {
-  const oldRaw = 'research/raw/2026-09-20-limits-example-a4e22bcd.md';
-  const newRaw = 'research/raw/2026-09-21-limits-example-refreshed.md';
+  // The existing capture is DISCOVERED, not named.
+  //
+  // These two lines were literals - `2026-09-20-limits-example-a4e22bcd.md` and a
+  // `2026-09-21-...` successor - and `makePassingProject` names its capture with
+  // `today()`. So the fixture agreed with the test on exactly one calendar day. On
+  // 2026-09-21 the copy failed with ENOENT and four tests went red, having passed all
+  // through the day before.
+  //
+  // A test that only works on the date it was written is a test with an expiry nobody
+  // wrote down. The refreshed name is derived from the real one so the pair cannot
+  // disagree again, whatever the clock says.
+  const rawDir = resolve(dir, PATHS.raw);
+  const existing = fs.readdirSync(rawDir).filter((name) => name.endsWith('.md'));
+  if (existing.length !== 1) {
+    throw new Error(`withRefresh expects the fixture's single capture, found ${existing.length}: ${existing.join(', ')}`);
+  }
+  const oldRaw = `${PATHS.raw}/${existing[0]}`;
+
+  // The refresh is a LATER day, derived from the capture's own date rather than written
+  // down. `duplicate-url` exists to catch two rows for one URL on the SAME day, so a
+  // refresh dated today - which is what the fixture produces - is correctly a duplicate.
+  const oldDate = existing[0].slice(0, 10);
+  const newDate = new Date(`${oldDate}T00:00:00Z`);
+  newDate.setUTCDate(newDate.getUTCDate() + 1);
+  const nextDay = newDate.toISOString().slice(0, 10);
+  const newRaw = `${PATHS.raw}/${nextDay}-limits-example-refreshed.md`;
   const url = 'https://example.invalid/docs/limits';
 
   // The fresher capture, and a ledger entry for it.
@@ -194,14 +218,14 @@ function withRefresh(dir, { transportOfOld = 'agent page fetch (no Firecrawl egr
   const first = JSON.parse(ledger[0]);
   ledger[0] = JSON.stringify({ ...first, transport: transportOfOld });
   ledger.push(JSON.stringify({
-    ...first, seq: 2, at: '2026-09-21T00:00:00.000Z', raw: newRaw, transport: 'firecrawl-cli', prev: first.entrySha256,
+    ...first, seq: 2, at: `${nextDay}T00:00:00.000Z`, raw: newRaw, transport: 'firecrawl-cli', prev: first.entrySha256,
   }));
   writeText(resolve(dir, PATHS.ledger), `${ledger.join('\n')}\n`);
 
   // The fresher row.
   const evidence = readText(resolve(dir, PATHS.evidence), '');
   writeText(resolve(dir, PATHS.evidence),
-    `${evidence.trimEnd()}\n| E-02 | 2026-09-21 | P | ${url} | A re-read of the same page. | ${newRaw} |\n`);
+    `${evidence.trimEnd()}\n| E-02 | ${nextDay} | P | ${url} | A re-read of the same page. | ${newRaw} |\n`);
 
   // The unknown moves to it, unless a test wants the stale citation left in place.
   if (!citeOld) {
@@ -220,9 +244,14 @@ test('a refresh does not trip duplicate-url - two rows for one URL is the DESIGN
 test('two rows for one URL fetched the SAME DAY is still a duplicate', () => {
   // The real thing the check was written for; it has to survive the fix above.
   const dir = makePassingProject();
+  // Same-day means the FIXTURE's day, read from the capture it wrote - not a literal.
+  // This line carried `2026-09-20` twice and so agreed with the fixture on exactly one
+  // calendar day, which is the defect the helper above was just fixed for.
+  const existing = fs.readdirSync(resolve(dir, PATHS.raw)).find((name) => name.endsWith('.md'));
+  const sameDay = existing.slice(0, 10);
   const evidence = readText(resolve(dir, PATHS.evidence), '');
   writeText(resolve(dir, PATHS.evidence),
-    `${evidence.trimEnd()}\n| E-02 | 2026-09-20 | P | https://example.invalid/docs/limits | Same day, second row. | research/raw/2026-09-20-limits-example-a4e22bcd.md |\n`);
+    `${evidence.trimEnd()}\n| E-02 | ${sameDay} | P | https://example.invalid/docs/limits | Same day, second row. | ${PATHS.raw}/${existing} |\n`);
 
   const dupes = runCheck('hygiene', snapshot(dir)).filter((f) => f.rule === 'duplicate-url');
   assert.equal(dupes.length, 1, 'a same-day duplicate stopped being reported');
