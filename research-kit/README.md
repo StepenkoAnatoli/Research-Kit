@@ -119,9 +119,18 @@ separate field, `buildAuthorized`, and a valid collected corpus reports `PASS` w
 | 2 | incomplete, or a format major this build does not implement |
 | 3 | validation was blocked and reached no verdict |
 
-**Authorization is derived, never requested.** There is no `--build-authorized`. `create`
-runs the real gate over the real project and reads the real review state; a caller supplies
-identity (which repository, which run) and nothing about permission.
+**Authorization is derived, never requested.** There is no `--build-authorized`, and the
+CLI **refuses** it rather than ignoring it:
+
+```
+unknown option --build-authorized
+Authorization is derived from the project and cannot be supplied.
+```
+
+Accepting it silently would be safe and misleading - exit 0 plus a package back is every
+reason to believe the option was honoured. `create` runs the real gate over the real
+project and reads the real review state; a caller supplies identity (which repository,
+which run) and nothing about permission.
 
 **What a consuming agent must do, in order:**
 
@@ -274,7 +283,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-723 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+726 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

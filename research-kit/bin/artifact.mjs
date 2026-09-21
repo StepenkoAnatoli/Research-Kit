@@ -61,6 +61,51 @@ requireRuntime({ node: true });
 
 const EXIT = Object.freeze({ PASS: 0, FAIL: 1, INCOMPLETE: 2, BLOCKED: 3 });
 
+/**
+ * Every flag each command understands. An unknown one is REFUSED, not ignored.
+ *
+ * `parseFlags` collects whatever it is given, so an unrecognised flag would otherwise sit
+ * in the object and be silently skipped. For most typos that is merely unhelpful. For an
+ * authorization-shaped flag it is actively misleading: an integrator who writes
+ * `--build-authorized true`, sees exit 0 and gets a package back has every reason to
+ * believe the option was understood and honoured. It was not, and the package is
+ * unauthorized - but they learn that from a field they had no reason to re-read.
+ *
+ * Refusing costs one line and removes the wrong belief at the moment it forms.
+ */
+const KNOWN_FLAGS = Object.freeze({
+  validate: ['file', 'expect-client-ref', 'json', 'quiet', 'help'],
+  create: [
+    'root', 'output', 'client-ref', 'repository', 'ref', 'commit', 'workflow',
+    'run-id', 'run-attempt', 'run-url', 'html-url', 'api-version', 'help',
+  ],
+});
+
+/**
+ * Flags that do not exist and must never exist. Named individually so the refusal can say
+ * WHY rather than only that the spelling is wrong - "unknown option" invites a reader to
+ * hunt for the correct spelling of a thing that has no correct spelling.
+ */
+const REFUSED_FOREVER = Object.freeze([
+  'build-authorized', 'buildauthorized', 'authorize', 'authorized',
+  'state', 'kind', 'gate-verdict', 'verdict', 'approved', 'force-approve',
+]);
+
+function refuseUnknownFlags(name) {
+  const known = new Set(KNOWN_FLAGS[name] ?? []);
+  const unknown = Object.keys(flags).filter((flag) => !known.has(flag));
+  if (!unknown.length) return;
+
+  for (const flag of unknown) {
+    process.stderr.write(`unknown option --${flag}\n`);
+    if (REFUSED_FOREVER.includes(flag.toLowerCase())) {
+      process.stderr.write('Authorization is derived from the project and cannot be supplied.\n');
+    }
+  }
+  process.stdout.write(HELP);
+  process.exit(EXIT.BLOCKED);
+}
+
 function printResult(result, { json = false, quiet = false } = {}) {
   if (json) {
     // Canonical, so two runs over the same package produce byte-identical output and a
@@ -89,6 +134,7 @@ function printResult(result, { json = false, quiet = false } = {}) {
 }
 
 if (command === 'validate') {
+  refuseUnknownFlags('validate');
   if (!flags.file) { process.stderr.write('validate needs --file <package.zip>\n\n'); process.stdout.write(HELP); process.exit(EXIT.BLOCKED); }
   const result = validateArtifact({
     file: String(flags.file),
@@ -99,6 +145,7 @@ if (command === 'validate') {
 }
 
 if (command === 'create') {
+  refuseUnknownFlags('create');
   const required = ['repository', 'ref', 'commit', 'workflow', 'run-id'];
   const missing = required.filter((name) => flags[name] === undefined);
   if (missing.length) {

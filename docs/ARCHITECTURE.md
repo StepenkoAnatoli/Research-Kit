@@ -404,6 +404,9 @@ each line — is in the ADR named beside it and in
 | Validators are **read-only**; the only writes are `fi-validate --report` and `property-replay`, both explicitly requested | ADR-0029 |
 | Validator inputs are not mutated — CI diffs `conformance/` and `schemas/` after every run | ADR-0029 |
 | `researcher-release` **usage errors return exit 2** from every subcommand | — |
+| An artifact's **authorization is derived, never supplied**: `artifact.mjs` has no `--build-authorized`, **refuses** it (and every near spelling) with the reason rather than ignoring it, and `deriveState` runs the real gate with `env` defaulting to `{}` so a packaging shell's override cannot travel | [ADR-0032](adr/0032-one-artifact-contract-for-every-consumer.md) |
+| A package being **valid is not a package being authorized**: `status: PASS` and `buildAuthorized` are separate fields, and the CLI says so in words on a valid collected corpus | ADR-0032 |
+| A ZIP's structural faults are refused from the **central directory, before inflation**; the inflation ceiling is `maxOutputLength`, not a field the archive declared about itself | ADR-0032 |
 | Supported CI platforms are **Linux and Windows**; macOS is best-effort and untested | [README](../README.md#supported-platforms) |
 | The project is the **current working directory**; there is no `--project` | ADR-0017 |
 | Enforcement surfaces stay at **two**: the git commit gate and the edit-time hook | ADR-0006 |

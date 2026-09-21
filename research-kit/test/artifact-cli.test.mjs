@@ -98,18 +98,50 @@ test('--expect-client-ref accepts the matching job and refuses another', () => {
   assert.ok(/CLIENT-REF-MISMATCH/.test(wrong.out), wrong.out);
 });
 
-test('there is no --build-authorized flag, and passing one changes nothing', () => {
-  const root = collectedProject();
+test('--build-authorized is REFUSED, not ignored, and says why', () => {
+  // Ignoring it was safe and misleading: exit 0 plus a package back is every reason for
+  // an integrator to believe the option was understood and honoured. It was not. The
+  // refusal removes the wrong belief at the moment it forms.
   const out = path.join(scratch, 'forged.zip');
-  const r = run(['create', '--root', root, '--output', out,
+  const r = run(['create', '--root', collectedProject(), '--output', out,
     '--repository', 'o/r', '--ref', 'main', '--commit', '0'.repeat(40),
     '--workflow', 'w.yml', '--run-id', '7', '--build-authorized', 'true']);
-  assert.equal(r.code, 0, `${r.out}${r.err}`);
-  assert.ok(/NOT authorized/.test(r.out), 'a caller-supplied flag must not authorize anything');
 
-  const check = run(['validate', '--file', out, '--json']);
-  const parsed = JSON.parse(check.out);
-  assert.equal(parsed.buildAuthorized, false);
+  assert.equal(r.code, 3, `expected a refusal, got exit ${r.code}\n${r.out}${r.err}`);
+  assert.ok(/unknown option --build-authorized/.test(r.err), r.err);
+  assert.ok(/Authorization is derived from the project and cannot be supplied/.test(r.err),
+    'the message must say WHY, not only that the spelling is unknown - there is no correct spelling to hunt for');
+  assert.ok(!fs.existsSync(out), 'nothing should be written when the arguments are refused');
+});
+
+test('every authorization-shaped flag is refused by name', () => {
+  for (const flag of ['--build-authorized', '--authorize', '--approved', '--state', '--gate-verdict', '--force-approve']) {
+    const r = run(['create', '--root', collectedProject(), '--output', path.join(scratch, 'never.zip'),
+      '--repository', 'o/r', '--ref', 'main', '--commit', '0'.repeat(40),
+      '--workflow', 'w.yml', '--run-id', '7', flag, 'x']);
+    assert.equal(r.code, 3, `${flag} should be refused, got exit ${r.code}`);
+    assert.ok(/Authorization is derived/.test(r.err), `${flag} should be refused with the reason: ${r.err}`);
+  }
+});
+
+test('an ordinary typo is refused too, without the authorization sentence', () => {
+  const r = run(['validate', '--file', 'x.zip', '--jsonn']);
+  assert.equal(r.code, 3);
+  assert.ok(/unknown option --jsonn/.test(r.err), r.err);
+  assert.ok(!/Authorization is derived/.test(r.err),
+    'a misspelled --json is not an authorization attempt and should not be told about one');
+});
+
+test('a package still cannot claim authorization it did not earn', () => {
+  // The property the refused flag used to prove, asserted where it belongs: through the
+  // supported path, on a corpus that has not been reviewed.
+  const out = path.join(scratch, 'unforged.zip');
+  const r = run(['create', '--root', collectedProject(), '--output', out,
+    '--repository', 'o/r', '--ref', 'main', '--commit', '0'.repeat(40),
+    '--workflow', 'w.yml', '--run-id', '7']);
+  assert.equal(r.code, 0, `${r.out}${r.err}`);
+  assert.ok(/NOT authorized/.test(r.out), r.out);
+  assert.equal(JSON.parse(run(['validate', '--file', out, '--json']).out).buildAuthorized, false);
 });
 
 test('an invalid --client-ref is refused before anything is written', () => {
