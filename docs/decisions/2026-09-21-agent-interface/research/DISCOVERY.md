@@ -1,0 +1,51 @@
+# Discovery Contract - How an AI agent should invoke the Research-Kit collector
+
+Started 2026-09-21. This file is the definition of "enough information to build".
+`preflight.mjs` reads it and blocks the build until every unknown below is either `CLOSED`
+with evidence or `KNOWN-UNKNOWN` with a verification step.
+
+## Build intent
+
+Decide whether Research-Kit should expose its collector as a **Model Context Protocol
+server**, and if so on which transport, or whether the REST-and-CLI seam that already
+exists (`bin/collect-remote.mjs`, `lib/dispatch.mjs`) is the right interface for an agent.
+
+The operator's goal is that any agent they build can run a collection. Today that means
+handing the agent a fine-grained GitHub token and letting it run one command. MCP is the
+standard way an agent acquires a tool, so the question is whether adopting it buys
+anything the current seam does not already provide - and what it would cost.
+
+"Done" is a decision a builder can act on: which transport, what the credential story is,
+and whether a collection that takes minutes fits the protocol's request model at all.
+
+## Unknowns
+
+A fact belongs here when guessing it wrong changes the design.
+
+Status is exactly one of:
+- `CLOSED` - proven by an `E-##` row in `research/EVIDENCE.md`.
+- `KNOWN-UNKNOWN` - unreachable now; the `Evidence` cell names the day-one verification step.
+
+| ID | Unknown | Why it blocks the build | Status | Evidence |
+|---|---|---|---|---|
+| U-1 | Which transports does MCP define, and are protocol semantics the same on each? | Decides whether the collector must be written once or twice, and whether a local and a hosted deployment can share an implementation | CLOSED | E-03: exactly two standard bindings - `stdio` and `Streamable HTTP` - and "Protocol semantics are identical on every transport. A transport is a **binding**". One implementation serves both |
+| U-2 | Can an MCP server tell a client that long-running work has finished, or must the client wait on the open request? | A collection takes minutes. If the server cannot initiate contact, the shape is either a held-open stream or polling - and that decides the whole interface | CLOSED | E-03: "servers do not initiate JSON-RPC requests and clients do not send JSON-RPC responses" - no other message direction exists. So a server cannot announce completion out of band. E-02 (secondary) describes the in-band route: a Streamable HTTP reply may be "a request-scoped SSE stream" carrying `notifications/progress` while the request stays open |
+| U-3 | Is authorization required, and what does a **local** stdio server need? | Decides whether shipping an MCP server means also shipping an identity system, or whether the existing environment-variable credential is sufficient | CLOSED | E-01: authorization is "**optional**", and for stdio "you can use environment-based credentials or credentials provided by third-party libraries embedded directly in the MCP server instead". The kit's existing `tokenFromEnv` already satisfies this |
+| U-4 | What does a **remote** HTTP MCP server need before an agent can authenticate to it? | This is the cost of the hosted option, and it is the difference between a feature and a product | CLOSED | E-01: the full OAuth 2.1 chain - `401` with `WWW-Authenticate: Bearer resource_metadata=...`, a Protected Resource Metadata document at `/.well-known/oauth-protected-resource` (RFC 9728), authorization-server metadata discovery (RFC 8414 or OIDC Discovery), client registration either pre-arranged or via Dynamic Client Registration, then a browser authorization-code exchange. "OAuth flows ... are designed for HTTP-based transports where the MCP server is remotely-hosted" |
+| U-5 | How does a client cancel work in flight, and does the mechanism differ per transport? | The collector spends money. An agent that gives up must be able to stop a run rather than abandon a request and let it bill | CLOSED | E-03: it differs by binding - "on stdio the client sends a `notifications/cancelled` notification; on Streamable HTTP it closes the request's response stream", while "the protocol-level rules are the same everywhere". E-02 names this `$/cancelRequest`, which is wrong; see the brief's contradictions section |
+| U-6 | How does a tool hand back an artifact the size of a corpus ZIP? | The output of this collector is a 71 KB package. A tool that cannot return it is not a design, and this was the one load-bearing GAP the gate refused the first brief over | CLOSED | E-04: a `resource_link` content item returns a URI rather than bytes - `{"type":"resource_link","uri":"file:///...","mimeType":...}` - which suits a file on the client machine exactly. Embedding is also permitted but **the spec states no maximum size anywhere on that page**, so a link is the defensible choice rather than the merely available one |
+| U-7 | When the protocol changes under a shipped server, how does a client find out and recover? | The protocol has already broken once. If a mismatch is silent or unrecoverable, anything built here rots quietly | CLOSED | E-05: version is declared per request with no handshake, and a server that cannot serve it **MUST** return `UnsupportedProtocolVersionError` (JSON-RPC `-32022`) carrying `data.supported`; the client **SHOULD** pick a mutually supported version and retry. `server/discover` is mandatory on servers so a client MAY ask up front. A break is therefore typed, detectable and recoverable at runtime |
+
+## Questions for the human (maximum 3)
+
+1. Is the intent to publish this collector for other people's agents, or only for agents
+   the operator runs? That is the difference between needing the OAuth chain at U-4 and
+   never needing it.
+
+## Already decided
+
+- The credential never travels in a tool argument. `tokenFromEnv` is the only way in
+  (ADR-0033), and U-3 shows the protocol permits exactly that for a local server.
+- Authorization is derived from the corpus, not asserted by a caller (ADR-0032). An MCP
+  tool returning an artifact does not change that: the manifest still says
+  `buildAuthorized: false` on a fresh corpus.
