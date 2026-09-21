@@ -188,17 +188,27 @@ Environments > `research-collection`:
 
 | What | Why |
 |---|---|
-| required reviewers | the only spend gate GitHub enforces before a step runs |
+| required reviewers | **optional, and not configured here** - see below |
 
-**Who the reviewer should be.** A required reviewer must be a real GitHub principal - a
-user or a team - so there is no placeholder to configure. On a **user-owned** repository
-teams do not exist, so the owner's own account is the only possible reviewer, and
-`prevent_self_review` must stay **off** or every run the owner dispatches becomes
-unapprovable by the only person who can approve it.
+**Why there is no required reviewer.** A reviewer approving a *dispatch* is a spend gate,
+not a review: nothing has been collected yet, so there is nothing to judge, and a human in
+that position cannot tell a good run from a bad one. The research review happens at the
+end, where the corpus exists, and is carried by `buildAuthorized` - not by a button. A
+required reviewer would also make autonomous dispatch impossible, which is the point of
+having a collector at all.
 
-Once more than one person uses this, move the repository into an **organization** and
-replace the individual reviewer with a **team**. That is the only change needed: nothing in
-this repository names a reviewer, and nothing should.
+**What bounds the spend instead:** `max_pages` (1-25 per run), the depth tier, and the
+vendor account cap, which returns HTTP 402 at zero rather than billing over. Worst case is
+a month's allowance, not an open-ended bill.
+
+**What you accept:** anyone with write access - or any token carrying `actions: write` -
+can spend credits unattended, up to that cap. If that trade stops being right, add required
+reviewers to the environment; nothing in the workflow depends on their absence. A **wait
+timer** is the middle option: a cancellation window with no human required.
+
+If a reviewer is ever added, note that it must be a real principal - a user or a team - and
+teams exist only inside an organization. Nothing in this repository names a reviewer, and
+nothing should.
 
 | environment **secret** `FIRECRAWL_API_KEY` | the metered credential |
 | environment **variable** `RESEARCH_KIT_COLLECTION_ENV=research-collection` | proves the environment exists |
@@ -350,7 +360,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-757 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+762 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
