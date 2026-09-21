@@ -37,7 +37,7 @@ node ..\..\..\research-kit\bin\preflight.mjs
 node ..\..\..\research-kit\bin\handoff.mjs
 ```
 
-As of 2026-09-21: `PASS  0 blocking, 0 warning(s), 12 passing` and
+As of 2026-09-21: `PASS  0 blocking, 2 warning(s), 17 passing` and
 `handoff OK - 5 ledger entries, every cited capture on disk, chain verifies`.
 
 ## What is in here
@@ -49,3 +49,10 @@ As of 2026-09-21: `PASS  0 blocking, 0 warning(s), 12 passing` and
 | `research/EVIDENCE.md` | Five rows: four spec pages and one community guide, graded S because it is wrong in a checkable place |
 | `research/MAP.md` | Every row judged, with one row split rather than fudged |
 | `research/raw/` | Five captures **and** `.fetches.jsonl`, the hash chain |
+
+**Both warnings are `corroboration`, and both are deliberate.** U-6 (how a tool returns a
+corpus-sized artifact) and U-7 (recovering from a version mismatch) still rest on
+`modelcontextprotocol.io` alone. The reference SDK was collected expecting to close them and
+does not mention `resource_link` or version negotiation at all - checked by searching the
+capture, not assumed. U-7 has something better anyway: it was **measured**, when building
+against the spec produced a server no client could reach.

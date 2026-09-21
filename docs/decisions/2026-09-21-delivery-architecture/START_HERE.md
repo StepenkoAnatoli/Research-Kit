@@ -47,7 +47,7 @@ node ..\..\..\research-kit\bin\preflight.mjs
 node ..\..\..\research-kit\bin\handoff.mjs
 ```
 
-As of 2026-09-21 that is `READY`, `PASS  0 blocking, 0 warning(s), 12 passing`, and
+As of 2026-09-21 that is `READY`, `PASS  0 blocking, 3 warning(s), 17 passing`, and
 `handoff OK - 9 ledger entries, every cited capture on disk, chain verifies`.
 
 ---
@@ -84,3 +84,9 @@ wrong, collect, do the three human steps, and commit the corpus with the ledger.
 This project's collection cost **9 credits** - nine pages, no searches, nothing cached,
 nothing failed. `research/raw/.usage.jsonl` records the run and is not committed; it is
 machine-local state, not evidence.
+
+**All three warnings are deliberate.** Two are `corroboration`: U-4 because a stability marker
+is Node's statement about Node, and U-6 because GitHub is the only witness to its own
+permission model. The third is `partial-render` on the GitHub pricing page - the page prints
+a load-failure notice while carrying the minute quotas perfectly well, which is exactly the
+false-positive shape ADR-0037 measured and chose to keep as a warning.

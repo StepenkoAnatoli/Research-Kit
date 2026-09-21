@@ -38,8 +38,15 @@ node ..\..\..\research-kit\bin\preflight.mjs
 node ..\..\..\research-kit\bin\handoff.mjs
 ```
 
-As of 2026-09-21: `PASS  0 blocking, 0 warning(s), 14 passing` and `handoff OK - 5 ledger
-entries, chain verifies`. It passes `--strict` as well.
+As of 2026-09-21: `PASS  0 blocking, 3 warning(s), 13 passing` and `handoff OK - 5 ledger
+entries, chain verifies`.
+
+**None of the three is a corroboration finding** - both unknowns now rest on two distinct
+documents across two hosts. All three are `capture-completeness/partial-render`, added by
+ADR-0037 hours later: three of the five captures print a load-failure notice, including both
+Node pull requests that carried their content perfectly well. It therefore fails `--strict`,
+which it briefly did not. `research/BRIEF.md` explains why that number moving is the gate
+working rather than the corpus rotting.
 
 **It did not, at first**, and the reason is worth the two minutes. Both unknowns rested on
 `nodejs.org` alone, and this brief argued at length that they should stay that way: the only
