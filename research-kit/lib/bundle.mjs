@@ -50,6 +50,14 @@ export const EXPECTED_TO_DRIFT = Object.freeze([
   // records of a past state, and a test below asserts none of them is ever exempted.
   'CONTEXT.md',
   'README.md',
+  // The agent protocol. Added 2026-09-21, when this check caught it drifting for the
+  // reason it should: ADR-0030 gave decision research a committed home, and the rule that
+  // sends an agent there has to be where the agent reads its rules. AGENTS.md is the file
+  // the protocol is written in, so every protocol decision moves it - freezing it would
+  // mean recording decisions somewhere nobody is bound by. Same argument as CONTEXT.md
+  // and README.md above: documentation about behaviour cannot be pinned to a past state
+  // without becoming wrong.
+  'AGENTS.md',
   // The index cannot record its own digest and be correct about it.
   BUNDLE_INDEX,
 ]);

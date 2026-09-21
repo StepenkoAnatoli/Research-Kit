@@ -64,3 +64,11 @@ Locked decisions for this project. Do not revisit these without the human.
   hardening pass; it was always possible, it just had no detection.
 - The commit gate lives in a machine-wide `core.hooksPath` rather than per-repository
   hooks, so a new project inherits it with no setup step to forget.
+- Research supporting a repository-level architectural decision lives in a self-contained
+  project at `docs/decisions/<date>-<decision-name>/`, committed with its ledger, and is
+  verified with that directory as the working directory. Scratch projects stay legitimate
+  for experiments; their findings cannot support a committed decision unless the corpus and
+  ledger are preserved. ADR-0030, written after a scratch project holding nine captures was
+  deleted as routine cleanup. **This contract does not cover those decisions** — it
+  enumerates U-1..U-8 about transports and vendors, and a second topic in it would have
+  `unknown-closure` and `subtopic-coverage` judging two unrelated sets of claims together.

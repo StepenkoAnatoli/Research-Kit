@@ -3,6 +3,32 @@
 **Question:** Actions-only collector, local Windows `.exe`, hybrid desktop-over-Actions, or
 REST/API seam only?
 
+> ## SUPERSEDED, later the same day — and its headline finding was wrong about the cause
+>
+> The formal collection this note said was outstanding has since been done, through the
+> gate, at **`docs/decisions/2026-09-21-delivery-architecture/`** — nine captures, a
+> committed ledger, eight unknowns CLOSED, preflight PASS from that directory. The decision
+> is recorded as **ADR-0031**, and the convention that made a committed home for it exists
+> as **ADR-0030**.
+>
+> **What the evidence overturned.** The headline finding below — that
+> `POST .../dispatches` returns `204 No Content`, that a caller "cannot learn which run it
+> started", and that a `client_ref` correlation token is therefore required — is correct
+> about what was observed and wrong about why. The response shape is **API-version
+> dependent**: `204` under the default `2022-11-28`, and `200` with
+> `{workflow_run_id, run_url, html_url}` under `2026-03-10`. Both were run against this
+> repository to settle it. The correlation race is a property of an unpinned client, not of
+> the endpoint, and the real requirement is smaller and firmer: pin
+> `X-GitHub-Api-Version`.
+>
+> This note is kept as written rather than corrected in place. It is the record of a claim
+> that survived reading and failed running, which is the most useful thing in the decision
+> it led to.
+>
+> Everything below this line is the note as it stood before that collection.
+
+---
+
 > ## This is NOT a completed Phase 1 handoff
 >
 > **Formal Phase 1 collection remains outstanding.** This note has no discovery contract,
