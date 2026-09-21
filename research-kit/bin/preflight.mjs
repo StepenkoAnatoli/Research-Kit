@@ -66,7 +66,16 @@ if (!flags.quiet) {
   if (table) process.stdout.write(`${table}\n`);
 }
 
-const summary = `${verdict.pass ? 'PASS' : 'FAIL'}  ${verdict.counts.fail} blocking, ${verdict.counts.warn} warning(s), ${verdict.counts.pass} passing  [evidencePolicy=${verdict.evidencePolicy}]`;
+// The policy label names what ACTUALLY decided this verdict, not only what the project
+// declared. `--strict` and `evidencePolicy=strict` are different settings - the flag
+// promotes every warning, the policy promotes only the three POLICY_CHECKS - and printing
+// the declared policy either way made a `--strict` run read
+// `FAIL ... [evidencePolicy=pluralist]`, which says the pluralist policy failed it. It did
+// not; the flag did. Someone reading that line is trying to find out why it is red.
+const policyLabel = flags.strict
+  ? `--strict, over evidencePolicy=${verdict.evidencePolicy}`
+  : `evidencePolicy=${verdict.evidencePolicy}`;
+const summary = `${verdict.pass ? 'PASS' : 'FAIL'}  ${verdict.counts.fail} blocking, ${verdict.counts.warn} warning(s), ${verdict.counts.pass} passing  [${policyLabel}]`;
 process.stdout.write(`${heading('verdict')}\n${summary}\n`);
 
 if (!verdict.pass) {

@@ -137,3 +137,43 @@ revision and handle `-32022` whatever the cadence is.
 1. Review the **TODO** sections above (Contradictions, Decision) before handing off.
 2. Hand this file to the builder (phase 2). Re-running `node bin/brief.mjs`
    after edits will refuse without `--force` so your judgements are preserved.
+
+## Corroboration pass, 2026-09-21
+
+Three captures into the same ledger - eight entries, one chain. Five warnings became two,
+and the two that remain were **attempted and failed** rather than skipped.
+
+**U-4 got the best kind of second source there is: the standard itself.** E-06 is RFC 9728,
+"OAuth 2.0 Protected Resource Metadata" - the IETF document MCP defers to for the `401` ->
+`WWW-Authenticate` -> metadata chain. Different standards body, different process, normative
+rather than explanatory. It is the one document that could have *contradicted* the spec
+instead of repeating it, which is what separates corroboration from echo.
+
+**U-1 and U-3 got running code.** E-07, the reference TypeScript SDK, ships transports for
+exactly the two bindings the spec calls standard, and its minimal stdio server exposes a tool
+with **no authorization layer at all** - which is what "authorization is optional" looks like
+when somebody implements it.
+
+### The part worth keeping: what the SDK did not corroborate
+
+The SDK was collected expecting it to close U-6 and U-7 as well. It does not. Searched over
+the capture rather than assumed:
+
+- **no occurrence of `resource_link`** - so U-6, how a tool returns a 71 KB corpus, still
+  rests on `modelcontextprotocol.io` alone
+- **no occurrence of `protocolVersion` or version negotiation** - so U-7 does too
+
+One row cited for four unknowns when it supports two is exactly how a corpus inflates, and
+the temptation was real: both citations would have gone green and nobody reading the tally
+would have known. The row is cited for U-1 and U-3, and `EVIDENCE.md` states the negative.
+
+### U-7 has something better than a second page anyway
+
+It was **measured**. Building this server against the specification produced a server no
+client could reach - `-32601: unknown method initialize` - because the shipped SDK implements
+the older handshake. That is the whole reason `lib/mcp.mjs` is dual-era, and it is stronger
+evidence about "how does a client find out and recover" than any page could be.
+
+It is deliberately **not** filed as an evidence row. A measurement is not a fetched page, and
+`unknown-closure/no-evidence` exists to catch precisely that substitution - the same call
+made for U-6 of the delivery corpus, and for U-3 of the sea-assets contract.

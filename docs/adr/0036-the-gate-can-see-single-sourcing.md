@@ -131,6 +131,8 @@ What an operator needs to know now: **`strict` is aspirational in this repositor
 standard it meets.** Anyone turning it on should expect red, and should read the findings as a
 worklist rather than as a regression.
 
+**Fixed 2026-09-21.** The verdict now names the setting that decided it - a `--strict` run prints `[--strict, over evidencePolicy=pluralist]`, keeping the declared policy visible under the flag that overrode it. The paragraph below is what it used to do.
+
 Two settings are also easy to conflate, and the verdict line encourages it: `--strict`
 promotes **every** warning, while `evidencePolicy=strict` promotes only the three
 `POLICY_CHECKS`. The summary prints the project's *declared* policy regardless, so a

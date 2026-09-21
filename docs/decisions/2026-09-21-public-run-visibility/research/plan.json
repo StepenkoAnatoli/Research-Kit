@@ -5,14 +5,14 @@
   "refreshDays": 30,
   "limit": 8,
   "perQuery": 3,
-  "maxScrapes": 6,
+  "maxScrapes": 4,
   "prefer": [],
-  "queries": [
+  "queries": [],
+  "urls": [
     {
-      "q": "who can view GitHub Actions workflow run logs and download artifacts on a public repository permissions",
-      "why": "the dispatched topic",
-      "prefer": []
+      "url": "https://github.com/actions/upload-artifact",
+      "type": "P",
+      "why": "U-4 second source: retention-days per artifact, from the action maintainers on a different host"
     }
-  ],
-  "urls": []
+  ]
 }

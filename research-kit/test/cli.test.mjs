@@ -265,3 +265,22 @@ test('--plan naming a file that is not there falls back to an empty plan, not a 
   assert.equal(r.status, 0, r.err);
   assert.match(r.out, /queries \/ urls\s+0 \/ 0/);
 });
+
+// ---------------------------------------------------------------- the verdict label
+
+test('the verdict names the setting that decided it, so --strict cannot read as pluralist', () => {
+  // `--strict` and `evidencePolicy=strict` are different settings: the flag promotes EVERY
+  // warning, the policy promotes only the three POLICY_CHECKS. The summary printed the
+  // declared policy either way, so a `--strict` run read
+  // `FAIL ... [evidencePolicy=pluralist]` - which says the pluralist policy failed it. It
+  // did not; the flag did, and the person reading that line is trying to find out why.
+  const root = project();
+
+  const plain = run('preflight.mjs', [], { root });
+  assert.match(plain.out, /\[evidencePolicy=pluralist\]/);
+  assert.doesNotMatch(plain.out, /--strict/, 'a run without the flag must not mention it');
+
+  const strict = run('preflight.mjs', ['--strict'], { root });
+  assert.match(strict.out, /\[--strict, over evidencePolicy=pluralist\]/,
+    'the flag has to appear, and the declared policy has to stay visible under it');
+});

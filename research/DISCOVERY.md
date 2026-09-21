@@ -72,3 +72,58 @@ Locked decisions for this project. Do not revisit these without the human.
   deleted as routine cleanup. **This contract does not cover those decisions** — it
   enumerates U-1..U-8 about transports and vendors, and a second topic in it would have
   `unknown-closure` and `subtopic-coverage` judging two unrelated sets of claims together.
+
+## The corroboration pass stopped here, deliberately - 2026-09-21
+
+Four corpora were corroborated; this one was examined and mostly **left alone**. The reason
+is not budget - 841 credits remained - it is that the second sources available here would
+have made the corpus worse.
+
+### Why these seven resist corroboration
+
+They divide into two kinds, and neither has an independent witness:
+
+**Vendor claims about the vendor's own product** (U-1, U-4, U-5, U-6, U-8). What the free
+Firecrawl tier allows, what SerpAPI's terms permit, what a search costs. Nobody but Firecrawl
+can say what Firecrawl charges. The available "second sources" are third-party comparison
+posts and SEO pages, which are frequently stale and sometimes simply wrong - citing one would
+raise the row count while **lowering** the evidence quality, and this repository has already
+recorded what that looks like when a stale mirror scores `independent` (ADR-0036).
+
+There is a subtler trap here and it is worth naming: `docs.firecrawl.dev` and
+`www.firecrawl.dev` are different **hosts**. Citing both would flip `one-voice` to
+`independent` on the host count alone, while remaining one company describing itself. That is
+the check's known blind spot, and using it deliberately to clear a warning would be gaming
+the gate rather than strengthening the corpus.
+
+**Claims about THIS machine** (U-2, U-3). Which skill root the desktop app discovers here,
+whether a `PreToolUse` hook blocks an edit on this Windows build. No page on the internet
+knows. These were established by running them, and re-running them is the only thing that
+could confirm them.
+
+### What was done instead: the cost claim was measured
+
+U-8 asks what a Firecrawl operation actually costs. Measured across this session's four
+collections, by balance delta rather than by reading the pricing page:
+
+| | credits |
+|---|---|
+| balance before | 854 |
+| balance after | 841 |
+| spent | **13** |
+| pages scraped | **13** (sea-assets 2, delivery 7, agent-interface 3, public-run-visibility 1) |
+
+**Exactly one credit per scraped page, over thirteen scrapes on the version this machine
+runs.** That is a stronger answer to U-8 than a second pricing page, because it is the thing
+itself rather than a description of it - and it is what ADR-0035 means by measured rather than
+asserted.
+
+Not filed as an evidence row, for the reason now recorded in four corpora: a measurement is
+not a fetched page, and `unknown-closure/no-evidence` exists to refuse that substitution.
+
+### So the warnings stand, and they are correct
+
+Seven `corroboration` findings remain here and every one of them is true: these claims do rest
+on one reading, or on one voice. What the pass established is that **the remedy is not
+available**, which is a different state from "nobody looked" - and the difference is exactly
+what the sea-assets corpus got wrong before its second look.

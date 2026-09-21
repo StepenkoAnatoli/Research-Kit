@@ -5,11 +5,24 @@
   "refreshDays": 30,
   "limit": 8,
   "perQuery": 3,
-  "maxScrapes": 4,
+  "maxScrapes": 6,
   "prefer": [],
   "queries": [],
   "urls": [
-    "https://modelcontextprotocol.io/specification/2026-07-28/server/tools",
-    "https://modelcontextprotocol.io/specification/2026-07-28/basic/versioning"
+    {
+      "url": "https://datatracker.ietf.org/doc/html/rfc9728",
+      "type": "P",
+      "why": "U-4: the OAuth Protected Resource Metadata standard the MCP spec defers to - an independent standards body"
+    },
+    {
+      "url": "https://github.com/modelcontextprotocol/typescript-sdk",
+      "type": "P",
+      "why": "U-1/U-3/U-6/U-7: the reference implementation - what the protocol requires in running code"
+    },
+    {
+      "url": "https://www.jsonrpc.org/specification",
+      "type": "P",
+      "why": "U-2 depth: the JSON-RPC layer MCP is built on, for message directions"
+    }
   ]
 }
