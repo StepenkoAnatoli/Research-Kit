@@ -119,6 +119,48 @@ silent spend, and a worse diagnostic than expected. The step's message already n
 right fix for the wrong reason; anybody hitting it on a Free private repository should read
 this paragraph first.
 
+### The unmeasured half, measured — 2026-09-21, later the same day
+
+The section above says what a signed-in user sees "is **unknown**, and 'unknown' is what
+the documentation now says rather than 'safe'". That was the right posture and it did not
+survive contact with the documentation.
+
+Collected through the collector itself, into
+`docs/decisions/2026-09-21-public-run-visibility/`:
+
+- "You must be logged in to a GitHub account to view workflow run information, **including
+  for public repositories**." That is why an anonymous probe saw so little — the web
+  surface *starts* at an account.
+- Viewing logs, searching logs, downloading logs and downloading artifacts each carry the
+  same requirement: "**Read access to the repository is required to perform these steps.**"
+
+**On a public repository, read access is universal.** So any person with a free GitHub
+account can open a collector run, read the logs — which echo the dispatched topic in the
+`env:` group the runner prints — and download the artifact, which is the entire collected
+corpus.
+
+**The `401` and `403` this ADR measured are refusals of ANONYMITY, not of strangers.** The
+measurement was accurate about what it measured; the population it measured is not the
+population that matters.
+
+Three consequences:
+
+1. **The naming rules are demoted, not discarded.** This ADR called them "the primary
+   control". They cover the anonymous surface — listing-scrapers, a glance over a shoulder
+   — and nothing beyond it.
+2. **`retention-days: 7` on the collector now has a recorded reason.** It bounds the
+   window; it removes nothing. The comment in `collect.yml` says so rather than leaving
+   seven days looking like a tidy default.
+3. **Decision 1 stands, with a different caveat.** Staying public was decided on *plan*
+   grounds — a free private repository has its environment secrets and variables ignored,
+   so going private breaks the collector rather than protecting it. That is untouched. What
+   changes is the sentence attached to it: not "the exposure is limited to shape" but "the
+   exposure is total to anyone with an account, and the remedy is a paid plan, not a
+   toggle".
+
+The gap was named in this ADR and closed by the kit this ADR is about, which is the first
+time that loop has run on a question this repository asked of itself.
+
 ## Alternatives considered
 
 **Go private anyway, to be safe.** Breaks the collector on this plan, for an exposure the

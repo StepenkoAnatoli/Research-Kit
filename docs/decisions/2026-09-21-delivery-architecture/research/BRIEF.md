@@ -99,10 +99,11 @@ Two things remain unproven and are deliberately *not* unknowns in the contract, 
 neither blocks this decision - they block the thing it recommends building. They are
 recorded in `research/MAP.md` under "Known gaps":
 
-1. The runner-side `npm install -g firecrawl@<version>` path has never executed, and
-   neither has `cliCompatibility()` against a CLI installed on a runner. The local metered
-   route was verified (`../../live-predicate-verification-2026-09-21.md`); the CI route was
-   not. Closing it needs the `live-collection` environment, its secret, and one dispatch.
+1. ~~The runner-side install path has never executed.~~ **Closed later the same day.**
+   `npm install -g firecrawl-cli@1.23.3` and `cliCompatibility()` both ran and succeeded on
+   a real runner, in runs `35600022797` and `35608301287`. Worth having named rather than
+   assumed: the first real attempt failed, because the workflow installed `firecrawl`,
+   which on npm is the SDK and ships no binary. The CLI is `firecrawl-cli`.
 2. Whether artifact download is ergonomic enough for the intended operator. A usability
    question; documentation cannot answer it.
 

@@ -443,6 +443,21 @@ jobs:
           node "$KIT/bin/artifact.mjs" validate --file "$ARTIFACT_PATH" --json
           node "$KIT/bin/artifact.mjs" validate --file "$ARTIFACT_PATH" --quiet
 
+      # `retention-days` BOUNDS the exposure. It does not remove it, and the difference is
+      # worth stating because the naming rules above are easy to over-trust.
+      #
+      # On a public repository, ANY signed-in GitHub account can open this run, read these
+      # logs - which echo the dispatched topic in the `env:` group above - and download
+      # this artifact, which is the whole collected corpus. The documentation is explicit:
+      # "You must be logged in to a GitHub account to view workflow run information,
+      # including for public repositories", and viewing, searching and downloading logs and
+      # artifacts each require only "read access to the repository", which on a public
+      # repository is universal. The 401 and 403 an anonymous probe gets are refusals of
+      # ANONYMITY, not of strangers.
+      #
+      # Seven days rather than the 90-day default, because the only dial here is how long
+      # the window stays open. The agent path fetches within minutes, so a short window
+      # costs nothing real. See docs/decisions/2026-09-21-public-run-visibility/.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4, resolved 2026-09-21
         with:
           name: ${{ env.ARTIFACT_NAME }}

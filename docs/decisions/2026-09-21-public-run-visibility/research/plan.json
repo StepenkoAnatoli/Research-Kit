@@ -1,0 +1,18 @@
+{
+  "topic": "who can view GitHub Actions workflow run logs and download artifacts on a public repository permissions",
+  "notes": "Fill queries and urls BEFORE collecting - every scrape spends a credit. q is the search query, why records which unknown in research/DISCOVERY.md it closes, prefer lists the official domains that carry the fact.",
+  "depth": "quick",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 3,
+  "maxScrapes": 6,
+  "prefer": [],
+  "queries": [
+    {
+      "q": "who can view GitHub Actions workflow run logs and download artifacts on a public repository permissions",
+      "why": "the dispatched topic",
+      "prefer": []
+    }
+  ],
+  "urls": []
+}
