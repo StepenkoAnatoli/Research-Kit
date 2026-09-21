@@ -189,8 +189,25 @@ Environments > `research-collection`:
 | What | Why |
 |---|---|
 | required reviewers | the only spend gate GitHub enforces before a step runs |
+
+**Who the reviewer should be.** A required reviewer must be a real GitHub principal - a
+user or a team - so there is no placeholder to configure. On a **user-owned** repository
+teams do not exist, so the owner's own account is the only possible reviewer, and
+`prevent_self_review` must stay **off** or every run the owner dispatches becomes
+unapprovable by the only person who can approve it.
+
+Once more than one person uses this, move the repository into an **organization** and
+replace the individual reviewer with a **team**. That is the only change needed: nothing in
+this repository names a reviewer, and nothing should.
+
 | environment **secret** `FIRECRAWL_API_KEY` | the metered credential |
 | environment **variable** `RESEARCH_KIT_COLLECTION_ENV=research-collection` | proves the environment exists |
+
+**Put the secret in the environment, not in repository secrets.** A repository secret
+resolves too, and collection would work - but any workflow in the repository could read
+it without a reviewer ever being asked. A `scope-check` job declaring no environment
+fails the run if it can see the credential at all, which is how that is caught rather
+than assumed.
 
 The variable is not ceremony. A workflow naming an environment that does **not** exist does
 not fail — GitHub creates one, with no protection rules and no secrets. A typo in the name
@@ -333,7 +350,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-754 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+757 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

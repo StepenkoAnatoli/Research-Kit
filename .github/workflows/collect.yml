@@ -97,8 +97,51 @@ permissions:
   contents: read
 
 jobs:
+  # THE SCOPE CANARY. This job proves the credential is NOT reachable without approval.
+  #
+  # It declares NO environment, deliberately. A job without `environment:` cannot see
+  # environment secrets - it sees only repository and organization ones. So if
+  # `secrets.FIRECRAWL_API_KEY` resolves to anything HERE, the credential exists at a
+  # scope that no protection rule guards, and any workflow in the repository can read it
+  # without a reviewer ever being asked.
+  #
+  # This supersedes what ADR-0033 originally recorded as an unprovable limit. It is true
+  # that GitHub tells a job nothing about where a resolved secret CAME from - but it does
+  # not have to. Asking from a context that can only see one scope answers the question by
+  # construction. What remains genuinely undecidable is repository versus organization,
+  # and that distinction does not matter here: neither is behind the approval gate.
+  #
+  # It runs FIRST so a misplaced credential costs no reviewer's time and no credits.
+  scope-check:
+    name: the credential is not reachable without approval
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: a credential visible without an environment is a credential without a gate
+        env:
+          # If this resolves, it did NOT come from the environment.
+          UNSCOPED_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+        run: |
+          if [ -n "${UNSCOPED_KEY:-}" ]; then
+            echo "::error::FIRECRAWL_API_KEY is readable by a job with NO environment, so it exists as a repository or organization secret."
+            echo ""
+            echo "Collection would still work - and the approval gate would be protecting nothing."
+            echo "Any workflow in this repository, including one added in a pull request, could read"
+            echo "this credential without a reviewer ever being asked."
+            echo ""
+            echo "Fix, in this order:"
+            echo "  1. Settings > Environments > research-collection > Environment secrets"
+            echo "     Add FIRECRAWL_API_KEY there."
+            echo "  2. Settings > Secrets and variables > Actions > Repository secrets"
+            echo "     DELETE FIRECRAWL_API_KEY."
+            echo "  3. Re-run. This job will go green when the only copy is the scoped one."
+            exit 1
+          fi
+          echo "no unscoped copy: the credential is reachable only through the protected environment"
+
   collect:
     name: collect
+    needs: scope-check
     runs-on: ${{ inputs.runner }}
     timeout-minutes: 30
     # THE SPEND GATE. Protection rules on this environment - required reviewers, a wait

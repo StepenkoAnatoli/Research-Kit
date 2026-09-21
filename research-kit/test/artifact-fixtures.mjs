@@ -102,7 +102,7 @@ export function rawZip(entries) {
 // ---------------------------------------------------------------- base projects
 
 const IDENTITY = Object.freeze({
-  repository: 'StepenkoAnatoli/example-project',
+  repository: 'example-org/example-project',
   ref: 'main',
   commit: '0123456789abcdef0123456789abcdef01234567',
   workflow: 'start-research.yml',

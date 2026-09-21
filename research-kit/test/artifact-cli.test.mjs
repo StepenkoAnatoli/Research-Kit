@@ -185,7 +185,7 @@ test('--quiet prints the verdict line and nothing else', () => {
 test('create writes a package, re-validates it, and says so', () => {
   const out = path.join(scratch, 'created.zip');
   const r = run(['create', '--root', approvedProject(), '--output', out, '--client-ref', 'job-f',
-    '--repository', 'StepenkoAnatoli/example-project', '--ref', 'main',
+    '--repository', 'example-org/example-project', '--ref', 'main',
     '--commit', '0123456789abcdef0123456789abcdef01234567',
     '--workflow', 'start-research.yml', '--run-id', '35548135379']);
   assert.equal(r.code, 0, `${r.out}${r.err}`);

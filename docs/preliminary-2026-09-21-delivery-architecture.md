@@ -82,11 +82,13 @@ That correlation is racy, and the race was demonstrated rather than assumed — 
 dispatches 15 seconds apart:
 
 ```
-35546293660  queued       workflow_dispatch  2026-09-21T00:00:48Z  actor=StepenkoAnatoli
-35546279728  in_progress  workflow_dispatch  2026-09-21T00:00:33Z  actor=StepenkoAnatoli
+35546293660  queued       workflow_dispatch  2026-09-21T00:00:48Z  actor=<dispatcher>
+35546279728  in_progress  workflow_dispatch  2026-09-21T00:00:33Z  actor=<dispatcher>
 ```
 
-Same event, same actor, nothing but a timestamp between them. Two users of a future
+Same event, same actor, nothing but a timestamp between them. (The `actor` field is
+redacted to `<dispatcher>` rather than removed: both runs were dispatched by the same
+account, which is the part the finding rests on. The identity of that account is not.) Two users of a future
 desktop app dispatching at once would be indistinguishable to each other's clients.
 
 **Consequence:** any option that returns results *asynchronously to a caller* needs a
