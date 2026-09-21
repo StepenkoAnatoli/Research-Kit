@@ -1,0 +1,227 @@
+#!/usr/bin/env node
+// bin/collect-remote.mjs - run the collector on GitHub, bring the artifact home, judge it.
+//
+// The one command an AI agent or a desktop app needs. It dispatches, learns which run it
+// started, waits, downloads, unwraps GitHub's outer ZIP, and validates with the same code
+// a human would run. It prints the run id BEFORE it waits, so a caller that dies mid-wait
+// can still find its run.
+//
+// THERE IS NO --token FLAG. The token is read from the environment, because a credential
+// on a command line is in the shell history, in `ps`, and in any log that echoes its own
+// command. Every message this program prints is redacted on the way out.
+//
+// EXIT CODES
+//   0  collected, downloaded and valid   (this does NOT mean you may build)
+//   1  the artifact is invalid
+//   2  the run failed, or the artifact is incomplete/unsupported
+//   3  could not start, could not reach GitHub, or no token
+//   4  dispatched and still running when the wait ran out - the run id is on stdout
+//
+// 0 DOES NOT AUTHORIZE BUILDING. A collected corpus is evidence with three human review
+// steps outstanding. Read `buildAuthorized`, which is false for everything this command
+// will ever return, because a freshly collected corpus has not been reviewed by anybody.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { parseFlags, canonicalJson } from '../lib/core.mjs';
+import { requireRuntime } from '../lib/runtime.mjs';
+import { validateArtifact } from '../lib/artifact-validator.mjs';
+import {
+  dispatchCollection, waitForRun, listArtifacts, downloadArtifact, unwrapArtifact,
+  tokenFromEnv, redact, DispatchError, API_VERSION, TOKEN_VARS,
+} from '../lib/dispatch.mjs';
+
+const HELP = `collect-remote - run the collector on GitHub Actions and bring the result back.
+
+  node research-kit/bin/collect-remote.mjs --repository OWNER/REPO --topic "<what to research>"
+
+  --repository OWNER/REPO   required
+  --topic "<text>"          required. Visible to anyone who can read the repository.
+  --max-pages <1-25>        default 8. Each page costs at least one credit.
+  --depth probe|quick|normal  default quick
+  --client-ref <id>         optional. PUBLIC: it becomes the run and artifact name.
+  --runner ubuntu-latest|windows-latest   default ubuntu-latest
+  --workflow <file.yml>     default collect.yml
+  --ref <branch>            default main
+  --out <dir>               where to save the artifact (default .)
+  --timeout <seconds>       how long to wait (default 1800)
+  --no-wait                 dispatch and exit, printing the run id
+  --json                    machine-readable result
+
+The token is read from the environment: ${TOKEN_VARS.join(' or ')}.
+There is no --token flag, on purpose.
+
+A fine-grained token needs exactly one permission: Actions -> Read and write, on this
+repository only. Nothing else.
+
+Exit: 0 valid, 1 invalid, 2 run failed/incomplete, 3 could not start, 4 still running.
+A 0 does not authorize building - read buildAuthorized.
+`;
+
+const { flags } = parseFlags(process.argv.slice(2));
+if (flags.help) { process.stdout.write(HELP); process.exit(0); }
+requireRuntime({ node: true });
+
+const KNOWN = new Set([
+  'repository', 'topic', 'max-pages', 'depth', 'client-ref', 'runner', 'workflow', 'ref',
+  'out', 'timeout', 'no-wait', 'json', 'help',
+]);
+const unknown = Object.keys(flags).filter((f) => !KNOWN.has(f));
+if (unknown.length) {
+  for (const f of unknown) {
+    process.stderr.write(`unknown option --${f}\n`);
+    // The one misspelling worth naming, because the answer is not "spell it correctly".
+    if (/token|auth|key|secret|pat/i.test(f)) {
+      process.stderr.write(`There is no token flag. Set ${TOKEN_VARS[0]} in the environment instead:\n`
+        + 'a credential on a command line reaches the shell history, ps, and any log that echoes its command.\n');
+    }
+  }
+  process.stdout.write(HELP);
+  process.exit(3);
+}
+
+const EXIT = Object.freeze({ VALID: 0, INVALID: 1, RUN_FAILED: 2, CANNOT_START: 3, STILL_RUNNING: 4 });
+const json = Boolean(flags.json);
+
+function say(text) { if (!json) process.stdout.write(`${redact(text)}\n`); }
+function die(code, payload) {
+  if (json) process.stdout.write(`${canonicalJson(payload)}\n`);
+  else {
+    process.stderr.write(`${redact(payload.error ?? 'failed')}\n`);
+    if (payload.remedy) process.stderr.write(`  fix: ${redact(payload.remedy)}\n`);
+  }
+  process.exit(code);
+}
+
+const missing = ['repository', 'topic'].filter((n) => flags[n] === undefined || flags[n] === true);
+if (missing.length) {
+  process.stderr.write(`collect-remote needs ${missing.map((m) => `--${m}`).join(' and ')}\n\n`);
+  process.stdout.write(HELP);
+  process.exit(EXIT.CANNOT_START);
+}
+
+const { token, from, detail } = tokenFromEnv();
+if (!token) die(EXIT.CANNOT_START, { error: detail, remedy: 'create a fine-grained token with Actions: read and write on this repository only' });
+
+const repository = String(flags.repository);
+const workflow = String(flags.workflow ?? 'collect.yml');
+const ref = String(flags.ref ?? 'main');
+const outDir = path.resolve(String(flags.out ?? '.'));
+const timeoutMs = Number(flags.timeout ?? 1800) * 1000;
+
+const inputs = {
+  topic: String(flags.topic),
+  max_pages: String(flags['max-pages'] ?? 8),
+  depth: String(flags.depth ?? 'quick'),
+  runner: String(flags.runner ?? 'ubuntu-latest'),
+};
+if (flags['client-ref'] !== undefined && flags['client-ref'] !== true) inputs.client_ref = String(flags['client-ref']);
+
+// ---------------------------------------------------------------- dispatch
+
+let started;
+try {
+  started = await dispatchCollection({ repository, workflow, ref, inputs, token });
+} catch (err) {
+  const e = err instanceof DispatchError ? err : new DispatchError('UNKNOWN', err.message);
+  die(EXIT.CANNOT_START, { error: `${e.code}: ${e.message}`, code: e.code, remedy: e.remedy });
+}
+
+// Printed BEFORE the wait. A caller that dies here can still find its run, and a caller
+// that never sees this line knows the dispatch itself did not land.
+say(`token from ${from}, API version ${API_VERSION}`);
+say(`run ${started.workflowRunId}  ${started.htmlUrl ?? ''}`);
+
+if (flags['no-wait']) {
+  const payload = { workflowRunId: started.workflowRunId, runUrl: started.runUrl, htmlUrl: started.htmlUrl, waited: false };
+  if (json) process.stdout.write(`${canonicalJson(payload)}\n`);
+  else say('dispatched; not waiting');
+  process.exit(EXIT.VALID);
+}
+
+// ---------------------------------------------------------------- wait
+
+let run;
+try {
+  run = await waitForRun({
+    repository, runId: started.workflowRunId, token, timeoutMs,
+    onStatus: (r) => say(r.status === 'waiting'
+      // Worth naming rather than showing as a bare status: it means a protection rule is
+      // holding the job, which is a person's decision and not a stall to retry through.
+      ? 'status: waiting - a deployment protection rule is holding this run for approval'
+      : `status: ${r.status}`),
+  });
+} catch (err) {
+  const e = err instanceof DispatchError ? err : new DispatchError('UNKNOWN', err.message);
+  die(e.code === 'TIMEOUT' ? EXIT.STILL_RUNNING : EXIT.RUN_FAILED,
+    { error: `${e.code}: ${e.message}`, code: e.code, remedy: e.remedy, workflowRunId: started.workflowRunId });
+}
+
+if (run.conclusion !== 'success') {
+  die(EXIT.RUN_FAILED, {
+    error: `the run finished ${run.conclusion}`,
+    workflowRunId: started.workflowRunId,
+    htmlUrl: run.html_url ?? started.htmlUrl,
+    remedy: 'open the run and read the first failing step; nothing was downloaded',
+  });
+}
+
+// ---------------------------------------------------------------- collect the artifact
+
+let artifacts;
+try {
+  artifacts = await listArtifacts({ repository, runId: started.workflowRunId, token });
+} catch (err) {
+  die(EXIT.RUN_FAILED, { error: redact(err.message), workflowRunId: started.workflowRunId });
+}
+const wanted = artifacts.filter((a) => !a.expired && a.name.startsWith('research-kit-corpus-v1-'));
+if (wanted.length !== 1) {
+  die(EXIT.RUN_FAILED, {
+    error: `expected one corpus artifact on run ${started.workflowRunId}, found ${wanted.length}`,
+    workflowRunId: started.workflowRunId,
+    remedy: 'the run succeeded but produced no package; check the upload step',
+  });
+}
+
+let bytes;
+try {
+  bytes = await downloadArtifact({ repository, artifactId: wanted[0].id, token });
+} catch (err) {
+  const e = err instanceof DispatchError ? err : new DispatchError('UNKNOWN', err.message);
+  die(EXIT.RUN_FAILED, { error: `${e.code}: ${e.message}`, code: e.code, remedy: e.remedy, workflowRunId: started.workflowRunId });
+}
+
+// GitHub wraps every artifact in a ZIP of its own, so this is a ZIP holding our ZIP.
+const { bytes: packageBytes, unwrapped, name } = unwrapArtifact(bytes);
+fs.mkdirSync(outDir, { recursive: true });
+const file = path.join(outDir, unwrapped ? name : `${wanted[0].name}.zip`);
+fs.writeFileSync(file, packageBytes);
+say(`saved ${file} (${packageBytes.length} bytes)`);
+
+// ---------------------------------------------------------------- judge it
+
+const result = validateArtifact({ file, expectedClientRef: inputs.client_ref ?? null });
+const payload = {
+  ...result,
+  file,
+  workflowRunId: started.workflowRunId,
+  htmlUrl: run.html_url ?? started.htmlUrl,
+  apiVersion: API_VERSION,
+};
+
+if (json) process.stdout.write(`${canonicalJson(payload)}\n`);
+else {
+  if (result.errors.length) {
+    say(`\n${result.errors.length} problem(s)`);
+    for (const e of result.errors) say(`  ${e.code}  ${e.message}`);
+  }
+  say(`\n${result.status}  build ${result.buildAuthorized ? 'AUTHORIZED' : 'NOT authorized'}  state=${result.state}`);
+  if (result.status === 'PASS' && !result.buildAuthorized) {
+    say('\nThis is a COLLECTED CORPUS, not an approved brief. It does not authorize building.');
+    say('Three human review steps remain; README-FIRST.md inside the package lists them.');
+  }
+}
+
+process.exit(result.status === 'PASS' ? EXIT.VALID
+  : result.status === 'FAIL' ? EXIT.INVALID
+    : EXIT.RUN_FAILED);
