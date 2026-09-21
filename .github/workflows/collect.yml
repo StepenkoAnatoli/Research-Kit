@@ -272,11 +272,16 @@ jobs:
       - name: install the vendor CLI, pinned to the tested version
         run: |
           set -e
-          tested=$(node -e 'import("./research-kit/lib/firecrawl.mjs").then(m => process.stdout.write(m.TESTED_CLI_VERSION))')
-          if ! npm install -g "firecrawl@$tested"; then
-            echo "::error::could not install firecrawl@$tested - this is an INSTALLATION failure, not an incompatibility"
+          # The SPEC comes from the adapter, package name included. A workflow that spells
+          # the package itself is a second place for it to be wrong, and that is exactly
+          # how `firecrawl@1.23.3` survived here for weeks: the package is `firecrawl-cli`,
+          # and `firecrawl` on npm is the SDK, which ships no binary at all.
+          spec=$(node -e 'import("./research-kit/lib/firecrawl.mjs").then(m => process.stdout.write(m.cliInstallSpec()))')
+          if ! npm install -g "$spec"; then
+            echo "::error::could not install $spec - this is an INSTALLATION failure, not an incompatibility"
             exit 1
           fi
+          tested=$(node -e 'import("./research-kit/lib/firecrawl.mjs").then(m => process.stdout.write(m.TESTED_CLI_VERSION))')
           echo "| CLI | \`$(firecrawl --version)\` (tested against \`$tested\`) |" >> "$GITHUB_STEP_SUMMARY"
 
       - name: the CLI is a major this adapter supports
