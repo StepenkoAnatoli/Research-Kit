@@ -83,7 +83,93 @@ node research-kit/bin/handoff.mjs     # did the corpus arrive whole?
 | `property-vector-conformance.mjs` + `.py` | exported property vectors, in two languages |
 | `property-replay.mjs` | replay a captured property failure deterministically |
 | `evidence-context.mjs` | what one unknown rests on (`--unknown U-5`, `--all`, `--json`), read-only |
+| `artifact.mjs` | the portable package: `create` (derives authorization, never takes it) and `validate` (offline, read-only) |
 | `selftest.mjs` | the whole suite, offline |
+
+## The portable artifact
+
+One versioned ZIP that an AI agent, a GitHub Actions workflow, a future Windows app and a
+person with an unzip tool all read the same way. See
+[ADR-0032](../docs/adr/0032-one-artifact-contract-for-every-consumer.md).
+
+```
+node research-kit/bin/artifact.mjs create --root . \
+  --repository OWNER/REPO --ref main --commit <sha40> \
+  --workflow start-research.yml --run-id <workflow_run_id>
+
+node research-kit/bin/artifact.mjs validate --file research-kit-corpus-v1-<ref>.zip --json
+```
+
+**The rule the format exists to carry.** An AI or application may build only when:
+
+```
+state == "APPROVED_BRIEF"  AND  gate.verdict == "PASS"  AND  buildAuthorized == true
+```
+
+`validate` exiting **0 does not mean you may build.** It means the package is internally
+consistent: the container is safe, the manifest matches its digest, every declared file is
+present with the bytes it claims, and the provenance chain verifies. Permission is a
+separate field, `buildAuthorized`, and a valid collected corpus reports `PASS` with
+`buildAuthorized: false`.
+
+| Exit | Meaning |
+|---|---|
+| 0 | the package is valid |
+| 1 | the package is invalid |
+| 2 | incomplete, or a format major this build does not implement |
+| 3 | validation was blocked and reached no verdict |
+
+**Authorization is derived, never requested.** There is no `--build-authorized`, and the
+CLI **refuses** it rather than ignoring it:
+
+```
+unknown option --build-authorized
+Authorization is derived from the project and cannot be supplied.
+```
+
+Accepting it silently would be safe and misleading - exit 0 plus a package back is every
+reason to believe the option was honoured. `create` runs the real gate over the real
+project and reads the real review state; a caller supplies identity (which repository,
+which run) and nothing about permission.
+
+**What a consuming agent must do, in order:**
+
+1. Validate the ZIP.
+2. Read `manifest.json`.
+3. Confirm `clientRef` — or `source.workflowRunId` — matches the job you asked for.
+4. Read `README-FIRST.md`.
+5. Follow `nextActions` in order.
+6. Read `project/AGENTS.md`.
+7. **Do not build unless `buildAuthorized` is true.**
+
+A package reading `{"state": "HUMAN_REVIEW_REQUIRED", "buildAuthorized": false}` is a
+*successful collection that still forbids building*. Do not describe it as an approved
+brief.
+
+**States, and what a UI should call them:**
+
+| `state` | Label for a person |
+|---|---|
+| `COLLECTION_FAILED` | Collection stopped |
+| `HUMAN_REVIEW_REQUIRED` | Your sources are ready to review |
+| `REVIEW_IN_PROGRESS` | Review is in progress |
+| `PREFLIGHT_BLOCKED` | Research is not ready yet |
+| `APPROVED_BRIEF` | Research approved — you may start building |
+
+An application should drive its buttons from `nextActions`, its recovery text from
+`gate.blockingFindings`, its warnings from `privacy`, its progress and cost lines from
+`collection`, and enable the build action from `buildAuthorized` alone. Raw codes belong
+under an "Advanced details" section.
+
+**Two privacy properties, both deliberate.** The topic is in the manifest and **never in
+the filename** — an artifact listing is readable by an anonymous caller on a public
+repository, so a filename leaks before anybody opens anything. And
+`safeForPublicDistribution` is `false` by default: a package with no secrets in it can
+still disclose what was being researched.
+
+**An artifact is transport, not archival storage.** Workflow artifacts last at most 90
+days on a public repository and vanish with the run that produced them. Anything that must
+persist gets committed.
 
 ## Transports
 
@@ -197,7 +283,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-645 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+726 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
