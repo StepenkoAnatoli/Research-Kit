@@ -11,7 +11,7 @@ import { PassThrough } from 'node:stream';
 import { test, describe, assert } from './harness.mjs';
 import {
   handle, versionProblem, validateArgs, resourceLink, createStdioLoop,
-  TOOLS, ERRORS, PROTOCOL_VERSION, SUPPORTED_VERSIONS, SERVER_INFO,
+  TOOLS, ERRORS, SUPPORTED_VERSIONS, SERVER_INFO, MODERN_VERSION, LEGACY_VERSION,
 } from '../lib/mcp.mjs';
 
 describe('mcp');
@@ -57,14 +57,94 @@ test('a version this server cannot serve gets -32022 with the supported list', a
   }, deps());
   assert.equal(r.error.code, ERRORS.UNSUPPORTED_PROTOCOL_VERSION);
   assert.equal(r.error.code, -32022);
-  assert.deepEqual(r.error.data, { supported: [PROTOCOL_VERSION], requested: '1900-01-01' });
+  assert.deepEqual(r.error.data, { supported: [...SUPPORTED_VERSIONS], requested: '1900-01-01' });
+});
+
+test('a LEGACY per-request version is accepted, not refused', async () => {
+  // Dual-era means both are serveable, so neither is an error when named explicitly.
+  const r = await handle({
+    jsonrpc: '2.0', id: 8, method: 'tools/list',
+    params: { _meta: { 'io.modelcontextprotocol/protocol-version': LEGACY_VERSION } },
+  }, deps());
+  assert.ok(r.result, 'a version this server serves must not be refused');
+});
+
+// ---------------------------------------------------------------- the legacy handshake
+
+test('initialize exists, because every shipped client opens with it', async () => {
+  // The whole reason this file has a legacy half. The first version of this server
+  // implemented `2026-07-28` only - correctly, from the specification - and the official
+  // SDK at v1.30.0 answered with, in full:
+  //
+  //     MCP error -32601: unknown method initialize
+  //
+  // A server nothing can call is not conformant, it is unreachable. E-05 named the shape
+  // that fixes it: "a dual-era implementation that supports both".
+  const session = { version: null };
+  const r = await handle({
+    jsonrpc: '2.0', id: 0, method: 'initialize',
+    params: { protocolVersion: LEGACY_VERSION, capabilities: {}, clientInfo: { name: 'c', version: '1' } },
+  }, { ...deps(), session });
+
+  assert.equal(r.result.protocolVersion, LEGACY_VERSION, 'the reply must echo a version the client can accept');
+  assert.equal(r.result.serverInfo.name, SERVER_INFO.name);
+  assert.ok(r.result.capabilities.tools, 'a server offering tools declares the capability');
+  assert.equal(session.version, LEGACY_VERSION, 'the negotiated version is remembered for the connection');
+});
+
+test('initialize echoes the version asked for when it is serveable', async () => {
+  // The official client REFUSES a reply carrying a version it does not support -
+  // `SUPPORTED_PROTOCOL_VERSIONS.includes(result.protocolVersion)` or it throws. Echoing
+  // is what keeps a modern client modern and a legacy client connected.
+  for (const asked of [...SUPPORTED_VERSIONS]) {
+    const r = await handle({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: asked } },
+      { ...deps(), session: { version: null } });
+    assert.equal(r.result.protocolVersion, asked, `asked for ${asked} and got ${r.result.protocolVersion}`);
+  }
+});
+
+test('an unknown requested version falls back to LEGACY, not to this server preference', async () => {
+  // Answering a client we cannot place with `2026-07-28` would be a correct statement of
+  // preference and a guaranteed disconnection: no shipped client lists it. The legacy
+  // revision is the one most likely to be in the caller's supported set.
+  const r = await handle({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '1999-01-01' } },
+    { ...deps(), session: { version: null } });
+  assert.equal(r.result.protocolVersion, LEGACY_VERSION);
+  assert.notEqual(r.result.protocolVersion, MODERN_VERSION);
+});
+
+test('initialize carries instructions that say the corpus is not approved', async () => {
+  const r = await handle({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: LEGACY_VERSION } },
+    { ...deps(), session: { version: null } });
+  assert.match(r.result.instructions, /buildAuthorized/);
+  assert.match(r.result.instructions, /not approved research/);
+});
+
+test('notifications/initialized is a notification and gets no reply', async () => {
+  assert.equal(await handle({ jsonrpc: '2.0', method: 'notifications/initialized' }, deps()), null);
+});
+
+test('both eras reach the same tools', async () => {
+  // Semantics are identical across bindings and eras (E-03). A legacy client must not get
+  // a reduced server.
+  const legacy = { version: null };
+  await handle({ jsonrpc: '2.0', id: 0, method: 'initialize', params: { protocolVersion: LEGACY_VERSION } }, { ...deps(), session: legacy });
+  const viaLegacy = await handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, { ...deps(), session: legacy });
+  const viaModern = await handle({
+    jsonrpc: '2.0', id: 1, method: 'tools/list',
+    params: { _meta: { 'io.modelcontextprotocol/protocol-version': MODERN_VERSION } },
+  }, deps());
+  assert.deepEqual(viaLegacy.result.tools.map((t) => t.name), viaModern.result.tools.map((t) => t.name));
 });
 
 test('an absent version is allowed, because the protocol allows it', () => {
   // A client MAY call server/discover first and MAY instead invoke a method inline.
   // Refusing an unstated version would make this server stricter than the spec.
   assert.equal(versionProblem({ method: 'tools/list' }), null);
-  assert.equal(versionProblem({ params: { _meta: { 'io.modelcontextprotocol/protocol-version': PROTOCOL_VERSION } } }), null);
+  for (const v of SUPPORTED_VERSIONS) {
+    assert.equal(versionProblem({ params: { _meta: { 'io.modelcontextprotocol/protocol-version': v } } }), null,
+      `${v} is served and must not be refused`);
+  }
 });
 
 test('a notification gets no response at all', async () => {

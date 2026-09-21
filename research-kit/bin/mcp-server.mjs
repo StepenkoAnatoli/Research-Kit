@@ -27,7 +27,7 @@
 // holding the collector workflow. See the front-page README.
 
 import { requireRuntime } from '../lib/runtime.mjs';
-import { createStdioLoop, handle, PROTOCOL_VERSION, SERVER_INFO, TOOLS } from '../lib/mcp.mjs';
+import { createStdioLoop, handle, SUPPORTED_VERSIONS, SERVER_INFO, TOOLS } from '../lib/mcp.mjs';
 import { tokenFromEnv, TOKEN_VARS, redact } from '../lib/dispatch.mjs';
 
 if (process.argv.includes('--help')) {
@@ -36,7 +36,9 @@ if (process.argv.includes('--help')) {
 
   node research-kit/bin/mcp-server.mjs
 
-Speaks newline-delimited JSON-RPC on stdin/stdout. Protocol version ${PROTOCOL_VERSION}.
+Speaks newline-delimited JSON-RPC on stdin/stdout.
+Protocol versions: ${SUPPORTED_VERSIONS.join(', ')} - modern and legacy, because every
+shipped client still opens with the legacy initialize handshake.
 Tools: ${TOOLS.map((t) => t.name).join(', ')}.
 
 The token is read from ${TOKEN_VARS.join(' or ')}. There is no token argument: a stdio
@@ -55,13 +57,17 @@ requireRuntime({ node: true });
 // so at the top of the log the client already captures.
 const { token, from, detail } = tokenFromEnv();
 process.stderr.write(token
-  ? `research-kit mcp: protocol ${PROTOCOL_VERSION}, token from ${from}\n`
+  ? `research-kit mcp: protocols ${SUPPORTED_VERSIONS.join(", ")}, token from ${from}\n`
   : `research-kit mcp: ${detail}. Tools will refuse until it is set.\n`);
+
+// One connection, one session. A stdio server serves exactly one client, so this object
+// is the whole of the session state the legacy handshake establishes.
+const session = { version: null };
 
 createStdioLoop({
   input: process.stdin,
   output: process.stdout,
-  onMessage: (message) => handle(message),
+  onMessage: (message) => handle(message, { session }),
   onError: (error) => process.stderr.write(`research-kit mcp: ${redact(error.stack ?? error.message)}\n`),
 });
 

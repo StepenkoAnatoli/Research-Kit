@@ -45,11 +45,33 @@
 
 import { dispatchCollection, getRunSummary, fetchCorpus, tokenFromEnv, redact, DispatchError } from './dispatch.mjs';
 
-/** The revision this server speaks. Declared, not negotiated (E-05). */
-export const PROTOCOL_VERSION = '2026-07-28';
+/**
+ * DUAL-ERA, and the reason is that the specification is ahead of every client.
+ *
+ * E-05 splits the world: **modern** revisions (`2026-07-28` and later) carry version and
+ * capabilities as per-request metadata; **legacy** ones (`2025-11-25` and earlier)
+ * establish a session with an `initialize` handshake. It names the third option too - "a
+ * **dual-era** implementation that supports both".
+ *
+ * The first version of this server implemented modern only, correctly, from the
+ * specification. It could not be called by anything that exists. The official SDK at
+ * v1.30.0 declares LATEST_PROTOCOL_VERSION `2025-11-25` and opens with `initialize`, so
+ * driving this server with it produced, in full:
+ *
+ *     MCP error -32601: unknown method initialize
+ *
+ * A server nothing can call is not a conformant server, it is an unreachable one. Same
+ * shape as building the workflow against an npm package named `firecrawl`: read from the
+ * documentation, never exercised against reality, wrong in the one way that matters.
+ */
+export const MODERN_VERSION = '2026-07-28';
+export const LEGACY_VERSION = '2025-11-25';
+
+/** The revision this server prefers when nobody says otherwise. */
+export const PROTOCOL_VERSION = MODERN_VERSION;
 
 /** Every revision this server will serve, newest first. */
-export const SUPPORTED_VERSIONS = Object.freeze([PROTOCOL_VERSION]);
+export const SUPPORTED_VERSIONS = Object.freeze([MODERN_VERSION, LEGACY_VERSION]);
 
 /** JSON-RPC error codes. -32022 is MCP's, the rest are JSON-RPC's own. */
 export const ERRORS = Object.freeze({
@@ -141,9 +163,10 @@ export function versionProblem(message) {
     ?? message?._meta?.['io.modelcontextprotocol/protocol-version']
     ?? null;
   // Absent is permitted: a client MAY call `server/discover` first, and MAY also just
-  // invoke a method inline. Refusing an unstated version would make this server stricter
-  // than the protocol and would reject clients the protocol allows.
-  if (requested === null || requested === PROTOCOL_VERSION) return null;
+  // invoke a method inline. A LEGACY client never sends this at all - it settled the
+  // version once, at `initialize`. Refusing an unstated version would make this server
+  // stricter than the protocol and would reject every client that exists today.
+  if (requested === null || SUPPORTED_VERSIONS.includes(requested)) return null;
   return {
     code: ERRORS.UNSUPPORTED_PROTOCOL_VERSION,
     message: 'Unsupported protocol version',
@@ -186,6 +209,10 @@ export async function handle(message, {
   summary = getRunSummary,
   corpus = fetchCorpus,
   env = process.env,
+  // One stdio process serves one client, so one session object is the whole of session
+  // state. A caller that omits it gets a throwaway - which is right for a single call and
+  // wrong for a connection, and `createStdioLoop` supplies a real one.
+  session = { version: null },
 } = {}) {
   if (!message || message.jsonrpc !== '2.0' || typeof message.method !== 'string') {
     return err(message?.id ?? null, ERRORS.INVALID_REQUEST, 'not a JSON-RPC 2.0 request');
@@ -199,6 +226,28 @@ export async function handle(message, {
   if (bad) return err(message.id, bad.code, bad.message, bad.data);
 
   switch (message.method) {
+    case 'initialize': {
+      // THE LEGACY HANDSHAKE. Removed in `2026-07-28` and spoken by every shipped client.
+      //
+      // The client sends the version it wants and REFUSES a reply carrying one it does
+      // not support - `SUPPORTED_PROTOCOL_VERSIONS.includes(result.protocolVersion)` in
+      // the official SDK, which throws otherwise. So the reply echoes the request when it
+      // is serveable, and otherwise offers the legacy revision rather than this server's
+      // preferred one: answering a legacy client with `2026-07-28` is a correct statement
+      // of preference and a guaranteed disconnection.
+      const asked = message.params?.protocolVersion ?? null;
+      const agreed = SUPPORTED_VERSIONS.includes(asked) ? asked : LEGACY_VERSION;
+      session.version = agreed;
+      return ok(message.id, {
+        protocolVersion: agreed,
+        capabilities: { tools: { listChanged: false } },
+        serverInfo: { name: SERVER_INFO.name, version: SERVER_INFO.version },
+        instructions:
+          'Use collect to start a research collection, then fetch_corpus with the run id it returns. '
+          + 'What comes back is collected EVIDENCE, not approved research: read buildAuthorized, and do not build while it is false.',
+      });
+    }
+
     case 'server/discover':
       // MUST be implemented (E-05). A client MAY call it first to learn versions up front.
       return ok(message.id, {
