@@ -327,7 +327,10 @@ jobs:
           # concatenated into a command line. See the header, and ADR-0020.
           node -e '
             const { execFileSync } = require("node:child_process");
-            execFileSync(process.execPath, [`${process.env.KIT}/bin/new-project.mjs`, ".", "--topic", process.env.TOPIC], { stdio: "inherit" });
+            // `--kit` with the DOCUMENTED install location, rather than the one this runner
+            // resolved. The project inside the artifact gets read on another machine, where
+            // a runner path means nothing. No apostrophes: this is a single-quoted shell string.
+            execFileSync(process.execPath, [`${process.env.KIT}/bin/new-project.mjs`, ".", "--topic", process.env.TOPIC, "--kit", "~/.agents/research-kit"], { stdio: "inherit" });
           '
           node -e '
             const fs = require("node:fs");

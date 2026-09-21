@@ -21,7 +21,11 @@
 // explained error rather than as an empty success, because "the run started and I have no
 // idea which one" is the failure a caller is least equipped to diagnose from a status code.
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { openZip } from './artifact-zip.mjs';
+import { validateArtifact } from './artifact-validator.mjs';
 
 /** The version whose dispatch response carries the run id. Changing this is a decision. */
 export const API_VERSION = '2026-03-10';
@@ -174,7 +178,7 @@ function stringifyInputs(inputs) {
 
 // ---------------------------------------------------------------- waiting
 
-async function getRun({ repository, runId, token, fetch: doFetch = globalThis.fetch, api = GITHUB_API }) {
+export async function getRun({ repository, runId, token, fetch: doFetch = globalThis.fetch, api = GITHUB_API }) {
   const [owner, name] = splitRepository(repository);
   const response = await doFetch(`${api}/repos/${owner}/${name}/actions/runs/${runId}`, { headers: headers(token) });
   if (!response.ok) throw new DispatchError('HTTP', `could not read run ${runId}: HTTP ${response.status}`, { status: response.status });
@@ -252,4 +256,47 @@ export function unwrapArtifact(bytes) {
   const inner = zip.names.filter((n) => n.endsWith('.zip'));
   if (inner.length !== 1) return { bytes, unwrapped: false };
   return { bytes: zip.read(inner[0]), unwrapped: true, name: inner[0] };
+}
+
+// ---------------------------------------------------------------- bringing it home
+
+/** The four fields a caller decides on: is it done, did it work, and where to look. */
+export async function getRunSummary({ repository, runId, token, fetch: doFetch = globalThis.fetch, api = GITHUB_API }) {
+  const run = await getRun({ repository, runId, token, fetch: doFetch, api });
+  return { status: run.status, conclusion: run.conclusion ?? null, htmlUrl: run.html_url ?? null, runId };
+}
+
+/**
+ * `fetchCorpus(...)` -> `{ file, validation, artifact }`.
+ *
+ * Download, unwrap GitHub's outer ZIP, write it down, and judge it with the validator a
+ * human would run. ONE implementation, called by both `bin/collect-remote.mjs` and the
+ * MCP server - the approved brief is explicit that a second copy of this is how the
+ * vendor package name came to be wrong in two workflows at once.
+ */
+export async function fetchCorpus({
+  repository, runId, token, outDir = null,
+  fetch: doFetch = globalThis.fetch, api = GITHUB_API,
+  expectedClientRef = null,
+} = {}) {
+  const artifacts = await listArtifacts({ repository, runId, token, fetch: doFetch, api });
+  const wanted = artifacts.filter((a) => !a.expired && a.name.startsWith('research-kit-corpus-v1-'));
+  if (wanted.length !== 1) {
+    throw new DispatchError('NO_ARTIFACT', `expected one corpus artifact on run ${runId}, found ${wanted.length}`, {
+      remedy: wanted.length === 0
+        // Told apart, because the two have different fixes: one is a broken run, the
+        // other is a run whose artifact has aged out.
+        ? 'the run produced no package, or its artifact has expired; check the upload step, or re-collect'
+        : 'more than one corpus artifact on one run is not a shape this format defines',
+    });
+  }
+  const bytes = await downloadArtifact({ repository, artifactId: wanted[0].id, token, fetch: doFetch, api });
+  const { bytes: pkg, unwrapped, name } = unwrapArtifact(bytes);
+
+  const dir = outDir ?? os.tmpdir();
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, unwrapped ? name : `${wanted[0].name}.zip`);
+  fs.writeFileSync(file, pkg);
+
+  return { file, artifact: wanted[0], validation: validateArtifact({ file, expectedClientRef }) };
 }

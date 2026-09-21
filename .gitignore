@@ -17,6 +17,18 @@ research/raw/.usage.jsonl
 research/raw/.failures.jsonl
 research/raw/.fetches.lock
 
+# The same four, at ANY depth. The rules above are anchored to this directory, so a
+# NESTED decision project (ADR-0030) is covered only by its own .gitignore - which works
+# once that project is committed and not before. A byproduct dropped in a nested project
+# on one branch survives a branch switch as an untracked orphan, and `git add -A` on a
+# branch that has not got the nested ignore file yet will commit it. That happened on
+# 2026-09-21. These patterns do not depend on which branch is checked out.
+**/research/raw/.diagnostics.jsonl
+**/research/raw/.usage.jsonl
+**/research/raw/.failures.jsonl
+**/research/raw/.fetches.lock
+**/research/overrides.log
+
 # CPython bytecode. New as of 2026-09-20: the three Python conformance runners now
 # IMPORT a shared module (bin/conformance_common.py) instead of each carrying its own
 # copy, and importing a sibling is what makes CPython write a cache directory. Before
