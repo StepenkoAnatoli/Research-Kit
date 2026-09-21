@@ -17,145 +17,26 @@ before spending), and a configured credential.
 
 **Supported on Linux and Windows; macOS is best-effort and untested.** "Supported" means
 the full offline suite runs on that platform in CI on every commit — see
-[the support policy](../README.md#supported-platforms) for why the distinction is worded
+[the support policy](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#supported-platforms) for why the distinction is worded
 that way and what it has already caught. Needs Node 22+, Git, and Python 3.12+ for the
 cross-language conformance runners.
 
-New here? [Your first 30 minutes](../README.md#your-first-30-minutes) is one ordered path
+New here? [Your first 30 minutes](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#your-first-30-minutes) is one ordered path
 from nothing to a `preflight` verdict, and
-[when something fails](../README.md#when-something-fails) lists the failure modes that
+[when something fails](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#when-something-fails) lists the failure modes that
 actually happen.
 
-## Start here if this is new to you
+## New here?
 
-Five steps, in order. You need a GitHub account and the repository. You do **not** need to
-install anything for steps 1-4.
+The getting-started guide lives on the [front page](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#start-here-if-this-is-new-to-you):
+where to put your Firecrawl key, how to run a collection from the website, and
+[where to get a token for an AI agent](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#where-to-get-the-token).
 
-### 1. Get a Firecrawl key
+It is there rather than here because that is the page GitHub shows someone who arrives at
+the repository, and a second copy of a getting-started guide drifts - with the stale copy
+always being the one the newcomer found.
 
-Sign up at [firecrawl.dev](https://www.firecrawl.dev) and copy your API key from the
-dashboard. The free tier is 1,000 credits a month, no card, and it stops at zero rather
-than billing you.
-
-### 2. Put the key where only the collector can read it
-
-In **your repository** on GitHub:
-
-> **Settings** -> **Environments** -> **New environment** -> name it `research-collection`
-> -> **Add secret** -> name `FIRECRAWL_API_KEY`, value = your key
-> -> **Add variable** -> name `RESEARCH_KIT_COLLECTION_ENV`, value `research-collection`
-
-Both are needed. The *variable* is how the collector checks the environment really exists:
-GitHub silently creates an unprotected environment if a workflow names one that is missing,
-and that would leave your key somewhere it should not be.
-
-**Do not put the key in Settings -> Secrets and variables -> Actions.** That makes it
-readable by every workflow in the repository. The collector has a check that refuses to run
-if it finds it there.
-
-### 3. Run a collection from the website
-
-> **Actions** tab -> **collect** in the left sidebar -> **Run workflow**
-
-Fill in the topic, leave the rest as they are for a first run, and press the green button.
-Start small: `max_pages: 1` and `depth: probe` costs about 3 credits.
-
-Watch it finish, then scroll to **Artifacts** at the bottom of the run and download the ZIP.
-
-### 4. Read what came back
-
-Open the ZIP and read **`README-FIRST.md`** first. It will say:
-
-> **COLLECTED CORPUS - HUMAN REVIEW REQUIRED**
-
-That is normal and correct. The collector gathers evidence; it does not decide whether the
-research is any good. Three steps are yours, and no tool does them for you:
-
-1. Classify every row in `project/research/MAP.md`
-2. Rewrite every Finding in `project/research/EVIDENCE.md` into a claim you would defend
-3. Run preflight, then write and review the brief
-
-Until those are done, `manifest.json` says `"buildAuthorized": false` - which means
-**do not start building from this yet**, and any AI reading it should refuse to as well.
-
-### 5. Check the package is intact (optional)
-
-```
-node research-kit/bin/artifact.mjs validate --file research-kit-corpus-v1-<something>.zip
-```
-
-`PASS` means the package is undamaged and its evidence chain verifies. It does **not** mean
-you may build - that is the separate `buildAuthorized` line.
-
----
-
-## Letting an AI agent run the collector
-
-An agent can do steps 3-5 for you. It needs a token, and the token should be able to do
-**one thing only**.
-
-### Where to get the token
-
-> [github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new)
->
-> (or: your avatar -> **Settings** -> **Developer settings** -> **Personal access tokens**
-> -> **Fine-grained tokens** -> **Generate new token**)
-
-Fill it in like this:
-
-| Field | Value |
-|---|---|
-| Token name | something you will recognise, e.g. `research-collector-agent` |
-| Expiration | 30 days. Short is good; you can always make another |
-| Repository access | **Only select repositories** -> pick this one |
-| Permissions -> Repository -> **Actions** | **Read and write** |
-| Everything else | leave alone |
-
-**Actions: Read and write is the only permission it needs.** With just that, the agent can
-start a collection and read the result. It cannot read or change your code, read your
-secrets, change settings, or touch any other repository. If the agent misbehaves, revoke
-the token - it takes one click and breaks nothing else.
-
-Copy the token when it is shown. GitHub will not show it again.
-
-### Give it to the agent
-
-Set it in the environment. **Never** on a command line - a command line ends up in your
-shell history, in the process list, and in any log that echoes the command. There is no
-`--token` flag, deliberately.
-
-```bash
-export RESEARCH_KIT_GITHUB_TOKEN=github_pat_...
-node research-kit/bin/collect-remote.mjs \
-  --repository OWNER/REPO \
-  --topic "What are the rate limits on the Stripe API" \
-  --max-pages 5 --json
-```
-
-On Windows PowerShell:
-
-```powershell
-$env:RESEARCH_KIT_GITHUB_TOKEN = "github_pat_..."
-node research-kit/bin/collect-remote.mjs --repository OWNER/REPO --topic "..." --json
-```
-
-That one command dispatches the run, prints the run id immediately, waits, downloads the
-artifact, unwraps it, and validates it. Exit codes:
-
-| Exit | Meaning |
-|---|---|
-| 0 | collected and valid - **still does not authorize building** |
-| 1 | the package is invalid |
-| 2 | the run failed, or the package is incomplete |
-| 3 | could not start: no token, bad repository, or no permission |
-| 4 | dispatched and still running when the wait ran out; the run id is on stdout |
-
-### What the agent must not do
-
-Read `buildAuthorized` and stop if it is `false`. It will be `false` for everything this
-command returns, because a freshly collected corpus has not been reviewed by anyone. An
-agent that treats exit 0 as permission to build has skipped the only part of this that
-needed a person.
+This file is the reference: every command, the artifact format, the transports.
 
 ## Install
 
@@ -222,7 +103,7 @@ node research-kit/bin/handoff.mjs     # did the corpus arrive whole?
 
 One versioned ZIP that an AI agent, a GitHub Actions workflow, a future Windows app and a
 person with an unzip tool all read the same way. See
-[ADR-0032](../docs/adr/0032-one-artifact-contract-for-every-consumer.md).
+[ADR-0032](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/docs/adr/0032-one-artifact-contract-for-every-consumer.md).
 
 ```
 node research-kit/bin/artifact.mjs create --root . \
@@ -304,7 +185,7 @@ still disclose what was being researched.
 `.github/workflows/collect.yml` is the collector a non-technical operator triggers. It is
 **manual only** — ordinary CI can never start a paid run — and it runs on
 `ubuntu-latest` or `windows-latest`. See
-[ADR-0033](../docs/adr/0033-the-collector-refuses-rather-than-degrades.md).
+[ADR-0033](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/docs/adr/0033-the-collector-refuses-rather-than-degrades.md).
 
 ```
 gh api -X POST repos/OWNER/REPO/actions/workflows/collect.yml/dispatches   -H "X-GitHub-Api-Version: 2026-03-10"   -f ref=main -f 'inputs[topic]=...' -f 'inputs[max_pages]=8'
@@ -315,12 +196,10 @@ That run id is the correlation key, and it is what the artifact's manifest recor
 the default `2022-11-28` the same call returns `204 No Content` and the caller learns
 nothing.
 
-**One-time setup, and the workflow refuses to spend until it exists.** Settings >
-Environments > `research-collection`:
-
-| What | Why |
-|---|---|
-| required reviewers | **optional, and not configured here** - see below |
+**One-time setup** is on the front page:
+[Put the key where only the collector can read it](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#2-put-the-key-where-only-the-collector-can-read-it).
+The workflow refuses to spend until it exists. Not repeated here - a second copy of a
+setup procedure drifts, and the stale copy is the one somebody follows.
 
 **Why there is no required reviewer.** A reviewer approving a *dispatch* is a spend gate,
 not a review: nothing has been collected yet, so there is nothing to judge, and a human in
@@ -395,10 +274,10 @@ both gates, both transports, phase 0, the brief, the audit and its bundle.
 
 And, since 2026-09-20, the **release-evidence validator layer** — which this file said
 was "not built, deliberately" until it was. It was deferred by
-[ADR-0022](../docs/adr/0022-build-the-protocol-kit-first-defer-the-release-evidence-validators.md)
+[ADR-0022](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/docs/adr/0022-build-the-protocol-kit-first-defer-the-release-evidence-validators.md)
 because the sealed records and fixtures it validates were unavailable; they turned out to
 be on this machine, and it was ported module by module under
-[ADR-0029](../docs/adr/0029-the-validator-layer-arrives-as-a-source-not-a-donor.md).
+[ADR-0029](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/docs/adr/0029-the-validator-layer-arrives-as-a-source-not-a-donor.md).
 
 | Validator | Answers |
 |---|---|
@@ -477,7 +356,7 @@ until someone trusts it. They come with the code that needs them, or not at all.
 ## Credentials
 
 **No credentials ship with this repository.** See the root
-[README](../README.md#bring-your-own-keys) for where keys go; the summary is that the kit
+[README](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#bring-your-own-keys) for where keys go; the summary is that the kit
 reads one from the environment or `~/.agents/research-kit.config.json`, never from the
 repository, and `--transport http-keyless` runs the whole collector with no key at all.
 
@@ -492,7 +371,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-781 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+782 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
