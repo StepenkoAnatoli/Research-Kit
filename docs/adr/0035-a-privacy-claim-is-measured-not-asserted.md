@@ -92,6 +92,10 @@ header did to me.
 
 ## What is NOT measured, and is therefore not claimed
 
+> **This section is superseded.** It was written before the gap was closed; see the
+> amendment below, which measured it and found the less comfortable answer. Kept as written
+> because the gap being named here is why it got closed.
+
 **What a signed-in user sees in the web UI.** That is a different surface from the REST
 API, and it could not be tested from here — the browser available to this session cannot
 reach github.com. The logs contain the topic (the step prints `TOPIC:` in its `env:`

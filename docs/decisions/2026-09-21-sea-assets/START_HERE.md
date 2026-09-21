@@ -45,3 +45,8 @@ entries, chain verifies`.
 `corroboration/single-source` on U-1 and U-2, both accepted on the record rather than
 cleared - the only available second source was the stale mirror, and citing it would have
 made the corpus read stronger while making it weaker. `research/BRIEF.md` argues it.
+
+So does every other corpus here: since ADR-0036 added `corroboration` to `POLICY_CHECKS`,
+**nothing in this repository passes `--strict` or `evidencePolicy=strict`**, measured and
+tabulated at the end of `research/BRIEF.md`. That is a property of the repository, not of
+this corpus.

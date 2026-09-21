@@ -97,6 +97,46 @@ corpus existed, and the corpus was used to make two architecture decisions in th
   verdict passing, and now isolates the claim. That proxy only ever worked while nothing
   else in the policy set fired.
 
+## Amendment, 2026-09-21 — this ADR made `strict` unsatisfiable, and only checked the default
+
+The Consequences below verified that "every existing corpus stays green … under the default
+policy". That was true, and it was the wrong half to check. Adding `corroboration` to
+`POLICY_CHECKS` changes what **`strict`** means, and nothing measured what it now costs.
+
+Measured on `main` after this ADR landed:
+
+| corpus | default | `--strict` |
+|---|---|---|
+| repository root | PASS, 7 warnings | **FAIL, 7 blocking** |
+| `2026-09-21-delivery-architecture` | PASS, 8 warnings | **FAIL, 8 blocking** |
+| `2026-09-21-agent-interface` | PASS, 5 warnings | **FAIL, 5 blocking** |
+| `2026-09-21-public-run-visibility` | PASS, 4 warnings | **FAIL, 4 blocking** |
+| `2026-09-21-sea-assets` | PASS, 2 warnings | **FAIL, 2 blocking** |
+
+And every one of the root corpus's seven warnings is a `corroboration` finding, so
+`evidencePolicy=strict` fails it identically — confirmed by running it with a config, not
+inferred: `FAIL 7 blocking, 0 warning(s), 18 passing [evidencePolicy=strict]`.
+
+**So the harder policy this ADR pointed operators at is one no corpus in this repository
+satisfies.** The delivery corpus passed `--strict` before this change; it does not now.
+
+**This is recorded, not fixed, and the distinction is deliberate.** The check is right on
+every one of those findings — the corpora genuinely are single-sourced, and §"What it
+immediately said about work finished an hour earlier" is the same admission at smaller scale.
+Making `strict` passable would mean either collecting second sources for thirty-odd unknowns,
+or softening a check that is telling the truth. Neither is a decision to take inside an
+amendment about measurement.
+
+What an operator needs to know now: **`strict` is aspirational in this repository, not a
+standard it meets.** Anyone turning it on should expect red, and should read the findings as a
+worklist rather than as a regression.
+
+Two settings are also easy to conflate, and the verdict line encourages it: `--strict`
+promotes **every** warning, while `evidencePolicy=strict` promotes only the three
+`POLICY_CHECKS`. The summary prints the project's *declared* policy regardless, so a
+`--strict` run reads `FAIL … [evidencePolicy=pluralist]` — which looks like pluralist failed
+it. It did not; the flag did.
+
 ## Amendment, 2026-09-21 — a mirror is the case where `independent` is actively worse
 
 The closing section below says `independent` means only "this check found no reason to flag
