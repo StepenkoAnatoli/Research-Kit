@@ -155,6 +155,31 @@ export function captureEntry({ file, url, retrieved, command, statusCode, transp
 }
 
 /**
+ * Notices a page prints when its own content failed to load.
+ *
+ * Deliberately a list of things pages SAY, not a guess about what they contain. Each of
+ * these is a sentence a site renders in place of content it could not build - so a match
+ * is the page reporting its own failure, which is a fact, rather than this module judging
+ * whether the text looks substantial, which would be ADR-0013's forbidden territory.
+ */
+export const RENDER_FAILURE_MARKERS = Object.freeze([
+  /there was an error while loading/gi,
+  /please (?:reload|refresh) this page/gi,
+  /(?:you need to )?enable javascript to (?:run|use|view)/gi,
+  /javascript is (?:required|disabled)/gi,
+  /this (?:page|content) requires javascript/gi,
+]);
+
+/** How many render-failure notices a page printed. 0 means none, never "it is fine". */
+export function countRenderFailures(body) {
+  let n = 0;
+  for (const marker of RENDER_FAILURE_MARKERS) {
+    n += (String(body ?? '').match(new RegExp(marker.source, 'gi')) ?? []).length;
+  }
+  return n;
+}
+
+/**
  * The capture index: every file under `research/raw/`, plus `byUrl` where the newest
  * retrieval wins. Dotfiles are the kit's own logs and are not captures.
  */
@@ -163,6 +188,7 @@ export function readCaptures(root) {
   const entries = [];
   const problems = [];
   const sketches = new Map();
+  const renderFailures = new Map();
   for (const name of listFiles(dir).sort()) {
     if (name.startsWith('.')) continue;
     const abs = path.join(dir, name);
@@ -175,6 +201,7 @@ export function readCaptures(root) {
       problems.push({ kind: 'capture-no-url', file: rel, detail: 'capture has no url in its front-matter' });
     }
     sketches.set(rel, sketch(body));
+    renderFailures.set(rel, countRenderFailures(body));
     entries.push(captureEntry({
       file: rel,
       url: front.url,
@@ -199,7 +226,7 @@ export function readCaptures(root) {
   // Sketches ride alongside the index rather than inside `captureEntry`, because an entry
   // is serialised into artifact manifests and a 128-value fingerprint per capture would
   // bloat every package to answer a question only one check asks (ADR-0036 amendment).
-  return { entries, byUrl, byFile, sketches, problems };
+  return { entries, byUrl, byFile, sketches, renderFailures, problems };
 }
 
 /** The one writer of the in-memory index, for a URL collected mid-run. */
