@@ -201,6 +201,11 @@ configured environment can supply.
 would return a measurably worse corpus under the same artifact name, and the person who
 asked for research would have no way to tell.
 
+**`client_ref` is public.** If you pass one it becomes the run name *and* the artifact
+name, both readable by anyone who can read the repository. Use an opaque job id
+(`job-0417`); never put the subject in it. `layoff-plan-q3` fits the permitted shape
+perfectly, which is why the workflow warns rather than pretending a regex could judge it.
+
 **Privacy, stated honestly.** The topic is in neither the run name nor the artifact name,
 because an anonymous caller can read both listings on a public repository. But
 `workflow_dispatch` inputs *are* visible on the run page to anyone with read access — this
@@ -328,7 +333,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-753 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+754 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
