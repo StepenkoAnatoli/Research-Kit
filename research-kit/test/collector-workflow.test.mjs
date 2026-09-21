@@ -36,6 +36,19 @@ function lineOf(text, re) {
   return text.split('\n').findIndex((line) => re.test(line));
 }
 
+/**
+ * The scope-canary job on its own: everything from `jobs:` up to the `collect:` job.
+ *
+ * Sliced out rather than searched whole, because the canary's defining property is a
+ * NEGATIVE - it must not declare an environment - and a negative asserted against the
+ * whole file would pass for the wrong reason the moment any job declared one.
+ */
+function canaryJob() {
+  const jobs = body.slice(body.indexOf('\njobs:'));
+  const end = jobs.indexOf('\n  collect:');
+  return end === -1 ? jobs : jobs.slice(0, end);
+}
+
 test('the collector workflow exists', () => {
   assert.ok(yaml !== null, '.github/workflows/collect.yml is missing; every test below is vacuous without it');
 });
@@ -274,10 +287,33 @@ test('every third-party action is pinned to a commit SHA', () => {
   }
 });
 
-test('the honest limit of the environment check is written down, not implied', () => {
-  // The one claim this workflow cannot make is that a repository-level secret did not
-  // serve the request: GitHub exposes no scope information to a job. Saying so in the file
-  // is the difference between a documented boundary and an overstated guarantee.
-  assert.ok(/does not tell a workflow which/i.test(yaml) || /HONEST LIMIT/i.test(yaml),
-    'the workflow should state that it cannot prove which scope a secret came from, rather than implying it can');
+test('a credential reachable WITHOUT the environment fails the run', () => {
+  // The property that makes "never fall back to repository secrets" enforceable rather
+  // than aspirational. A job with no `environment:` can see only repository and
+  // organization secrets, so if the key resolves there, it is not behind the approval
+  // gate - and the question GitHub refuses to answer directly is answered by asking from
+  // a context that can only see one scope.
+  assert.ok(canaryJob().includes('scope-check'), 'there is no job proving the credential is scoped');
+  assert.ok(!/environment:/.test(canaryJob()),
+    'the scope canary declares an environment, which defeats it entirely - it must be able to see ONLY the unscoped secrets');
+  assert.ok(/secrets\.FIRECRAWL_API_KEY/.test(canaryJob()), 'the canary does not read the credential it is checking');
+  assert.ok(/exit 1/.test(canaryJob()), 'the canary reports but does not fail the run');
+});
+
+test('the canary runs before anything is approved or spent', () => {
+  assert.ok(/needs:\s*scope-check/.test(body),
+    'collection does not depend on the scope check, so a misplaced credential would cost a reviewer\'s time and then credits');
+});
+
+test('the canary never prints the credential, only whether it resolved', () => {
+  assert.ok(!/echo[^\n]*\$\{?UNSCOPED_KEY/.test(canaryJob()), 'the canary echoes the credential');
+  assert.ok(/-n "\$\{UNSCOPED_KEY:-\}"/.test(canaryJob()), 'the canary should test presence, not value');
+});
+
+test('the limit that genuinely remains is still stated honestly', () => {
+  // Repository versus organization is undecidable from inside a job, and it does not
+  // matter: neither is behind the approval gate. Saying so is the difference between a
+  // documented boundary and an overstated guarantee.
+  assert.ok(/undecidable is repository versus organization/i.test(yaml),
+    'the workflow should say which distinction it still cannot make, and why that one does not matter');
 });

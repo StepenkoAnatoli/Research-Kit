@@ -46,6 +46,32 @@ request. Setting a repository-level variable of that name would defeat it — wh
 circumvention a deliberate, visible act, and leaves the enforcement that matters where it
 belongs: on the environment's protection rules.
 
+### Correction, 2026-09-21 — the limit above was real but the conclusion was too weak
+
+The paragraph above is correct that GitHub tells a job nothing about where a resolved
+secret came from. It was wrong to conclude that the question is therefore unanswerable.
+**It does not have to be answered directly: it can be answered by asking from a context
+that can only see one scope.**
+
+A job that declares **no** `environment:` cannot see environment secrets. It sees
+repository and organization secrets and nothing else. So a `scope-check` job with no
+environment that finds `secrets.FIRECRAWL_API_KEY` non-empty has proved the credential
+exists at a scope no protection rule guards — and the workflow fails before a reviewer is
+asked and before a credit is spent.
+
+What remains genuinely undecidable is **repository versus organization**, and that
+distinction does not matter here: neither is behind the approval gate.
+
+This was found the way the rest of this file's defects were — by running it. The first
+real configuration put both keys in as *repository* secrets. Collection would have
+succeeded, the required reviewer would have approved a job, and the credential would have
+been readable without approval by any workflow in the repository, including one added in a
+pull request. Nothing in the design as originally written would have said so.
+
+The `scope-check` job runs first, `collect` declares `needs: scope-check`, and the failure
+message gives the three-step fix in order: add the environment secret, delete the
+repository one, re-run.
+
 ### A missing credential refuses; it never degrades
 
 There is no `http-keyless` fallback in this workflow, and a test asserts the string does
