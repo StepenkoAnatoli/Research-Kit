@@ -38,5 +38,13 @@ node ..\..\..\research-kit\bin\preflight.mjs
 node ..\..\..\research-kit\bin\handoff.mjs
 ```
 
-As of 2026-09-21: `PASS  0 blocking, 4 warning(s), 12 passing` and `handoff OK - 3 ledger
+As of 2026-09-21: `PASS  0 blocking, 3 warning(s), 13 passing` and `handoff OK - 3 ledger
 entries, chain verifies`.
+
+**The three remaining warnings are the principled case for single-sourcing.** U-1 to U-3 ask
+about GitHub's own permission model, and GitHub is the only witness to it - a second page
+would be another team at the same company restating the first. What replaced corroboration
+here is **measurement**, and it caught an error a second reading would not have: U-1's
+documented answer says an account is required to view run information, and an anonymous
+probe returns `200` for run metadata, job listings and artifact NAMES. True of the web UI,
+false of the REST API. `research/DISCOVERY.md` carries the correction and the full table.

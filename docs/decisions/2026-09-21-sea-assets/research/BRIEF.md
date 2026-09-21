@@ -1,8 +1,13 @@
 # Brief - Can Research-Kit ship as a Windows .exe yet?
 
 - **Date:** 2026-09-21
-- **Gate:** PASS - 0 blocking, **0 warnings**, 14 passing (`evidencePolicy=pluralist`), and
-  it passes `--strict` too. It did not, until the corroboration pass described at the end.
+- **Gate:** PASS - 0 blocking, **3 warnings**, 13 passing (`evidencePolicy=pluralist`).
+  All three are `capture-completeness/partial-render` and **none is a corroboration finding**:
+  both unknowns rest on two distinct documents across two hosts since the pass described at
+  the end. The corpus briefly reported 0 warnings and passed `--strict`; ADR-0037 then added
+  a rule that sees something real about these three captures, and it now fails `--strict` on
+  those. Stated rather than quietly re-rendered - see "A number in this brief changed under
+  it" below.
 - **Corpus:** 5 captures, 5 ledger entries, chain verifies
 - **Collected by:** `collect.yml` run `35623502540`, dispatched through `bin/collect-remote.mjs`
 
@@ -128,8 +133,9 @@ the same day, on `main`:
 **At the time, nothing in this repository passed `--strict`.** The delivery corpus did before
 ADR-0036 added `corroboration` to `POLICY_CHECKS`, and the sentence was written from that
 memory instead of from a run - the exact failure mode this kit exists to prevent, committed
-inside a brief arguing against it. **This corpus now passes `--strict`**; the table above is
-kept as the measurement it was on the day.
+inside a brief arguing against it. **This corpus passed `--strict` for about an hour**, between its
+corroboration pass and ADR-0037; the table above is kept as the measurement it was on the day,
+and so is that sentence.
 
 Two distinct things are also easy to conflate, and the verdict line invites it. `--strict` is
 a CLI flag that promotes **every** warning. `evidencePolicy=strict` promotes only the three
@@ -178,3 +184,27 @@ The `merged=false` caveat on both new rows. Node.js lands changes by rebasing ra
 through the merge button, so a pull-request page is evidence of what was **proposed**, not
 proof of what shipped. What shipped is E-01's job, and E-01 is still the only row that speaks
 to the current state of the documentation.
+
+## A number in this brief changed under it, and that is the point
+
+This brief said "0 warnings" and "passes `--strict`". Both were true when written and both
+are now false - not because the research changed, but because **the gate learned to see
+something it could not see before.**
+
+ADR-0037 added `capture-completeness/partial-render`, which reports a page that prints its
+own load-failure notice. Three of this corpus's five captures do: the GitHub Discussion that
+carried nothing, and **both Node.js pull requests that carried everything.** GitHub renders
+the main content while a side widget fails, so the marker appears on good captures too.
+
+So the three warnings are true and two of them sit on rows this brief relies on. The response
+is not to silence the rule or to re-word the finding until it goes quiet. It is to say what
+the number means:
+
+- **No corroboration warning remains.** U-1 and U-2 each rest on two distinct documents across
+  two hosts, which is what the pass at the end of this brief bought.
+- **Three `partial-render` warnings remain**, and each is a standing instruction rather than a
+  defect: confirm the text cited from that capture is actually present. It was, for all three
+  - checked by searching the captures before the rows were written, which is the same
+  procedure ADR-0037 says no check replaces.
+
+A corpus whose verdict never moves is a corpus whose gate never improved.
