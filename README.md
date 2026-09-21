@@ -157,7 +157,9 @@ instead of a command:
 ```
 
 Two tools: `collect` starts a run and returns its id; `fetch_corpus` takes that id and
-returns a link to the validated package. The same token, the same one permission, and the
+returns a link to the validated package. The server speaks **both** protocol eras -
+`2026-07-28` and `2025-11-25` - because the specification is ahead of every shipped client
+and a server only the spec can talk to is one nothing can call. The same token, the same one permission, and the
 same rule at the end - the result carries `buildAuthorized`, and it is `false` for every
 freshly collected corpus.
 

@@ -96,6 +96,50 @@ The other `GAP` was **split** rather than fudged. How a break is detected and su
 design question and is closed. Who governs the specification was never collected and is
 dismissed with that said plainly: it moves the planning horizon, not the architecture.
 
+### Amendment, 2026-09-21 — the server is DUAL-ERA, because the spec is ahead of every client
+
+The decision above says "the protocol version is pinned" and pins `2026-07-28`. That was
+correct about the specification and useless in practice, and the only thing that could have
+revealed it was running the server against a client somebody else wrote.
+
+Driven by the official SDK at v1.30.0, the first version of this server answered, in full:
+
+```
+MCP error -32601: unknown method initialize
+```
+
+The SDK declares `LATEST_PROTOCOL_VERSION = '2025-11-25'` and supports
+`2025-11-25, 2025-06-18, 2025-03-26, 2024-11-05, 2024-10-07`. Every one of those is what
+E-05 calls **legacy** — session-based, opening with an `initialize` handshake, which
+`2026-07-28` removed. Claude Desktop and Claude Code are built on that SDK.
+
+**A server nothing can call is not a conformant server; it is an unreachable one.** This is
+the same failure shape as building the workflow against an npm package named `firecrawl`:
+read from documentation, never exercised against reality, wrong in the one way that
+matters. Both were found by running the thing, and neither could have been found any other
+way.
+
+E-05 already named the remedy, in the corpus, in the brief, and in the paragraph of this
+ADR that quotes it — **"a dual-era implementation that supports both"**. I cited the term
+and did not implement it, because until a real client refused the connection nothing forced
+the question.
+
+So `SUPPORTED_VERSIONS` is `['2026-07-28', '2025-11-25']`, `initialize` is implemented
+beside `server/discover`, and one session object per connection holds what the handshake
+agreed. Two rules follow from how the official client behaves:
+
+- **Echo the requested version** when it is serveable. The client refuses a reply carrying
+  a version it does not support — `SUPPORTED_PROTOCOL_VERSIONS.includes(result.protocolVersion)`
+  or it throws — so answering with this server's preference disconnects it.
+- **Fall back to legacy, not to preference,** for a version we cannot place. Answering an
+  unknown client with `2026-07-28` is a true statement about this server and a guaranteed
+  disconnection, because no shipped client lists it.
+
+Verified end to end afterwards, through the official client rather than by hand: connect,
+`tools/list`, a real `collect` that spent credits, polling `fetch_corpus` through the tool
+because the server cannot call back, and a `resource_link` to a package that validated
+`PASS` with `buildAuthorized: false`.
+
 ## Alternatives considered
 
 **A remote/hosted MCP server.** Deferred with the whole of E-01's OAuth chain, until
