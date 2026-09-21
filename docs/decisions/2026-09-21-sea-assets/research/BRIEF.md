@@ -2,9 +2,9 @@
 
 - **Date:** 2026-09-21
 - **Gate:** PASS - 0 blocking, 2 warnings, 12 passing (`evidencePolicy=pluralist`).
-  **Under `--strict` this corpus FAILS**, 2 blocking - the two warnings below are promoted.
-  Stated here because the delivery-architecture corpus passes `--strict` and a reader would
-  otherwise assume parity. This one does not, on purpose, for the reason given below.
+  **Under `--strict` this corpus FAILS**, 2 blocking - that flag promotes every warning, and
+  the two below are the two warnings. So does every other corpus in this repository; see
+  "The `--strict` claim this brief got wrong" at the end.
 - **Corpus:** 3 captures, 3 ledger entries, chain verifies
 - **Collected by:** `collect.yml` run `35623502540`, dispatched through `bin/collect-remote.mjs`
 
@@ -90,3 +90,31 @@ one empty shell is a fair sample of why the three human review steps exist.
   nothing in the kit currently measures whether a capture said anything.
 - **The build cost is estimated, not measured.** No prototype was built. The claim that three
   modules need an asset-aware branch comes from reading this repository, not from doing it.
+
+## The `--strict` claim this brief got wrong
+
+The first version of the line at the top said this corpus fails `--strict` *"because the
+delivery-architecture corpus passes `--strict` and a reader would otherwise assume parity"*.
+
+**That was false, and it was caught by sweeping for gaps rather than by any check.** Measured
+the same day, on `main`:
+
+| corpus | default policy | `--strict` |
+|---|---|---|
+| repository root | PASS, 7 warnings | **FAIL, 7 blocking** |
+| `2026-09-21-delivery-architecture` | PASS, 8 warnings | **FAIL, 8 blocking** |
+| `2026-09-21-agent-interface` | PASS, 5 warnings | **FAIL, 5 blocking** |
+| `2026-09-21-public-run-visibility` | PASS, 4 warnings | **FAIL, 4 blocking** |
+| `2026-09-21-sea-assets` | PASS, 2 warnings | **FAIL, 2 blocking** |
+
+**Nothing in this repository passes `--strict`.** The delivery corpus did before ADR-0036
+added `corroboration` to `POLICY_CHECKS`, and the sentence was written from that memory
+instead of from a run - the exact failure mode this kit exists to prevent, committed inside a
+brief arguing against it.
+
+Two distinct things are also easy to conflate, and the verdict line invites it. `--strict` is
+a CLI flag that promotes **every** warning. `evidencePolicy=strict` promotes only the three
+`POLICY_CHECKS`. They are not the same setting, and the summary line prints the project's
+*declared* policy either way - so a `--strict` run reads `FAIL ... [evidencePolicy=pluralist]`,
+which looks like the pluralist policy failed it. It did not; the flag did. That is a reporting
+weakness, recorded rather than fixed here.
