@@ -374,10 +374,18 @@ jobs:
             const plan = JSON.parse(fs.readFileSync("research/plan.json", "utf8"));
             plan.topic = topic;
             plan.maxScrapes = Number(process.env.MAX_PAGES);
+            // perQuery is the REAL ceiling on breadth: selectCandidates slices each
+            // query's results to it, so one seeded query and the scaffold default of 3
+            // capped every dispatched run at three candidates however large max_pages
+            // was. Matching it to max_pages is what makes the advertised 1..25 control
+            // mean what it says. Nothing about SPEND changes - maxScrapes still bounds
+            // the fetches, and this only widens the list they are chosen from.
+            plan.perQuery = Number(process.env.MAX_PAGES);
+            plan.limit = Math.max(Number(process.env.MAX_PAGES), plan.limit ?? 8);
             plan.queries = [{ q: topic, why: "the dispatched topic", prefer: [] }];
             plan.urls = [];
             fs.writeFileSync("research/plan.json", `${JSON.stringify(plan, null, 2)}\n`, "utf8");
-            console.log(`plan written: 1 query, maxScrapes ${plan.maxScrapes}`);
+            console.log(`plan written: 1 query, maxScrapes ${plan.maxScrapes}, perQuery ${plan.perQuery}`);
           '
 
       - name: seed the map, spending nothing

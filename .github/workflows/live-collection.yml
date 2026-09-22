@@ -205,6 +205,7 @@ jobs:
             const p = "research/plan.json";
             const plan = JSON.parse(fs.readFileSync(p, "utf8"));
             plan.maxScrapes = Number(process.env.MAX_PAGES);
+            plan.perQuery = Number(process.env.MAX_PAGES);
             fs.writeFileSync(p, JSON.stringify(plan, null, 2));
             console.log("plan written: maxScrapes " + plan.maxScrapes);
           '
