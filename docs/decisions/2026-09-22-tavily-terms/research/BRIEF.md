@@ -33,6 +33,20 @@ and §6.7 "Third-Party Service Providers", on who else sees it:
 > confidentiality** of any Customer Input or Output and may retain certain rights to use or
 > disclose Customer Input and Output, including to further train their algorithmic models."
 
+> **Narrowed 2026-09-22, later the same day.** What follows is true of the **Terms of
+> Service**, and it was written as though it were true of the vendor. It is not.
+>
+> Tavily's **privacy policy** — which this collection never found, because the topic string
+> was used verbatim as the single search query — carries a GDPR objection route for
+> query-data processing and a deletion-request route. Neither is a no-training tier, so
+> **C-6 stands and the trigger is still unmet**; the privacy policy in fact confirms the
+> practice, saying query data may be used *"to improve our responses to future queries"* and
+> may be shared with third-party search index providers.
+>
+> But *"there is no data opt-out"* was a claim about a **vendor**, drawn from one of its
+> documents. Corrected in full, with the quotes, in
+> [2026-09-22-tavily-privacy](../../2026-09-22-tavily-privacy/research/BRIEF.md).
+
 **No no-training tier exists.** This finding is an absence, so it was counted rather than
 skimmed. In the whole document: `opt out` appears **three times and every one is
 arbitration** (a 30-day window to leave binding arbitration by written notice to an address
