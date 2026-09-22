@@ -77,20 +77,42 @@ export function rankCandidate(url, { prefer = [], why = '' } = {}) {
  * that is how a claim about search quality stays checkable afterwards instead of being an
  * impression.
  *
- * Duplicates are the interesting case rather than a nuisance: when both providers return the
- * same URL the first occurrence wins and keeps its finder, so the count of rows attributed
- * to each provider is not inflated by agreement.
+ * EVERY finder is recorded, not the first one. The initial version credited whichever
+ * provider came first in the round - always the same one, since the order is fixed - and
+ * its comment claimed that agreement therefore did not inflate the count. It did, and a
+ * live run proved it: sixteen results, nine distinct, so seven URLs were returned by both
+ * and all seven were attributed to the provider that happened to be asked first. Six of
+ * eight collected rows then read as that provider's finds.
+ *
+ * That is provenance which reads as a measurement and is really an artefact of loop order -
+ * precisely the kind of number this repository keeps catching itself quoting. `provider` is
+ * the first finder, `providers` is all of them, and a row both returned says so.
  */
 export function mergeByRank(lists) {
   const merged = [];
-  const taken = new Set();
+  const at = new Map();
   const depth = Math.max(0, ...lists.map((l) => l.results.length));
   for (let rank = 0; rank < depth; rank += 1) {
     for (const list of lists) {
       const row = list.results[rank];
-      if (!row?.url || taken.has(row.url)) continue;
-      taken.add(row.url);
-      merged.push({ ...row, provider: list.provider });
+      if (!row?.url) continue;
+      const already = at.get(row.url);
+      if (already) {
+        if (!already.providers.includes(list.provider)) already.providers.push(list.provider);
+        continue;
+      }
+      const entry = { ...row, provider: list.provider, providers: [list.provider] };
+      at.set(row.url, entry);
+      merged.push(entry);
+    }
+  }
+  // A URL every provider returned is not evidence that the first one found it. Rows the
+  // others also returned later in their own lists are folded here too, not only at the
+  // same rank.
+  for (const list of lists) {
+    for (const row of list.results) {
+      const entry = row?.url ? at.get(row.url) : null;
+      if (entry && !entry.providers.includes(list.provider)) entry.providers.push(list.provider);
     }
   }
   return merged;
@@ -241,7 +263,8 @@ ${compatibility.remedy}`);
           type: DEFAULT_SOURCE_TYPE,
           usedFor: typeof query === 'object' ? (query.why ?? '') : '',
           from: 'search',
-          rankedBy: candidate.provider ?? '',
+          // All finders, not the first. A URL both returned is attributed to both.
+          rankedBy: (candidate.providers ?? [candidate.provider]).filter(Boolean).join('+'),
         });
         seen.add(candidate.url);
       }
