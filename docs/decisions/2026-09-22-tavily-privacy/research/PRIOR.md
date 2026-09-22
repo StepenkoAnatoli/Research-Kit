@@ -1,0 +1,1 @@
+Same topic string that returned 1 relevant capture of 8 on job-0922h. I expect the targeted queries plus prefer=tavily.com to raise that sharply, and I do not know whether the wider pool alone would have been enough - this run cannot separate the two changes.
