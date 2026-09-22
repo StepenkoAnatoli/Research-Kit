@@ -1,0 +1,18 @@
+{
+  "topic": "EU Deforestation Regulation 2023/1115 application date large operators SMEs current after delay",
+  "notes": "Fill queries and urls BEFORE collecting - every scrape spends a credit. q is the search query, why records which unknown in research/DISCOVERY.md it closes, prefer lists the official domains that carry the fact.",
+  "depth": "quick",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 8,
+  "maxScrapes": 8,
+  "prefer": [],
+  "queries": [
+    {
+      "q": "EU Deforestation Regulation 2023/1115 application date large operators SMEs current after delay",
+      "why": "the dispatched topic",
+      "prefer": []
+    }
+  ],
+  "urls": []
+}
