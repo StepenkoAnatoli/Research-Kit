@@ -6,6 +6,7 @@
 
 import { PATHS, resolve, readText, writeText, today } from './core.mjs';
 import { readCorpus, sectionOf, claimOf, captureOf } from './corpus.mjs';
+import { readPrior } from './prior.mjs';
 
 /** `judged: true` marks a section the corpus cannot fill - it needs a person's call. */
 export const BRIEF_SECTIONS = Object.freeze([
@@ -99,6 +100,38 @@ function knownUnknowns(corpus) {
  * Render the brief from the corpus. Refuses a `draft` or `authored` brief without
  * `force`, so judgements already written are preserved.
  */
+/**
+ * The prediction registered before collection, quoted verbatim, or nothing.
+ *
+ * The drafter emits it rather than leaving it to the author, and that is the point. A
+ * prior is only worth registering if it gets read back **next to the answer** - left in
+ * `research/PRIOR.md` it is a file nobody opens, and the brief is the one document phase 2
+ * is required to read. Emitting it also removes the quiet edit: an author who has just
+ * learned they were wrong does not have to decide whether to mention it, because the text
+ * is already on the page and the ledger already fixed it.
+ *
+ * No verdict is drawn here. Whether the corpus confirmed the prior or demolished it is the
+ * reader's to see - the two cases look identical to this function, which is what keeps it
+ * from becoming a scoreboard.
+ */
+function priorBlock(root, snapshot) {
+  const prior = readPrior(root, { entries: snapshot.ledger?.entries ?? [] });
+  if (!prior.present || !prior.text.trim()) return '';
+  const late = prior.scrapesBefore
+    ? `\n\n**Registered late**, at ledger seq ${prior.entry.seq}, after ${prior.scrapesBefore} page(s) were `
+      + 'already collected. Read it as hindsight, not as a prediction.'
+    : '';
+  return `
+## The prior, registered before anything was collected
+
+_Ledger seq ${prior.entry.seq}, chained: neither this text nor its place before the evidence
+can be changed now. Read it against the findings below - it may well be wrong, and a wrong
+prior that was recorded in advance is worth more than a right one remembered afterwards._
+
+> ${prior.text.trim().split('\n').join('\n> ')}${late}
+`;
+}
+
 export function renderBrief(root, { force = false, date = today(), corpus = null, verdict = null } = {}) {
   const snapshot = corpus ?? readCorpus(root);
   const file = resolve(root, PATHS.brief);
@@ -145,7 +178,7 @@ Whoever you are - another agent, a different model, or a person - read this file
 first. You should not need to re-research anything to start work. If something
 here is not enough to build from, say which fact is missing rather than guessing
 it: that is a phase-1 gap to close, not a phase-2 judgment call.
-
+${priorBlock(root, snapshot)}
 ## ${BRIEF_SECTIONS[0].heading}
 
 ${snapshot.intent || '_The contract states no build intent._'}

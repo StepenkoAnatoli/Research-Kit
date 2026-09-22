@@ -1,8 +1,8 @@
 // checks.mjs - the ordered contract-check registry (ADR-0004).
 //
-// Twelve checks, in reporting order. Every check is a pure function of the corpus
+// Thirteen checks, in reporting order. Every check is a pure function of the corpus
 // snapshot plus options; none reads the filesystem beyond `exists()` on a path the
-// corpus already resolved.
+// corpus already resolved, and `readPrior`, which reads the one file the ledger points at.
 //
 // A check emits findings. It never decides what a finding MEANS for the build - that is
 // the verdict's single judgement, in lib/preflight.mjs.
@@ -12,6 +12,7 @@ import { captureOf, traceOf, citedIds } from './corpus.mjs';
 import { documentGroups, closestPair } from './similarity.mjs';
 import { coverageOfUniversals } from './dimensions.mjs';
 import { verifyLedger } from './provenance.mjs';
+import { readPrior, PRIOR_PATH } from './prior.mjs';
 
 const VALID_STATUSES = ['CLOSED', 'KNOWN-UNKNOWN'];
 const MIN_CAPTURE_CHARS = 200;
@@ -118,7 +119,53 @@ function provenance(corpus) {
         `${row.id}: capture says retrieved ${front.retrieved}, ledger says ${trace.fetch.at}`, { row: row.id, line: row.line }));
     }
   }
-  if (!out.length) out.push(finding('pass', 'provenance', 'chain-intact', `chain of ${chain.entries.length} entries verifies`));
+  out.push(...priorOrder(corpus, chain));
+
+  if (!out.some((f) => f.severity !== 'pass')) {
+    out.push(finding('pass', 'provenance', 'chain-intact', `chain of ${chain.entries.length} entries verifies`));
+  }
+  return out;
+}
+
+/**
+ * Where the registered prior sits in the chain, when there is one.
+ *
+ * A prior is optional and its absence is silent - most corpora do not claim one, and a
+ * warning that fires on every project is a warning nobody reads. But a corpus that DOES
+ * claim a prediction has made a checkable claim about ORDER, and this is the check of it:
+ * a prediction registered after the evidence is not a prediction. `lib/prior.mjs` refuses
+ * to write one late, and this does not trust that it was used - the chain is the witness,
+ * not the tool.
+ *
+ * Nothing here reads the prediction. Whether it was specific, reasonable, or right is the
+ * reader's to judge (ADR-0013); a gate that preferred correct predictions would teach
+ * exactly the wrong habit. The file's immutability needs no code of its own: the prior is
+ * chained with its `bodySha256`, so editing it after the fact fails `body-unmodified`
+ * through the same machinery a capture does.
+ */
+function priorOrder(corpus, chain) {
+  const prior = readPrior(corpus.root, { entries: chain.entries });
+  if (!prior.present) return [];
+
+  const out = [];
+  if (prior.duplicates > 1) {
+    out.push(finding('fail', 'provenance', 'prior-single',
+      `the ledger holds ${prior.duplicates} registered priors - one corpus predicts once, or the prediction `
+      + 'that matched gets chosen afterwards', { file: PRIOR_PATH }));
+  }
+  if (prior.scrapesBefore) {
+    out.push(finding('fail', 'provenance', 'prior-precedes-collection',
+      `${PRIOR_PATH} is registered at seq ${prior.entry.seq}, after ${prior.scrapesBefore} page(s) were already `
+      + 'collected - a prediction made with the evidence in hand is not one. Say what you now believe in the '
+      + 'brief, where it is labelled honestly', { file: PRIOR_PATH, line: prior.entry.line }));
+    return out;
+  }
+  if (!out.length) {
+    const firstLine = prior.text.trim().split('\n')[0] ?? '';
+    out.push(finding('pass', 'provenance', 'prior-precedes-collection',
+      `a prior was registered at seq ${prior.entry.seq}, before anything was collected: `
+      + (firstLine.length > 140 ? `${firstLine.slice(0, 137)}...` : firstLine), { file: PRIOR_PATH }));
+  }
   return out;
 }
 

@@ -33,7 +33,7 @@ On a builder, the first command is `node ~/.agents/research-kit/bin/handoff.mjs`
 ## The sequence
 
 ```
-decompose -> contract -> collect -> gate -> brief
+decompose -> contract -> prior -> collect -> gate -> brief
 ```
 
 1. **Decompose.** `node ~/.agents/research-kit/bin/decompose.mjs --topic "<topic>"`
@@ -49,18 +49,28 @@ decompose -> contract -> collect -> gate -> brief
    blocking unknowns FROM the map. A fact blocks the build when a wrong guess changes the
    design.
 
-3. **Collect.** `node ~/.agents/research-kit/bin/research.mjs`. Prefer the page that
+3. **Register your prior.** `node ~/.agents/research-kit/bin/prior.mjs "<what you expect>"`.
+   Write two things: what you expect the evidence to say, and what you know you cannot know
+   yet. Optional - and **this is the only moment it is possible**, because it is chained
+   into the ledger ahead of the first page and refused afterwards.
+
+   Being wrong is the point. A prediction that the corpus demolishes is the clearest
+   evidence the research was worth doing; one you reconstruct afterwards is worth nothing,
+   which is exactly why the order is fixed by a hash rather than by memory. Nothing grades
+   it (ADR-0039).
+
+4. **Collect.** `node ~/.agents/research-kit/bin/research.mjs`. Prefer the page that
    *owns* the fact - official docs, the repo, the pricing page, the statute - over any
    write-up about it. Every scrape spends a credit; plan the queries first.
 
-4. **Rewrite the findings.** The `Finding` cell arrives auto-extracted. Turn it into a
+5. **Rewrite the findings.** The `Finding` cell arrives auto-extracted. Turn it into a
    real claim with the number or quote that proves it, and keep `Raw` pointing at the
    cached page.
 
-5. **Gate.** `node ~/.agents/research-kit/bin/preflight.mjs`. **Do not build until it
+6. **Gate.** `node ~/.agents/research-kit/bin/preflight.mjs`. **Do not build until it
    prints PASS.**
 
-6. **Brief.** `node ~/.agents/research-kit/bin/brief.mjs` drafts the phase-1 -> phase-2
+7. **Brief.** `node ~/.agents/research-kit/bin/brief.mjs` drafts the phase-1 -> phase-2
    handoff. Answer the two sections the corpus cannot fill.
 
 ## The question budget

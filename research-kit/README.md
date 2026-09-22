@@ -60,6 +60,7 @@ The project is the **current working directory**. The kit takes no project argum
 node research-kit/bin/new-project.mjs . --topic "<topic>"   # the canonical shape
 node research-kit/bin/decompose.mjs --topic "<topic>"       # phase 0: the map, statuses blank
                                                             # then YOU mark COVERED/DISMISSED/GAP
+node research-kit/bin/prior.mjs "<what you expect>"         # optional, and only possible NOW
 node research-kit/bin/research.mjs                          # collect (spends credits)
 node research-kit/bin/preflight.mjs                         # do not build until PASS
 node research-kit/bin/brief.mjs                             # the phase-1 -> phase-2 handoff
@@ -80,6 +81,7 @@ node research-kit/bin/handoff.mjs     # did the corpus arrive whole?
 | `preflight.mjs` | the verdict (`--checks`, `--check <name>`, `--strict`, `--json`) |
 | `gate.mjs` | the verdict for a hook (`--gate commit\|edit`, `--staged-stdin`, `--posture`) |
 | `research.mjs` | collect (`--depth`, `--refresh-days`, `--force`, `--dry-run`, `--status`, `--transport`) |
+| `prior.mjs` | register what you expect **before** collecting, chained so it cannot be moved or rewritten afterwards; with no argument, prints the one on record |
 | `decompose.mjs` | phase 0 (`--topic`, `--recipe`, `--recipes`, `--max-scrapes`, `--dry-run`) |
 | `handoff.mjs` | the arrival question, with the remedy picked from the cause |
 | `brief.mjs` | draft the handoff (`--state`, `--force`) |
@@ -395,7 +397,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-874 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+888 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
