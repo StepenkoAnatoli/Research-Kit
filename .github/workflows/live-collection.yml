@@ -196,7 +196,19 @@ jobs:
           node "$kit/bin/doctor.mjs" || echo "doctor reported findings (not required to pass)"
 
           node "$kit/bin/research.mjs" --dry-run --depth quick
-          node "$kit/bin/research.mjs" --depth quick --max-scrapes "$MAX_PAGES"
+          # max_pages was VALIDATED and then IGNORED here until 2026-09-22: this workflow
+          # never wrote plan.maxScrapes, and --max-scrapes is not a research.mjs flag, so the
+          # only bound was the depth tier. max_pages=1 could still fetch four pages. It is
+          # written into the plan now, which is the one place the budget is read from.
+          node -e '
+            const fs = require("fs");
+            const p = "research/plan.json";
+            const plan = JSON.parse(fs.readFileSync(p, "utf8"));
+            plan.maxScrapes = Number(process.env.MAX_PAGES);
+            fs.writeFileSync(p, JSON.stringify(plan, null, 2));
+            console.log("plan written: maxScrapes " + plan.maxScrapes);
+          '
+          node "$kit/bin/research.mjs" --depth quick
 
       - name: a ledger was written, and it parses
         run: |

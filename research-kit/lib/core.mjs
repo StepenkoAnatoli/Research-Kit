@@ -258,3 +258,39 @@ export function flagList(value) {
   if (value === undefined || value === true) return [];
   return [].concat(value).filter((v) => typeof v === 'string');
 }
+
+/**
+ * Refuse a flag this entrypoint does not know, instead of ignoring it.
+ *
+ * WHY THIS EXISTS, and it is not hypothetical. `parseFlags` deliberately knows no flag
+ * names, so an entrypoint that does not check gets silence: the flag is parsed, stored,
+ * never read, and the command proceeds to do whatever it does by default.
+ *
+ * On 2026-09-22 that cost 26 Firecrawl credits. `research.mjs --totally-made-up-flag` was
+ * run to find out whether unknown flags were refused. They were not - it ignored the flag,
+ * fell through to its default behaviour, and started a real collection against this
+ * repository's own corpus. `audit.mjs` did the same and wrote twelve files. Both were
+ * discovered by accident, while testing something else.
+ *
+ * The same survey found a DEAD FLAG this would have caught years earlier: `collect.yml`
+ * passed `--max-scrapes` to `research.mjs`, which has no such flag. The page budget it
+ * appeared to set was really coming from `plan.maxScrapes`, written by an earlier step. The
+ * bound was real; the flag asserting it was decoration, and nothing said so.
+ *
+ * Three entrypoints already did this by hand (`artifact.mjs`, `collect-remote.mjs`,
+ * `disclosure.mjs`). Eight did not. This is that check, in one place.
+ */
+export function refuseUnknownFlags(flags, known, { help = '', exit = 2, note = null } = {}) {
+  const allowed = new Set(known);
+  const unknown = Object.keys(flags).filter((flag) => !allowed.has(flag));
+  if (!unknown.length) return;
+
+  for (const flag of unknown) {
+    process.stderr.write(`unknown option --${flag}\n`);
+    const why = note ? note(flag) : '';
+    if (why) process.stderr.write(`${why}\n`);
+  }
+  process.stderr.write(`known options: ${[...allowed].map((f) => `--${f}`).join(' ')}\n`);
+  if (help) process.stdout.write(help);
+  process.exit(exit);
+}

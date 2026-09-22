@@ -5,11 +5,12 @@
 // them as a constraint on editing; ADR-0028 treats them as a record, and this is what
 // makes the record worth keeping.
 
-import { parseFlags } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags } from '../lib/core.mjs';
 import { verifyBundle, bundleSummary, BUNDLE_INDEX } from '../lib/bundle.mjs';
 import { heading } from '../lib/render.mjs';
 
 const { flags } = parseFlags(process.argv.slice(2));
+refuseUnknownFlags(flags, ['all', 'help', 'json']);
 const root = process.cwd();
 
 if (flags.help) {

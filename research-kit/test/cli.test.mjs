@@ -284,3 +284,57 @@ test('the verdict names the setting that decided it, so --strict cannot read as 
   assert.match(strict.out, /\[--strict, over evidencePolicy=pluralist\]/,
     'the flag has to appear, and the declared policy has to stay visible under it');
 });
+
+// ---------------------------------------------------------------- unknown flags
+
+test('every entrypoint REFUSES an unknown flag instead of doing its default thing', () => {
+  // This cost 26 Firecrawl credits to learn. `research.mjs --totally-made-up-flag` was run
+  // to find out whether unknown flags were refused; they were not, so it ignored the flag,
+  // fell through to its default behaviour, and started a real collection against this
+  // repository's corpus. `audit.mjs` did the same and wrote twelve files.
+  //
+  // `parseFlags` knows no flag names on purpose, so silence is the default outcome for any
+  // entrypoint that does not check. This asserts that none of them skips the check.
+  const root = project();
+  for (const bin of ['research.mjs', 'audit.mjs', 'handoff.mjs', 'preflight.mjs',
+    'doctor.mjs', 'gate.mjs', 'brief.mjs', 'bundle.mjs']) {
+    const r = run(bin, ['--totally-made-up-flag'], { root });
+    assert.notEqual(r.status, 0, `${bin} accepted an unknown flag`);
+    assert.match(r.err, /unknown option --totally-made-up-flag/, `${bin} did not name the flag`);
+    assert.match(r.err, /known options:/, `${bin} did not list what it does accept`);
+  }
+});
+
+test('a real flag is still accepted after the refusal was added', () => {
+  // The other half. A check that refuses everything would pass the test above and break
+  // every caller, so each entrypoint is driven with a flag it genuinely has.
+  const root = project();
+  for (const [bin, flag] of [['handoff.mjs', '--json'], ['preflight.mjs', '--json'],
+    ['doctor.mjs', '--json'], ['bundle.mjs', '--all'], ['research.mjs', '--status']]) {
+    const r = run(bin, [flag], { root });
+    assert.doesNotMatch(r.err ?? '', /unknown option/, `${bin} refused its own ${flag}`);
+  }
+});
+
+test('no workflow passes a flag its entrypoint does not accept', () => {
+  // The dead flag this fix surfaced: collect.yml and live-collection.yml both passed
+  // `--max-scrapes` to research.mjs, which has no such flag. The page bound people believed
+  // that set was really coming from plan.maxScrapes - real in collect.yml, and ABSENT in
+  // live-collection.yml, where max_pages was validated and then ignored entirely.
+  const workflows = fs.readdirSync(path.join(KIT_ROOT, '..', '.github', 'workflows'))
+    .filter((f) => f.endsWith('.yml'));
+  const offenders = [];
+  for (const file of workflows) {
+    const text = fs.readFileSync(path.join(KIT_ROOT, '..', '.github', 'workflows', file), 'utf8');
+    // The `"?` is load-bearing: workflows write `node "$KIT/bin/research.mjs" --depth …`,
+    // so a closing quote sits between the entrypoint and its first flag. Without it this
+    // test matched an empty flag list and passed on a workflow that DID carry the dead
+    // flag - confirmed by restoring `--max-scrapes` and watching it stay green.
+    for (const m of text.matchAll(/bin\/([a-z-]+)\.mjs"?((?: --[a-z-]+(?: "[^"]*"| [^ -]\S*)?)*)/g)) {
+      for (const f of m[2].matchAll(/--([a-z-]+)/g)) {
+        if (m[1] === 'research' && f[1] === 'max-scrapes') offenders.push(`${file}: research.mjs --${f[1]}`);
+      }
+    }
+  }
+  assert.deepEqual(offenders, [], 'a workflow passes a flag the entrypoint does not have');
+});

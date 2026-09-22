@@ -6,12 +6,13 @@
 //   0 allow / 1 a config that parses says fail-closed / 2 unreadable and resolved to blocking.
 
 import fs from 'node:fs';
-import { parseFlags, flagList } from '../lib/core.mjs';
+import { parseFlags, flagList, refuseUnknownFlags } from '../lib/core.mjs';
 import { evaluate, splitPathList, stdinIsReadable, isGated } from '../lib/gate.mjs';
 import { posture } from '../lib/machine.mjs';
 import { recordDiagnostic } from '../lib/timeline.mjs';
 
 const { flags } = parseFlags(process.argv.slice(2));
+refuseUnknownFlags(flags, ['gate', 'help', 'json', 'posture', 'quiet', 'staged', 'staged-stdin']);
 
 if (flags.help) {
   process.stdout.write(`gate - the verdict, for a hook.

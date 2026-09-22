@@ -5,13 +5,14 @@
 // never will: the gate resolves one project from where it stands, and a second root is
 // a second thing to be wrong about.
 
-import { parseFlags, flagList } from '../lib/core.mjs';
+import { parseFlags, flagList, refuseUnknownFlags } from '../lib/core.mjs';
 import { runPreflight, fixCommand } from '../lib/preflight.mjs';
 import { CHECKS, CHECK_NAMES } from '../lib/checks.mjs';
 import { isGated } from '../lib/gate.mjs';
 import { renderFindings, heading } from '../lib/render.mjs';
 
 const { flags } = parseFlags(process.argv.slice(2));
+refuseUnknownFlags(flags, ['check', 'checks', 'help', 'json', 'only', 'quiet', 'show-pass', 'strict']);
 
 if (flags.help) {
   process.stdout.write(`preflight - does this project's evidence support a build?
