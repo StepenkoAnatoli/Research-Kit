@@ -11,7 +11,8 @@ import { parseFlags, flagList, refuseUnknownFlags, resolve, readText } from '../
 import { collectionPolicy, collectionRefusal } from '../lib/machine.mjs';
 import { selectTransport, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES } from '../lib/transport.mjs';
 import { runResearch, readPlan, usageSummary, topicMatch, DEPTHS, DEPTH_SCRAPES } from '../lib/research-run.mjs';
-import { parseCapture } from '../lib/corpus.mjs';
+import { parseCapture, readLedger } from '../lib/corpus.mjs';
+import { readPrior } from '../lib/prior.mjs';
 import { heading } from '../lib/render.mjs';
 
 const { flags } = parseFlags(process.argv.slice(2));
@@ -95,6 +96,14 @@ try {
   process.exit(2);
 }
 
+// The last moment a prediction can still be a prediction. Printed rather than enforced:
+// a prior is optional, and a collector that refused without one would make the habit a
+// toll instead of a discipline. It is worth a line here because there is no second chance
+// - after the first page lands, `bin/prior.mjs` refuses, and rightly.
+if (spends && !readPrior(root, { entries: readLedger(root).entries }).present) {
+  process.stdout.write('prior:     none registered. What do you expect to find? '
+    + 'node research-kit/bin/prior.mjs "..." - this is the last moment that answer counts\n');
+}
 process.stdout.write(`transport: ${chosen.name} - ${chosen.why}\n`);
 if (!chosen.search.sameAsFetch) {
   process.stdout.write(`search:    ${chosen.search.name} - ${chosen.search.why}\n`);

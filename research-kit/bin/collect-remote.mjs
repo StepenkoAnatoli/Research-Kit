@@ -36,6 +36,8 @@ const HELP = `collect-remote - run the collector on GitHub Actions and bring the
 
   --repository OWNER/REPO   required
   --topic "<text>"          required. Visible to anyone who can read the repository.
+  --prior "<text>"          optional. What you EXPECT to find, chained ahead of the first
+                            page. Only possible now; refused once collection starts.
   --max-pages <1-25>        default 8. Each page costs at least one credit.
   --search-transport <name> auto | serpapi | firecrawl-cli. Default auto: a SerpApi key
                             wins, else the fetch provider. Pin one to compare them.
@@ -65,7 +67,7 @@ requireRuntime({ node: true });
 
 const KNOWN = new Set([
   'repository', 'topic', 'max-pages', 'depth', 'client-ref', 'runner', 'workflow', 'ref',
-  'search-transport',
+  'search-transport', 'prior',
   'out', 'timeout', 'no-wait', 'json', 'help',
 ]);
 const unknown = Object.keys(flags).filter((f) => !KNOWN.has(f));
@@ -119,6 +121,11 @@ const inputs = {
   search_transport: String(flags['search-transport'] ?? 'auto'),
 };
 if (flags['client-ref'] !== undefined && flags['client-ref'] !== true) inputs.client_ref = String(flags['client-ref']);
+// The prediction travels as an input and is registered ON THE RUNNER, because the runner
+// scaffolds its own project: a prior registered here would be chained into a ledger the
+// returning corpus never sees. Omitted entirely when absent, so a dispatch without one
+// looks exactly like every dispatch before this flag existed.
+if (flags.prior !== undefined && flags.prior !== true) inputs.prior = String(flags.prior);
 
 // ---------------------------------------------------------------- dispatch
 

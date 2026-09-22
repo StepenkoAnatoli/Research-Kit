@@ -91,6 +91,10 @@ on:
         default: 'quick'
         type: choice
         options: [probe, quick, normal]
+      prior:
+        description: 'What you EXPECT the evidence to say, and what you know you cannot know yet. Optional, and this is the only moment it can be registered - it is chained into the ledger ahead of the first page and refused afterwards. Nothing grades it; being wrong is the point (ADR-0039). Same disclosure as topic: not in any name, and not in an unauthenticated response.'
+        required: false
+        default: ''
       client_ref:
         description: 'PUBLIC on a public repository - it becomes the run name and the artifact name. Use an opaque id (job-0417), never the subject. Optional: correlation does not need it - pin X-GitHub-Api-Version and read workflow_run_id. Shape [A-Za-z0-9][A-Za-z0-9._-]{0,63}.'
         required: false
@@ -397,6 +401,33 @@ jobs:
           node -e '
             const { execFileSync } = require("node:child_process");
             execFileSync(process.execPath, [`${process.env.KIT}/bin/decompose.mjs`, "--topic", process.env.TOPIC, "--dry-run"], { stdio: "inherit" });
+          '
+
+      # The prediction, chained BEFORE the first page - which is the only place it can go.
+      #
+      # This step exists because the mechanism was nearly useless without it. A prior
+      # registered on the operator's laptop cannot reach this corpus: the runner scaffolds a
+      # fresh project above, with an empty ledger, so the two corpora have nothing in common.
+      # Every corpus in this repository since the remote collector shipped was collected on
+      # THIS path, so a prior that only worked locally would have been a discipline for a
+      # route nobody takes.
+      #
+      # Like TOPIC, it reaches node through the ENVIRONMENT and then an argv ARRAY, never
+      # through the expression engine and never concatenated into a command line (ADR-0020).
+      # Its disclosure profile is the topic's, measured in ADR-0035: dispatch inputs did not
+      # appear in any unauthenticated response, and it reaches no run name or artifact name.
+      # It is NOT a credential and must never carry one - it is a sentence about what you
+      # expect, published in the artifact that comes back.
+      - name: register the prior, if one was dispatched
+        if: inputs.prior != ''
+        env:
+          PRIOR: ${{ inputs.prior }}
+        run: |
+          set -e
+          cd "$SCRATCH"
+          node -e '
+            const { execFileSync } = require("node:child_process");
+            execFileSync(process.execPath, [`${process.env.KIT}/bin/prior.mjs`, process.env.PRIOR], { stdio: "inherit" });
           '
 
       - name: collect
