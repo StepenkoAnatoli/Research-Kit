@@ -268,6 +268,10 @@ ${compatibility.remedy}`);
     transport: adapter.name,
     searchTransport: searchName,
     depth: tier, budget, attempts, spent, cached, failed,
+    // What actually landed on disk, as distinct from what the run cost. `spent` is
+    // collected + failed, because a failed fetch can still consume budget; reporting it as
+    // "collected" told the operator they had pages they did not have.
+    collected: spent - failed,
     searchesUsed, searchFailures, degraded,
     results, discovered,
   };
