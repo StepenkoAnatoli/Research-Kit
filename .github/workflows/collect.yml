@@ -90,8 +90,10 @@ name: collect
 # Re-run the measurement instead of trusting this comment, which can go stale:
 #   node research-kit/bin/disclosure.mjs --repository OWNER/REPO --run <id> --topic "..."
 #
-# What is NOT measured here: what a signed-in user with read access sees in the web UI,
-# which is a different surface from the REST API. Treat that as unknown rather than safe.
+# What the disclosure probe does NOT measure: the signed-in surface, because it is
+# unauthenticated by design. That was measured separately, and the answer is above - a
+# signed-in reader sees every dispatch input in the job log. Do not read a clean probe as
+# "nobody learns the subject".
 #
 # And the reason going private is not the reflex fix: per E-06, converting a GitHub Free
 # repository from public to private makes its protection rules and environment secrets

@@ -228,6 +228,30 @@ test('the anonymous disclosure table never appears without the signed-in caveat'
       `${name} prints the anonymous refusal table without saying what a signed-in reader sees`);
     assert.ok(/env:/.test(text) && /\blog\b/i.test(text),
       `${name} does not name the mechanism - the job log echoing a step's env: block`);
+
+    // And it must not still call the same thing unknown somewhere else in the file.
+    //
+    // The first version of this guard asked only whether the caveat appeared ANYWHERE, and
+    // it passed a file that carried both: the correction near the top, and thirty lines
+    // below it the original "treat that as unknown rather than safe", untouched and reading
+    // as current. A reader reaching the second sentence would have believed it.
+    //
+    // A stale sentence surviving beside its own correction is the defect ADR-0035 names,
+    // committed in the act of recording it.
+    //
+    // The second version was worse: it was VACUOUS. It tried to match "signed-in user" and
+    // "unknown rather than safe" in one line-anchored expression, and those sit on separate
+    // lines, so `[^\n]*` could never bridge them and nothing could ever fail it. Found by
+    // running the red check, which is the only reason this comment is not describing a
+    // guard that silently guards nothing.
+    //
+    // Quoting the superseded claim is allowed and is the house style; asserting it is not.
+    // So the phrase may appear only on a line that also marks it as past.
+    const stale = text.split('\n').filter((line) => /unknown rather than safe/i.test(line)
+      && !/used to|no longer|superseded|this used to say/i.test(line));
+    assert.deepEqual(stale, [],
+      `${name} still asserts the signed-in surface is unknown, in the same file that measures it:\n  `
+      + stale.map((l) => l.trim()).join('\n  '));
   }
 });
 
