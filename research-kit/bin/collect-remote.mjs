@@ -23,7 +23,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseFlags, canonicalJson } from '../lib/core.mjs';
+import { parseFlags, flagList, canonicalJson } from '../lib/core.mjs';
 import { requireRuntime } from '../lib/runtime.mjs';
 import {
   dispatchCollection, waitForRun, fetchCorpus,
@@ -36,6 +36,11 @@ const HELP = `collect-remote - run the collector on GitHub Actions and bring the
 
   --repository OWNER/REPO   required
   --topic "<text>"          required. Visible to anyone who can read the repository.
+  --prefer <domains>        optional, comma-separated. Domains that OWN the fact; ranked
+                            above pages merely about it.
+  --query "<text>"          optional, repeatable. The real search queries. Without one the
+                            topic is used verbatim, which returns the words and not the
+                            subject when the topic is made of common ones.
   --prior "<text>"          optional. What you EXPECT to find, chained ahead of the first
                             page. Only possible now; refused once collection starts.
   --max-pages <1-25>        default 8. Each page costs at least one credit.
@@ -67,7 +72,7 @@ requireRuntime({ node: true });
 
 const KNOWN = new Set([
   'repository', 'topic', 'max-pages', 'depth', 'client-ref', 'runner', 'workflow', 'ref',
-  'search-transport', 'prior',
+  'search-transport', 'prior', 'prefer', 'query',
   'out', 'timeout', 'no-wait', 'json', 'help',
 ]);
 const unknown = Object.keys(flags).filter((f) => !KNOWN.has(f));
@@ -126,6 +131,12 @@ if (flags['client-ref'] !== undefined && flags['client-ref'] !== true) inputs.cl
 // returning corpus never sees. Omitted entirely when absent, so a dispatch without one
 // looks exactly like every dispatch before this flag existed.
 if (flags.prior !== undefined && flags.prior !== true) inputs.prior = String(flags.prior);
+// Both optional, both omitted entirely when absent, so a dispatch without them looks
+// exactly like every dispatch before these flags existed. `--query` is repeatable and
+// arrives as one newline-separated input, because a workflow_dispatch input is a string.
+if (flags.prefer !== undefined && flags.prefer !== true) inputs.prefer = String(flags.prefer);
+const queries = flagList(flags.query);
+if (queries.length) inputs.queries = queries.join('\n');
 
 // ---------------------------------------------------------------- dispatch
 

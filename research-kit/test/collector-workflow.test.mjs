@@ -133,6 +133,58 @@ test('no workflow interpolates a dispatch input into a shell script', () => {
     + offenders.join('\n  '));
 });
 
+test('the candidate pool is WIDER than the page budget, or ranking decides nothing', () => {
+  // `limit` is how many results the search is asked for; `perQuery` is how many survive
+  // selectCandidates' ranked slice. Setting both to max_pages made them equal, so the slice
+  // kept everything the search returned and `rankCandidate` - the preferred-domain bonus,
+  // the docs/terms bonuses, the blog and forum penalty - could not affect a single
+  // collection on the dispatched path.
+  //
+  // Measured on job-0922h: "searched firecrawl-cli 8 -> 8 distinct", max_pages 8, all 8
+  // collected, seven of them off topic. Ranking was inert, and had been since perQuery was
+  // raised to max_pages to fix a different bug - a fix that widened breadth and destroyed
+  // selection in the same line.
+  //
+  // Widening costs nothing: a search is billed per search, not per result. Spend stays
+  // bounded by maxScrapes and perQuery.
+  const limit = body.match(/plan\.limit\s*=\s*([^;]+);/);
+  const perQuery = body.match(/plan\.perQuery\s*=\s*([^;]+);/);
+  assert.ok(limit && perQuery, 'the workflow no longer writes both plan.limit and plan.perQuery');
+  assert.ok(/\*\s*[2-9]|Math\.max\([^)]*\*/.test(limit[1]),
+    `plan.limit must be a MULTIPLE of the page budget, or the funnel is flat: ${limit[1].trim()}`);
+  assert.ok(!/^\s*Number\(process\.env\.MAX_PAGES\)\s*$/.test(limit[1]),
+    'plan.limit equals the page budget, which is the flat funnel this test exists to prevent');
+});
+
+test('the dispatcher can supply the real queries, and nothing guesses how to split a topic', () => {
+  // A topic is a DESCRIPTION. Used verbatim as the one search string it returns the words
+  // rather than the subject when those words are common - three corpora here came back
+  // mostly noise that way ("input", "data retention", "regulation").
+  //
+  // The caller knows the question, so the caller may state it. What must NOT appear is a
+  // heuristic that splits a topic into queries by itself: four such heuristics have been
+  // measured and rejected in this repository, and a fifth invented here would be the same
+  // mistake in a place nobody tests, because this workflow costs money to run.
+  assert.match(body, /process\.env\.QUERIES/, 'the workflow ignores dispatched queries');
+  assert.match(body, /QUERIES: \$\{\{ inputs\.queries \}\}/, 'and they must arrive through env, like every other input');
+  assert.match(body, /plan\.prefer = /, 'preferred domains are the other half - the page that OWNS the fact');
+
+  // Falling back to the topic keeps every dispatch that predates these inputs working.
+  assert.match(body, /supplied\.length[\s\S]{0,200}the dispatched topic/,
+    'without supplied queries the topic must still be used, or old dispatches break');
+});
+
+test('the dispatch input budget is not spent without noticing', () => {
+  // `workflow_dispatch` refuses at dispatch above ten inputs - loudly, which is the good
+  // case, but the whole workflow fails for every caller the moment it is exceeded. This
+  // stands at nine. The next addition should be a decision, not a surprise.
+  const inputs = body.slice(body.indexOf('    inputs:'), body.indexOf('run-name:'))
+    .split('\n').filter((line) => /^      [a-z_]+:$/.test(line));
+  assert.ok(inputs.length <= 9,
+    `collect.yml declares ${inputs.length} dispatch inputs and the observed ceiling is 10: `
+    + `${inputs.map((l) => l.trim()).join(' ')}`);
+});
+
 test('a dispatched prior is registered BEFORE the collect step, or it is worthless', () => {
   // The ordering this whole mechanism rests on, pinned at the one place it could silently
   // invert. `bin/prior.mjs` refuses after the first scrape, so a registration step that
