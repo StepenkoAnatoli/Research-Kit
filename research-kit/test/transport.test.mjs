@@ -435,8 +435,13 @@ test('mergeByRank attributes every row, and agreement does not double-count', ()
 
   const merged = mergeByRank([a, b]);
   assert.equal(merged.filter((r) => r.url === 'shared').length, 1, 'a shared URL appears once');
-  assert.equal(merged.find((r) => r.url === 'shared').provider, 'serpapi', 'the first finder keeps it');
-  assert.ok(merged.every((r) => r.provider), 'every row names its finder');
+  // EVERY finder, not the first. Crediting only the provider asked first made agreement
+  // look like discovery: a live run had seven of sixteen results shared, and all seven were
+  // attributed to whichever provider the loop happened to reach first.
+  assert.deepEqual(merged.find((r) => r.url === 'shared').providers, ['serpapi', 'firecrawl-cli']);
+  assert.deepEqual(merged.find((r) => r.url === 'a2').providers, ['serpapi']);
+  assert.deepEqual(merged.find((r) => r.url === 'b2').providers, ['firecrawl-cli']);
+  assert.ok(merged.every((r) => r.providers?.length), 'every row names its finders');
 });
 
 test('mergeByRank handles ragged and empty lists without inventing rows', () => {

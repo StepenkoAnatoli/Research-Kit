@@ -60,6 +60,15 @@ Isolated by re-running the identical query string through the other provider:
 | SerpApi (the default, because a key is present) | 8 | **0** |
 | Firecrawl | 17 | **17** |
 
+> **Corrected the same day, and the correction matters.** Re-running the identical query
+> hours later with both providers merged, SerpApi returned eight results of which **seven
+> were shared with Firecrawl** — including the Commission page and the EY brief that answers
+> the question. So the failure described above was a **bad run, not a property of the
+> provider**, and this brief should not be read as establishing otherwise.
+>
+> What it does establish stands: a single provider can return nothing useful on a question
+> another answers well. That is why the collector now asks both and interleaves by rank.
+
 Not the query — a general web search on the same string returns the Commission, the European
 Parliament press room, and the legislative train. Not the kit's code — both ran the same
 path. The provider failed, and the auto-detect rule picks it.

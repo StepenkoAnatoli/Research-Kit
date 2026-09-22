@@ -256,3 +256,35 @@ a re-collection **adds** a superseding row rather than replacing the old — so 
 would grow, every superseded row would need its citation reviewed, and nothing would be more
 true at the end. The honest response to a metering defect is to fix the meter and say plainly
 what it touched.
+
+## Correction, 2026-09-22 - "SerpAPI failed catastrophically" was one run, not a property
+
+Earlier on this date this ADR and several commits recorded that a query about the EU
+Deforestation Regulation returned **eight US financial-regulation pages and nothing on topic**
+from SerpAPI, while the fetch provider's own search returned seventeen, all on topic. That
+measurement is real and the capture set proves it.
+
+**It was then generalised too far.** Running the identical query again a few hours later, with
+both providers merged, SerpAPI returned eight results of which seven were shared with
+Firecrawl - including the authoritative Commission page and the EY brief that answers the
+question. The nine distinct candidates produced a corpus that passes `--strict`.
+
+So the honest statement is narrower: **either provider can have a bad run on a given query,
+and one of SerpAPI's was observed.** Whether it is systematically weaker is not established by
+two runs, and this ADR should not have implied it was.
+
+**The design conclusion is unchanged, and is in fact strengthened.** If any provider can
+return nothing useful on a query that another answers well, asking one of them is a gamble on
+which one you asked. Merging both and interleaving by rank is the response to that, and it
+does not depend on either being reliably better.
+
+### The attribution in that first comparison was also biased
+
+`mergeByRank` originally credited whichever provider the loop reached first, which is always
+the same one. A live merged run had sixteen results and nine distinct, so seven URLs were
+returned by both - and all seven were attributed to the provider asked first, making six of
+eight collected rows read as its finds. Every finder is recorded now, and a row both returned
+says so.
+
+That is the third time in this session a number was quoted before its production was checked,
+and the second where the artefact was loop order rather than measurement.
