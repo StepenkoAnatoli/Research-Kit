@@ -248,6 +248,11 @@ test('a pre-commit in SOMEBODY ELSE\'S tree is foreign, not current', async () =
   const foreign = tempDir('research-kit-husky-');
   writeText(path.join(kitHome, 'githooks', 'pre-commit'), '#!/bin/sh\n# ours\n');
   writeText(path.join(foreign, 'pre-commit'), '#!/bin/sh\n# husky\n');
+  // Executable, or on Linux `current` is never reachable. Windows returns ok for any file
+  // that exists, which is exactly why the first version of this test passed locally and
+  // failed in CI - the platform decided whether the assertion meant anything.
+  fs.chmodSync(path.join(kitHome, 'githooks', 'pre-commit'), 0o755);
+  fs.chmodSync(path.join(foreign, 'pre-commit'), 0o755);
 
   const ours = commitGateState({ hooksPath: path.join(kitHome, 'githooks'), kitHome });
   assert.equal(ours.state, 'current');
@@ -257,14 +262,27 @@ test('a pre-commit in SOMEBODY ELSE\'S tree is foreign, not current', async () =
   assert.equal(theirs.expected, path.join(kitHome, 'githooks'), 'and it must say which path it expected');
 });
 
-test('a hooksPath with no pre-commit at all is unusable, not foreign', async () => {
+test('OUR hooksPath with no pre-commit in it is unusable, not foreign', async () => {
   // The two failures want different fixes, so they must not collapse into one word.
   const { commitGateState } = await import('../lib/doctor.mjs');
   const kitHome = tempDir('research-kit-home2-');
-  const empty = tempDir('research-kit-empty-');
-  const state = commitGateState({ hooksPath: empty, kitHome });
+  const state = commitGateState({ hooksPath: path.join(kitHome, 'githooks'), kitHome });
   assert.equal(state.state, 'unusable');
   assert.equal(state.mode.reason, 'missing');
+});
+
+test('ownership is decided before executability, so the fix is never chmod on a stranger\'s hook', async () => {
+  // The ordering the first version got wrong: mode first meant a foreign hook that happened
+  // to be non-executable reported `unusable`, carrying `chmod +x` as the remedy - repairing
+  // somebody else's gate, and leaving this one exactly as absent. Whose it is survives;
+  // whether it runs matters only once it is ours.
+  const { commitGateState } = await import('../lib/doctor.mjs');
+  const kitHome = tempDir('research-kit-home3-');
+  const foreign = tempDir('research-kit-husky3-');
+  writeText(path.join(foreign, 'pre-commit'), '#!/bin/sh\n# husky, and not executable\n');
+  try { fs.chmodSync(path.join(foreign, 'pre-commit'), 0o644); } catch { /* windows */ }
+
+  assert.equal(commitGateState({ hooksPath: foreign, kitHome }).state, 'foreign');
 });
 
 // --- deploy mirrors, it does not merge --------------------------------------------

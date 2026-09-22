@@ -136,9 +136,19 @@ export function commitGateState({ hooksPath: dir, kitHome = KIT_HOME } = {}) {
   const expected = path.join(kitHome, 'githooks');
   const hook = path.join(dir, 'pre-commit');
   const mode = hookExecutability(hook);
+  // Ownership is decided BEFORE executability, and the order is the finding rather than a
+  // detail. The first version asked about the mode first, so a foreign hook that happened
+  // to be non-executable was reported as `unusable` with `chmod +x` beside it - advice to
+  // repair somebody else's gate, which would leave this one just as absent. Whose it is
+  // survives; whether it runs is only interesting once it is ours.
+  //
+  // Caught by CI on Linux, where `hookExecutability` reads real mode bits. On Windows it
+  // returns ok for any file that exists, so the whole branch was unreachable locally and
+  // the suite passed - the second time today that the platform the code runs on decided
+  // whether a defect was visible.
+  if (path.resolve(dir) !== path.resolve(expected)) return { state: 'foreign', hook, mode, expected };
   if (!mode.ok) return { state: 'unusable', hook, mode, expected };
-  const ours = path.resolve(dir) === path.resolve(expected);
-  return { state: ours ? 'current' : 'foreign', hook, mode, expected };
+  return { state: 'current', hook, mode, expected };
 }
 
 export function gateHealth(root, { env = process.env, gitPaths = {}, record = true } = {}) {
