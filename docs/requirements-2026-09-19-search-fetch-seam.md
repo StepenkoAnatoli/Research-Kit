@@ -133,7 +133,10 @@ exist to obtain it without damaging the provenance guarantees the corpus rests o
 
 ## Out of scope, stated so it is not silently dropped
 
-- **Tavily** (C-6). Revisit if a no-training tier ships.
+- **Tavily** (C-6). Revisit if a no-training tier ships. **Re-read 2026-09-22 and the
+  trigger is not met** - §6.5 and §6.7 are unchanged, and the document contains no
+  no-training tier, no data opt-out and no "enterprise" anything. Corpus and brief:
+  `docs/decisions/2026-09-22-tavily-terms/`.
 - **Any paid tier** of anything.
 - **Reconciling the two caches** — SerpAPI's 1-hour server cache (C-3) against the kit's
   on-disk `--refresh-days`. They do not conflict today; unifying them is a separate
