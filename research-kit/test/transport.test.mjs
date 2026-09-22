@@ -7,7 +7,8 @@ import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.m
 import { readText } from '../lib/core.mjs';
 import * as firecrawl from '../lib/firecrawl.mjs';
 import * as httpKeyless from '../lib/http-transport.mjs';
-import { TRANSPORTS, TRANSPORT_NAMES, selectTransport, probeFirecrawl } from '../lib/transport.mjs';
+import { TRANSPORTS, TRANSPORT_NAMES, selectTransport, selectSearch, probeFirecrawl } from '../lib/transport.mjs';
+import { mergeByRank } from '../lib/research-run.mjs';
 
 describe('transport');
 
@@ -405,4 +406,68 @@ test('O-4: an unauthenticated machine is read as unauthenticated, not as a parse
   const s = firecrawl.parseStatus('firecrawl cli v1.23.3\n  Not authenticated - run firecrawl login\n');
   assert.equal(s.authenticated, false);
   assert.equal(s.credits, null);
+});
+
+// ---------------------------------------------------------------- merged search
+
+test('mergeByRank interleaves, so one failing provider cannot eat the budget', () => {
+  // The case that motivated this. On 2026-09-22 a query about the EU Deforestation
+  // Regulation returned eight US financial-regulation pages from one provider and nothing
+  // on topic, while the other returned seventeen, all on topic. Concatenation would have
+  // spent the whole page budget on the wrong provider before reaching the right one.
+  const bad = { provider: 'serpapi', results: [{ url: 'sec' }, { url: 'cfpb' }, { url: 'water' }] };
+  const good = { provider: 'firecrawl-cli', results: [{ url: 'europa' }, { url: 'ey' }, { url: 'wiki' }] };
+
+  const merged = mergeByRank([bad, good]);
+  assert.deepEqual(merged.map((r) => r.url), ['sec', 'europa', 'cfpb', 'ey', 'water', 'wiki']);
+
+  // Whatever the budget, the good provider is represented. At three pages the old
+  // behaviour would have taken sec/cfpb/water and nothing else.
+  assert.ok(merged.slice(0, 3).some((r) => r.provider === 'firecrawl-cli'),
+    'the working provider must reach the first slots');
+});
+
+test('mergeByRank attributes every row, and agreement does not double-count', () => {
+  // The ledger records which search surfaced a URL, which is what keeps a claim about
+  // search quality checkable rather than an impression.
+  const a = { provider: 'serpapi', results: [{ url: 'shared' }, { url: 'a2' }] };
+  const b = { provider: 'firecrawl-cli', results: [{ url: 'shared' }, { url: 'b2' }] };
+
+  const merged = mergeByRank([a, b]);
+  assert.equal(merged.filter((r) => r.url === 'shared').length, 1, 'a shared URL appears once');
+  assert.equal(merged.find((r) => r.url === 'shared').provider, 'serpapi', 'the first finder keeps it');
+  assert.ok(merged.every((r) => r.provider), 'every row names its finder');
+});
+
+test('mergeByRank handles ragged and empty lists without inventing rows', () => {
+  const long = { provider: 'x', results: [{ url: '1' }, { url: '2' }, { url: '3' }] };
+  const short = { provider: 'y', results: [{ url: 'only' }] };
+  assert.deepEqual(mergeByRank([long, short]).map((r) => r.url), ['1', 'only', '2', '3']);
+  assert.deepEqual(mergeByRank([{ provider: 'z', results: [] }]), []);
+  assert.deepEqual(mergeByRank([]), []);
+});
+
+test('a configured SerpAPI key selects BOTH providers, not one', () => {
+  // This is what the operator believed was already happening, and was not: the ladder
+  // picked a single provider and the second key bought a meter rather than a second look.
+  const search = selectSearch({
+    env: { SERPAPI_API_KEY: ['4', '7'].join('') + 'd'.repeat(62) },
+    probe: () => ({ ok: true, authenticated: true }),
+  });
+  assert.equal(search.merged, true);
+  assert.equal(search.adapters.length, 2, 'both providers must be offered');
+  assert.equal(search.adapters[0].name, 'serpapi', 'the separately metered one goes first');
+  assert.ok(search.why.includes('merged by rank'));
+});
+
+test('an explicitly pinned provider stays a single provider', () => {
+  // Pinning exists to make two runs comparable. If pinning still merged, it would not.
+  const search = selectSearch({
+    explicit: 'serpapi',
+    env: { SERPAPI_API_KEY: ['4', '7'].join('') + 'd'.repeat(62) },
+    probe: () => ({ ok: true, authenticated: true }),
+  });
+  assert.equal(search.merged, undefined);
+  assert.equal(search.adapters, undefined, 'a pinned choice offers no second provider');
+  assert.equal(search.name, 'serpapi');
 });
