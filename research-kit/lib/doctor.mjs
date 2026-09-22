@@ -108,6 +108,49 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
 
 // ---------------------------------------------------------------- gate health
 
+/**
+ * WHOSE pre-commit is it? `current` / `foreign` / `unusable`.
+ *
+ * Executable is not the same as ours, and this used to ask only the first question: some
+ * executable `pre-commit` at `core.hooksPath` reported pass. That is the same
+ * existence-for-correspondence mistake the `deploy` check was making - a thing is there, so
+ * the thing must be right.
+ *
+ * `settingsState` has asked this of the EDIT gate since the day a registration on this
+ * machine read
+ *
+ *     node "C:/Users/PC/Desktop/FreeBuff/Deep-Research-Agent-main/research-kit/hooks/edit-gate.mjs"
+ *
+ * - our hook's name, a different checkout of a different implementation, and the comment
+ * recording it notes that the other tree's commit gate crashed. The hole was closed there
+ * and left open here, where the substitution is if anything likelier: `core.hooksPath` is a
+ * single machine-wide git setting, and husky, lefthook, simple-git-hooks and pre-commit all
+ * rewrite it as a matter of course.
+ *
+ * Pure, and separate from `gateHealth`, because `gateHealth` reads real git config: a rule
+ * testable only by fishing one finding out of an array on a host-dependent path is a rule
+ * nobody tests (ADR-0004). The existing test for this finding asserts its severity is one
+ * of three, for exactly that reason.
+ */
+export function commitGateState({ hooksPath: dir, kitHome = KIT_HOME } = {}) {
+  const expected = path.join(kitHome, 'githooks');
+  const hook = path.join(dir, 'pre-commit');
+  const mode = hookExecutability(hook);
+  // Ownership is decided BEFORE executability, and the order is the finding rather than a
+  // detail. The first version asked about the mode first, so a foreign hook that happened
+  // to be non-executable was reported as `unusable` with `chmod +x` beside it - advice to
+  // repair somebody else's gate, which would leave this one just as absent. Whose it is
+  // survives; whether it runs is only interesting once it is ours.
+  //
+  // Caught by CI on Linux, where `hookExecutability` reads real mode bits. On Windows it
+  // returns ok for any file that exists, so the whole branch was unreachable locally and
+  // the suite passed - the second time today that the platform the code runs on decided
+  // whether a defect was visible.
+  if (path.resolve(dir) !== path.resolve(expected)) return { state: 'foreign', hook, mode, expected };
+  if (!mode.ok) return { state: 'unusable', hook, mode, expected };
+  return { state: 'current', hook, mode, expected };
+}
+
 export function gateHealth(root, { env = process.env, gitPaths = {}, record = true } = {}) {
   const out = [];
   const global = hooksPath('global', gitPaths);
@@ -117,11 +160,19 @@ export function gateHealth(root, { env = process.env, gitPaths = {}, record = tr
     out.push(f('warn', 'gate-commit', 'no machine-wide core.hooksPath is set - the commit gate is not installed',
       'node research-kit/bin/install-hooks.mjs'));
   } else {
-    const hook = path.join(global, 'pre-commit');
-    const mode = hookExecutability(hook);
-    out.push(mode.ok
-      ? f('pass', 'gate-commit', `${global} (pre-commit ${mode.reason})`)
-      : f('fail', 'gate-commit', `${hook} is ${mode.reason} - git skips a hook it cannot execute, silently, and reports the commit clean`, mode.fix));
+    const state = commitGateState({ hooksPath: global, kitHome: readInstallState(env)?.kitHome ?? KIT_HOME });
+    const repair = 'node research-kit/bin/install-hooks.mjs';
+    if (state.state === 'current') {
+      out.push(f('pass', 'gate-commit', `${global} (pre-commit ${state.mode.reason})`));
+    } else if (state.state === 'foreign') {
+      out.push(f('fail', 'gate-commit',
+        `core.hooksPath is ${global}, which is NOT the deployed kit's ${state.expected} - the commit gate that runs belongs to another tree and blocks, or passes, on its own rules`,
+        repair));
+    } else {
+      out.push(f('fail', 'gate-commit',
+        `${state.hook} is ${state.mode.reason} - git skips a hook it cannot execute, silently, and reports the commit clean`,
+        state.mode.fix || repair));
+    }
   }
 
   if (isGitRepo(root)) {
