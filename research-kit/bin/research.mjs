@@ -7,10 +7,11 @@
 //
 // `--dry-run` and `--status` still work there, because they spend nothing.
 
-import { parseFlags, flagList, refuseUnknownFlags } from '../lib/core.mjs';
+import { parseFlags, flagList, refuseUnknownFlags, resolve, readText } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal } from '../lib/machine.mjs';
 import { selectTransport, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES } from '../lib/transport.mjs';
-import { runResearch, readPlan, usageSummary, DEPTHS, DEPTH_SCRAPES } from '../lib/research-run.mjs';
+import { runResearch, readPlan, usageSummary, topicMatch, DEPTHS, DEPTH_SCRAPES } from '../lib/research-run.mjs';
+import { parseCapture } from '../lib/corpus.mjs';
 import { heading } from '../lib/render.mjs';
 
 const { flags } = parseFlags(process.argv.slice(2));
@@ -115,8 +116,25 @@ depth      ${run.depth} (budget ${run.budget} scrapes)
 collected  ${run.collected}
 cached     ${run.cached}
 failed     ${run.failed}
-spent      ${run.spent} (budget consumed: collected + failed)
-`);
+spent      ${run.spent} (budget consumed: collected + failed)`);
+
+// The topic signal, printed at the one moment it helps: the pages are on disk and nobody
+// has read them yet. It decides nothing - see `topicMatch` for the two thresholds that were
+// measured and rejected - but a low number on a fresh collection is the prompt to check the
+// URLs, which is exactly the step that caught a wholly off-topic corpus by hand.
+//
+// Only what THIS run collected is measured. Judging the whole corpus would blend a bad
+// collection into whatever was already there and hide the thing worth seeing.
+const freshBodies = run.results
+  .filter((r) => r.status === 'collected' && r.entry?.file)
+  .map((r) => parseCapture(readText(resolve(root, r.entry.file)) ?? '').body);
+const match = topicMatch(readPlan(root, typeof flags.plan === 'string' ? flags.plan : '').topic, freshBodies);
+if (match) {
+  process.stdout.write(`topic      ${match.best.toFixed(2)} best of ${match.terms} topic terms, ${match.strong} capture(s) >= 0.50`
+    + (match.strong === 0 ? ' - NOTHING matched strongly; read the URLs before trusting this' : '')
+    + '\n');
+}
+process.stdout.write('\n');
 // The second meter reports separately, and a degradation is never silent: it means the
 // run quietly moved spend back onto the fetch budget.
 if (run.searchTransport !== run.transport) {
