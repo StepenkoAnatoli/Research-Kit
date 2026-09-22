@@ -241,6 +241,27 @@ One existing assertion moved: `corroboration: two hosts is independent support` 
 name a capture the fixture does not have, so neither has a sketch — which makes it the
 regression test for the `null` rule as well.
 
+## The check met a hard case on purpose, 2026-09-22
+
+The D-11 collection deliberately fetched a page **and its own source file** —
+`modelcontextprotocol.io/community/governance` and
+`github.com/modelcontextprotocol/modelcontextprotocol/blob/main/GOVERNANCE.md` — expecting a
+`mirror` finding, because a rendered docs page and the markdown behind it is the textbook
+case.
+
+**It scored 0.156 and was graded as two distinct documents, and that grade is correct.**
+Checked rather than assumed: the `.io` page is 11 KB and says "Core Maintainer" twenty-four
+times; `GOVERNANCE.md` is 4.7 KB, says it once, and carries the one fact the website does not
+— that the project is a Series of LF Projects, LLC whose approval governance changes require.
+They cover the same subject and are not the same document. The stub is a real second source.
+
+Worth recording anyway: **0.156 is much closer to the 0.25 line than any genuine pair in the
+original measurement**, where the highest scoring truly-different cross-host pair was 0.0275.
+A page and a *fuller* rendering of the same text would sit somewhere above this, and chrome
+dilution pushes such pairs down. The threshold was chosen from a 14× gap; this case narrows
+the observed gap to about 1.6×. That is not a failure and it is not a reason to move the line
+on one data point — it is the note that the line is now known to have traffic near it.
+
 ## What this ADR does not claim
 
 That two hosts make a claim true. Two vendors can repeat one another, and a specification

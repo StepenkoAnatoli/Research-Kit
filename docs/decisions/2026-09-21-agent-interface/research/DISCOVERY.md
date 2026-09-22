@@ -35,6 +35,7 @@ Status is exactly one of:
 | U-5 | How does a client cancel work in flight, and does the mechanism differ per transport? | The collector spends money. An agent that gives up must be able to stop a run rather than abandon a request and let it bill | CLOSED | E-03: it differs by binding - "on stdio the client sends a `notifications/cancelled` notification; on Streamable HTTP it closes the request's response stream", while "the protocol-level rules are the same everywhere". E-02 names this `$/cancelRequest`, which is wrong; see the brief's contradictions section |
 | U-6 | How does a tool hand back an artifact the size of a corpus ZIP? | The output of this collector is a 71 KB package. A tool that cannot return it is not a design, and this was the one load-bearing GAP the gate refused the first brief over | CLOSED | E-04: a `resource_link` content item returns a URI rather than bytes - `{"type":"resource_link","uri":"file:///...","mimeType":...}` - which suits a file on the client machine exactly. Embedding is also permitted but **the spec states no maximum size anywhere on that page**, so a link is the defensible choice rather than the merely available one [single-witness: the reference TypeScript SDK was collected specifically to close this and contains no occurrence of resource_link - searched over the capture, not assumed. The specification is the only document that describes how a tool returns a URI instead of bytes] |
 | U-7 | When the protocol changes under a shipped server, how does a client find out and recover? | The protocol has already broken once. If a mismatch is silent or unrecoverable, anything built here rots quietly | CLOSED | E-05: version is declared per request with no handshake, and a server that cannot serve it **MUST** return `UnsupportedProtocolVersionError` (JSON-RPC `-32022`) carrying `data.supported`; the client **SHOULD** pick a mutually supported version and retry. `server/discover` is mandatory on servers so a client MAY ask up front. A break is therefore typed, detectable and recoverable at runtime [single-witness: the reference SDK mentions no version negotiation either. Stronger evidence exists and is not a page - building against the spec produced a server no client could reach, -32601 unknown method initialize, which is why lib/mcp.mjs is dual-era] |
+| U-8 | Who controls the MCP specification, and how much warning does a shipped server get before a breaking change? | This project ships an MCP server against a protocol that has ALREADY broken under it once - `lib/mcp.mjs` is dual-era because the spec ran ahead of every client. If the owner can remove a feature without notice, anything built here rots on someone else's schedule | CLOSED | E-10: the project is "a Series of LF Projects, LLC" and governance changes "must also be approved by LF Projects, LLC", so it is not Anthropic's alone. E-09: a published ladder - Lead Maintainers as final authority, Core Maintainers able to veto by majority - and changes arrive through SEPs, a written proposal process. E-11 answers the part that actually binds: deprecated features "keep working for at least twelve months", and the legacy HTTP+SSE transport has "a year-long offramp". A shipped server gets about a year, not a release |
 
 ## Questions for the human (maximum 3)
 
@@ -67,3 +68,18 @@ which is a different thing from not trying, and the corpus should say which.
   implements the older handshake. That is recorded in ADR-0034 and is why `lib/mcp.mjs` is
   dual-era. It is deliberately **not** filed as an evidence row: a measurement is not a
   fetched page, and `unknown-closure/no-evidence` exists to catch exactly that substitution.
+
+## D-11 closed, 2026-09-22 - the gap this corpus admitted to
+
+`MAP.md` carried D-11 as **GAP - "Not reached for."** It was the only explicit GAP left in
+any committed corpus here, and ADR-0034 dismissed it in prose: "Who governs the specification
+was never collected and is dismissed with that said plainly: it moves the planning horizon,
+not the architecture."
+
+**That dismissal was half right.** It does not change the architecture - the server is still
+dual-era stdio either way. It does change the *maintenance* answer, and by a number nobody
+had: **twelve months**. A protocol owner who can remove a feature at will and one who owes a
+year of notice are different risks to ship against, and the corpus could not tell them apart
+while the row said "not reached for".
+
+Three captures, into the same ledger - eleven entries, one chain.

@@ -22,8 +22,7 @@ changes", and both are load-bearing here.
 | D-8 | Runtime and platform limits | Where this actually executes - OS, runtime version, desktop app, cloud - and what those limits forbid | COVERED | U-1: `stdio` is "a client-launched subprocess", so the client's machine runs it and the kit's existing Node 22 requirement applies unchanged. Streamable HTTP needs something hosted and reachable, which is a different operational commitment |
 | D-9 | Output obtainability | Does the data your stated "done" depends on exist, and can you actually get it? Load-bearing: a project whose output cannot be produced should die in phase 1, not phase 2 | COVERED | U-6. Was a GAP, and the gate refused the first brief over it. Closed by collecting the tools specification rather than by downgrading the row: `resource_link` returns a URI, which is exactly right for a corpus ZIP on the client machine |
 | D-10 | How a long-running call is modelled | A collection takes minutes. Most tool calls take milliseconds. If the protocol has no answer, the tool cannot be written honestly | COVERED | U-2, U-5. The answer is constrained rather than absent: the server cannot speak first, so the work happens inside one held-open request with `notifications/progress`, or the tool returns a handle and the agent polls |
-| D-11 | Who controls the specification, and how a breaking change arrives | A protocol that changes under a shipped product is the same risk as a CLI that changes under an adapter - and the kit already has an ADR about that | DISMISSED | split, and only half of it was ever a design question. **How a break is detected and survived** is U-7, CLOSED by E-05: a typed `UnsupportedProtocolVersionError` carrying the supported list, plus a mandatory `server/discover`. **Who governs the specification and how often a break may arrive** was not collected and is dismissed as out of scope for this decision: it changes the planning horizon, not the architecture, because the architecture already has to pin a revision and handle -32022 whatever the cadence turns out to be |
-
+| D-11 | Who controls the specification, and how a breaking change arrives | A protocol that changes under a shipped product is the same risk as a CLI that changes under an adapter - and the kit already has an ADR about that | COVERED | U-8. Closed 2026-09-22, having been the only explicit GAP left in a committed corpus here. The answer that matters is a number: deprecated features keep working for at least twelve months, so a shipped server gets about a year to react rather than a release |
 ## Coverage notes (per dimension)
 
 - **D-2 Auth - COVERED, and it is the decision.** Local: the kit's existing
@@ -33,7 +32,7 @@ changes", and both are load-bearing here.
 - **D-5 Schema stability - COVERED, load-bearing.** The protocol has already broken
   compatibility once. Pin the revision.
 - **D-9 Output obtainability - GAP, load-bearing.** See above and the brief.
-- **D-11 Governance - GAP.** Not reached for.
+- **D-11 Governance - COVERED (U-8), 2026-09-22.** Reached for, late. The protocol is a Series of LF Projects, LLC rather than one vendor's; decisions run through a published maintainer ladder and written SEPs; and deprecated features carry at least a twelve-month offramp. ADR-0034 dismissed this as moving "the planning horizon, not the architecture" - true of the architecture, and the planning horizon turned out to be a year, which is worth knowing precisely rather than not at all.
 
 ## Candidate material
 

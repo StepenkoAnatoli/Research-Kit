@@ -96,6 +96,32 @@ The other `GAP` was **split** rather than fudged. How a break is detected and su
 design question and is closed. Who governs the specification was never collected and is
 dismissed with that said plainly: it moves the planning horizon, not the architecture.
 
+> **Amendment, 2026-09-22 — collected at last, and the dismissal was half right.**
+> Evidence: U-8 and E-09/E-10/E-11 of `docs/decisions/2026-09-21-agent-interface/`, three
+> distinct documents across three hosts.
+>
+> It does not change the architecture; the server is dual-era stdio either way. **It changes
+> the maintenance answer, by a number nobody here had: twelve months.** Deprecated features
+> "still work, and they'll keep working for at least twelve months", and the legacy HTTP+SSE
+> transport has "a year-long offramp". A protocol owner who can remove a feature at will and
+> one who owes a year of notice are different risks to ship against, and "not reached for"
+> could not tell them apart.
+>
+> **The specification is also not Anthropic's alone.** MCP "has been established as … a
+> Series of LF Projects, LLC", and governance changes "must also be approved by LF Projects,
+> LLC". Decisions run a published ladder — Lead Maintainers as final authority, Core
+> Maintainers able to veto by majority — and changes arrive as written SEPs.
+>
+> **What this means for `lib/mcp.mjs`, checked rather than assumed:** the 2026-07-28 release
+> deprecates Roots, Sampling and Logging (SEP-2577) and the legacy HTTP+SSE transport. This
+> server uses **none of them** — grepped, no match — so nothing here is on an offramp today.
+> Its legacy support is the `initialize` handshake of the older protocol version, which is a
+> different axis from the deprecated transport, and the twelve-month rule is what governs how
+> long that stays serveable.
+>
+> D-11 was the only explicit `GAP` left in any committed corpus in this repository. Closing it
+> cost three credits.
+
 ### Amendment, 2026-09-21 — the server is DUAL-ERA, because the spec is ahead of every client
 
 The decision above says "the protocol version is pinned" and pins `2026-07-28`. That was
