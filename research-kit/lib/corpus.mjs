@@ -331,7 +331,7 @@ export function readCorpus(root) {
     .map((r) => ({
       id: r.ID, text: r.Unknown ?? '', why: r[HEADERS.unknowns[2]] ?? '',
       status: (r.Status ?? '').trim().toUpperCase(), evidence: r.Evidence ?? '', line: r.line,
-      cites: citedIds(r.Evidence ?? ''),
+      cites: citedIds(stripReviewNotes(r.Evidence ?? '')),
     }));
 
   const evidence = evidenceTable.rows
@@ -346,7 +346,7 @@ export function readCorpus(root) {
     .map((r) => ({
       id: r.ID, text: r.Subtopic ?? '', why: r[HEADERS.subtopics[2]] ?? '',
       status: (r.Status ?? '').trim().toUpperCase(), coveredBy: r['Covered by'] ?? '', line: r.line,
-      cites: citedIds(r['Covered by'] ?? ''),
+      cites: citedIds(stripReviewNotes(r['Covered by'] ?? '')),
     }));
 
   const sources = sourcesTable.rows.map((r) => ({
@@ -397,6 +397,28 @@ function normalizeRawCell(cell) {
   const link = text.match(/\]\(([^)]+)\)/);
   const value = (link ? link[1] : text).trim().replace(/^`|`$/g, '');
   return value.split(path.sep).join('/');
+}
+
+/**
+ * A reviewer's recorded judgement, removed before citations are counted.
+ *
+ * WHY. `citedIds` returns every `E-##` mention in a cell, and a `[single-witness: ...]`
+ * reason is prose a reviewer writes INSIDE that cell. So explaining why no second witness
+ * exists - by referring to a row that demonstrates it - silently turned that row into a
+ * citation. The unknown then read as corroborated while its own note denied it, and
+ * `single-witness-stale` fired on a corpus that was correct.
+ *
+ * It caught its author three times in two days, across three different projects. The guard
+ * was right every time and the MECHANISM was the problem: a note about evidence is not a
+ * citation of it.
+ *
+ * The raw cell is untouched - `unknown.evidence` still carries the note, because the check
+ * that reads the reason needs it. Only the citation extraction sees the stripped text.
+ */
+const REVIEW_NOTE = /\[(?:single-witness|render-reviewed):[^\]]*\]/gi;
+
+export function stripReviewNotes(text) {
+  return String(text ?? '').replace(REVIEW_NOTE, ' ');
 }
 
 /** Every `E-##` / `U-##` / `D-##` id mentioned in a free-text cell. */

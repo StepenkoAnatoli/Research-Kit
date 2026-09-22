@@ -566,3 +566,34 @@ test('capture-completeness: the render review is read from the ROW, never the ca
   assert.ok(findings.some((f) => f.rule === 'partial-render'),
     'a note in the capture front-matter must NOT satisfy the review - the ledger hashes it');
 });
+
+test('a row named INSIDE a single-witness note is not thereby cited', () => {
+  // The footgun this removes. `citedIds` returns every E-## mention in the cell, and the
+  // reason a reviewer writes lives in that same cell - so explaining why no second witness
+  // exists, by pointing at a row that demonstrates it, turned that row into a citation.
+  // The unknown read as corroborated while its own note denied it, and
+  // `single-witness-stale` fired on a corpus that was correct. It caught its author three
+  // times in two days before the mechanism was changed rather than the prose.
+  const dir = withEvidence(makePassingProject(), [
+    '| E-01 | 2026-09-14 | P | https://example.invalid/docs/limits | ten a minute | research/raw/x.md |',
+    '| E-02 | 2026-09-14 | P | https://other.invalid/blog | a blog agreeing | research/raw/y.md |',
+  ], 'E-01 [single-witness: the vendor is the authority on its own limits, and E-02 shows what a third party repeating it is worth]');
+
+  const findings = runCheck('corroboration', snapshot(dir));
+  assert.equal(findings[0].severity, 'pass');
+  assert.equal(findings[0].rule, 'single-witness',
+    'the note mentioned E-02; mentioning is not citing');
+  assert.doesNotMatch(findings[0].detail, /stale/);
+});
+
+test('a row cited OUTSIDE the note still counts', () => {
+  // The other half: stripping must not swallow real citations that happen to sit near one.
+  const dir = withEvidence(makePassingProject(), [
+    '| E-01 | 2026-09-14 | P | https://example.invalid/a | x | research/raw/x.md |',
+    '| E-02 | 2026-09-14 | P | https://other.invalid/b | x | research/raw/y.md |',
+  ], 'E-01 and E-02 both say so');
+
+  const findings = runCheck('corroboration', snapshot(dir));
+  assert.equal(findings[0].severity, 'pass');
+  assert.equal(findings[0].rule, 'independent', 'two genuine citations are still two');
+});
