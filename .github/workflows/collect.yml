@@ -410,15 +410,24 @@ jobs:
           # than failing, because the ladder's last rung is the fetch provider.
           SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
           RESEARCH_KIT_TRANSPORT: firecrawl-cli
-          # 'auto' becomes the empty string, which is falsy in the ladder and therefore
-          # means "no explicit choice" rather than "a provider called auto". Pinning a
-          # value is what makes two runs of the same topic comparable.
-          RESEARCH_KIT_SEARCH_TRANSPORT: ${{ inputs.search_transport == 'auto' && '' || inputs.search_transport }}
+          # NOT a ${{ cond && '' || value }} ternary. In GitHub Actions the empty string
+          # is FALSY, so the true-branch collapses and the expression yields the third
+          # operand - it passed the literal "auto", which is not a provider, and every
+          # default dispatch failed with "unknown search provider". The input is carried
+          # raw and blanked in the shell below, where an empty string is just an empty
+          # string.
+          SEARCH_TRANSPORT_INPUT: ${{ inputs.search_transport }}
           MAX_PAGES: ${{ inputs.max_pages }}
           DEPTH: ${{ inputs.depth }}
         run: |
           set -e
           cd "$SCRATCH"
+          # 'auto' means "no explicit choice": leave the variable unset so the ladder
+          # falls through to its own detection. Any other value pins the provider.
+          if [ "${SEARCH_TRANSPORT_INPUT:-auto}" != "auto" ]; then
+            export RESEARCH_KIT_SEARCH_TRANSPORT="$SEARCH_TRANSPORT_INPUT"
+            echo "search side: pinned to $SEARCH_TRANSPORT_INPUT by dispatch input"
+          fi
           # Which side won, recorded in the log before anything is spent. A run that
           # silently changed meters would be the kind of thing nobody notices until a bill.
           if [ -n "${SERPAPI_API_KEY:-}" ]; then

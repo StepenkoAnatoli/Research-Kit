@@ -121,3 +121,32 @@ test('the extractor finds a deliberately broken script, so the check is not asle
   assert.equal(found.length, 1, 'the extractor did not find an obvious embedded script');
   assert.throws(() => new vm.Script(found[0].body), 'a broken script compiled cleanly, so the parse check proves nothing');
 });
+
+test('no workflow uses the GitHub Actions falsy-ternary footgun', () => {
+  // `${{ cond && '' || value }}` does NOT mean "empty when cond". In GitHub Actions the
+  // empty string is falsy, so the true-branch collapses and the expression yields the
+  // THIRD operand. collect.yml used it to blank an 'auto' input and instead passed the
+  // literal string "auto" into RESEARCH_KIT_SEARCH_TRANSPORT, so every DEFAULT dispatch
+  // died with `unknown search provider "auto"`.
+  //
+  // It survived review because the comparison runs that exercised the feature all pinned
+  // an explicit provider. The default path - the one almost every real dispatch takes -
+  // was never run until a research collection tried it.
+  // COMMENT LINES ARE SKIPPED, and finding that out is why this comment exists: the first
+  // version of this guard flagged the sentence above, which describes the footgun in order
+  // to warn about it. A check that cannot tell a value from prose about the value reports
+  // the documentation as the defect.
+  const dir = path.join(KIT_ROOT, '..', '.github', 'workflows');
+  const offenders = [];
+  for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.yml'))) {
+    const lines = fs.readFileSync(path.join(dir, file), 'utf8').split(/\r?\n/);
+    lines.forEach((line, i) => {
+      if (line.trim().startsWith('#')) return;
+      for (const m of line.matchAll(/\$\{\{[^}]*&&\s*''\s*\|\|[^}]*\}\}/g)) {
+        offenders.push(`${file}:${i + 1}: ${m[0].trim()}`);
+      }
+    });
+  }
+  assert.deepEqual(offenders, [],
+    'a ternary whose true-branch is the empty string yields its third operand instead');
+});
