@@ -209,3 +209,50 @@ did not exist.
 
 The run log settled it in one line. The order should have been: read the log the run already
 wrote, then reason about balances.
+
+## What the wiring defect did and did not invalidate, 2026-09-22
+
+The obvious worry, asked as soon as the defect was found: **if search was broken, is the
+research collected before the fix still good?**
+
+Checked rather than assumed. **No corpus is invalidated, and none was re-collected.**
+
+### The defect was a metering defect, and the ledgers prove the blast radius
+
+`SERPAPI_API_KEY` never reached the collect step, so the search side fell back to the fetch
+provider and search was billed to Firecrawl credits. It changed **which vendor performed a
+search**. It did not change what a page contains, what was fetched, or what was recorded.
+
+Counted across all six corpora on `main`:
+
+| | |
+|---|---|
+| captures | **66** |
+| ledger entries of op `scrape` | **66** |
+| ledger entries of op `search` | **0** |
+| chains that verify | **6 of 6** |
+
+**Not one committed evidence row rests on a search.** A search produces candidate URLs; only
+a scrape produces a capture, and every capture in this repository is a direct page fetch with
+a recorded body hash. Most of the corroboration work made that explicit by setting
+`plan.queries = []` and listing URLs directly.
+
+### The one nuance, stated rather than waved away
+
+Two corpora were collected through the runner (`2026-09-21-sea-assets`,
+`2026-09-22-build-sea`), and on those a search may have chosen which candidates got scraped.
+The pre-fix log format does not print a search count when search *is* the fetch provider, so
+whether a search ran on those two cannot be recovered from the logs.
+
+It does not matter for validity. A different search engine surfaces a different candidate
+list, which is a **coverage** difference, not a correctness one: the pages fetched are real,
+the quotes are from those pages, and the chains verify. "A different search might have found
+a different page" is true of every search ever run, including the ones run correctly.
+
+### Why re-collecting would have been the wrong instinct
+
+It would spend credits to replace verified captures with equivalent ones, and ADR-0026 means
+a re-collection **adds** a superseding row rather than replacing the old — so the corpora
+would grow, every superseded row would need its citation reviewed, and nothing would be more
+true at the end. The honest response to a metering defect is to fix the meter and say plainly
+what it touched.
