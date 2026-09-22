@@ -97,6 +97,39 @@ repository one, re-run.
 
 ### A missing credential refuses; it never degrades
 
+> **Measured 2026-09-22 — the decision holds; half the sentence below does not.**
+>
+> "Measurably worse" was asserted when this was written. It is now measured, on three URLs
+> this repository already holds metered captures of, re-collected through `http-keyless`:
+>
+> | page | Firecrawl prose | keyless prose | keyless share |
+> |---|---|---|---|
+> | `github.com/actions/upload-artifact` | 2,279 words | **34** | 1% |
+> | `modelcontextprotocol.io/community/governance` | 932 words | **8** | 1% |
+> | `nodejs.org/api/single-executable-applications.html` | 2,254 words | **202** | 9% |
+>
+> Shingle similarity between the two captures of the same page: **0.004 to 0.064** — far below
+> the 0.25 mirror threshold, so by this repository's own measure they are barely the same
+> document. "Measurably worse" understated it: keyless returns one to nine per cent of the
+> readable content.
+>
+> **But "the person who asked would have no way to tell" is wrong, and that was the
+> load-bearing half of the argument.** Every keyless capture graded `completeness: partial`
+> unprompted, each carrying a specific `omitted:` line — *"only 434 characters of main content
+> were extracted (below the 1500-character bar); 51 sibling section(s) totalling ~1356 words
+> were outside the densest block"*. Independently, `transport-provenance` warned on all three
+> rows: *"collected by http-keyless, not the metered Firecrawl CLI"*. The artifact name would
+> be the same; nothing else would be.
+>
+> **So the decision stands on a better reason than the one recorded.** Refusing is right
+> because a corpus carrying one per cent of its pages is near-useless and the operator asked
+> for metered quality — not because the degradation would be invisible. It would be loudly
+> visible, in two independent places, which is exactly what those two checks exist for.
+>
+> Recorded as a measurement rather than a corpus, for the reason four other projects here
+> give: a probe is not a fetched page. No credits were spent, which is the whole point of the
+> keyless adapter.
+
 There is no `http-keyless` fallback in this workflow, and a test asserts the string does
 not appear. The tempting design is to fall back so the run "still works" — it would return
 a measurably worse corpus under the same artifact name, and the person who asked for
