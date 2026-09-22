@@ -424,3 +424,27 @@ export function cliCompatibility(version = cliVersion()) {
 }
 
 export default { name, scrape, search, map, command, status, runScrape };
+
+/**
+ * How long the vendor asked us to wait, in milliseconds, or `null` if this is not a rate
+ * limit at all.
+ *
+ * WHY THE VENDOR'S NUMBER AND NOT OUR OWN. Firecrawl states the delay in the error text -
+ * "please retry after 13s" - and it knows when its own window resets. A fixed backoff we
+ * invented would either wait too long on every failure or too little on the one that
+ * mattered. This is the same principle the kit researched for `Retry-After` on 2026-09-22:
+ * when a server tells you when to come back, that is the number to use.
+ *
+ * Found because a run lost six of eight fetches to "Consumed (req/min): 11, Remaining
+ * (req/min): 0" and reported them as ordinary failures. The free tier is ten requests a
+ * minute; the collector did not throttle and did not retry.
+ */
+export function rateLimitWaitMs(errorText) {
+  const text = String(errorText ?? '');
+  if (!/rate limit exceeded/i.test(text)) return null;
+  const retry = text.match(/retry after (\d+)\s*s/i);
+  if (retry) return (Number(retry[1]) + 1) * 1000;
+  // A rate limit with no stated delay still deserves a wait, and one minute clears a
+  // per-minute window by construction.
+  return 60_000;
+}

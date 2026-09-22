@@ -6,6 +6,7 @@ import { PATHS, resolve, readText, writeJson, today } from '../lib/core.mjs';
 import { readCorpus, parseTable } from '../lib/corpus.mjs';
 import { HEADERS } from '../lib/core.mjs';
 import { collectOne, writeRaw, captureName, bodyHashOf } from '../lib/collect.mjs';
+import { rateLimitWaitMs } from '../lib/firecrawl.mjs';
 import { verifyLedger } from '../lib/provenance.mjs';
 import { runResearch, readPlan, rankCandidate, selectCandidates, DEPTH_SCRAPES, usageSummary } from '../lib/research-run.mjs';
 
@@ -260,4 +261,73 @@ test('usage is written after a run that spent, and read back as a summary', () =
   assert.equal(usage.captures, 1);
   assert.equal(usage.scrapes, 1);
   assert.equal(usage.evidence, 1);
+});
+
+// ---------------------------------------------------------------- rate limits
+
+test('rateLimitWaitMs reads the vendor number, and refuses to invent one', () => {
+  // The real error text, verbatim from run 35715485734.
+  const real = 'Rate limit exceeded. Consumed (req/min): 11, Remaining (req/min): 0. '
+    + 'Upgrade your plan at https://firecrawl.dev/pricing for increased rate limits or '
+    + 'please retry after 13s, resets at Tue Sep 22 2026 10:21:38 GMT+0000';
+  assert.equal(rateLimitWaitMs(real), 14_000, 'the stated 13s plus a second of margin');
+
+  // A rate limit with no stated delay still waits; one minute clears a per-minute window.
+  assert.equal(rateLimitWaitMs('Rate limit exceeded'), 60_000);
+
+  // Everything that is NOT a rate limit must return null, so ordinary failures are not
+  // retried. A 404 does not become a 404 if you wait.
+  assert.equal(rateLimitWaitMs('404 not found'), null);
+  assert.equal(rateLimitWaitMs(''), null);
+  assert.equal(rateLimitWaitMs(undefined), null);
+});
+
+test('collectOne retries a rate limit and keeps the page it eventually gets', () => {
+  // Six of eight fetches were lost this way on 2026-09-22, reported as plain failures.
+  const dir = makeProject();
+  let calls = 0;
+  const outcome = collectOne(dir, 'https://example.invalid/limited', {
+    corpus: readCorpus(dir),
+    runScrape: () => {
+      calls += 1;
+      if (calls === 1) {
+        return { ok: false, url: 'https://example.invalid/limited', error: 'Rate limit exceeded. please retry after 0s, resets at now' };
+      }
+      return { ok: true, url: 'https://example.invalid/limited', title: 'Limited', markdown: `# Limited\n\n${'body text here. '.repeat(40)}`, statusCode: 200, transport: 'stub', completeness: 'full' };
+    },
+  });
+
+  assert.equal(calls, 2, 'the rate limit must be retried, not reported');
+  assert.equal(outcome.status, 'collected');
+  assert.equal(outcome.waits, 1, 'the wait is counted so a slow run explains itself');
+});
+
+test('collectOne does NOT retry an ordinary failure', () => {
+  // The other half. Retrying a 404 spends budget to be told the same thing again.
+  const dir = makeProject();
+  let calls = 0;
+  const outcome = collectOne(dir, 'https://example.invalid/gone', {
+    corpus: readCorpus(dir),
+    runScrape: () => { calls += 1; return { ok: false, url: 'https://example.invalid/gone', error: '404 not found' }; },
+  });
+
+  assert.equal(calls, 1, 'a non-rate-limit failure must be reported immediately');
+  assert.equal(outcome.status, 'failed');
+  assert.equal(outcome.waits, 0);
+});
+
+test('collectOne gives up after a bounded number of rate-limit retries', () => {
+  // A vendor that keeps refusing is a different problem from a busy minute, and the
+  // retry runs inside the collector lock - forever here would be forever for everyone.
+  const dir = makeProject();
+  let calls = 0;
+  const outcome = collectOne(dir, 'https://example.invalid/always', {
+    corpus: readCorpus(dir),
+    maxRateLimitRetries: 2,
+    runScrape: () => { calls += 1; return { ok: false, url: 'https://example.invalid/always', error: 'Rate limit exceeded. please retry after 0s' }; },
+  });
+
+  assert.equal(calls, 3, 'the first attempt plus two retries');
+  assert.equal(outcome.status, 'failed');
+  assert.match(outcome.reason, /Rate limit exceeded/);
 });

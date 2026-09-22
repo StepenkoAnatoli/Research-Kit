@@ -294,3 +294,14 @@ export function refuseUnknownFlags(flags, known, { help = '', exit = 2, note = n
   if (help) process.stdout.write(help);
   process.exit(exit);
 }
+
+/**
+ * Block for `ms`. The fetch adapters are synchronous by contract - they reach the vendor
+ * through `spawnSync` - so a rate-limit wait cannot be awaited without changing that
+ * contract everywhere. `Atomics.wait` on a private buffer is the sanctioned way to do
+ * this; a spin loop would burn a core for the length of the wait.
+ */
+export function sleepSync(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return;
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
