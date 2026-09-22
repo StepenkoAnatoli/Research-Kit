@@ -14,7 +14,7 @@ import { verdictContext, runPreflight } from './preflight.mjs';
 import { isGated } from './gate.mjs';
 import { verifyHandoff, handoffRemedy } from './handoff.mjs';
 import { validateProject, hookExecutability, GATE_MARKERS, KIT_ROOT } from './scaffold.mjs';
-import { settingsState } from './installer.mjs';
+import { settingsState, deployedDrift, driftNote } from './installer.mjs';
 import { recordOverride } from './provenance.mjs';
 import { probeFirecrawl, selectTransport } from './transport.mjs';
 import { verifyBundle, bundleSummary } from './bundle.mjs';
@@ -344,14 +344,39 @@ export function runDoctor(root, { env = process.env, gitPaths = {}, probe = prob
   }
 
   // deployment
+  //
+  // This used to report the install STATE and stop: "kit deployed <date> to <path>", pass.
+  // Recorded is not current, and the difference is not academic - measured here on
+  // 2026-09-22, that check printed pass, and READY, over a deployment missing 119 files and
+  // carrying 38 stale ones, including a skill describing a protocol without the step
+  // shipped that morning. An agent invoking the skill runs the DEPLOYED copy, so everything
+  // fixed since the last install existed only in the repository while doctor called the
+  // machine healthy.
+  //
+  // Diagnosed, never repaired. `install.mjs` acts; a health check that quietly rewrote what
+  // it was measuring would erase the evidence of the problem it just found.
   const installed = readInstallState(env);
-  findings.push(installed
-    ? f('pass', 'deploy', `kit deployed ${installed.at ?? ''} to ${installed.kitHome ?? KIT_HOME}`)
-    : f('warn', 'deploy', `no install state recorded - run: node ${path.join(KIT_ROOT, 'bin', 'install.mjs')}`));
+  const drift = deployedDrift({ env });
+  if (!installed) {
+    findings.push(f('warn', 'deploy', `no install state recorded - run: node ${path.join(KIT_ROOT, 'bin', 'install.mjs')}`));
+  } else if (drift.drifted) {
+    findings.push(f('warn', 'deploy',
+      `the deployed kit is NOT this one - ${driftNote(drift)}. `
+      + `Recorded ${installed.at ?? 'at an unknown time'}; an agent runs the deployed copy, not this tree. `
+      + `Fix: node ${path.join(KIT_ROOT, 'bin', 'install.mjs')}`));
+  } else {
+    findings.push(f('pass', 'deploy', `kit deployed ${installed.at ?? ''} to ${installed.kitHome ?? KIT_HOME}, and it matches this tree`));
+  }
   for (const location of skillLocations(env)) {
-    findings.push(exists(location)
-      ? f('pass', 'skill', `${location}`)
-      : f('warn', 'skill', `${location} is absent - the protocol binds through AGENTS.md alone here`));
+    if (!exists(location)) {
+      findings.push(f('warn', 'skill', `${location} is absent - the protocol binds through AGENTS.md alone here`));
+      continue;
+    }
+    const skill = drift.skills.find((s) => s.location === location);
+    const stale = skill ? skill.missing.length + skill.changed.length : 0;
+    findings.push(stale
+      ? f('warn', 'skill', `${location} is STALE - ${stale} file(s) differ from this tree, so the protocol an agent reads is not the one here`)
+      : f('pass', 'skill', `${location}`));
   }
 
   const blocking = findings.filter((x) => x.severity === 'fail' || x.severity === 'critical');

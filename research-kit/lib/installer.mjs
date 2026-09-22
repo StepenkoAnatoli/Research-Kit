@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  exists, readText, writeText, ensureDir, readJson, today,
+  exists, readText, writeText, ensureDir, readJson, today, sha256File,
 } from './core.mjs';
 import {
   KIT_HOME, EDIT_GATE_HOOK, RETIRED_EDIT_GATE_HOOKS, RETIRED_KIT_FILES,
@@ -261,6 +261,71 @@ function copyTree(from, to, { prune = [], mirror = false } = {}) {
   }
 
   return { written, pruned };
+}
+
+/**
+ * What is deployed, against what would be deployed now.
+ *
+ * `doctor` used to report `deploy` from the install STATE alone - "an install was recorded,
+ * on this date" - and print READY over it. Recorded is not current. Measured on this
+ * repository on 2026-09-22, that check passed while the deployed kit was missing **eighteen
+ * lib modules**, `bin/prior.mjs` among them, and the deployed skill still described a
+ * protocol without the step shipped that morning.
+ *
+ * That is the worst shape a health check can take: green, specific, and about the wrong
+ * question. An agent invoking the skill runs the DEPLOYED copy, so a stale deployment means
+ * every fix since the last install exists only in the repository - which is exactly the
+ * failure the operator's standing rule is about, one level further out than usual, because
+ * here the shipped path is the deployment itself.
+ *
+ * `deploy` is a full mirror (see `copyTree`), so drift is not a heuristic: every file under
+ * the source tree should be present at the destination with the same bytes, and nothing
+ * else should be there. Reported, never repaired - `doctor` diagnoses and `install.mjs`
+ * acts, and a health check that quietly rewrote the thing it was measuring would destroy
+ * the evidence of the problem it found.
+ */
+export function deployedDrift({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env } = {}) {
+  const compare = (src, dest) => {
+    const missing = [];
+    const changed = [];
+    for (const rel of listTree(src)) {
+      const target = path.join(dest, ...rel.split('/'));
+      if (!exists(target)) { missing.push(rel); continue; }
+      if (sha256File(path.join(src, ...rel.split('/'))) !== sha256File(target)) changed.push(rel);
+    }
+    const shipped = new Set(listTree(src));
+    const extra = listTree(dest).filter((rel) => !shipped.has(rel) && !RETIRED_KIT_FILES.includes(rel));
+    return { missing, changed, extra };
+  };
+
+  const kit = exists(kitHome) ? compare(from, kitHome) : { missing: listTree(from), changed: [], extra: [], absent: true };
+  const skillSource = path.join(from, 'skill');
+  const skills = exists(skillSource)
+    ? skillLocations(env).filter((l) => exists(l)).map((location) => ({ location, ...compare(skillSource, location) }))
+    : [];
+
+  const total = (d) => d.missing.length + d.changed.length + d.extra.length;
+  return {
+    kitHome,
+    kit,
+    skills,
+    drifted: total(kit) + skills.reduce((n, s) => n + s.missing.length + s.changed.length, 0),
+  };
+}
+
+/** One line naming what drifted and what to run, or '' when the deployment matches. */
+export function driftNote(drift) {
+  if (!drift.drifted) return '';
+  const parts = [];
+  const say = (n, word) => (n ? `${n} ${word}` : '');
+  const kit = [say(drift.kit.missing.length, 'missing'), say(drift.kit.changed.length, 'stale'), say(drift.kit.extra.length, 'orphaned')].filter(Boolean);
+  if (kit.length) parts.push(`kit: ${kit.join(', ')}`);
+  for (const s of drift.skills) {
+    const bits = [say(s.missing.length, 'missing'), say(s.changed.length, 'stale')].filter(Boolean);
+    if (bits.length) parts.push(`skill ${s.location}: ${bits.join(', ')}`);
+  }
+  const sample = [...drift.kit.missing, ...drift.kit.changed].slice(0, 3);
+  return `${parts.join('; ')}${sample.length ? ` (e.g. ${sample.join(', ')})` : ''}`;
 }
 
 /**
