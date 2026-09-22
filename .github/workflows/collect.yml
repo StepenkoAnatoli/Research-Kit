@@ -139,9 +139,19 @@ jobs:
     steps:
       - name: a credential visible without an environment is a credential without a gate
         env:
-          # If this resolves, it did NOT come from the environment.
+          # If either resolves, it did NOT come from the environment.
           UNSCOPED_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          UNSCOPED_SEARCH_KEY: ${{ secrets.SERPAPI_API_KEY }}
         run: |
+          if [ -n "${UNSCOPED_SEARCH_KEY:-}" ]; then
+            echo "::error::SERPAPI_API_KEY is readable by a job with NO environment, so it exists as a repository or organization secret."
+            echo ""
+            echo "The same argument as for the fetch credential: a key reachable without an"
+            echo "environment is a key the approval gate does not protect. Move it to"
+            echo "Settings > Environments > research-collection > Environment secrets, and"
+            echo "delete the repository-level copy."
+            exit 1
+          fi
           if [ -n "${UNSCOPED_KEY:-}" ]; then
             echo "::error::FIRECRAWL_API_KEY is readable by a job with NO environment, so it exists as a repository or organization secret."
             echo ""
@@ -378,12 +388,26 @@ jobs:
       - name: collect
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          # The SEARCH side is a separate seam and a separate meter (ADR-0027). Supplying
+          # this key is what makes the documented auto-detect rule - "a SerpAPI key wins,
+          # otherwise the search side IS the fetch provider" - able to fire at all. Without
+          # it every search was billed to Firecrawl credits, which is the meter the page
+          # budget is for. Absent on a fork, collection degrades to the old behaviour rather
+          # than failing, because the ladder's last rung is the fetch provider.
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
           RESEARCH_KIT_TRANSPORT: firecrawl-cli
           MAX_PAGES: ${{ inputs.max_pages }}
           DEPTH: ${{ inputs.depth }}
         run: |
           set -e
           cd "$SCRATCH"
+          # Which side won, recorded in the log before anything is spent. A run that
+          # silently changed meters would be the kind of thing nobody notices until a bill.
+          if [ -n "${SERPAPI_API_KEY:-}" ]; then
+            echo "search side: a SerpAPI key is present, so search is metered separately from fetch"
+          else
+            echo "search side: no SerpAPI key, so search falls back to the fetch provider and spends its credits"
+          fi
           node "$KIT/bin/research.mjs" --dry-run --depth "$DEPTH"
           node "$KIT/bin/research.mjs" --depth "$DEPTH" --max-scrapes "$MAX_PAGES"
 
