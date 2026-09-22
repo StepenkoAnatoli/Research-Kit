@@ -235,6 +235,38 @@ test('gateHealth names an absent commit gate and the command that installs it', 
   if (commit.severity === 'warn') assert.match(commit.fix, /install-hooks\.mjs/);
 });
 
+// --- whose pre-commit is it? ------------------------------------------------------
+
+test('a pre-commit in SOMEBODY ELSE\'S tree is foreign, not current', async () => {
+  // The edit gate has checked this since a registration on this machine named our hook in
+  // a different checkout of a different implementation. The commit gate was left asking
+  // only whether SOME executable pre-commit existed at core.hooksPath - and that setting is
+  // a single machine-wide value that husky, lefthook and pre-commit all rewrite, so the
+  // substitution is if anything likelier here than there.
+  const { commitGateState } = await import('../lib/doctor.mjs');
+  const kitHome = tempDir('research-kit-home-');
+  const foreign = tempDir('research-kit-husky-');
+  writeText(path.join(kitHome, 'githooks', 'pre-commit'), '#!/bin/sh\n# ours\n');
+  writeText(path.join(foreign, 'pre-commit'), '#!/bin/sh\n# husky\n');
+
+  const ours = commitGateState({ hooksPath: path.join(kitHome, 'githooks'), kitHome });
+  assert.equal(ours.state, 'current');
+
+  const theirs = commitGateState({ hooksPath: foreign, kitHome });
+  assert.equal(theirs.state, 'foreign', 'an executable hook from another tree must not read as the kit\'s gate');
+  assert.equal(theirs.expected, path.join(kitHome, 'githooks'), 'and it must say which path it expected');
+});
+
+test('a hooksPath with no pre-commit at all is unusable, not foreign', async () => {
+  // The two failures want different fixes, so they must not collapse into one word.
+  const { commitGateState } = await import('../lib/doctor.mjs');
+  const kitHome = tempDir('research-kit-home2-');
+  const empty = tempDir('research-kit-empty-');
+  const state = commitGateState({ hooksPath: empty, kitHome });
+  assert.equal(state.state, 'unusable');
+  assert.equal(state.mode.reason, 'missing');
+});
+
 // --- deploy mirrors, it does not merge --------------------------------------------
 
 test('deploy MIRRORS: a file the source no longer ships is removed from the deployed tree', async () => {
