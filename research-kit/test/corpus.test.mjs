@@ -5,7 +5,7 @@ import { PATHS, HEADERS, resolve, writeText, readText } from '../lib/core.mjs';
 import {
   readCorpus, readCaptures, parseTable, parseCapture, splitRow, escapeCell, tableRow,
   repairRowArity, captureEntry, rememberCapture, cacheDecision, traceOf, captureOf,
-  claimOf, sectionOf, appendRow, upsertRow, nextId, citedIds,
+  claimOf, sectionOf, appendRow, upsertRow, nextId, citedIds, stripReviewNotes,
 } from '../lib/corpus.mjs';
 
 describe('corpus');
@@ -161,4 +161,11 @@ test('nextId continues the sequence it is shown', () => {
   assert.equal(nextId('E', []), 'E-01');
   assert.equal(nextId('E', [{ id: 'E-01' }, { id: 'E-09' }]), 'E-10');
   assert.equal(nextId('U', [{ id: 'U-3' }]), 'U-04');
+});
+
+test('stripReviewNotes removes the note and nothing else', () => {
+  assert.equal(stripReviewNotes('E-01 [single-witness: see E-02]').includes('E-02'), false);
+  assert.equal(citedIds(stripReviewNotes('E-01 [single-witness: see E-02]')).join(), 'E-01');
+  assert.equal(citedIds(stripReviewNotes('E-01 and E-02')).join(), 'E-01,E-02');
+  assert.equal(stripReviewNotes('a [markdown](http://x) link'), 'a [markdown](http://x) link');
 });
