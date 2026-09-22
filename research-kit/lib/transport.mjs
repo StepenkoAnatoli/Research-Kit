@@ -177,11 +177,22 @@ export function selectSearch({ explicit = '', env = process.env, config = null, 
   }
 
   if (serpapi.readKey({ env, config: settings })) {
+    // BOTH, not one. The meters are separate, so asking each costs one search apiece rather
+    // than more of either - and on 2026-09-22 that difference was the whole corpus: a query
+    // about the EU Deforestation Regulation returned eight US financial-regulation pages
+    // from SerpAPI and nothing on topic, while the fetch provider's own search returned
+    // seventeen, all on topic. Either provider alone can fail that badly on a given query;
+    // `mergeByRank` bounds the damage by letting each contribute its best result first.
+    //
+    // `adapter` still names the provider that pays the separate meter, so every existing
+    // caller and every status line keeps meaning what it meant.
     return {
       name: serpapi.name,
       adapter: serpapi,
-      why: 'a SerpAPI key is configured - searching on its own meter, leaving the fetch budget for pages',
+      adapters: [serpapi, side.adapter],
+      why: `a SerpAPI key is configured - searching on its own meter AND with ${side.name}, merged by rank`,
       searchOnly: true,
+      merged: true,
     };
   }
 

@@ -63,6 +63,39 @@ export function rankCandidate(url, { prefer = [], why = '' } = {}) {
   return value;
 }
 
+/**
+ * Interleave several providers' results by RANK, not by concatenation.
+ *
+ * WHY RANK AND NOT ORDER. On 2026-09-22 a search for the EU Deforestation Regulation
+ * returned, from one provider, eight pages about US financial regulation and nothing about
+ * the subject - while the other returned seventeen, all on topic. Concatenating would have
+ * let the failing provider spend the entire page budget before the working one was reached.
+ * Round-robin bounds that: each provider contributes its best result, then its second, and
+ * a provider that is wholly wrong costs at most its share.
+ *
+ * `provider` is carried on every row so the ledger records WHICH search surfaced a URL -
+ * that is how a claim about search quality stays checkable afterwards instead of being an
+ * impression.
+ *
+ * Duplicates are the interesting case rather than a nuisance: when both providers return the
+ * same URL the first occurrence wins and keeps its finder, so the count of rows attributed
+ * to each provider is not inflated by agreement.
+ */
+export function mergeByRank(lists) {
+  const merged = [];
+  const taken = new Set();
+  const depth = Math.max(0, ...lists.map((l) => l.results.length));
+  for (let rank = 0; rank < depth; rank += 1) {
+    for (const list of lists) {
+      const row = list.results[rank];
+      if (!row?.url || taken.has(row.url)) continue;
+      taken.add(row.url);
+      merged.push({ ...row, provider: list.provider });
+    }
+  }
+  return merged;
+}
+
 export function selectCandidates(results, { prefer = [], perQuery = 3, seen = new Set() } = {}) {
   return results
     .map((row) => ({ ...row, score: rankCandidate(row.url, { prefer }) }))
@@ -83,6 +116,8 @@ export function runResearch(root, {
   // The SEARCH side (ADR-0027). Absent means "the fetch adapter", which is what every
   // caller did before the split - so an un-updated caller behaves exactly as before.
   searchAdapter = null,
+  // Several providers: asked in parallel and interleaved by rank. One stays one.
+  searchAdapters = null,
   plan = null,
   depth = '',
   refreshDays = null,
@@ -147,7 +182,8 @@ ${compatibility.remedy}`);
   let searchFailures = 0;
   let degraded = 0;
 
-  const searcher = searchAdapter ?? adapter;
+  const searchers = (searchAdapters ?? []).filter(Boolean);
+  const searcher = searchAdapter ?? searchers[0] ?? adapter;
   const searchName = searcher?.name ?? adapter?.name ?? '';
 
   const seen = new Set(corpus.captures.entries.map((e) => e.url).filter(Boolean));
@@ -173,6 +209,45 @@ ${compatibility.remedy}`);
       discovered.push({ query: text, results: [], note: 'search not run under --dry-run' });
       continue;
     }
+    // MORE THAN ONE PROVIDER: ask each, interleave by rank, and attribute every row.
+    // The meters are genuinely separate (ADR-0027), so this costs one search on each rather
+    // than more of either. A provider that fails here does not stop the run - the others
+    // still contribute, and the failure is recorded like any other.
+    if (searchers.length > 1) {
+      const lists = [];
+      for (const one of searchers) {
+        const r = one.search(text, { limit: settings.limit });
+        if (Number.isFinite(r.searchesUsed)) searchesUsed += r.searchesUsed;
+        if (!r.ok) {
+          searchFailures += 1;
+          log(`  search failed on ${one.name}: ${r.error}`);
+          appendJsonLine(root, PATHS.failures, {
+            at: new Date().toISOString(), op: 'search', query: text, provider: one.name, error: r.error,
+          });
+          continue;
+        }
+        lists.push({ provider: one.name, results: r.results ?? [] });
+      }
+      if (!lists.length) {
+        log(`  search failed on every provider: ${text}`);
+        continue;
+      }
+      const merged = mergeByRank(lists);
+      log(`  searched   ${lists.map((l) => `${l.provider} ${l.results.length}`).join(', ')} -> ${merged.length} distinct`);
+      discovered.push({ query: text, results: merged, provider: lists.map((l) => l.provider).join('+'), searchId: null });
+      for (const candidate of selectCandidates(merged, { prefer, perQuery: settings.perQuery, seen })) {
+        targets.push({
+          url: candidate.url,
+          type: DEFAULT_SOURCE_TYPE,
+          usedFor: typeof query === 'object' ? (query.why ?? '') : '',
+          from: 'search',
+          rankedBy: candidate.provider ?? '',
+        });
+        seen.add(candidate.url);
+      }
+      continue;
+    }
+
     let found = searcher.search(text, { limit: settings.limit });
     let ranker = searchName;
 
