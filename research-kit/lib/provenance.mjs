@@ -87,6 +87,20 @@ function sleep(ms) {
  * Acquire with `flag: 'wx'` so the kernel refuses a second creator. Staleness is judged
  * only AFTER EEXIST proves someone holds the file, and a fresh lock naming no pid - the
  * window O_EXCL leaves between create and write - is waited for, never broken.
+ *
+ * VERIFIED, AND CONDITIONAL. Measured 2026-09-22 rather than assumed: 24 processes racing
+ * to create one path produced exactly one winner and 23 `EEXIST`, on win32 / Node v24.20.0.
+ *
+ * The condition is the part ADR-0020 never stated, and it comes from Node's own reference:
+ * **"The exclusive flag might not work with network file systems."** So this lock is sound
+ * on a local filesystem and is NOT promised over NFS or SMB - and nothing here detects
+ * which one it is standing on. A project directory on a network share could admit two
+ * collectors to the section at once, which is the one failure the hash chain cannot repair,
+ * because both would be appending validly.
+ *
+ * Not fixed here, because detecting the filesystem type portably is a larger change than
+ * the risk currently justifies, and guessing would be worse than saying so. Evidence and
+ * the full caveat: `docs/decisions/2026-09-22-wx-lock/`.
  */
 /** Is this process still alive? Signal 0 asks the kernel without delivering anything. */
 function pidAlive(pid) {

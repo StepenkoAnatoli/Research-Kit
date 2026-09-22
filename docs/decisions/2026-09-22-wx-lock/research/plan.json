@@ -1,0 +1,33 @@
+{
+  "topic": "Node.js fs.writeFileSync wx flag O_EXCL exclusive create concurrent EEXIST",
+  "notes": "Fill queries and urls BEFORE collecting - every scrape spends a credit. q is the search query, why records which unknown in research/DISCOVERY.md it closes, prefer lists the official domains that carry the fact.",
+  "depth": "quick",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 3,
+  "maxScrapes": 5,
+  "prefer": [],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://nodejs.org/api/fs.html",
+      "type": "P",
+      "why": "the authoritative reference"
+    },
+    {
+      "url": "https://node.readthedocs.io/en/stable/api/fs/",
+      "type": "S",
+      "why": "a plausible-looking second source - testing whether the kit catches it"
+    },
+    {
+      "url": "https://stackoverflow.com/questions/12899061/creating-a-file-only-if-it-doesnt-exist-in-node-js",
+      "type": "S",
+      "why": "the canonical community answer for this exact question"
+    },
+    {
+      "url": "https://github.com/nodejs/node-v0.x-archive/issues/4159",
+      "type": "S",
+      "why": "the upstream issue the behaviour came from"
+    }
+  ]
+}
