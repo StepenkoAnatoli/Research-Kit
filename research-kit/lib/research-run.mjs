@@ -344,3 +344,62 @@ export function searchUsage(root, { now = new Date(), provider = '' } = {}) {
     caveat: 'counted from this machine\'s own runs; a repeat served from the provider\'s free cache is counted here but not billed',
   };
 }
+
+/**
+ * How much of the topic's own vocabulary appears in what was just collected.
+ *
+ * REPORTED, NEVER ENFORCED, and the measurement that settled that is worth keeping.
+ *
+ * It exists because a collection can return eight captures about the wrong subject and pass
+ * every structural check in the kit. On 2026-09-22 a run on the EU Deforestation Regulation
+ * returned SEC filings, CFPB regulations and California water boards - the search had
+ * matched the word "regulation" - and `preflight` had nothing to say, because no check asks
+ * whether the evidence is about the topic.
+ *
+ * Two thresholds were measured against that failure and every committed corpus here:
+ *
+ *   PER CAPTURE, share >= 0.5: rejected. It flags RFC 9728 in the agent-interface corpus,
+ *   which never says "MCP" - and not saying it is exactly what makes it an independent
+ *   witness. The rule would punish the best evidence in the corpus.
+ *
+ *   PER CORPUS, at least one capture >= 0.5: rejected too, and this is the decisive one.
+ *   `delivery-architecture` scores max 0.25 with zero strong captures - IDENTICAL to the
+ *   failure - because its topic is "How Research-Kit should be delivered to a non-technical
+ *   user" and its evidence is GitHub Actions documentation. Semantically related, lexically
+ *   disjoint. No threshold separates that from a corpus about the wrong subject entirely.
+ *
+ * Telling those apart needs meaning, which ADR-0013 refuses. So the number is printed at the
+ * moment it helps - right after collecting, before anyone has read the pages - and decides
+ * nothing. A reviewer seeing 0.25 on a fresh collection knows to check the URLs; on the EUDR
+ * run that is precisely the step that caught it, performed by hand.
+ */
+const TOPIC_STOPWORDS = new Set(['the', 'a', 'an', 'of', 'for', 'and', 'or', 'to', 'in', 'on',
+  'at', 'by', 'after', 'before', 'current', 'date', 'with', 'from', 'is', 'are', 'as', 'eu',
+  'its', 'it', 'this', 'that', 'how', 'what', 'when', 'does', 'do', 'can', 'not', 'without',
+  'versus', 'vs', 'should', 'be', 'was', 'were', 'has', 'have', 'than', 'they', 'their']);
+
+export function topicTerms(topic) {
+  return [...new Set(String(topic ?? '').toLowerCase()
+    .replace(/[^a-z0-9/.-]+/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean))]
+    .filter((word) => word.length > 2 && !TOPIC_STOPWORDS.has(word));
+}
+
+/**
+ * `{ terms, best, strong }` over the given capture bodies, or `null` when the topic carries
+ * too few distinctive terms to say anything - which is not the same as a low score.
+ */
+export function topicMatch(topic, bodies) {
+  const terms = topicTerms(topic);
+  if (terms.length < 3 || !bodies.length) return null;
+  const shares = bodies.map((body) => {
+    const lower = String(body ?? '').toLowerCase();
+    return terms.filter((term) => lower.includes(term)).length / terms.length;
+  });
+  return {
+    terms: terms.length,
+    best: Math.max(...shares),
+    strong: shares.filter((share) => share >= 0.5).length,
+  };
+}

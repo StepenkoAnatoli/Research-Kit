@@ -7,6 +7,7 @@ import { readCorpus, parseTable } from '../lib/corpus.mjs';
 import { HEADERS } from '../lib/core.mjs';
 import { collectOne, writeRaw, captureName, bodyHashOf } from '../lib/collect.mjs';
 import { rateLimitWaitMs } from '../lib/firecrawl.mjs';
+import { topicMatch } from '../lib/research-run.mjs';
 import { verifyLedger } from '../lib/provenance.mjs';
 import { runResearch, readPlan, rankCandidate, selectCandidates, DEPTH_SCRAPES, usageSummary } from '../lib/research-run.mjs';
 
@@ -330,4 +331,57 @@ test('collectOne gives up after a bounded number of rate-limit retries', () => {
   assert.equal(calls, 3, 'the first attempt plus two retries');
   assert.equal(outcome.status, 'failed');
   assert.match(outcome.reason, /Rate limit exceeded/);
+});
+
+// ---------------------------------------------------------------- topic match
+
+test('topicMatch separates the off-topic collection from the on-topic one', () => {
+  // The real pair, from the same query on 2026-09-22: SerpApi returned eight pages about US
+  // financial regulation, Firecrawl returned eight about the EU Deforestation Regulation.
+  // The off-topic corpus passed every structural check in this kit.
+  const topic = 'EU Deforestation Regulation 2023/1115 application date large operators SMEs current after delay';
+
+  const offTopic = [
+    'Regulation D exempt offerings for small businesses. The application date for filing...',
+    'Regulation Z truth in lending. Large creditors must apply...',
+    'California water efficiency legislation and conservation regulation...',
+  ];
+  const onTopic = [
+    'The EUDR, Regulation (EU) 2023/1115 on deforestation-free products. Application for large operators and SMEs...',
+    'EU Deforestation Regulation 2023/1115: application postponed. Large operators and SMEs face a delay...',
+  ];
+
+  const off = topicMatch(topic, offTopic);
+  const on = topicMatch(topic, onTopic);
+  assert.equal(off.strong, 0, 'nothing in the off-topic set should match strongly');
+  assert.ok(on.strong > 0, 'the on-topic set must match');
+  assert.ok(on.best > off.best, `on-topic must outscore off-topic: ${on.best} vs ${off.best}`);
+});
+
+test('topicMatch declines to judge a topic with too few distinctive terms', () => {
+  // Refusing is not scoring zero. A two-word topic makes the share 0, 0.5 or 1 and the
+  // number means nothing - reporting it would invite a reader to act on noise.
+  assert.equal(topicMatch('the EU', ['anything at all']), null);
+  assert.equal(topicMatch('', ['x']), null);
+  assert.equal(topicMatch('EU Deforestation Regulation dates', []), null, 'no captures, nothing to measure');
+});
+
+test('topicMatch REPORTS and never decides - the thresholds that were rejected', () => {
+  // Pinned so nobody promotes this into a gate later. Measured 2026-09-22 across every
+  // corpus in this repository:
+  //
+  //   per-capture >= 0.5 flags RFC 9728 in the agent-interface corpus, which never says
+  //   "MCP" - and not saying it is what makes it an independent witness.
+  //
+  //   per-corpus "at least one strong capture" flags delivery-architecture, whose topic is
+  //   "How Research-Kit should be delivered to a non-technical user" and whose evidence is
+  //   GitHub Actions docs. It scores max 0.25 with zero strong captures - IDENTICAL to the
+  //   genuine failure. No threshold separates them.
+  //
+  // So the shape of the return value is the contract: numbers, no verdict.
+  const m = topicMatch('EU Deforestation Regulation 2023/1115 operators', ['deforestation regulation for operators']);
+  assert.deepEqual(Object.keys(m).sort(), ['best', 'strong', 'terms']);
+  assert.equal(typeof m.best, 'number');
+  assert.equal(m.pass, undefined, 'a pass/fail field would make this a gate');
+  assert.equal(m.severity, undefined);
 });
