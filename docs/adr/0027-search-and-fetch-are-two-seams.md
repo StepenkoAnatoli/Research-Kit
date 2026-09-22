@@ -167,6 +167,27 @@ Two runs of the same collector, before and after wiring it:
 The second run also logs the choice **before spending**, and the credential appears as
 `SERPAPI_API_KEY: ***` — redacted by the runner, never in argv.
 
+### ISOLATED 2026-09-22 - the saving below is no longer inferred
+
+The section that follows says the saving was "consistent with, not proven", because the
+first verification run performed **no search at all** (`searches 0`): SerpAPI was selected
+and never exercised. A third run fixed that by giving the plan room to search.
+
+Run [35692202192](https://github.com/StepenkoAnatoli/Research-Kit/actions/runs/35692202192),
+depth `quick`, both credentials present and redacted as `***`:
+
+    search:    serpapi - a SerpAPI key is configured
+    collected  3
+    searches   1 on serpapi
+
+One search, three scrapes. Firecrawl balance **831 before, 828 after** - a drop of exactly
+three, the page count. Had the search been billed to Firecrawl it would have cost roughly two
+more, landing on 826.
+
+**So the search cost zero fetch credits, and the two meters are separately exercised rather
+than merely separately selected.** That is the claim this ADR made when it split the seam,
+and it is the first time the split has been measured end to end on a real runner.
+
 ### What the credits show, and what they do not
 
 Measured balances, not arithmetic: **841 before the last three runs, 831 after.** Ten credits
