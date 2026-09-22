@@ -1,0 +1,18 @@
+{
+  "topic": "Tavily terms of service data retention training on inputs outputs zero retention enterprise tier opt out",
+  "notes": "Fill queries and urls BEFORE collecting - every scrape spends a credit. q is the search query, why records which unknown in research/DISCOVERY.md it closes, prefer lists the official domains that carry the fact.",
+  "depth": "quick",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 8,
+  "maxScrapes": 8,
+  "prefer": [],
+  "queries": [
+    {
+      "q": "Tavily terms of service data retention training on inputs outputs zero retention enterprise tier opt out",
+      "why": "the dispatched topic",
+      "prefer": []
+    }
+  ],
+  "urls": []
+}
