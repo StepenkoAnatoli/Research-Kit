@@ -190,11 +190,21 @@ reaches 1.1, or if artifact download proves too awkward in practice.
 > `bin/mcp-server.mjs` exposes the same seam to an agent. Neither needs a packaged binary,
 > and both already work.
 >
-> What rejecting it costs, stated so it is not discovered later: there is still **no offline
-> path**. Everything routes through a GitHub runner, so a machine with no network, or an
-> operator without a GitHub account, cannot collect at all. That is a real limitation and it
-> is accepted deliberately rather than papered over — the kit itself already runs locally
-> from a terminal for anyone who has one.
+> What rejecting it costs, stated so it is not discovered later — **and stated more narrowly
+> than it first was.** The original wording here said "there is still no offline path", which
+> was too broad and was corrected on 2026-09-22. The kit runs locally from a terminal against
+> a local Firecrawl credential; that *is* an offline-from-GitHub path, and it is the path
+> every corpus in this repository was actually collected through.
+>
+> The real cost is narrower: **a non-terminal operator has no local path.** For that person,
+> and only that person, everything routes through a GitHub runner — so no GitHub account
+> means no collection. That is the group the `.exe` existed to serve, and rejecting it leaves
+> them on the hosted route. Accepted deliberately.
+>
+> This is a decision with a consequence, not an open gap, and it is listed that way. The
+> distinction matters because an item that nothing can ever close reads like diligence while
+> functioning as noise — the same argument this ADR already makes about the ergonomics
+> question a few paragraphs down.
 >
 > **Reopening is cheap and the research is now done.** The route is an asset-aware branch in
 > `lib/scaffold.mjs`, `lib/decompose.mjs` and `lib/artifact-validator.mjs`, at Stability 1.1,
