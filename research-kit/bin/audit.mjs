@@ -4,12 +4,13 @@
 // It PRINTS what lib/audit.mjs returns. It used to walk the raw index itself with a
 // second sort, which made the reader below it dead code and the ordering unsettleable.
 
-import { parseFlags } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags } from '../lib/core.mjs';
 import { writeAudit, listVersions, resolveVersion, zipAudit } from '../lib/audit.mjs';
 import { readText, resolve } from '../lib/core.mjs';
 import { heading } from '../lib/render.mjs';
 
 const { flags } = parseFlags(process.argv.slice(2));
+refuseUnknownFlags(flags, ['force', 'help', 'list', 'show', 'topic', 'version', 'zip']);
 const root = process.cwd();
 
 if (flags.help) {

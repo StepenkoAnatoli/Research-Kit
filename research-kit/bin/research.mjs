@@ -7,13 +7,14 @@
 //
 // `--dry-run` and `--status` still work there, because they spend nothing.
 
-import { parseFlags, flagList } from '../lib/core.mjs';
+import { parseFlags, flagList, refuseUnknownFlags } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal } from '../lib/machine.mjs';
 import { selectTransport, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES } from '../lib/transport.mjs';
 import { runResearch, readPlan, usageSummary, DEPTHS, DEPTH_SCRAPES } from '../lib/research-run.mjs';
 import { heading } from '../lib/render.mjs';
 
 const { flags } = parseFlags(process.argv.slice(2));
+refuseUnknownFlags(flags, ['depth', 'dry-run', 'force', 'help', 'only', 'plan', 'refresh-days', 'search-transport', 'status', 'transport']);
 const root = process.cwd();
 
 if (flags.help) {

@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // bin/brief.mjs - draft the phase-1 -> phase-2 handoff, and report the brief's state.
 
-import { parseFlags, PATHS } from '../lib/core.mjs';
+import { parseFlags, PATHS, refuseUnknownFlags } from '../lib/core.mjs';
 import { renderBrief, briefState, JUDGED_SECTIONS, judgedSection } from '../lib/brief.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { runPreflight } from '../lib/preflight.mjs';
 
 const { flags } = parseFlags(process.argv.slice(2));
+refuseUnknownFlags(flags, ['force', 'help', 'state']);
 const root = process.cwd();
 const corpus = readCorpus(root);
 

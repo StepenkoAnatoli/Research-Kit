@@ -409,7 +409,9 @@ jobs:
             echo "search side: no SerpAPI key, so search falls back to the fetch provider and spends its credits"
           fi
           node "$KIT/bin/research.mjs" --dry-run --depth "$DEPTH"
-          node "$KIT/bin/research.mjs" --depth "$DEPTH" --max-scrapes "$MAX_PAGES"
+          # NOT --max-scrapes: research.mjs has no such flag and silently ignored it until
+          # 2026-09-22. The page bound is real and is set above, as plan.maxScrapes.
+          node "$KIT/bin/research.mjs" --depth "$DEPTH"
 
       # NOT the whole preflight verdict, and this was found by RUNNING it rather than by
       # reading it: `preflight` answers "is the research sufficient to build", a
