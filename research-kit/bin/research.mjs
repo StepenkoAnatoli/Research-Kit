@@ -112,9 +112,10 @@ const run = runResearch(root, {
 
 process.stdout.write(`${heading('run')}
 depth      ${run.depth} (budget ${run.budget} scrapes)
-collected  ${run.spent}
+collected  ${run.collected}
 cached     ${run.cached}
 failed     ${run.failed}
+spent      ${run.spent} (budget consumed: collected + failed)
 `);
 // The second meter reports separately, and a degradation is never silent: it means the
 // run quietly moved spend back onto the fetch budget.

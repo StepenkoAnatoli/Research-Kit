@@ -338,3 +338,16 @@ test('no workflow passes a flag its entrypoint does not accept', () => {
   }
   assert.deepEqual(offenders, [], 'a workflow passes a flag the entrypoint does not have');
 });
+
+test('the run summary distinguishes what landed from what it cost', () => {
+  // `spent` is collected + failed, because a failed fetch still consumes budget. The
+  // summary printed that number under the label "collected", so a run that fetched two
+  // pages and lost six to a Firecrawl rate limit reported `collected 8` while its artifact
+  // carried two captures. Found 2026-09-22 by comparing a run log against its own ZIP.
+  const r = run('research.mjs', ['--dry-run'], { root: project() });
+  assert.equal(r.status, 0, r.err);
+  assert.match(r.out, /^collected\s+\d+/m);
+  assert.match(r.out, /^failed\s+\d+/m);
+  assert.match(r.out, /^spent\s+\d+ \(budget consumed: collected \+ failed\)/m,
+    'the cost must be reported separately from what arrived');
+});
