@@ -148,3 +148,43 @@ shape is synchronous, so the parent reaches the vendor through `spawnSync`, whic
 its own event loop; a server living in that loop can never accept the connection. The
 rendezvous that makes an async `fetch` fit a synchronous contract is also the thing that
 makes in-process testing of it impossible. The stand-in runs in its own process.
+
+## Verified on a real runner, 2026-09-22 — and the seam was doing nothing until today
+
+This ADR split search from fetch so search could run on its own meter. **On the collector
+that split had never taken effect**, because `collect.yml` never passed the search
+credential. `SERPAPI_API_KEY` was configured exactly where ADR-0033 requires — an
+environment secret on `research-collection` — and no workflow referenced it, so every
+dispatched run fell through the ladder to its last rung and billed search to Firecrawl.
+
+Two runs of the same collector, before and after wiring it:
+
+| | run | `search:` line |
+|---|---|---|
+| before | [35689363486](https://github.com/StepenkoAnatoli/Research-Kit/actions/runs/35689363486) | **none** — when search *is* the fetch provider the selection reports `sameAsFetch` and prints nothing |
+| after | [35691439943](https://github.com/StepenkoAnatoli/Research-Kit/actions/runs/35691439943) | `search:    serpapi - a SerpAPI key is configured - searching on its own meter, leaving the fetch budget for pages` |
+
+The second run also logs the choice **before spending**, and the credential appears as
+`SERPAPI_API_KEY: ***` — redacted by the runner, never in argv.
+
+### What the credits show, and what they do not
+
+Measured balances, not arithmetic: **841 before the last three runs, 831 after.** Ten credits
+against eight scraped pages. The two unaccounted credits are consistent with one Firecrawl
+search in the pre-fix run — Firecrawl charges roughly two credits per search — and this run
+spending none, because SerpAPI took it.
+
+**Consistent with, not proven.** The usage log that would settle it is local to the runner
+and deliberately excluded from the artifact, so the per-run split cannot be reconstructed
+after the fact. The selection is proven by the log line; the saving is inferred.
+
+### A measurement error of mine, recorded because it nearly became a false finding
+
+Seeing four credits spent on a two-page run, I concluded the fix had not worked and started
+looking for the bug. It had worked. My baseline of "835" was **asserted in a summary and
+never measured** — only 841 and 831 were ever read from the vendor. An arithmetic chain
+anchored on a number nobody measured is not a measurement, and it pointed at a defect that
+did not exist.
+
+The run log settled it in one line. The order should have been: read the log the run already
+wrote, then reason about balances.
