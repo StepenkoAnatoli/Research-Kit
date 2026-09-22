@@ -95,6 +95,12 @@ on:
         description: 'PUBLIC on a public repository - it becomes the run name and the artifact name. Use an opaque id (job-0417), never the subject. Optional: correlation does not need it - pin X-GitHub-Api-Version and read workflow_run_id. Shape [A-Za-z0-9][A-Za-z0-9._-]{0,63}.'
         required: false
         default: ''
+      search_transport:
+        description: 'Which provider performs the SEARCH. auto follows the ladder - a SerpApi key wins, else the fetch provider. Pin one to compare them on the same topic.'
+        required: true
+        default: 'auto'
+        type: choice
+        options: [auto, serpapi, firecrawl-cli]
       runner:
         description: 'Which runner to collect on'
         required: true
@@ -396,6 +402,10 @@ jobs:
           # than failing, because the ladder's last rung is the fetch provider.
           SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
           RESEARCH_KIT_TRANSPORT: firecrawl-cli
+          # 'auto' becomes the empty string, which is falsy in the ladder and therefore
+          # means "no explicit choice" rather than "a provider called auto". Pinning a
+          # value is what makes two runs of the same topic comparable.
+          RESEARCH_KIT_SEARCH_TRANSPORT: ${{ inputs.search_transport == 'auto' && '' || inputs.search_transport }}
           MAX_PAGES: ${{ inputs.max_pages }}
           DEPTH: ${{ inputs.depth }}
         run: |
