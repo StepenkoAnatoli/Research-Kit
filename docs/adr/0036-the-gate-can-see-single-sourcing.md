@@ -262,6 +262,53 @@ dilution pushes such pairs down. The threshold was chosen from a 14× gap; this 
 the observed gap to about 1.6×. That is not a failure and it is not a reason to move the line
 on one data point — it is the note that the line is now known to have traffic near it.
 
+## A second blind spot, and why the obvious repair was rejected, 2026-09-22
+
+Using the kit on an unrelated question surfaced a mirror the check does not catch.
+`node.readthedocs.io` is an unofficial copy of the Node.js documentation and scored **0.054**
+against `nodejs.org` — nowhere near the 0.25 line. Both pages carry the same caveat in drifted
+wording ("might not" against "may or may not work with network file systems"), so they are one
+document at two vintages, exactly the case this check exists for.
+
+**The cause is the metric, not the number.** Jaccard is `|A n B| / |A u B|`, which is symmetric:
+a 29 KB snapshot inside a 465 KB current page scores low however completely it is contained,
+because the union is dominated by everything the live page has since grown.
+
+### Containment was measured and is worse
+
+The textbook repair is containment, `|A n B| / min(|A|,|B|)` — "what fraction of the smaller
+document is in the larger". Measured over **2404 pairs** in this repository, cross-host only,
+since the mirror rule never fires within a host:
+
+| pair | Jaccard | containment |
+|---|---|---|
+| `node.readthedocs.io` × `nodejs.org` — a real mirror | 0.054 | **0.380** |
+| `modelcontextprotocol.io` × its own `GOVERNANCE.md` — genuinely different | 0.136 | **0.506** |
+
+**The genuine pair outranks the mirror.** Any threshold catching the mirror at 0.380 also flags a
+legitimate second source at 0.506 — and the remedy a reviewer reaches for on a `mirror` finding
+is to drop one of the rows. A check that tried harder here would delete real corroboration.
+
+So the repair is refused, and refused on measurement rather than on taste.
+
+### What ships instead: the number, not a verdict
+
+`independent` now reports the closest pair among the rows it counted —
+`rests on 3 distinct documents across 3 hosts; closest pair 0.16`. The grade is unchanged.
+
+Across this repository the reported values run 0.00 to 0.16, and the single 0.16 is the
+`modelcontextprotocol.io`/`GOVERNANCE.md` pair that had to be checked by hand. A reviewer
+seeing 0.16 is pointed at the one pair worth a look; a reviewer seeing 0.00 is not. That is
+the honest limit of a mechanical check: it can say how close two documents came, and it cannot
+say whether that closeness means anything.
+
+### An accounting error found in passing
+
+`similarity.test.mjs` used `node:test` while every other file uses the shared harness, so its
+**ten tests ran and were never counted** — the suite reported 845 while executing 855. The file
+is converted to the harness. The count guard exists because "a stale count is the first claim a
+reader checks"; a count that silently omits a whole file is the same failure from the inside.
+
 ## What this ADR does not claim
 
 That two hosts make a claim true. Two vendors can repeat one another, and a specification
