@@ -102,6 +102,36 @@ export function isMirror(a, b) {
 }
 
 /**
+ * The closest any two of these sketches came, or `null` if fewer than two are judgeable.
+ *
+ * WHY THIS IS REPORTED RATHER THAN ACTED ON. The threshold has two measured blind spots and
+ * neither is closable with a better number:
+ *
+ *   - a stale mirror of a page that has since GROWN scores low, because the shared text is
+ *     diluted by everything the current page gained (`node.readthedocs.io` vs `nodejs.org`,
+ *     0.054 at a 6.4x size ratio);
+ *   - and CONTAINMENT, the obvious repair for that, ranks a genuinely different pair ABOVE
+ *     that mirror (0.506 for `modelcontextprotocol.io` vs its own `GOVERNANCE.md`, against
+ *     0.380 for the mirror). Measured over 2404 pairs on 2026-09-22.
+ *
+ * So a check that tried harder here would start reporting real second sources as copies,
+ * and the remedy a reviewer would reach for - dropping one - is the opposite of what the
+ * corpus needs. The number is surfaced instead: `independent (closest pair 0.38)` invites a
+ * look, `closest pair 0.00` does not, and neither changes the verdict.
+ */
+export function closestPair(sketches) {
+  let best = null;
+  for (let i = 0; i < sketches.length; i += 1) {
+    for (let j = i + 1; j < sketches.length; j += 1) {
+      const score = similarity(sketches[i], sketches[j]);
+      if (score === null) continue;
+      if (best === null || score > best) best = score;
+    }
+  }
+  return best;
+}
+
+/**
  * Group rows into distinct DOCUMENTS. Each group is a set of indices whose sketches are
  * near-duplicates of one another.
  *

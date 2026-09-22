@@ -9,7 +9,7 @@
 
 import { hostOf, PATHS, resolve, exists, ageInDays } from './core.mjs';
 import { captureOf, traceOf, citedIds } from './corpus.mjs';
-import { documentGroups } from './similarity.mjs';
+import { documentGroups, closestPair } from './similarity.mjs';
 import { coverageOfUniversals } from './dimensions.mjs';
 import { verifyLedger } from './provenance.mjs';
 
@@ -635,7 +635,8 @@ function corroboration(corpus) {
         // Several hosts is where the host heuristic used to stop and say `independent`. A
         // mirror passes that test while carrying LESS than either genuine page, so the rows
         // are grouped into distinct DOCUMENTS before the hosts are counted again.
-        const groups = documentGroups(rows.map((row) => corpus.captures.sketches?.get(captureOf(corpus, row)?.file) ?? null));
+        const sketches = rows.map((row) => corpus.captures.sketches?.get(captureOf(corpus, row)?.file) ?? null);
+        const groups = documentGroups(sketches);
         if (groups.length === 1) {
           shape = { rule: 'mirror', detail: `cites ${rows.length} rows across ${hosts.size} hosts but they are the same document - a republished copy is one witness, and the copy may be the stale one` };
         } else {
@@ -646,11 +647,18 @@ function corroboration(corpus) {
             shape = { rule: 'one-voice', detail: `cites ${rows.length} rows across ${hosts.size} hosts, but after grouping republished copies only ${[...distinctHosts][0]} remains - one voice` };
           } else {
             const mirrored = rows.length - groups.length;
+            const closest = closestPair(sketches);
             shape = {
               corroborated: true,
               rule: 'independent',
+              // The closest pair is REPORTED, never acted on. The threshold has two measured
+              // blind spots and containment - the obvious repair - ranks a genuinely
+              // different pair above a real mirror, so trying harder would report second
+              // sources as copies. A number a reviewer can act on beats a verdict that
+              // pretends to more certainty than the measurement supports.
               detail: `rests on ${groups.length} distinct documents across ${distinctHosts.size} hosts`
-                + (mirrored ? ` (${mirrored} of ${rows.length} rows are republished copies and were not counted twice)` : ''),
+                + (mirrored ? ` (${mirrored} of ${rows.length} rows are republished copies and were not counted twice)` : '')
+                + (closest === null ? '' : `; closest pair ${closest.toFixed(2)}`),
             };
           }
         }

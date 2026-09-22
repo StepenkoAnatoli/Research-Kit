@@ -10,17 +10,16 @@
 // used to grade `independent` and now grade `mirror` - is proven at the check level, in
 // checks.test.mjs, which is where the old behaviour actually existed.
 
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { test, describe, assert, fs, path } from './harness.mjs';
 
 import { parseCapture } from '../lib/corpus.mjs';
 import {
-  sketch, similarity, shingles, documentGroups, isMirror,
+  sketch, similarity, shingles, documentGroups, isMirror, closestPair,
   MIRROR_THRESHOLD, MIN_SHINGLES,
 } from '../lib/similarity.mjs';
+
+describe('similarity');
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '..', '..');
@@ -105,4 +104,36 @@ test('documentGroups collapses a mirrored pair and keeps a third document apart'
 test('unjudgeable rows each stand alone rather than merging', () => {
   // Two nulls must not become one group: "I cannot tell" is not "they are the same".
   assert.equal(documentGroups([null, null]).length, 2);
+});
+
+// ---------------------------------------------------------------- closestPair
+
+test('closestPair reports the tightest pair, and null when nothing is judgeable', () => {
+  const canonical = sketch(body(seaRaw, '-nodejs-'));
+  const mirrored = sketch(body(seaRaw, 'epac'));
+  const other = sketch(body(seaRaw, 'bundling'));
+
+  // The mirror is the tightest pair present, so it is what gets reported.
+  const three = closestPair([canonical, mirrored, other]);
+  assert.ok(three > 0.35 && three <= 1, `expected the mirror to dominate, got ${three}`);
+  assert.equal(closestPair([canonical, mirrored]), similarity(canonical, mirrored));
+
+  assert.equal(closestPair([]), null, 'nothing to compare is null, not 0');
+  assert.equal(closestPair([canonical]), null, 'one document has no pair');
+  assert.equal(closestPair([null, null]), null, 'unjudgeable pairs report null, never 0');
+});
+
+test('closestPair is REPORTED, not acted on - the verdict does not move with it', () => {
+  // The measured reason, recorded so nobody "fixes" this into a blocking rule later:
+  // containment - the obvious repair for a size-mismatched mirror - ranks a genuinely
+  // different pair (0.506) ABOVE a real mirror (0.380). A check that tried harder would
+  // report real second sources as copies, and the remedy a reviewer reaches for is to drop
+  // one. So the number informs and the grade is unchanged.
+  const canonical = sketch(body(seaRaw, '-nodejs-'));
+  const other = sketch(body(seaRaw, 'bundling'));
+  const score = closestPair([canonical, other]);
+  assert.ok(score !== null);
+  assert.ok(score < MIRROR_THRESHOLD, 'this pair must remain below the mirror line');
+  // Two distinct documents stay two distinct documents whatever the number says.
+  assert.equal(documentGroups([canonical, other]).length, 2);
 });
