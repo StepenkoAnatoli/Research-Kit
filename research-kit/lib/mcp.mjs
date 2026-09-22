@@ -111,6 +111,7 @@ export const TOOLS = Object.freeze([
       properties: {
         repository: { type: 'string', description: 'owner/name of the repository holding the collector workflow' },
         topic: { type: 'string', description: 'What to research. Visible to anyone who can read that repository.' },
+        prior: { type: 'string', description: 'Optional. What you EXPECT the evidence to say, and what you know you cannot know yet. Registered on the runner and chained ahead of the first page, so it can only be supplied now. Nothing grades it - being wrong is the point (ADR-0039).' },
         max_pages: { type: 'integer', minimum: 1, maximum: 25, description: 'Pages to collect. Each costs at least one credit. Default 8.' },
         depth: { type: 'string', enum: ['probe', 'quick', 'normal'], description: 'Collection tier. Default quick.' },
         client_ref: { type: 'string', description: 'Optional caller reference. PUBLIC: it becomes the run and artifact name, so never put the subject in it.' },
@@ -301,6 +302,7 @@ async function callTool(message, deps) {
           depth: args.depth ?? 'quick',
           runner: args.runner ?? 'ubuntu-latest',
           client_ref: args.client_ref ?? '',
+          prior: args.prior ?? '',
         },
         token,
       });

@@ -133,6 +133,34 @@ test('no workflow interpolates a dispatch input into a shell script', () => {
     + offenders.join('\n  '));
 });
 
+test('a dispatched prior is registered BEFORE the collect step, or it is worthless', () => {
+  // The ordering this whole mechanism rests on, pinned at the one place it could silently
+  // invert. `bin/prior.mjs` refuses after the first scrape, so a registration step that
+  // drifted below `collect` would not corrupt anything - it would simply stop working, on
+  // a workflow nobody runs in CI because it spends real money.
+  //
+  // This exists because the local mechanism was nearly useless without the remote one: the
+  // runner scaffolds its own project with an empty ledger, so a prior registered on the
+  // operator's machine cannot reach the corpus that comes back, and every corpus in this
+  // repository since the remote collector shipped was collected on this path.
+  const register = lineOf(body, /bin\/prior\.mjs/);
+  const collect = lineOf(body, /bin\/research\.mjs/);
+  assert.ok(register !== -1, 'the collector never registers a dispatched prior');
+  assert.ok(collect !== -1, 'the collector never collects');
+  assert.ok(register < collect,
+    'the prior is registered after collection starts, where bin/prior.mjs refuses it');
+  assert.match(body, /if: inputs\.prior != ''/, 'the step must be skipped when no prior was dispatched');
+});
+
+test('the prior reaches node through the environment, like the topic', () => {
+  // Same class of defect as the topic, and the same remedy - covered generally by the
+  // interpolation test above, asserted positively here so the intended shape is pinned
+  // rather than merely the absence of the wrong one.
+  const step = body.slice(body.indexOf('register the prior'));
+  assert.match(step.slice(0, 600), /PRIOR: \$\{\{ inputs\.prior \}\}/);
+  assert.match(step.slice(0, 900), /process\.env\.PRIOR/);
+});
+
 // ---------------------------------------------------------------- what the names disclose
 
 test('the topic is not in the run name', () => {
