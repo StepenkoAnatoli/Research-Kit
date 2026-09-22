@@ -242,6 +242,7 @@ ${compatibility.remedy}`);
       // Empty for a plan URL - nobody's ranking chose it, a person wrote it down.
       discoveredBy: target.rankedBy ?? '',
       dryRun,
+      log,
     });
     if (outcome.status === 'collected') spent += 1;
     if (outcome.status === 'cached') cached += 1;

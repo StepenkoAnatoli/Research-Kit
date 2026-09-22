@@ -10,7 +10,9 @@
 import fs from 'node:fs';
 import {
   PATHS, HEADERS, resolve, today, sha256, titleFromUrl, hostOf, urlDigest, writeText, readText,
+  sleepSync,
 } from './core.mjs';
+import { rateLimitWaitMs } from './firecrawl.mjs';
 import {
   captureEntry, cacheDecision, rememberCapture, appendRow, upsertRow, nextId,
   readCaptures, parseTable,
@@ -95,6 +97,8 @@ export function collectOne(root, url, {
   // Which search provider ranked this URL, when a search is why it is being fetched.
   discoveredBy = '',
   dryRun = false,
+  maxRateLimitRetries = 2,
+  log = () => {},
 } = {}) {
   // A dry run decides and writes nothing, so it needs no exclusive section.
   if (dryRun) {
@@ -122,11 +126,23 @@ export function collectOne(root, url, {
       return { status: 'cached', url, entry: decision.entry, reason: `fresh capture from ${decision.entry.retrieved}`, spent: 0 };
     }
 
+    // A rate limit is not a failure, it is an instruction to wait. Bounded, because a
+    // vendor that keeps refusing is a different problem from a busy minute, and a
+    // collector that retried forever would hold this lock forever.
     let result;
-    try {
-      result = runScrape(url);
-    } catch (err) {
-      result = { ok: false, url, error: err.message };
+    let waits = 0;
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        result = runScrape(url);
+      } catch (err) {
+        result = { ok: false, url, error: err.message };
+      }
+      if (result?.ok || attempt >= maxRateLimitRetries) break;
+      const wait = rateLimitWaitMs(result?.error);
+      if (wait === null) break;
+      waits += 1;
+      log(`  waiting    ${Math.round(wait / 1000)}s - ${url} hit the vendor rate limit`);
+      sleepSync(wait);
     }
 
     if (!result?.ok) {
@@ -136,7 +152,7 @@ export function collectOne(root, url, {
         discoveredBy,
         cmd: result?.cmd ?? '', error: result?.error ?? 'unknown failure',
       });
-      return { status: 'failed', url, entry: null, reason: result?.error ?? 'unknown failure', spent: 1 };
+      return { status: 'failed', url, entry: null, reason: result?.error ?? 'unknown failure', spent: 1, waits };
     }
 
     const entry = writeRaw(root, result, { date });
@@ -167,7 +183,7 @@ export function collectOne(root, url, {
 
     upsertRow(root, PATHS.sources, HEADERS.sources, [entry.url, type, result.title || titleFromUrl(entry.url), date, usedFor]);
 
-    return { status: 'collected', url: entry.url, entry, row: { id, finding }, reason: decision.reason, spent: 1 };
+    return { status: 'collected', url: entry.url, entry, row: { id, finding }, reason: decision.reason, spent: 1, waits };
   });
 }
 
