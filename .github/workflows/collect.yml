@@ -77,6 +77,23 @@ name: collect
 
 on:
   workflow_dispatch:
+    # SEVEN INPUTS, AND THE CEILING IS PROBABLY TEN.
+    #
+    # Checked after `prior` became the seventh, using this collector (run 35757458056).
+    # `workflow_dispatch` refuses at dispatch with ``you may only define up to 10 `inputs`
+    # for a `workflow_dispatch` event`` - which is the reassuring half, because exceeding it
+    # fails loudly rather than dropping an input silently.
+    #
+    # Held to the weaker claim it deserves: the only witness is a GitHub community
+    # discussion quoting that runtime error, and it calls the figure a SOFT limit while
+    # asking for it to be raised to 25. The official workflow-syntax page says nothing about
+    # it - its own "10"s are about concurrency and background steps. So treat three as the
+    # remaining budget, not as a guarantee, and expect a loud failure rather than a quiet one.
+    #
+    # The other half of that check came back UNANSWERED: nothing found says whether a single
+    # input value has a length limit. It matters here because `prior` is free text, and
+    # silent truncation would corrupt a prediction while leaving it looking intact. Unknown,
+    # and recorded as unknown.
     inputs:
       topic:
         description: 'What to research. Visible to anyone who can read this repository.'
