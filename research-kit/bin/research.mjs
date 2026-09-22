@@ -117,7 +117,8 @@ depth      ${run.depth} (budget ${run.budget} scrapes)
 collected  ${run.collected}
 cached     ${run.cached}
 failed     ${run.failed}
-spent      ${run.spent} (budget consumed: collected + failed)`);
+spent      ${run.spent} (budget consumed: collected + failed)
+`);
 
 // The topic signal, printed at the one moment it helps: the pages are on disk and nobody
 // has read them yet. It decides nothing - see `topicMatch` for the two thresholds that were

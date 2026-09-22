@@ -567,6 +567,26 @@ test('capture-completeness: the render review is read from the ROW, never the ca
     'a note in the capture front-matter must NOT satisfy the review - the ledger hashes it');
 });
 
+test('partial-render tells the reviewer where the note goes, and it is not front-matter', () => {
+  // The test above pins that front-matter does not satisfy the review. This pins that the
+  // MESSAGE does not send the reviewer there - which it did, for as long as the check
+  // existed. Found by following it on a real corpus: adding the `renderReview:` front-matter
+  // line it named turned a 1-warning PASS into a blocking `provenance/body-unmodified`
+  // failure, and left this warning standing. An instruction that breaks the gate when
+  // obeyed is worse than no instruction, so the wording is load-bearing and pinned here.
+  const dir = makePassingProject();
+  const capture = readCorpus(dir).captures.entries[0];
+  corrupt(dir, capture.file, (text) => `${text}\n\nThere was an error while loading.\n`);
+
+  const hit = runCheck('capture-completeness', snapshot(dir)).find((f) => f.rule === 'partial-render');
+  assert.equal(hit.severity, 'warn');
+  assert.match(hit.detail, /\[render-reviewed: /, 'must name the syntax the check actually parses');
+  assert.match(hit.detail, /EVIDENCE row/, 'must name where the note goes');
+  assert.match(hit.detail, /Do not edit the capture/, 'must say why it cannot go in the capture');
+  assert.ok(!/front-matter line/.test(hit.detail),
+    'must not direct the reviewer to edit front-matter - the ledger hashes the capture whole');
+});
+
 test('a row named INSIDE a single-witness note is not thereby cited', () => {
   // The footgun this removes. `citedIds` returns every E-## mention in the cell, and the
   // reason a reviewer writes lives in that same cell - so explaining why no second witness

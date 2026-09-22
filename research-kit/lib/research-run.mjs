@@ -470,6 +470,20 @@ export function searchUsage(root, { now = new Date(), provider = '' } = {}) {
  * moment it helps - right after collecting, before anyone has read the pages - and decides
  * nothing. A reviewer seeing 0.25 on a fresh collection knows to check the URLs; on the EUDR
  * run that is precisely the step that caught it, performed by hand.
+ *
+ * A HIGH SCORE MEANS NOTHING WHEN THE TOPIC IS MADE OF COMMON WORDS, and that is not
+ * hypothetical either. The first real use after shipping was a collection on Tavily's terms,
+ * topic "...data retention training on inputs outputs zero retention enterprise tier opt
+ * out". It reported **0.92, eight of eight above threshold** - on a corpus where SEVEN OF
+ * EIGHT captures were generic "zero data retention" marketing from unrelated vendors and
+ * only `tavily.com/terms` was on topic. Every one of those pages genuinely contains "data",
+ * "retention", "training", "zero" and "enterprise", so the arithmetic was right and the
+ * signal was useless.
+ *
+ * So the number is informative in ONE direction only: a low score is worth investigating,
+ * and a high score is worth nothing unless the topic carried distinctive terms. `deforestation`
+ * and `2023/1115` are distinctive; `data` and `service` are not, and this function cannot
+ * tell the difference without a corpus-wide notion of rarity it does not have.
  */
 const TOPIC_STOPWORDS = new Set(['the', 'a', 'an', 'of', 'for', 'and', 'or', 'to', 'in', 'on',
   'at', 'by', 'after', 'before', 'current', 'date', 'with', 'from', 'is', 'are', 'as', 'eu',

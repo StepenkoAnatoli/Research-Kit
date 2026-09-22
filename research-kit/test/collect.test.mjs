@@ -385,3 +385,27 @@ test('topicMatch REPORTS and never decides - the thresholds that were rejected',
   assert.equal(m.pass, undefined, 'a pass/fail field would make this a gate');
   assert.equal(m.severity, undefined);
 });
+
+test('topicMatch scores high on a generic topic even when the corpus is off-topic', () => {
+  // The limitation, pinned so the number is never read as a quality score. The first real
+  // use after shipping reported 0.92 with eight of eight above threshold, on a corpus where
+  // seven of eight captures were generic "zero data retention" marketing from unrelated
+  // vendors and only one was the document being researched.
+  //
+  // The arithmetic was right. Every one of those pages genuinely contains "data",
+  // "retention", "training" and "zero" - so a topic built from common words matches
+  // anything, and this function cannot tell a distinctive term from a common one.
+  const genericTopic = 'terms of service data retention training on inputs outputs zero retention enterprise';
+  const unrelated = [
+    'Zero data retention explained: how enterprise AI vendors handle training data and service inputs and outputs.',
+    'What is zero data retention? A glossary entry about training, retention and enterprise service terms.',
+  ];
+  const m = topicMatch(genericTopic, unrelated);
+  assert.ok(m.best >= 0.5, `a generic topic matches unrelated pages: got ${m.best}`);
+  assert.ok(m.strong > 0, 'and they clear the threshold, which is exactly the problem');
+
+  // The contrast: distinctive terms behave the way the signal is useful for.
+  const distinctive = 'EU Deforestation Regulation 2023/1115 operators SMEs';
+  assert.equal(topicMatch(distinctive, unrelated).strong, 0,
+    'a distinctive topic does NOT match unrelated pages');
+});

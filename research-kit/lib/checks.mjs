@@ -373,11 +373,19 @@ function captureCompleteness(corpus) {
         { file: capture.file }));
       continue;
     }
+    // The instruction names the EVIDENCE row on purpose. It used to say "a `renderReview:`
+    // front-matter line", which is the one place the note must NOT go - the paragraph above
+    // explains why, and the message contradicted it. A reviewer who followed it literally
+    // got a BLOCKING `provenance/body-unmodified` failure and kept this warning, because
+    // editing a capture breaks the hash recorded at fetch. Measured, not reasoned: doing
+    // exactly what the old text said turned a 1-warning PASS into a 1-blocking FAIL.
     out.push(finding('warn', 'capture-completeness', 'partial-render',
       `${capture.file} contains ${hits} render-failure notice(s) from the page itself - `
       + 'it arrived whole, so `completeness` cannot see this. Confirm the text cited from it is '
-      + `present, then record what you checked in a \`renderReview:\` front-matter line of at least ${MIN_RENDER_REVIEW} characters`
-      + (reviewed ? ` (the current one gives only "${reviewed}")` : ''),
+      + `present, then write \`[render-reviewed: what you checked]\` (at least ${MIN_RENDER_REVIEW} `
+      + 'characters) into the Finding cell of an EVIDENCE row that cites this capture. Do not edit '
+      + 'the capture: the ledger hashes it whole, front-matter included'
+      + (reviewed ? ` (the current note gives only "${reviewed}")` : ''),
       { file: capture.file }));
   }
   if (!out.length) out.push(finding('pass', 'capture-completeness', 'completeness', 'no closed unknown rests on a partial capture alone'));
