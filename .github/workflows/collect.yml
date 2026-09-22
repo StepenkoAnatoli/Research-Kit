@@ -154,6 +154,14 @@ on:
         default: 'quick'
         type: choice
         options: [probe, quick, normal]
+      prefer:
+        description: 'Domains that OWN the fact, comma-separated - e.g. "tavily.com,docs.github.com". Ranked above pages merely about it. Optional, and it only bites because the candidate pool is now wider than the page budget.'
+        required: false
+        default: ''
+      queries:
+        description: 'The actual search queries, one per line. Optional: without them the topic is used verbatim, which is how three corpora here came back mostly noise. A topic is a description; a query is a question.'
+        required: false
+        default: ''
       prior:
         description: 'What you EXPECT the evidence to say, and what you know you cannot know yet. Optional, and this is the only moment it can be registered - it is chained into the ledger ahead of the first page and refused afterwards. Nothing grades it; being wrong is the point (ADR-0039). Same disclosure as topic: not in any name, and not in an unauthenticated response.'
         required: false
@@ -420,6 +428,8 @@ jobs:
         env:
           TOPIC: ${{ inputs.topic }}
           MAX_PAGES: ${{ inputs.max_pages }}
+          PREFER: ${{ inputs.prefer }}
+          QUERIES: ${{ inputs.queries }}
         run: |
           set -e
           mkdir -p "$SCRATCH"
@@ -448,11 +458,37 @@ jobs:
             // mean what it says. Nothing about SPEND changes - maxScrapes still bounds
             // the fetches, and this only widens the list they are chosen from.
             plan.perQuery = Number(process.env.MAX_PAGES);
-            plan.limit = Math.max(Number(process.env.MAX_PAGES), plan.limit ?? 8);
-            plan.queries = [{ q: topic, why: "the dispatched topic", prefer: [] }];
+            // The FUNNEL: ask for more than you keep, or ranking has nothing to choose.
+            //
+            // limit is how many results the search is asked for; perQuery is how many of
+            // them survive the ranked slice in selectCandidates. Setting both to max_pages made
+            // them equal, so the slice kept everything the search returned and rankCandidate
+            // - the preferred-domain bonus, the docs/terms bonuses, the blog/forum penalty -
+            // could not affect a single collection. Measured on job-0922h: "searched
+            // firecrawl-cli 8 -> 8 distinct", max_pages 8, and all 8 were collected
+            // including seven that were off topic.
+            //
+            // Widening costs nothing. A search is billed per search, not per result - so
+            // this changes what the ranking gets to choose FROM, and spend stays bounded by
+            // maxScrapes and perQuery exactly as before.
+            plan.limit = Math.max(Number(process.env.MAX_PAGES) * 3, 10);
+            // Preferred domains - prefer the page that OWNS the fact - restored on
+            // the path everyone actually uses. Applied to every query - runResearch unions
+            // plan.prefer with the per-query list.
+            plan.prefer = (process.env.PREFER || "").split(/[\s,]+/).filter(Boolean);
+            // The dispatcher may supply the real queries. A topic is a DESCRIPTION, and
+            // using it verbatim as the one search string is why three corpora here came back
+            // mostly noise: "input", "data retention" and "regulation" are common words, so
+            // the search matched the words rather than the subject. Nothing guesses how to
+            // split a topic - four heuristics have been measured and rejected in this
+            // repository already. The caller knows the question; it can say it.
+            const supplied = (process.env.QUERIES || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+            plan.queries = supplied.length
+              ? supplied.map((q) => ({ q, why: "dispatched", prefer: [] }))
+              : [{ q: topic, why: "the dispatched topic", prefer: [] }];
             plan.urls = [];
             fs.writeFileSync("research/plan.json", `${JSON.stringify(plan, null, 2)}\n`, "utf8");
-            console.log(`plan written: 1 query, maxScrapes ${plan.maxScrapes}, perQuery ${plan.perQuery}`);
+            console.log(`plan written: ${plan.queries.length} quer${plan.queries.length === 1 ? "y" : "ies"}, maxScrapes ${plan.maxScrapes}, perQuery ${plan.perQuery}, limit ${plan.limit}, prefer [${plan.prefer.join(", ")}]`);
           '
 
       - name: seed the map, spending nothing
