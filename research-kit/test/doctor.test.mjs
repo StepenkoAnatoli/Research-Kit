@@ -288,6 +288,102 @@ test('deploy does NOT mirror a skill root - it holds other people\'s skills too'
     'mirroring a shared skill root would delete skills the kit never owned');
 });
 
+// --- recorded is not current -------------------------------------------------------
+
+/** A source tree and a deployment of it, with the drift the caller asks for. */
+async function deployed({ stale = false, missing = false, orphan = false, skillStale = false } = {}) {
+  const { deploy, deployedDrift } = await import('../lib/installer.mjs');
+  const source = tempDir('research-kit-drift-src-');
+  const target = tempDir('research-kit-drift-dst-');
+  const skillRoot = tempDir('research-kit-drift-skills-');
+  writeText(path.join(source, 'lib', 'core.mjs'), 'export const a = 1;\n');
+  writeText(path.join(source, 'bin', 'prior.mjs'), '// the step shipped this morning\n');
+  writeText(path.join(source, 'skill', 'SKILL.md'), '# research-first\n\n3. Register your prior.\n');
+
+  const cfg = path.join(tempDir('research-kit-drift-cfg-'), 'c.json');
+  writeText(cfg, JSON.stringify({ skillRoots: [skillRoot] }));
+  const env = {
+    ...process.env,
+    RESEARCH_KIT_CONFIG: cfg,
+    // Beside the deployment, never inside it - INSTALL_STATE_PATH is a SIBLING of
+    // kitHome, and a fixture that put it within would report it as an orphan forever.
+    RESEARCH_KIT_INSTALL_STATE: path.join(tempDir('research-kit-drift-state-'), 'install.json'),
+  };
+  deploy({ from: source, kitHome: target, env });
+
+  // Now the source moves on, or the deployment is damaged, which is the same thing.
+  if (stale) writeText(path.join(source, 'lib', 'core.mjs'), 'export const a = 2;\n');
+  if (missing) writeText(path.join(source, 'lib', 'brand-new.mjs'), 'export const b = 1;\n');
+  if (orphan) writeText(path.join(target, 'lib', 'left-behind.mjs'), 'export const old = 1;\n');
+  if (skillStale) writeText(path.join(source, 'skill', 'SKILL.md'), '# research-first\n\n3. Register your prior.\n4. Collect.\n');
+
+  return { source, target, env, drift: () => deployedDrift({ from: source, kitHome: target, env }) };
+}
+
+test('a deployment that matches its source reports no drift', async () => {
+  const { drift } = await deployed();
+  assert.equal(drift().drifted, 0);
+});
+
+test('doctor sees a deployment that is merely RECORDED, not current', async () => {
+  // The defect this replaces, measured on the real machine on 2026-09-22: the check read
+  // the install STATE and stopped - "kit deployed <date>", pass, READY - while the deployed
+  // kit was missing 119 files and carrying 38 stale ones, including a skill that described
+  // a protocol without the step shipped that morning.
+  //
+  // An agent invoking the skill runs the DEPLOYED copy. So a health check that confirms an
+  // install happened, and never that it matches, reports a machine as ready while every fix
+  // since that install exists only in the repository.
+  const { drift } = await deployed({ stale: true, missing: true });
+  const d = drift();
+  assert.ok(d.kit.changed.includes('lib/core.mjs'), 'a file whose bytes moved on is stale');
+  assert.ok(d.kit.missing.includes('lib/brand-new.mjs'), 'a file added since the install is missing');
+  assert.equal(d.drifted, 2);
+});
+
+test('a file the deployment kept and the source no longer ships is reported as orphaned', async () => {
+  const { drift } = await deployed({ orphan: true });
+  const d = drift();
+  assert.deepEqual(d.kit.extra, ['lib/left-behind.mjs']);
+  assert.ok(d.drifted > 0);
+});
+
+test('a stale SKILL is reported on its own, because that is what an agent reads', async () => {
+  // The skill drifts independently of the kit: it is copied to a different root, and it is
+  // the file that tells an agent what the protocol IS. A current kit under a stale skill is
+  // a machine that has the fix and will not use it.
+  const { drift } = await deployed({ skillStale: true });
+  const d = drift();
+  // The kit deployment CONTAINS skill/, so a moved SKILL.md legitimately shows in both.
+  // What matters is that the skill root is reported on its own, by location.
+  assert.deepEqual(d.kit.changed, ['skill/SKILL.md']);
+  assert.equal(d.skills.length, 1);
+  assert.deepEqual(d.skills[0].changed, ['SKILL.md']);
+  assert.ok(d.drifted > 0, 'a stale skill alone is still drift');
+});
+
+test('the drift note names what moved and what to run', async () => {
+  const { driftNote } = await import('../lib/installer.mjs');
+  const { drift } = await deployed({ stale: true, missing: true });
+  const note = driftNote(drift());
+  assert.match(note, /1 missing/);
+  assert.match(note, /1 stale/);
+  assert.match(note, /lib\/(brand-new|core)\.mjs/, 'a count without an example is not actionable');
+  assert.equal(driftNote({ drifted: 0 }), '', 'silence when it matches');
+});
+
+test('the drift check reports and never repairs', async () => {
+  // A health check that quietly rewrote what it was measuring would erase the evidence of
+  // the problem it just found, and `doctor` is documented read-only apart from one override
+  // log. Pinned structurally rather than by phrasing.
+  const { drift, target } = await deployed({ stale: true, missing: true });
+  drift();
+  assert.equal(fs.existsSync(path.join(target, 'lib', 'brand-new.mjs')), false,
+    'deployedDrift installed the missing file instead of reporting it');
+  assert.equal(readText(path.join(target, 'lib', 'core.mjs')), 'export const a = 1;\n',
+    'deployedDrift overwrote the stale file instead of reporting it');
+});
+
 // --- a registration must point at the DEPLOYED kit, not merely name the hook ------
 
 test('a registration naming our hook in SOMEBODY ELSE\'S tree is foreign, not current', () => {
