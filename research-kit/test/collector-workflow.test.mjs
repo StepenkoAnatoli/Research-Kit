@@ -206,6 +206,31 @@ test('the caller reference is declared PUBLIC where a dispatcher will read it', 
     'the run should also warn on the run itself, where the reference was actually used');
 });
 
+test('the anonymous disclosure table never appears without the signed-in caveat', () => {
+  // The rule ADR-0035's amendment exists to enforce: state the SCOPE of a measurement in
+  // the same breath as its result.
+  //
+  // The anonymous table is true and was honestly obtained - 403 on logs, 401 on artifacts,
+  // the topic in none of the readable responses. Printed alone it still misleads, because a
+  // list of refusals reads as "the subject is private" and it is not: Actions echoes a
+  // step's `env:` block into the job log, every dispatch input arrives through `env:`, and
+  // on a public repository anyone with an account can read that log.
+  //
+  // Neither half is deleted. A correction that erases what it corrected teaches nobody, and
+  // this pins that the two travel together wherever the table is repeated.
+  const sources = [
+    ['collect.yml', yaml ?? ''],
+    ['research-kit/README.md', fs.readFileSync(path.join(KIT_ROOT, 'README.md'), 'utf8')],
+  ];
+  for (const [name, text] of sources) {
+    if (!/job \*?\*?logs?\*?\*?[^\n]*403/i.test(text)) continue;
+    assert.ok(/signed[- ]in/i.test(text),
+      `${name} prints the anonymous refusal table without saying what a signed-in reader sees`);
+    assert.ok(/env:/.test(text) && /\blog\b/i.test(text),
+      `${name} does not name the mechanism - the job log echoing a step's env: block`);
+  }
+});
+
 // ---------------------------------------------------------------- correlation
 
 test('the dispatch API version is pinned, and the documented one', () => {
