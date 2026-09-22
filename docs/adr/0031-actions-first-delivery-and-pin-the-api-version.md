@@ -201,7 +201,15 @@ reaches 1.1, or if artifact download proves too awkward in practice.
 > means no collection. That is the group the `.exe` existed to serve, and rejecting it leaves
 > them on the hosted route. Accepted deliberately.
 >
-> This is a decision with a consequence, not an open gap, and it is listed that way. The
+> **Cost update, 2026-09-22.** Evidence: `docs/decisions/2026-09-22-build-sea/`. The packaging
+> half of the reopening estimate is smaller than recorded here: Node **v25.5.0** added
+> `--build-sea`, so producing a binary no longer needs the external `postject` injector
+> installed and pinned. The decision is unchanged - the .exe is still rejected on scope - and
+> the estimate it promised would stay cheap is now cheaper. Worth noting that this was already
+> true when the paragraphs above were written; the sea-assets corpus read the same page and
+> nobody looked at its changelog entries.
+>
+> > This is a decision with a consequence, not an open gap, and it is listed that way. The
 > distinction matters because an item that nothing can ever close reads like diligence while
 > functioning as noise — the same argument this ADR already makes about the ergonomics
 > question a few paragraphs down.
