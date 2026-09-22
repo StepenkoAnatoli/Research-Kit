@@ -37,6 +37,8 @@ const HELP = `collect-remote - run the collector on GitHub Actions and bring the
   --repository OWNER/REPO   required
   --topic "<text>"          required. Visible to anyone who can read the repository.
   --max-pages <1-25>        default 8. Each page costs at least one credit.
+  --search-transport <name> auto | serpapi | firecrawl-cli. Default auto: a SerpApi key
+                            wins, else the fetch provider. Pin one to compare them.
   --depth probe|quick|normal  default quick
   --client-ref <id>         optional. PUBLIC: it becomes the run and artifact name.
   --runner ubuntu-latest|windows-latest   default ubuntu-latest
@@ -63,6 +65,7 @@ requireRuntime({ node: true });
 
 const KNOWN = new Set([
   'repository', 'topic', 'max-pages', 'depth', 'client-ref', 'runner', 'workflow', 'ref',
+  'search-transport',
   'out', 'timeout', 'no-wait', 'json', 'help',
 ]);
 const unknown = Object.keys(flags).filter((f) => !KNOWN.has(f));
@@ -113,6 +116,7 @@ const inputs = {
   max_pages: String(flags['max-pages'] ?? 8),
   depth: String(flags.depth ?? 'quick'),
   runner: String(flags.runner ?? 'ubuntu-latest'),
+  search_transport: String(flags['search-transport'] ?? 'auto'),
 };
 if (flags['client-ref'] !== undefined && flags['client-ref'] !== true) inputs.client_ref = String(flags['client-ref']);
 
