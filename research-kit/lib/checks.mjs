@@ -287,9 +287,28 @@ function subtopicCoverage(corpus) {
 
 // ---------------------------------------------------------------- 8. capture-completeness
 
+/** A recorded render review must say what was checked; this is the floor that makes it mean something. */
+const MIN_RENDER_REVIEW = 30;
+
 /** How many render-failure notices this capture's page printed, or 0. */
 function renderFailureMarkers(corpus, capture) {
   return corpus.captures.renderFailures?.get(capture.file) ?? 0;
+}
+
+const RENDER_REVIEW_RE = /\[render-reviewed:\s*([^\]]*)\]/i;
+
+/**
+ * The reviewer's note that a capture's render-failure notice was checked out, read from
+ * the EVIDENCE row that cites the capture - never from the capture itself, which the
+ * ledger hashes whole.
+ */
+function renderReviewNote(corpus, capture) {
+  for (const row of corpus.evidence) {
+    if (captureOf(corpus, row)?.file !== capture.file) continue;
+    const match = RENDER_REVIEW_RE.exec(String(row.finding ?? ''));
+    if (match) return match[1].trim();
+  }
+  return '';
 }
 
 
@@ -334,9 +353,31 @@ function captureCompleteness(corpus) {
   for (const capture of corpus.captures.entries) {
     const hits = renderFailureMarkers(corpus, capture);
     if (!hits) continue;
+
+    // The finding is a REVIEW INSTRUCTION - "confirm the text you cite is present" - so it
+    // has to be closable by having done the review. Same bargain `completeness: partial`
+    // strikes with `omitted:`: you may say the shortfall is accounted for, and you must say
+    // what you checked. Without it the warning stands forever on three captures this
+    // repository actively relies on, and a permanent warning is one nobody reads.
+    //
+    // THE NOTE LIVES ON THE EVIDENCE ROW, NOT IN THE CAPTURE'S FRONT-MATTER, and the reason
+    // is worth keeping: `verifyLedger` hashes the WHOLE capture file, front-matter included.
+    // Annotating a capture would break `body-unmodified` and fail the chain. A capture is
+    // evidence and stays byte-immutable; a reviewer's judgement about it is corpus prose,
+    // and corpus prose is where judgements already live (the unknown's status, the map's
+    // DISMISSED reason). The first design put it in front-matter and the ledger refused it.
+    const reviewed = renderReviewNote(corpus, capture);
+    if (reviewed.length >= MIN_RENDER_REVIEW) {
+      out.push(finding('pass', 'capture-completeness', 'partial-render-reviewed',
+        `${capture.file} prints ${hits} render-failure notice(s), and the review is recorded: ${reviewed}`,
+        { file: capture.file }));
+      continue;
+    }
     out.push(finding('warn', 'capture-completeness', 'partial-render',
       `${capture.file} contains ${hits} render-failure notice(s) from the page itself - `
-      + 'it arrived whole, so `completeness` cannot see this. Confirm the text cited from it is present',
+      + 'it arrived whole, so `completeness` cannot see this. Confirm the text cited from it is '
+      + `present, then record what you checked in a \`renderReview:\` front-matter line of at least ${MIN_RENDER_REVIEW} characters`
+      + (reviewed ? ` (the current one gives only "${reviewed}")` : ''),
       { file: capture.file }));
   }
   if (!out.length) out.push(finding('pass', 'capture-completeness', 'completeness', 'no closed unknown rests on a partial capture alone'));
@@ -534,6 +575,32 @@ function corpusShape(corpus) {
  * about itself. The finding says which of those it found, because the remedies differ:
  * one wants another page, the other wants another party.
  */
+/**
+ * A reviewer's recorded judgement that an unknown has ONE witness and cannot have two.
+ *
+ * WHY THIS EXISTS. `corroboration` reports the shape of support and leaves the judgement
+ * to a reviewer (ADR-0036) - but it gave the reviewer nowhere to put the judgement. So a
+ * claim that had been considered and correctly left single-sourced looked exactly like one
+ * nobody had looked at twice, forever, and `evidencePolicy=strict` was unsatisfiable by
+ * any corpus containing an honest one.
+ *
+ * WHY A REASON IS REQUIRED, and why that is the whole mechanism: this is the same shape
+ * `MAP.md` already uses for `DISMISSED` and `completeness: partial` uses for `omitted` -
+ * you may overrule the default, and you must say why in writing that survives in the
+ * corpus. The check does not grade the reason (ADR-0013); it requires one to exist and
+ * shows it in the finding, so the judgement is auditable rather than invisible.
+ *
+ * MIN_REASON exists because `[single-witness: n/a]` would otherwise be a silent mute.
+ */
+const SINGLE_WITNESS_RE = /\[single-witness:\s*([^\]]*)\]/i;
+const MIN_WITNESS_REASON = 30;
+
+function singleWitnessNote(unknown) {
+  const match = SINGLE_WITNESS_RE.exec(String(unknown.evidence ?? ''));
+  if (!match) return null;
+  return { reason: match[1].trim() };
+}
+
 function corroboration(corpus) {
   const out = [];
   const byId = new Map(corpus.evidence.map((row) => [row.id.toUpperCase(), row]));
@@ -555,46 +622,77 @@ function corroboration(corpus) {
       .filter(Boolean);
     if (!rows.length) continue;
 
+    // The SHAPE of the support, computed once. Whether that shape is acceptable is a
+    // separate question, answered below, because a reviewer may overrule it with a reason.
+    let shape;
     if (rows.length === 1) {
-      out.push(finding('warn', 'corroboration', 'single-source',
-        `${unknown.id} rests on ${rows[0].id} alone - one reading, so a correct source and a lucky one look the same`,
+      shape = { rule: 'single-source', detail: `rests on ${rows[0].id} alone - one reading, so a correct source and a lucky one look the same` };
+    } else {
+      const hosts = new Set(rows.map((row) => hostOf(row.url)).filter(Boolean));
+      if (hosts.size === 1) {
+        shape = { rule: 'one-voice', detail: `cites ${rows.length} rows and all are ${[...hosts][0]} - a second reading of one source, which catches a misreading and not a source that is wrong about itself` };
+      } else {
+        // Several hosts is where the host heuristic used to stop and say `independent`. A
+        // mirror passes that test while carrying LESS than either genuine page, so the rows
+        // are grouped into distinct DOCUMENTS before the hosts are counted again.
+        const groups = documentGroups(rows.map((row) => corpus.captures.sketches?.get(captureOf(corpus, row)?.file) ?? null));
+        if (groups.length === 1) {
+          shape = { rule: 'mirror', detail: `cites ${rows.length} rows across ${hosts.size} hosts but they are the same document - a republished copy is one witness, and the copy may be the stale one` };
+        } else {
+          // Hosts that survive as DISTINCT documents. A three-row unknown where two rows
+          // mirror each other still counts the third, so this reports what is independent.
+          const distinctHosts = new Set(groups.map((g) => hostOf(rows[g[0]].url)).filter(Boolean));
+          if (distinctHosts.size === 1) {
+            shape = { rule: 'one-voice', detail: `cites ${rows.length} rows across ${hosts.size} hosts, but after grouping republished copies only ${[...distinctHosts][0]} remains - one voice` };
+          } else {
+            const mirrored = rows.length - groups.length;
+            shape = {
+              corroborated: true,
+              rule: 'independent',
+              detail: `rests on ${groups.length} distinct documents across ${distinctHosts.size} hosts`
+                + (mirrored ? ` (${mirrored} of ${rows.length} rows are republished copies and were not counted twice)` : ''),
+            };
+          }
+        }
+      }
+    }
+
+    const note = singleWitnessNote(unknown);
+
+    // An acknowledgement left on an unknown that has SINCE been corroborated is reported,
+    // not silently ignored. It now claims no second witness exists while the corpus holds
+    // one - which is a stale claim of exactly the kind this repository keeps finding in its
+    // own prose, and the only moment anything can notice is right here.
+    if (shape.corroborated) {
+      if (note) {
+        out.push(finding('warn', 'corroboration', 'single-witness-stale',
+          `${unknown.id} ${shape.detail}, but still carries a [single-witness: ...] note claiming it cannot be corroborated - remove the note or the claim is false`,
+          { row: unknown.id, line: unknown.line }));
+        continue;
+      }
+      out.push(finding('pass', 'corroboration', shape.rule, `${unknown.id} ${shape.detail}`,
         { row: unknown.id, line: unknown.line }));
       continue;
     }
 
-    const hosts = new Set(rows.map((row) => hostOf(row.url)).filter(Boolean));
-    if (hosts.size === 1) {
-      out.push(finding('warn', 'corroboration', 'one-voice',
-        `${unknown.id} cites ${rows.length} rows and all are ${[...hosts][0]} - a second reading of one source, which catches a misreading and not a source that is wrong about itself`,
+    if (!note) {
+      out.push(finding('warn', 'corroboration', shape.rule, `${unknown.id} ${shape.detail}`,
         { row: unknown.id, line: unknown.line }));
       continue;
     }
 
-    // Several hosts is where the host heuristic used to stop and say `independent`. A
-    // mirror passes that test while carrying LESS than either genuine page, so the rows
-    // are grouped into distinct DOCUMENTS before the hosts are counted again.
-    const groups = documentGroups(rows.map((row) => corpus.captures.sketches?.get(captureOf(corpus, row)?.file) ?? null));
-    if (groups.length === 1) {
-      out.push(finding('warn', 'corroboration', 'mirror',
-        `${unknown.id} cites ${rows.length} rows across ${hosts.size} hosts but they are the same document - a republished copy is one witness, and the copy may be the stale one`,
+    // A note with no real reason is a mute button, and gets its own finding rather than
+    // quietly behaving like the default - otherwise the weakest possible acknowledgement
+    // and no acknowledgement at all would be indistinguishable.
+    if (note.reason.length < MIN_WITNESS_REASON) {
+      out.push(finding('warn', 'corroboration', 'single-witness-unreasoned',
+        `${unknown.id} ${shape.detail}; its [single-witness: ...] note gives ${note.reason.length ? `only "${note.reason}"` : 'no reason'} - state why no second witness exists, in at least ${MIN_WITNESS_REASON} characters`,
         { row: unknown.id, line: unknown.line }));
       continue;
     }
 
-    // Hosts that survive as DISTINCT documents. A three-row unknown where two rows mirror
-    // each other still counts the third, so this reports what is actually independent.
-    const distinctHosts = new Set(groups.map((g) => hostOf(rows[g[0]].url)).filter(Boolean));
-    if (distinctHosts.size === 1) {
-      out.push(finding('warn', 'corroboration', 'one-voice',
-        `${unknown.id} cites ${rows.length} rows across ${hosts.size} hosts, but after grouping republished copies only ${[...distinctHosts][0]} remains - one voice`,
-        { row: unknown.id, line: unknown.line }));
-      continue;
-    }
-
-    const mirrored = rows.length - groups.length;
-    out.push(finding('pass', 'corroboration', 'independent',
-      `${unknown.id} rests on ${groups.length} distinct documents across ${distinctHosts.size} hosts`
-        + (mirrored ? ` (${mirrored} of ${rows.length} rows are republished copies and were not counted twice)` : ''),
+    out.push(finding('pass', 'corroboration', 'single-witness',
+      `${unknown.id} ${shape.detail} - accepted on the record: ${note.reason}`,
       { row: unknown.id, line: unknown.line }));
   }
 

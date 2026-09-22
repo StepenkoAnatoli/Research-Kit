@@ -488,3 +488,81 @@ test('corroboration: it never fails on its own, whatever it finds', () => {
     }
   }
 });
+
+// ---------------------------------------------------------------- accepted judgements
+
+test('corroboration: a reasoned single-witness note is accepted, and shows its reason', () => {
+  // The mechanism `corroboration` was missing. It reports the shape of support and leaves
+  // the judgement to a reviewer (ADR-0036) - and gave the reviewer nowhere to put it, so a
+  // claim correctly left single-sourced looked like one nobody checked, forever, and
+  // `strict` was unsatisfiable by any corpus containing an honest one.
+  const dir = withEvidence(makePassingProject(), [
+    '| E-01 | 2026-09-14 | P | https://example.invalid/docs/limits | ten a minute | research/raw/x.md |',
+  ], 'E-01 [single-witness: the vendor stating its own tier limits, and no second party can testify to what it includes]');
+
+  const findings = runCheck('corroboration', snapshot(dir));
+  assert.equal(findings[0].severity, 'pass');
+  assert.equal(findings[0].rule, 'single-witness');
+  assert.match(findings[0].detail, /accepted on the record: the vendor stating its own tier/);
+});
+
+test('corroboration: a note without a real reason is NOT a mute button', () => {
+  // Otherwise the weakest possible acknowledgement and no acknowledgement at all would be
+  // indistinguishable, and the mechanism would be a way to turn the check off quietly.
+  for (const note of ['[single-witness: n/a]', '[single-witness:]', '[single-witness: vendor]']) {
+    const dir = withEvidence(makePassingProject(), [
+      '| E-01 | 2026-09-14 | P | https://example.invalid/docs/limits | ten a minute | research/raw/x.md |',
+    ], `E-01 ${note}`);
+    const findings = runCheck('corroboration', snapshot(dir));
+    assert.equal(findings[0].severity, 'warn', `${note} must not pass`);
+    assert.equal(findings[0].rule, 'single-witness-unreasoned');
+  }
+});
+
+test('corroboration: a note left on an unknown that HAS been corroborated is reported', () => {
+  // The annotation must not rot. Once a second document arrives, a note claiming none can
+  // exist is a false statement sitting in the contract, and this is the only moment
+  // anything can notice.
+  const dir = withEvidence(makePassingProject(), [
+    '| E-01 | 2026-09-14 | P | https://example.invalid/a | x | research/raw/x.md |',
+    '| E-02 | 2026-09-14 | P | https://other.invalid/b | x | research/raw/y.md |',
+  ], 'E-01 and E-02 [single-witness: this reason is long enough to clear the floor but is now false]');
+
+  const findings = runCheck('corroboration', snapshot(dir));
+  assert.equal(findings[0].severity, 'warn');
+  assert.equal(findings[0].rule, 'single-witness-stale');
+  assert.match(findings[0].detail, /remove the note or the claim is false/);
+});
+
+test('capture-completeness: a recorded render review closes partial-render', () => {
+  const dir = makePassingProject();
+  const capture = readCorpus(dir).captures.entries[0];
+  corrupt(dir, capture.file, (text) => `${text}\n\nThere was an error while loading. Please reload this page.\n`);
+  corrupt(dir, PATHS.evidence, (text) => text.replace(
+    'The free plan allows 10 requests per minute and includes 1,000 credits.',
+    'The free plan allows 10 requests per minute. [render-reviewed: searched the capture and confirmed the quoted rate limit is present; the failed widget is page furniture]',
+  ));
+
+  const findings = runCheck('capture-completeness', snapshot(dir));
+  const hit = findings.find((f) => f.rule.startsWith('partial-render'));
+  assert.equal(hit.rule, 'partial-render-reviewed');
+  assert.equal(hit.severity, 'pass');
+});
+
+test('capture-completeness: the render review is read from the ROW, never the capture', () => {
+  // `verifyLedger` hashes the whole capture file, front-matter included, so annotating a
+  // capture would break `body-unmodified`. A capture is evidence and stays byte-immutable;
+  // the judgement about it is corpus prose. The first design put it in front-matter and the
+  // ledger refused it - this pins the constraint so it cannot be undone by tidying.
+  const dir = makePassingProject();
+  const capture = readCorpus(dir).captures.entries[0];
+  corrupt(dir, capture.file, (text) => text.replace(
+    '---\n\n',
+    'renderReview: searched the capture and confirmed the quoted rate limit is present\n---\n\n',
+  ));
+  corrupt(dir, capture.file, (text) => `${text}\n\nThere was an error while loading.\n`);
+
+  const findings = runCheck('capture-completeness', snapshot(dir));
+  assert.ok(findings.some((f) => f.rule === 'partial-render'),
+    'a note in the capture front-matter must NOT satisfy the review - the ledger hashes it');
+});
