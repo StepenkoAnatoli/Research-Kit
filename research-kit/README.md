@@ -273,8 +273,24 @@ That is why keeping the topic out of the run name and the artifact name is the *
 control rather than a minor one: those names are the disclosure surface, and they are the
 part the workflow governs.
 
-**Not measured, and so not claimed:** what a signed-in user sees in the web UI, which is a
-different surface from the REST API. Treat it as unknown rather than as safe.
+**Measured 2026-09-22, and it is not safe: a signed-in reader sees the topic.** This used to
+say the web UI was unknown. It is not. Actions prints a step's `env:` block into the job
+log, and every dispatch input reaches a step through `env:` — so the log carries
+`TOPIC: <your topic>` verbatim. Anonymously the log is refused (`403`, and the web UI says
+*"Sign in to view logs"*), but on a **public repository that wall is authentication, not
+need-to-know**: anyone with a GitHub account is through it.
+
+The anonymous table above is still true, every row. What was wrong is the inference — a list
+of refusals reads like "the subject is private", and it is not.
+
+This is not worked around, deliberately: passing inputs through `env:` is the same rule that
+keeps them out of a shell, and routing around the log would mean routing around that. And
+`disclosure.mjs` cannot see it *by design* — it probes unauthenticated, because a probe that
+quietly authenticated would answer a different question. Read a clean report as **"a
+stranger learns the shape"**, never as "nobody learns the subject".
+
+**So: to research something you would not publish, do not use this route.** Use a private
+repository, or collect locally.
 
 **Going private is not the reflex fix.** On a GitHub Free plan — which this account is on —
 converting a repository to private makes its protection rules and environment secrets
@@ -397,7 +413,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-888 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+889 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

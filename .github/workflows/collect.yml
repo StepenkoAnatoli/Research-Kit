@@ -54,6 +54,36 @@ name: collect
 # a run - that one happened, when, how long it took, what the steps were called, that an
 # artifact of N bytes exists - and not its subject or its contents.
 #
+# AND THE SIGNED-IN SURFACE IS DIFFERENT. MEASURED 2026-09-22, AND IT IS NOT SAFE.
+#
+# The paragraph above is scoped to ANONYMOUS REST, where it still holds. This comment used
+# to leave the rest at "treat that as unknown rather than safe". It is no longer unknown.
+#
+# Runs 35762363585 and 35762574315, checked both ways on the same run:
+#
+#   anonymous, web UI run page   the input values appear NOWHERE in 236 KB of HTML,
+#                                not even collapsed. Run name, status, duration, step
+#                                names, annotations, artifact name/size/digest only.
+#   anonymous, web UI job log    "Sign in to view logs" - refused, agreeing with REST 403.
+#   SIGNED IN, job log           EVERY dispatch input passed through `env:` is echoed
+#                                VERBATIM, because Actions prints a step's env block:
+#                                  TOPIC: probe
+#                                  PRIOR: PROBE-START length=1200 xxxxxxxx...
+#
+# So on a PUBLIC repository the topic and the prior are readable by anyone with a GitHub
+# account. Not by a passer-by, and not a secret either. The 403 is an authentication wall,
+# not a need-to-know one.
+#
+# Nothing here is the place to fix that - passing an input through `env:` is exactly the
+# rule that keeps it out of a shell (see below), and routing it around the log would mean
+# routing it around that protection. What changes is the CLAIM: do not read "the topic
+# appeared in none of the readable responses" as "the topic is private". Research a subject
+# you would not publish, and use a private repository or a different route.
+#
+# bin/disclosure.mjs cannot see this and should not: it probes unauthenticated on purpose,
+# because a probe that quietly authenticated would answer a different question. A clean
+# disclosure report means "a stranger learns the shape", never "nobody learns the subject".
+#
 # That is why the naming rules above are the primary control rather than a minor one: the
 # names are the disclosure surface, and they are the part this workflow governs.
 #
@@ -90,10 +120,24 @@ on:
     # it - its own "10"s are about concurrency and background steps. So treat three as the
     # remaining budget, not as a guarantee, and expect a loud failure rather than a quiet one.
     #
-    # The other half of that check came back UNANSWERED: nothing found says whether a single
-    # input value has a length limit. It matters here because `prior` is free text, and
-    # silent truncation would corrupt a prediction while leaving it looking intact. Unknown,
-    # and recorded as unknown.
+    # PER-INPUT LENGTH: NOTHING TRUNCATES. MEASURED 2026-09-22, after the corpus failed.
+    #
+    # This was recorded as unknown, and search could not close it. The one on-topic capture
+    # was a 2024 community question asserting "its length is limited to 1024 characters",
+    # whose only reply is a dormancy bot - nobody ever confirmed it. So it was measured
+    # instead, by dispatching a payload of known length with a marker at the very end:
+    #
+    #   1200 chars  run 35762363585  accepted, arrived as 1200, PROBE-END intact
+    #   8000 chars  run 35762574315  accepted, arrived as 8000, PROBE-END intact
+    #
+    # The 1024 figure is NOT what this repository observes, and the dangerous case does not
+    # occur: no silent truncation, so a registered prior cannot be quietly corrupted while
+    # still looking intact.
+    #
+    # What is still unknown, stated rather than rounded off: WHERE the ceiling is. It is
+    # above 8000, and locating it costs one dispatch per probe, so it was not bisected. A
+    # realistic prior is a few hundred characters, which is an order of magnitude inside
+    # what has actually been shown to work.
     inputs:
       topic:
         description: 'What to research. Visible to anyone who can read this repository.'

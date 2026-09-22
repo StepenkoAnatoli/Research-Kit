@@ -186,3 +186,57 @@ cannot make — the same reason `client_ref` warns rather than refuses.
 - `bin/disclosure.mjs` is read-only and unauthenticated, so it is safe to run against a
   repository you do not own — which is also the only way to check somebody else's claim
   about their own exposure.
+
+## Amendment, 2026-09-22 — the signed-in surface was measured, and it is not safe
+
+This ADR left a hole and named it: *"what a signed-in user with read access sees in the web
+UI, which is a different surface from the REST API. Treat that as unknown rather than safe."*
+
+It is no longer unknown. Runs `35762363585` and `35762574315`, checked both ways:
+
+| surface | result |
+|---|---|
+| anonymous, web UI **run page** | the dispatch input values appear **nowhere** in 236 KB of HTML, not even collapsed |
+| anonymous, web UI **job log** | *"Sign in to view logs"* — refused, agreeing with the REST `403` |
+| **signed in**, job log | **every input passed through `env:` is echoed verbatim** |
+
+The third row is the finding. GitHub Actions prints a step's `env:` block into the log, so
+the log carries:
+
+```
+TOPIC: probe
+PRIOR: PROBE-START length=1200 xxxxxxxx...
+```
+
+**On a public repository, that makes the topic readable by anyone with a GitHub account.**
+Not by a passer-by — the `403` is real — but the wall is authentication, not need-to-know.
+
+### What this changes, and what it does not
+
+**The measurement in the body above stands.** Every row of it was scoped to unauthenticated
+REST and every row is still true. What was wrong is the inference a reader would draw from
+it, and this ADR is the reason they would draw it: a table of refusals invites the
+conclusion that the subject is private, and it is not.
+
+**It is not fixed here, deliberately.** Passing an input through `env:` is the same rule
+that keeps it out of a shell (ADR-0020). Routing it around the log would mean routing it
+around that protection, and trading a disclosure to signed-in readers for a code-execution
+surface is a bad trade. The honest response is the accurate claim, not a workaround.
+
+**`bin/disclosure.mjs` is unchanged and should be.** It probes unauthenticated on purpose —
+a probe that quietly authenticated would answer a different question while looking like this
+one. What changes is how its output must be read: a clean report means *a stranger learns
+the shape*, never *nobody learns the subject*.
+
+### The rule this is the third instance of
+
+Twice this ADR has recorded something that felt settled and turned out untrue when run —
+first the header's claim that inputs are visible, then this. Both times the error was in the
+step from *what was measured* to *what it means*, not in the measurement.
+
+So the standing correction is narrower than "measure it": **state the scope of the
+measurement in the same breath as its result**, because a true finding with its scope left
+off is how an overstatement gets built on top of honest work.
+
+**Practical consequence:** research a subject you would not publish, and this route is the
+wrong one. Use a private repository, or collect locally.
