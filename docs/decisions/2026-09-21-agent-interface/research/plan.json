@@ -5,24 +5,24 @@
   "refreshDays": 30,
   "limit": 8,
   "perQuery": 3,
-  "maxScrapes": 6,
+  "maxScrapes": 5,
   "prefer": [],
   "queries": [],
   "urls": [
     {
-      "url": "https://datatracker.ietf.org/doc/html/rfc9728",
+      "url": "https://modelcontextprotocol.io/community/governance",
       "type": "P",
-      "why": "U-4: the OAuth Protected Resource Metadata standard the MCP spec defers to - an independent standards body"
+      "why": "U-8/D-11: who controls the specification"
     },
     {
-      "url": "https://github.com/modelcontextprotocol/typescript-sdk",
+      "url": "https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/GOVERNANCE.md",
       "type": "P",
-      "why": "U-1/U-3/U-6/U-7: the reference implementation - what the protocol requires in running code"
+      "why": "U-8/D-11: the governance document at its source - deliberately also a mirror test"
     },
     {
-      "url": "https://www.jsonrpc.org/specification",
+      "url": "https://blog.modelcontextprotocol.io/posts/2026-07-28/",
       "type": "P",
-      "why": "U-2 depth: the JSON-RPC layer MCP is built on, for message directions"
+      "why": "U-8/D-11: how a breaking change arrives - the feature lifecycle SEPs"
     }
   ]
 }
