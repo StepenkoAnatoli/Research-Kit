@@ -82,6 +82,22 @@ test('the verified table carries the claim, the source and its type', () => {
   assert.match(verified, /\| P \|/);
 });
 
+test('two unknowns closed by the same row make ONE verified row that names both', () => {
+  // Found 2026-09-26 in docs/decisions/2026-09-26-actions-node24: U-2 and U-4 both led with
+  // E-02, and the brief listed that row's finding twice, word for word, with nothing saying
+  // which unknown either copy closed.
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace(
+    /^(\| U-1 \|.*\|)$/m,
+    '$1\n| U-2 | Is the limit per key? | Sets the budget per machine | CLOSED | E-01: per key |',
+  ));
+  renderBrief(dir, { force: true });
+  const verified = briefSection(readText(resolve(dir, PATHS.brief)), 'verified');
+  const rows = verified.split('\n').filter((line) => /\| E-01/.test(line));
+  assert.equal(rows.length, 1, `the same source is listed ${rows.length} times:\n${rows.join('\n')}`);
+  assert.match(rows[0], /U-1, U-2/, 'the row does not say which unknowns it closes');
+});
+
 test('a claim resting on a partial capture says so in the brief', () => {
   const dir = makePassingProject();
   corrupt(dir, `research/raw/${fs.readdirSync(resolve(dir, PATHS.raw)).find((n) => n.endsWith('.md'))}`,

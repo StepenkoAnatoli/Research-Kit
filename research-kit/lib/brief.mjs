@@ -64,20 +64,31 @@ export function judgedSection(text, key) {
 // ---------------------------------------------------------------- the renderer
 
 function verifiedTable(corpus) {
+  // One row per claim and source, naming every unknown it closes. Two unknowns that lead
+  // with the same E-row have the same claim (`claimOf`), and listing it once per unknown
+  // printed it twice, word for word, with nothing saying which copy closed what.
   const rows = [];
+  const byKey = new Map();
   for (const unknown of corpus.unknowns) {
     if (unknown.status !== 'CLOSED') continue;
     const claim = claimOf(corpus, unknown);
     const cited = unknown.cites.find((id) => /^E-\d+$/i.test(id)) ?? '';
+    const key = `${cited.toUpperCase()}\u0000${claim}`;
+    if (byKey.has(key)) { byKey.get(key).closes.push(unknown.id); continue; }
     const row = corpus.evidence.find((e) => e.id.toUpperCase() === cited.toUpperCase());
     const capture = row ? captureOf(corpus, row) : null;
-    rows.push({
+    const entry = {
       claim: claim.replace(/\|/g, '\\|'),
-      source: `${cited}${row ? ` \`${hostOfUrl(row.url)}\`` : ''}`,
+      cited,
+      host: row ? ` \`${hostOfUrl(row.url)}\`` : '',
+      closes: [unknown.id],
       type: row?.type ?? '',
       partial: capture?.completeness === 'partial',
-    });
+    };
+    byKey.set(key, entry);
+    rows.push(entry);
   }
+  for (const r of rows) r.source = `${r.cited}${r.host} (${r.closes.join(', ')})`;
   if (!rows.length) return '_No closed unknowns yet - nothing is verified._';
   return [
     '| Claim | Source | Type |',
