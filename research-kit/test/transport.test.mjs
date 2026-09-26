@@ -388,6 +388,38 @@ test('O-4: the status parser reads the CLI\'s actual output', () => {
   assert.equal(s.version, '1.23.3');
 });
 
+// Captured from firecrawl-cli v1.24.6 on 2026-09-26, the version TESTED_CLI_VERSION moved to.
+// Why it moved: 1.23.3 bundles axios 1.15.2, which sends plain proxied requests that an
+// HTTPS proxy requiring CONNECT tunnels refuses with 405 - every call failed behind one
+// (research/BRIEF.md, 2026-09-26 addendum). 1.24.6 bundles axios 1.18.0.
+const REAL_STATUS_1246 = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-status-1.24.6.txt'));
+const REAL_SEARCH_1246 = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-search-1.24.6.json'));
+
+test('O-4: the status parser reads the TESTED version\'s actual output (1.24.6)', () => {
+  assert.ok(REAL_STATUS_1246, 'the fixture must exist');
+  const s = firecrawl.parseStatus(REAL_STATUS_1246);
+  assert.equal(s.version, firecrawl.TESTED_CLI_VERSION, 'the fixture and the tested version must be the same release');
+  assert.equal(s.authenticated, true);
+  assert.equal(s.credits, 505);
+  assert.equal(s.creditLimit, 1000);
+  assert.equal(s.concurrencyLimit, 2);
+});
+
+test('O-4: 1.24.6 search output normalises, and its ADDITIVE fields change nothing', () => {
+  // New since 1.23.3: a top-level `warning` and `id`, `data.tools`, and `position` per row.
+  // The adapter reads `data.web` only, so none of them may reach a result.
+  const raw = JSON.parse(REAL_SEARCH_1246);
+  assert.ok(Array.isArray(raw.data.web) && raw.data.web.length, 'the fixture must carry real results');
+  assert.ok('tools' in raw.data && 'warning' in raw, 'the fixture must carry the fields this test is about');
+  const rows = firecrawl.normalizeSearch(REAL_SEARCH_1246);
+  assert.equal(rows.length, raw.data.web.length);
+  for (const row of rows) {
+    assert.match(row.url, /^https?:\/\//);
+    assert.equal(typeof row.title, 'string');
+  }
+  assert.equal(JSON.stringify(rows).includes('tool discovery'), false, 'the vendor warning leaked into results');
+});
+
 test('O-4: stripAnsi removes the ESCAPE, not just the bracket sequence', () => {
   const ESC = String.fromCharCode(27);
   assert.ok(REAL_STATUS.includes(ESC), 'the fixture carries real escapes');

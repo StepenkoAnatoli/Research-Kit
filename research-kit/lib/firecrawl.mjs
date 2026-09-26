@@ -347,8 +347,15 @@ export function cliVersion({ execFn = exec, ...opts } = {}) {
  * expects specific flags, a specific JSON shape, and a specific `--status` rendering, so
  * a major-version bump is a payload contract change the tests cannot see - every one of
  * them drives a stub.
+ *
+ * Moved from 1.23.3 to 1.24.6 on 2026-09-26. 1.23.3 bundles axios 1.15.2 (through the
+ * `firecrawl` SDK 4.24.0), which sends plain proxied requests; an HTTPS proxy that requires
+ * CONNECT tunnels refuses them with 405, so every call failed behind one. 1.24.6 bundles
+ * axios 1.18.0 (SDK 4.40.0). Its `--status`, search and scrape output were captured and read
+ * by this adapter's own parsers before the move: search gained `warning`, `id`, `data.tools`
+ * and a per-row `position`, all additive (test/fixtures/*-1.24.6.*).
  */
-export const TESTED_CLI_VERSION = '1.23.3';
+export const TESTED_CLI_VERSION = '1.24.6';
 export const SUPPORTED_CLI_MAJOR = 1;
 
 /**
@@ -374,7 +381,7 @@ export const SUPPORTED_CLI_MAJOR = 1;
  */
 export const CLI_PACKAGE = 'firecrawl-cli';
 
-/** `firecrawl-cli@1.23.3` or `firecrawl-cli@latest` - never a bare package name. */
+/** `firecrawl-cli@1.24.6` or `firecrawl-cli@latest` - never a bare package name. */
 export function cliInstallSpec(version = TESTED_CLI_VERSION) {
   return `${CLI_PACKAGE}@${version}`;
 }
