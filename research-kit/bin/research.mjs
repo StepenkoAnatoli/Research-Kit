@@ -10,7 +10,7 @@
 import { parseFlags, flagList, refuseUnknownFlags, resolve, readText } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal } from '../lib/machine.mjs';
 import { selectTransport, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES } from '../lib/transport.mjs';
-import { runResearch, readPlan, usageSummary, topicMatch, DEPTHS, DEPTH_SCRAPES } from '../lib/research-run.mjs';
+import { runResearch, searchSummaryLine, readPlan, usageSummary, topicMatch, DEPTHS, DEPTH_SCRAPES } from '../lib/research-run.mjs';
 import { parseCapture, readLedger } from '../lib/corpus.mjs';
 import { readPrior } from '../lib/prior.mjs';
 import { heading } from '../lib/render.mjs';
@@ -149,7 +149,7 @@ process.stdout.write('\n');
 // The second meter reports separately, and a degradation is never silent: it means the
 // run quietly moved spend back onto the fetch budget.
 if (run.searchTransport !== run.transport) {
-  process.stdout.write(`searches   ${run.searchesUsed} on ${run.searchTransport}\n`);
+  process.stdout.write(`${searchSummaryLine(run)}\n`);
   if (run.degraded) {
     process.stdout.write(`degraded   ${run.degraded} quer${run.degraded === 1 ? 'y' : 'ies'} fell back to ${run.transport} - those spent FETCH credits\n`);
   }
