@@ -247,6 +247,7 @@ still work" and "collect this, for a person" have different approvers):
 |---|---|
 | **secret** `FIRECRAWL_API_KEY` | the metered credential for the transport test |
 | **variable** `RESEARCH_KIT_LIVE_ENV=live-collection` | proves the environment exists (since 2026-09-26) |
+| **secret** `SERPAPI_API_KEY` *(optional)* | present, the test searches SerpAPI and the fetch provider merged, which is what exercises `lib/serpapi.mjs` |
 
 Without the variable a metered run refuses before it reads the key or spends anything. The
 keyless route (`transport: http-keyless`) needs neither.
@@ -425,7 +426,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-927 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+929 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

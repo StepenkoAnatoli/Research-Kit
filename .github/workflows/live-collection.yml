@@ -209,6 +209,10 @@ jobs:
       - name: collect into a scratch project, never the repository's corpus
         env:
           FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+          # Optional. Present, the search side merges SerpAPI with the fetch provider
+          # (ADR-0027) - the only way this workflow exercises lib/serpapi.mjs, which its
+          # header says to run it after changing. Absent, the search is the fetch provider.
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
           RESEARCH_KIT_TRANSPORT: ${{ inputs.transport }}
           MAX_PAGES: ${{ inputs.max_pages }}
         run: |
@@ -239,6 +243,10 @@ jobs:
             const plan = JSON.parse(fs.readFileSync(p, "utf8"));
             plan.maxScrapes = Number(process.env.MAX_PAGES);
             plan.perQuery = Number(process.env.MAX_PAGES);
+            // The template plan has no queries and no urls, so without this the run
+            // collected nothing and failed at the ledger step on every dispatch. One fixed,
+            // public query about the vendor itself: a real search, then a real fetch.
+            plan.queries = [{ q: "Firecrawl CLI documentation", why: "live transport check", prefer: ["docs.firecrawl.dev"] }];
             fs.writeFileSync(p, JSON.stringify(plan, null, 2));
             console.log("plan written: maxScrapes " + plan.maxScrapes);
           '
