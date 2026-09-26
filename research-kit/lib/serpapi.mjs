@@ -38,6 +38,21 @@ export const KEY_ENV = 'SERPAPI_API_KEY';
 export const CONFIG_KEY = 'serpapiKey';
 export const DEFAULT_TIMEOUT = 30_000;
 
+/**
+ * What the kit's search-meter numbers mean for THIS vendor (U-9, U-10, U-11; 2026-09-26).
+ *
+ * The caps `searchUsage` reports - 50/hour, 250/month - are the documented Free Plan (E-25,
+ * E-27). SerpAPI's own Account API reported 250/hour for this account and defines that field
+ * as the account's own limit (E-26), so a constant cannot be presented as the account's. And
+ * the vendor's month is a billing cycle (E-27), where the kit counts a calendar month.
+ * `--status` prints these beside the numbers; the account's real figures are one free call away.
+ */
+export const METER_NOTES = Object.freeze([
+  'caps: the documented Free Plan (E-25, E-27); an account can be allowed more - '
+    + 'its own limits are at serpapi.com/account.json, free and uncounted (E-26)',
+  '"this month" is the calendar month (UTC); SerpAPI counts by billing cycle, which may start on another day (E-27)',
+]);
+
 const SELF = fileURLToPath(import.meta.url);
 
 // ---------------------------------------------------------------- the credential

@@ -14,7 +14,7 @@ under `research/raw/`; a source without raw evidence was not fetched.
 
 | URL | Type | Title | Retrieved | Used for |
 |---|---|---|---|---|
-| https://serpapi.com/pricing | S | SerpApi: Plans and Pricing | 2026-09-19 | U-5 |
+| https://serpapi.com/pricing | P | SerpApi: Plans and Pricing | 2026-09-26 | U-9 U-10 - re-read of E-07 |
 | https://serpapi.com/ | S | SerpApi: Google Search API | 2026-09-19 | U-5 |
 | https://serpapi.com/search-api | S | Google Search Engine Results API - SerpApi | 2026-09-19 | U-6 |
 | https://serpapi.com/legal | S | Legal Documents - SerpApi | 2026-09-19 | U-6 |
@@ -32,3 +32,5 @@ under `research/raw/`; a source without raw evidence was not fetched.
 | https://code.claude.com/docs/en/skills | P | Extend Claude with skills - Claude Code Docs | 2026-09-20 | U-2 (supersedes E-04) |
 | https://code.claude.com/docs/en/hooks | P | Hooks reference - Claude Code Docs | 2026-09-20 | U-3 (supersedes E-05) |
 | https://www.firecrawl.dev/terms-of-service | P | Terms of Service \| Firecrawl | 2026-09-20 | U-4 (supersedes E-06) |
+| https://serpapi.com/account-api | P | Account API - SerpApi | 2026-09-26 | U-11 |
+| https://serpapi.com/faq | S | SerpApi: FAQ | 2026-09-26 | U-9 |

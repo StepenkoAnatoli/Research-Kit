@@ -1,0 +1,18 @@
+{
+  "topic": "SerpAPI free-plan meter: hourly throughput, monthly window, and the account API",
+  "notes": "Opened 2026-09-26 because SerpAPI's account API (account_rate_limit_per_hour 250, plan_renewal_date 2026-10-14) contradicted E-07 (50 per hour) and the kit's calendar-month counting. The pricing page is re-read rather than trusted from its 2026-09-19 capture.",
+  "depth": "normal",
+  "refreshDays": 0,
+  "limit": 6,
+  "perQuery": 1,
+  "maxScrapes": 5,
+  "prefer": ["serpapi.com"],
+  "queries": [
+    { "q": "SerpApi account API searches left plan renewal date this month usage", "why": "U-10 U-11", "prefer": ["serpapi.com"] },
+    { "q": "SerpApi free plan throughput per hour rate limit searches", "why": "U-9", "prefer": ["serpapi.com"] }
+  ],
+  "urls": [
+    { "url": "https://serpapi.com/pricing", "type": "P", "why": "U-9 U-10 - re-read of E-07" },
+    { "url": "https://serpapi.com/account-api", "type": "P", "why": "U-11" }
+  ]
+}

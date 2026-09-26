@@ -24,6 +24,7 @@ enforcement for agent-built bots on this machine.
 | S-5 | Paid-tier Firecrawl pricing beyond the free plan (Hobby/Standard/Growth/Scale) | Relevant only when the free tier binds; recorded with E-01..E-03 during collection | DISMISSED | out of scope for now: solo operator on the free tier; the tier facts are already captured and cited (E-01..E-03), and refresh stays with --refresh-days |
 | S-6 | Search providers other than the fetch vendor: what a dedicated search API allows and costs | The kit binds search and fetch to ONE adapter (ADR-0005). Splitting them is only worth an ADR if a dedicated provider is cheaper, more reliable, or permits retention - and each of those is a fact, not a preference | COVERED | U-5, U-8 |
 | S-7 | Retention rights: whether a search provider permits storing the results the corpus keeps | The kit writes what it collects into research/raw/ and keeps it. A provider that forbids retention cannot back this design at all, which is the same question U-4 asked of the fetch vendor | COVERED | U-6, U-7 |
+| S-8 | The search meter the kit reports against: SerpAPI's hourly cap, its monthly window, and whether the vendor's own counter can replace the local one | Added 2026-09-26 when the account API contradicted E-07. The kit hard-codes both caps and counts spend locally; each of those is a vendor fact, and two of them disagreed with the vendor's own API | COVERED | U-9, U-10, U-11 |
 
 ## Coverage notes (per dimension)
 
