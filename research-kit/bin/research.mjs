@@ -81,7 +81,11 @@ transport          ${transport.name} (${transport.why})
 search transport   ${transport.search.name}${transport.search.sameAsFetch ? ' - same meter as fetch' : ` (${transport.search.why})`}
 searches (this box) ${usage.search.lastHour} in the last hour, ${usage.search.thisMonth} this month${usage.search.providers.length ? ` (${usage.search.providers.join(', ')})` : ''}
                    free-tier caps are ${usage.search.perHourCap}/hour and ${usage.search.perMonthCap}/month; ${usage.search.caveat}
-`);
+${(transport.search.adapter?.METER_NOTES ?? [])
+  // The selected search adapter says what the numbers mean for its vendor (U-9, U-10). A
+  // machine with no separate search provider selects none that has notes, so it is told
+  // nothing about a provider it never configured (FR-5).
+  .map((note) => `                   ${note}\n`).join('')}`);
   process.exit(0);
 }
 

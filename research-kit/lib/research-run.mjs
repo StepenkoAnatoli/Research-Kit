@@ -452,8 +452,12 @@ export function usageSummary(root) {
  * guard that duplicates the vendor's own answer can only add a way to be wrong.
  *
  * What was genuinely missing is the operator being able to SEE the meter. So this counts
- * rather than blocks, and the caps it names are the free tier's (E-07), stated as
+ * rather than blocks, and the caps it names are the free tier's (E-25, E-27), stated as
  * context rather than enforced.
+ *
+ * What the caps MEAN is the search adapter's to say, not this module's: since 2026-09-26
+ * (U-9, U-10) the SerpAPI adapter exports `METER_NOTES`, and `--status` prints the notes of
+ * whichever adapter was selected. The month counted here is a calendar month.
  *
  * Counts this kit's own spend. It cannot see searches made from another machine on the
  * same account, and it over-counts a repeat served from the vendor's free 1-hour cache

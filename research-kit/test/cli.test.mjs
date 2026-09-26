@@ -135,6 +135,15 @@ test('RR-5: --status reports the search meter, with its caveat', () => {
   assert.match(r.out, /not billed/, 'the over-count caveat is missing from the display');
 });
 
+test('RR-5 / U-9 / U-10: with SerpAPI as the meter, --status labels the caps and the month', () => {
+  const r = run('research.mjs', ['--status'], { root: project(), env: { SERPAPI_API_KEY: FAKE_KEY } });
+  assert.equal(r.status, 0, r.err);
+  assert.match(r.out, /documented Free Plan/, 'the caps must be labelled as the documented plan (U-9)');
+  assert.match(r.out, /account\.json/, 'the operator must be told where the account\'s own limits are');
+  assert.match(r.out, /billing cycle/, 'the month must be named as not the vendor\'s (U-10)');
+  assert.equal(r.out.includes(FAKE_KEY), false, 'the CLI printed the key');
+});
+
 test('RR-5: a fresh project reports zero searches, not NaN or blank', () => {
   const r = run('research.mjs', ['--status'], { root: project() });
   assert.match(r.out, /searches \(this box\) 0 in the last hour, 0 this month/);

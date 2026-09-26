@@ -504,6 +504,22 @@ test('RR-5: search spend is COUNTED and reported, per hour and per month', () =>
   assert.equal(usage.perMonthCap, FREE_TIER_PER_MONTH);
 });
 
+test('RR-5 / U-9: the SerpAPI adapter labels the caps as the DOCUMENTED plan, not as this account', () => {
+  // 2026-09-26: the pricing page and FAQ say 50/hour (E-25, E-27); SerpAPI's own Account API
+  // reported 250/hour for this account (U-9). A number the vendor enforces per account cannot
+  // be presented as the account's. The adapter owns this - the vendor is named nowhere else.
+  const text = serpapi.METER_NOTES.join('\n');
+  assert.match(text, /documented Free Plan/);
+  assert.match(text, /account\.json/, 'it must say where the account\'s own numbers are');
+  assert.match(text, /calendar month/);
+  assert.match(text, /billing cycle/, 'the reader must be told the vendor counts the month differently (U-10)');
+});
+
+test('RR-5: searchUsage itself stays vendor-neutral', () => {
+  const usage = searchUsage(project());
+  assert.equal(JSON.stringify(usage).toLowerCase().includes('serpapi'), false);
+});
+
 test('RR-5: the count is honest about what it cannot see', () => {
   const root = project();
   const usage = searchUsage(root);
