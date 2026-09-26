@@ -285,6 +285,64 @@ test('RR-1: when BOTH providers fail, the query is skipped and the run continues
   assert.equal(failures.length, 2, 'both failures should be recorded, not just the first');
 });
 
+// ---------------------------------------------------------------- RR-6  a busy minute
+
+// Measured 2026-09-26 (docs/measurements/2026-09-26-search-reliability): the 11th and 12th
+// Firecrawl searches inside one minute came back 429 with exactly this text, which is E-01's
+// documented "10 /search requests per minute". The fetch side already waited these out;
+// the search side logged them as failures and moved on.
+const FIRECRAWL_429 = 'Rate limit exceeded. Consumed (req/min): 11, Remaining (req/min): 0. '
+  + 'Upgrade your plan at https://firecrawl.dev/pricing for increased rate limits or please retry after 5s';
+
+test('RR-6: a search rate limit is waited out and retried, as a fetch rate limit already was', () => {
+  const root = project();
+  const fetcher = fetchStub();
+  let calls = 0;
+  fetcher.search = () => {
+    calls += 1;
+    if (calls === 1) return { ok: false, query: 'q', results: [], error: FIRECRAWL_429 };
+    return { ok: true, query: 'q', results: [{ url: 'https://fetchside.example/a', title: 'T', description: '', position: 1 }] };
+  };
+  const waits = [];
+  const run = runResearch(root, { adapter: fetcher, plan: plan(), sleep: (ms) => waits.push(ms) });
+
+  assert.equal(calls, 2, 'the rate limit must be retried, not reported');
+  assert.deepEqual(waits, [6_000], 'the vendor said 5s; the wait is its number plus a second');
+  assert.equal(run.searchFailures ?? 0, 0, 'a busy minute that cleared is not a failure');
+  assert.equal(run.spent, 1, 'the page the retried search found was never fetched');
+});
+
+test('RR-6: the retry is BOUNDED - a provider that keeps refusing is reported, not waited on forever', () => {
+  const root = project();
+  const searcher = searchStub({ fail: FIRECRAWL_429 });
+  const waits = [];
+  runResearch(root, {
+    adapter: fetchStub(), searchAdapter: searcher, plan: plan(), maxRateLimitRetries: 2, sleep: (ms) => waits.push(ms),
+  });
+  assert.equal(searcher.calls.search, 3, 'the first attempt plus two retries');
+  assert.equal(waits.length, 2);
+  const [failure] = jsonLines(root, '.failures.jsonl');
+  assert.match(failure.error, /Rate limit exceeded/, 'the final refusal must still be on record');
+});
+
+test('RR-6: each provider in a merged search is retried on its own', () => {
+  const root = project();
+  let firstCalls = 0;
+  const limited = searchStub({ name: 'limited' });
+  const inner = limited.search;
+  limited.search = (...args) => {
+    firstCalls += 1;
+    return firstCalls === 1 ? { ok: false, query: 'q', results: [], error: FIRECRAWL_429 } : inner(...args);
+  };
+  const other = searchStub({ name: 'other', results: ['https://other.example/b'] });
+  const run = runResearch(root, {
+    adapter: fetchStub(), searchAdapters: [limited, other], plan: plan({ perQuery: 2 }), sleep: () => {},
+  });
+  assert.equal(firstCalls, 2);
+  assert.equal(other.calls.search, 1, 'a provider that answered must not be asked again');
+  assert.equal(run.searchFailures ?? 0, 0);
+});
+
 // ---------------------------------------------------------------- TR-8  the regression
 
 test('TR-8: with NO search provider, a run behaves exactly as it did before the split', () => {

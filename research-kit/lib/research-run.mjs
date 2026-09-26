@@ -6,7 +6,7 @@
 // Every scrape spends a credit, so the budget is a first-class input: a tier caps the
 // run, a cache hit is never an attempt, and `--dry-run` spends nothing.
 
-import { PATHS, resolve, readJson, readText, today, hostOf, uniq } from './core.mjs';
+import { PATHS, resolve, readJson, readText, today, hostOf, uniq, sleepSync } from './core.mjs';
 import * as firecrawl from './firecrawl.mjs';
 import { readCorpus, cacheDecision, appendJsonLine } from './corpus.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
@@ -133,6 +133,30 @@ export function selectCandidates(results, { prefer = [], perQuery = 3, seen = ne
  * Nothing is collected when `dryRun` is set - `attempts` still shows what it would
  * cost, against the same cap - and a cache hit never counts against the budget.
  */
+/**
+ * One search, with the patience the fetch side already had (`collectOne`).
+ *
+ * A rate limit is an instruction to wait, not a failure. Measured 2026-09-26: the 11th and
+ * 12th Firecrawl searches inside a minute came back "Rate limit exceeded ... retry after
+ * 5s" - E-01's documented 10 /search per minute - and a run logged them as failures and
+ * moved on, so a plan with more than ten queries lost the rest of that minute's searches.
+ *
+ * The vendor's own delay is used (`rateLimitWaitMs`), and the retries are bounded: a
+ * provider that keeps refusing is a different problem from a busy minute, and this runs
+ * under the corpus lock. Anything that is not a rate limit returns at once, so a 404 or an
+ * outage still costs exactly one call and still reaches the fallback and the failure log.
+ */
+export function searchPatiently(provider, text, { limit, maxRateLimitRetries = 2, sleep = sleepSync, log = () => {} } = {}) {
+  for (let attempt = 0; ; attempt += 1) {
+    const r = provider.search(text, { limit });
+    if (r?.ok || attempt >= maxRateLimitRetries) return r;
+    const wait = firecrawl.rateLimitWaitMs(r?.error);
+    if (wait === null) return r;
+    log(`  waiting    ${Math.round(wait / 1000)}s - ${provider.name} search hit the vendor rate limit`);
+    sleep(wait);
+  }
+}
+
 export function runResearch(root, {
   adapter,
   // The SEARCH side (ADR-0027). Absent means "the fetch adapter", which is what every
@@ -148,8 +172,12 @@ export function runResearch(root, {
   only = [],
   date = today(),
   now = new Date(),
+  maxRateLimitRetries = 2,
+  sleep = sleepSync,
   log = () => {},
 } = {}) {
+  const ask = (provider, text) => searchPatiently(provider, text, { limit: settings.limit, maxRateLimitRetries, sleep, log });
+
   // Refuse an incompatible vendor CLI BEFORE anything is spent.
   //
   // The Firecrawl CLI is the one dependency outside this repository's control: no
@@ -238,7 +266,7 @@ ${compatibility.remedy}`);
     if (searchers.length > 1) {
       const lists = [];
       for (const one of searchers) {
-        const r = one.search(text, { limit: settings.limit });
+        const r = ask(one, text);
         if (Number.isFinite(r.searchesUsed)) searchesUsed += r.searchesUsed;
         if (!r.ok) {
           searchFailures += 1;
@@ -271,7 +299,7 @@ ${compatibility.remedy}`);
       continue;
     }
 
-    let found = searcher.search(text, { limit: settings.limit });
+    let found = ask(searcher, text);
     let ranker = searchName;
 
     // A second meter is a second thing that can be down. One bounded fallback to the
@@ -286,7 +314,7 @@ ${compatibility.remedy}`);
       });
       log(`  search failed on ${searchName}: ${reason}`);
       log(`  degrading to ${adapter.name} for this query - this spends fetch credits`);
-      found = adapter.search(text, { limit: settings.limit });
+      found = ask(adapter, text);
       ranker = adapter.name;
       if (found.ok) degraded += 1;
     }
