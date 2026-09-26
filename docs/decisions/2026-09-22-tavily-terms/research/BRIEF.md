@@ -123,6 +123,9 @@ serpapi`, which is true but reads like "not used" rather than "attempted and fai
 failure is visible in the body of the log, so nothing is hidden, but the summary line alone
 would mislead.
 
+**Update 2026-09-26:** fixed. The summary line now reads `searches 0 on serpapi - 1 attempt
+failed, reasons in research/raw/.failures.jsonl` (`searchSummaryLine`, tests RR-7).
+
 ## Contradictions and how they were resolved
 
 None. Seven captures neither agree nor disagree with the one that matters - they are about a
@@ -164,3 +167,7 @@ of terms takes it back out.
   `docs/requirements-2026-09-19-search-fetch-seam.md` as the first re-read of its trigger.
 - If SerpAPI's reliability is to be decided, it needs its own evidence - the ETIMEDOUT here
   is one data point, and one run was already enough to produce a wrong conclusion once.
+  **Update 2026-09-26:** collected - `docs/measurements/2026-09-26-search-reliability/`.
+  30 identical queries to both providers: SerpAPI 30/30, worst call 14.3 s, none over the
+  kit's 30 s timeout. SerpAPI stays in the merged search; this ETIMEDOUT is neither explained
+  nor ruled out (different machine), and is shown not to be the normal case.
