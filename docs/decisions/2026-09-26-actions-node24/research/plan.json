@@ -1,0 +1,52 @@
+{
+  "topic": "Moving this repository's pinned GitHub Actions off the deprecated Node 20 runtime",
+  "notes": "Which release of each action is on node24 was measured from git before collecting (brief). These pages carry what git cannot: the deprecation timeline and each major's breaking changes.",
+  "depth": "normal",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 1,
+  "maxScrapes": 2,
+  "prefer": [
+    "github.blog",
+    "github.com",
+    "docs.github.com"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/",
+      "type": "P",
+      "why": "U-1 - the page every workflow warning links to"
+    },
+    {
+      "url": "https://github.com/actions/checkout",
+      "type": "P",
+      "why": "U-2, U-4 - the README's per-major What's new"
+    },
+    {
+      "url": "https://github.com/actions/setup-node",
+      "type": "P",
+      "why": "U-2, U-3, U-4 - Breaking changes in V5..V7"
+    },
+    {
+      "url": "https://github.com/actions/setup-python",
+      "type": "P",
+      "why": "U-2, U-4 - Breaking changes in V6, What's new in V7"
+    },
+    {
+      "url": "https://github.com/actions/upload-artifact/releases",
+      "type": "P",
+      "why": "U-2 - its README defers every change to the releases page"
+    },
+    {
+      "url": "https://github.blog/changelog/2026-09-23-node-20-is-no-longer-available-in-github-actions",
+      "type": "P",
+      "why": "U-1 - what now happens to an action that still declares node20"
+    },
+    {
+      "url": "https://github.blog/changelog/2026-09-17-ubuntu-26-generally-available-and-latest-migration",
+      "type": "P",
+      "why": "U-4 - every workflow here runs on ubuntu-latest, which is migrating"
+    }
+  ]
+}
