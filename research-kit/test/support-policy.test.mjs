@@ -54,7 +54,9 @@ function matrixPlatforms() {
 
 test('the CI matrix is exactly the platforms the README calls supported', () => {
   const platforms = matrixPlatforms();
-  assertEqual(JSON.stringify(platforms), JSON.stringify(['ubuntu-latest', 'windows-latest']),
+  // ubuntu-26.04 is a second LINUX image, not a third platform: it runs through the
+  // ubuntu-latest migration (2026-10-19..11-19) and then goes (ADR-0043).
+  assertEqual(JSON.stringify(platforms), JSON.stringify(['ubuntu-latest', 'ubuntu-26.04', 'windows-latest']),
     'the CI matrix changed. That may be correct - but README.md states a support policy in '
     + 'terms of what CI runs, so update the policy in the same commit and then update this '
     + `test deliberately. Matrix is now: ${platforms.join(', ')}`);

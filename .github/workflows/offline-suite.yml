@@ -53,7 +53,12 @@ jobs:
         # to ignore red. Its one run was not wasted - it found the symlink containment
         # defect in audit.mjs, which is fixed and affects Linux too wherever a project
         # sits under a symlink. Add macos-latest here if that changes.
-        os: [ubuntu-latest, windows-latest]
+        #
+        # ubuntu-26.04 is TEMPORARY (ADR-0043): ubuntu-latest moves from 24.04 to 26.04
+        # between 2026-10-19 and 2026-11-19, and GitHub's advice is to test on 26.04 before
+        # that. Linux is still the one policy; this checks it on the image it is about to
+        # become. Remove the leg once ubuntu-latest resolves to 26.04 - it is then a duplicate.
+        os: [ubuntu-latest, ubuntu-26.04, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     defaults:
