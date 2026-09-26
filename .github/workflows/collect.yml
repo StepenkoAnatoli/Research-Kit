@@ -155,7 +155,7 @@ on:
         type: choice
         options: [probe, quick, normal]
       prefer:
-        description: 'Domains that OWN the fact, comma-separated - e.g. "tavily.com,docs.github.com". Ranked above pages merely about it. Optional, and it only bites because the candidate pool is now wider than the page budget.'
+        description: 'Domains that OWN the fact, comma-separated - e.g. "tavily.com,docs.github.com". On a shared host name the path: "github.com/actions/upload-artifact" ranks that repository, not all of GitHub. Ranked above pages merely about it. Optional, and it only bites because the candidate pool is now wider than the page budget.'
         required: false
         default: ''
       queries:
