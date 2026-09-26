@@ -1,0 +1,16 @@
+# Round A: the nine queries this repository's plans have actually sent, then six in the same style.
+SerpAPI pricing free plan searches per month limits
+SerpAPI terms of service storing caching search results retention
+Tavily API pricing free plan credits per month terms of service
+Firecrawl search endpoint credits cost per result
+Node.js build-sea option single executable application without postject
+EU Deforestation Regulation 2023/1115 application date large operators SMEs current after delay
+Tavily platform terms of service customer input training AI models
+Tavily privacy policy data retention
+Tavily terms of service data retention training on inputs outputs zero retention enterprise tier opt out
+GitHub Actions workflow_dispatch inputs maximum number and size limits
+GitHub REST API artifacts endpoint anonymous access public repository
+Model Context Protocol specification deprecation policy versioning
+Firecrawl scrape endpoint maxAge cache freshness default
+Node.js fetch AbortSignal.timeout behavior undici headers timeout
+DuckDuckGo lite HTML search results terms of use automated access
