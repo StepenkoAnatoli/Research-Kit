@@ -145,6 +145,62 @@ policy — SerpAPI caches for an hour on its side and this kit caches on disk by
 `--refresh-days`, and reconciling the two is a separate decision that does not block
 the seam.
 
+## Addendum 2026-09-26 - the search meter (U-9, U-10, U-11)
+
+Opened because SerpAPI's own Account API contradicted two numbers the kit hard-codes.
+Collected with `research/plan-2026-09-26-serpapi-meter.json`; all three unknowns CLOSED,
+preflight PASS (and `--strict`).
+
+### Verified
+
+| Claim | Source | Type |
+|---|---|---|
+| Free Plan, documented: 250 searches per month, **50 throughput per hour** - unchanged since 2026-09-19. Every tier's hourly figure is 20% of its monthly one | E-25 `serpapi.com/pricing` | P |
+| The monthly allowance restarts "on the first day of your billing cycle's subscription" - **a billing cycle, not a calendar month**. Hourly cap below 1M/month is "20% of your plan volume". Cached, errored and failed searches are not counted | E-27 `serpapi.com/faq` | P |
+| `GET serpapi.com/account.json` is documented, "free of charge, and using it will not be counted toward your monthly quota"; it returns usage this cycle, searches left, `plan_renewal_date`, and "your account's hourly throughput limit" | E-26 `serpapi.com/account-api` | P |
+
+### Contradiction, and which side the kit should trust
+
+**The documents say 50 per hour; this account's meter says 250.** Two SerpAPI pages agree on
+50 (E-25, E-27). The Account API, which E-26 defines as reporting the account's own hourly
+limit, returned `account_rate_limit_per_hour: 250` on 2026-09-26
+(`docs/measurements/2026-09-26-serpapi-account/account.json`; a measurement, not a ledger
+capture, because the request URL carries the key). Not averaged: they are different things.
+The pricing page is the plan as advertised; the API is what the vendor enforces for one
+account, and it can differ per account. **Neither belongs in the kit as a constant.** The kit
+should read the account's values when a key is present - free, per E-26 - and fall back to
+the documented 50 and 250, labelled as documented rather than as this account's.
+
+**The monthly window is wrong in the kit today.** `searchUsage` counts from the 1st (UTC);
+this account's cycle runs from the 14th (`plan_renewal_date: 2026-10-14`). For 13 days of every
+month the kit's "this month" mixes two cycles.
+
+### What the collection itself showed
+
+- **The Firecrawl CLI could not reach the API from this container at first.** Every call
+  returned HTTP 405: `firecrawl-cli@1.23.3` bundles axios 1.15.2, which sends plain proxied
+  requests that this cloud container's egress proxy refuses (it accepts only CONNECT tunnels;
+  fixed in axios 1.16.1). The four failed fetches are in the ledger as `op: fail`, as they
+  should be. Worked around **on this container only** by swapping axios 1.16.1 into the global
+  CLI install; the repository and the pinned CLI version are unchanged. A machine without such
+  a proxy is unaffected.
+- **SerpAPI returned nothing on topic for either query - 0 of 12.** Google dropped "SerpApi"
+  and matched the generic words (`merriam-webster.com/dictionary/search`,
+  `plan-international.org`). Firecrawl's search ranked `serpapi.com/account-api` first. The
+  merged search (#66) and the `prefer` ranking are why the run still collected the right three
+  pages; this is the failure mode they exist for, now seen twice (EUDR, 2026-09-22).
+- **No prior could be registered** - the kit allows one per corpus, before its first page, and
+  this corpus has had pages since 2026-09-13. Written after the fact, so it is not a
+  prediction: the expectation going in was that the pricing page had changed to 250. It had
+  not; the difference is per-account.
+
+### First build step
+
+In `lib/research-run.mjs`: stop presenting `FREE_TIER_PER_HOUR = 50` and a calendar month as
+this account's limits. Label them as the documented plan, and count the month from the
+renewal date when it is known. Reading `account.json` is the fuller fix, but it adds a
+network call to `--status`; take that as its own decision.
+
 ## Next steps
 
 1. Review the **TODO** sections above (Contradictions, Decision) before handing off.
