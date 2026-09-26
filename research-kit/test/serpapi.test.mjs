@@ -12,7 +12,7 @@
 // and they do not belong in a repository. The search id is preserved because `searchId()`
 // reads it; nothing else is touched.
 
-import { test, describe, assert, fs, path, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, fs, path, KIT_ROOT, tempDir } from './harness.mjs';
 import * as serpapi from '../lib/serpapi.mjs';
 import {
   SEARCH_PROVIDERS, SEARCH_PROVIDER_NAMES, FETCH_SHAPE, SEARCH_SHAPE,
@@ -278,6 +278,22 @@ test('SR-1: readKey prefers the environment, falls back to config, and is empty 
   assert.equal(serpapi.readKey({ env: {}, config: { serpapiKey: SENTINEL } }), SENTINEL);
   assert.equal(serpapi.readKey({ env: {}, config: {} }), '');
   assert.equal(serpapi.readKey({ env: { SERPAPI_API_KEY: '   ' }, config: {} }), '', 'whitespace is not a key');
+});
+
+test('SR-1: a key held ONLY in the machine config reaches the request - selection is not enough', () => {
+  // Found 2026-09-26: selectSearch read `serpapiKey` from the machine config and chose SerpAPI,
+  // but search() was called without a config and read only the environment - so every search
+  // failed "no SerpAPI key" while the status line said a key was configured. The merged run
+  // then fell back to the other provider on every query, and the second meter was never used.
+  const dir = tempDir('rk-cfgkey-');
+  fs.writeFileSync(path.join(dir, 'research-kit.config.json'), JSON.stringify({ serpapiKey: SENTINEL }));
+  const env = { RESEARCH_KIT_CONFIG: path.join(dir, 'research-kit.config.json') };
+  const job = stubJob({ ok: true, payload: REAL });
+  const r = serpapi.search('q', { env, job });
+  assert.equal(r.ok, true, `a configured key was not used: ${r.error}`);
+  assert.equal(job.calls[0]?.apiKey, SENTINEL);
+  // An EXPLICIT null still means "no config" - the deterministic form every other test uses.
+  assert.equal(serpapi.search('q', { env, config: null, job: stubJob({ ok: true, payload: REAL }) }).ok, false);
 });
 
 test('SR-3: redact refuses to act on a string too short to be a key', () => {

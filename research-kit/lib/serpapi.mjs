@@ -27,6 +27,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { loadConfig } from './machine.mjs';
 
 export const name = 'serpapi';
 
@@ -221,14 +222,18 @@ export function command(query, key = '') {
 export function search(query, {
   limit = 8,
   env = process.env,
-  config = null,
+  // `undefined` (the default) reads the machine config, as `selectSearch` does - so a key
+  // that selected this provider is the key it searches with. Found 2026-09-26: this
+  // defaulted to `null`, and a key held only in the config selected SerpAPI and then failed
+  // every search "no SerpAPI key". An explicit `null` still means "no config".
+  config = undefined,
   key = null,
   timeout = DEFAULT_TIMEOUT,
   endpoint = ENDPOINT,
   job = runJob,
 } = {}) {
   const text = String(query);
-  const apiKey = key ?? readKey({ env, config });
+  const apiKey = key ?? readKey({ env, config: config === undefined ? loadConfig(env) : config });
   const cmd = command(text, apiKey);
 
   if (!allowedEndpoint(endpoint)) {
