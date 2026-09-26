@@ -239,6 +239,18 @@ not fail — GitHub creates one, with no protection rules and no secrets. A typo
 would remove the approval gate silently, so the collector requires a marker only a
 configured environment can supply.
 
+**The adapter test, `live-collection.yml`, has its own environment and needs the same two
+things** - it is kept apart from `research-collection` on purpose (ADR-0033: "does the adapter
+still work" and "collect this, for a person" have different approvers):
+
+| in environment `live-collection` | why |
+|---|---|
+| **secret** `FIRECRAWL_API_KEY` | the metered credential for the transport test |
+| **variable** `RESEARCH_KIT_LIVE_ENV=live-collection` | proves the environment exists (since 2026-09-26) |
+
+Without the variable a metered run refuses before it reads the key or spends anything. The
+keyless route (`transport: http-keyless`) needs neither.
+
 **A missing credential refuses; it never degrades.** There is no keyless fallback: that
 would return a measurably worse corpus under the same artifact name, and the person who
 asked for research would have no way to tell.
@@ -413,7 +425,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-926 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+927 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

@@ -272,3 +272,17 @@ vulnerability: the substitution happens before the validation can run.
 
 That a collected artifact is good research. It is a corpus, honestly labelled, with three
 human steps outstanding. The workflow's contribution is that it cannot pretend otherwise.
+
+## Amendment, 2026-09-26 — the live adapter test is held to the same existence check
+
+The marker rule above was written for `collect.yml` and never applied to `live-collection.yml`,
+which declares its own environment for the reason this ADR gives: different audience,
+different approvers. The first ever dispatch of `live-collection.yml` (run 36275687141) named
+`live-collection` before anyone had created it. Per E-06 GitHub created it — empty — and the
+run stopped only at "FIRECRAWL_API_KEY is not set". It failed safely by luck of an empty
+environment, not by design: a key present at repository scope would have been read through it.
+
+`live-collection.yml` now requires `vars.RESEARCH_KIT_LIVE_ENV == live-collection` before it
+reads the key or spends, on the metered route (the keyless route reads no credential). The
+same honest limit applies: a repository-level variable of that name defeats it, deliberately
+and visibly. Pinned by `architecture-map.test.mjs`. Setup: `research-kit/README.md`.

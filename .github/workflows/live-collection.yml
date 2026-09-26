@@ -121,6 +121,39 @@ jobs:
       # Installation failure and INCOMPATIBILITY are different facts and are reported
       # separately. The first version suppressed both with `|| true`, so "the package
       # moved" and "the CLI is a major we do not support" looked identical.
+      # AN AUTO-CREATED ENVIRONMENT IS REFUSED BEFORE ANYTHING IS READ OR SPENT (E-06).
+      #
+      # GitHub does not fail a workflow that names an environment which does not exist: it
+      # CREATES one, with no protection rules and no secrets. collect.yml has refused that
+      # since ADR-0033 with a marker variable, because an auto-created environment has no
+      # variables. This workflow had no such check, and its first dispatch (2026-09-26)
+      # named `live-collection` before anyone had created it - it failed safely only
+      # because the new, empty environment had no key. A key added later at REPOSITORY
+      # scope would have been read straight through it.
+      #
+      # Only the metered route needs it: the keyless route reads no credential and spends
+      # nothing. The same honest limit as collect.yml applies - a repository-level variable
+      # of this name would defeat the check, which makes doing so a deliberate act.
+      - name: the environment is the one this workflow names, not an auto-created one
+        if: inputs.transport == 'firecrawl-cli'
+        env:
+          DECLARED_ENV: ${{ vars.RESEARCH_KIT_LIVE_ENV }}
+        run: |
+          expected='live-collection'
+          if [ -z "${DECLARED_ENV:-}" ]; then
+            echo "::error::the live-collection environment did not supply RESEARCH_KIT_LIVE_ENV"
+            echo "Either the environment does not exist - in which case GitHub just created an EMPTY one"
+            echo "with that name - or its variables are unset."
+            echo "Fix: Settings > Environments > live-collection > add variable"
+            echo "     RESEARCH_KIT_LIVE_ENV = live-collection, and add the secret FIRECRAWL_API_KEY."
+            exit 1
+          fi
+          if [ "$DECLARED_ENV" != "$expected" ]; then
+            echo "::error::RESEARCH_KIT_LIVE_ENV is '$DECLARED_ENV', expected '$expected'"
+            exit 1
+          fi
+          echo "environment marker present"
+
       - name: install the vendor CLI
         id: cli
         if: inputs.transport == 'firecrawl-cli'
