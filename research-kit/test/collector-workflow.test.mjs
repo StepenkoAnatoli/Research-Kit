@@ -483,3 +483,22 @@ test('the limit that genuinely remains is still stated honestly', () => {
   assert.ok(/undecidable is repository versus organization/i.test(yaml),
     'the workflow should say which distinction it still cannot make, and why that one does not matter');
 });
+
+// ---------------------------------------------------------------- the cache path
+
+test('the workflows that hold a key deny every job all cache access', () => {
+  // Omitted, `cache-mode` defaults by trigger, and both paid workflows log `Cache mode:
+  // write` - a path between runs of a job that can read a credential, which neither uses.
+  // `none` at the top covers every job, including one added later; a denied cache step
+  // "logs an informational message and continues", so it cannot fail a paid run.
+  // docs/decisions/2026-09-26-actions-sept-changes U-4.
+  for (const name of ['collect.yml', 'live-collection.yml']) {
+    const file = path.join(WORKFLOWS, name);
+    if (!fs.existsSync(file)) continue;
+    const text = executable(fs.readFileSync(file, 'utf8'));
+    assert.ok(/^cache-mode:\s*none\s*$/m.test(text),
+      `${name} does not declare a top-level \`cache-mode: none\`, so its jobs may read and write the Actions cache`);
+    const override = text.split('\n').find((line) => /^\s+cache-mode:/.test(line) && !/cache-mode:\s*none\s*$/.test(line));
+    assert.ok(override === undefined, `${name} re-opens the cache for one job: ${override && override.trim()}`);
+  }
+});

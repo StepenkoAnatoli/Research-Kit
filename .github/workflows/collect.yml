@@ -197,6 +197,11 @@ concurrency:
 permissions:
   contents: read
 
+# No job here uses the Actions cache, and every one of them can read a credential: deny the
+# cache path between runs outright. A denied cache step logs and continues, so this cannot
+# fail a run. docs/decisions/2026-09-26-actions-sept-changes U-4.
+cache-mode: none
+
 jobs:
   # THE SCOPE CANARY. This job proves the credential is NOT reachable without approval.
   #
