@@ -183,7 +183,10 @@ month the kit's "this month" mixes two cycles.
   fixed in axios 1.16.1). The four failed fetches are in the ledger as `op: fail`, as they
   should be. Worked around **on this container only** by swapping axios 1.16.1 into the global
   CLI install; the repository and the pinned CLI version are unchanged. A machine without such
-  a proxy is unaffected.
+  a proxy is unaffected. _Superseded later on 2026-09-26: fixed at source, not by the
+  workaround. `firecrawl-cli@1.24.6` bundles axios 1.18.0 and works through this proxy
+  unpatched; it is now the version the adapter is tested against (`TESTED_CLI_VERSION`,
+  PR #81), and live-collection has passed on it since. No container patch is needed._
 - **SerpAPI returned nothing on topic for either query - 0 of 12.** Google dropped "SerpApi"
   and matched the generic words (`merriam-webster.com/dictionary/search`,
   `plan-international.org`). Firecrawl's search ranked `serpapi.com/account-api` first. The
