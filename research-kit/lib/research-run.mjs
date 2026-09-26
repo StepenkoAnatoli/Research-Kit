@@ -47,13 +47,49 @@ export function readPlan(root, file = '') {
 }
 
 /**
- * Prefer the page that OWNS the fact. A URL on a preferred domain outranks one that is
- * merely about it, and a docs/pricing/terms path outranks a blog post on the same host.
+ * One `prefer` entry, read as the host it names and, optionally, a path on that host.
+ *
+ * A bare host ("tavily.com") covers that host and its subdomains, as it always has. A host
+ * with a path ("github.com/actions/upload-artifact") covers that path and everything under
+ * it, on exactly that host: on a host that serves everyone, the host is not the owner.
+ * Found 2026-09-26 - dispatched with `prefer: github.com` to collect upload-artifact's
+ * release notes, collect run 36279879229 captured an unrelated repository's Actions run
+ * page, because every page on GitHub earned the owner's bonus (ADR-0044).
+ *
+ * Read the way people paste it: a scheme, `www.`, case, a trailing slash, a query and a
+ * fragment are all ignored. An entry with no host is no preference - `null`, never a
+ * pattern that matches everything.
+ */
+export function parsePreference(entry) {
+  const text = String(entry ?? '').trim().toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
+    .replace(/[?#].*$/, '')
+    .replace(/^www\./, '');
+  const slash = text.indexOf('/');
+  const host = slash === -1 ? text : text.slice(0, slash);
+  if (!host) return null;
+  return { host, path: slash === -1 ? '' : text.slice(slash).replace(/\/+$/, '') };
+}
+
+function matchesPreference(url, preference) {
+  const host = hostOf(url);
+  if (!preference.path) return host === preference.host || host.endsWith(`.${preference.host}`);
+  if (host !== preference.host) return false;
+  let path;
+  try { path = new URL(String(url)).pathname.toLowerCase().replace(/\/+$/, ''); } catch { return false; }
+  // At a segment boundary: /actions/upload-artifact is not /actions/upload-artifact-v2.
+  return path === preference.path || path.startsWith(`${preference.path}/`);
+}
+
+/**
+ * Prefer the page that OWNS the fact. A URL on a preferred domain - or under a preferred
+ * path on a shared host - outranks one that is merely about it, and a docs/pricing/terms
+ * path outranks a blog post on the same host.
  */
 export function rankCandidate(url, { prefer = [], why = '' } = {}) {
   let value = 0;
-  const host = hostOf(url);
-  if (prefer.some((domain) => host === domain || host.endsWith(`.${domain}`))) value += 10;
+  const preferences = prefer.map(parsePreference).filter(Boolean);
+  if (preferences.some((preference) => matchesPreference(url, preference))) value += 10;
   if (/\b(docs?|developer|api|reference)\b/.test(url)) value += 4;
   if (/\b(pricing|plans|billing|limits|rate-limits|quotas)\b/.test(url)) value += 4;
   if (/\b(terms|tos|legal|licen[cs]e|privacy)\b/.test(url)) value += 3;

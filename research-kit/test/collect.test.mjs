@@ -1,7 +1,7 @@
 // One URL's journey, and many URLs in one run. Offline: the adapter is a stub behind
 // the runScrape seam, so no key, no credits, no network.
 
-import { test, describe, assert, makeProject, makePassingProject, fs } from './harness.mjs';
+import { test, describe, assert, makeProject, makePassingProject, fs, path, KIT_ROOT } from './harness.mjs';
 import { PATHS, resolve, readText, writeJson, today } from '../lib/core.mjs';
 import { readCorpus, parseTable } from '../lib/corpus.mjs';
 import { HEADERS } from '../lib/core.mjs';
@@ -9,7 +9,7 @@ import { collectOne, writeRaw, captureName, bodyHashOf } from '../lib/collect.mj
 import { rateLimitWaitMs } from '../lib/firecrawl.mjs';
 import { topicMatch } from '../lib/research-run.mjs';
 import { verifyLedger } from '../lib/provenance.mjs';
-import { runResearch, readPlan, rankCandidate, selectCandidates, DEPTH_SCRAPES, usageSummary } from '../lib/research-run.mjs';
+import { runResearch, readPlan, rankCandidate, selectCandidates, parsePreference, DEPTH_SCRAPES, usageSummary } from '../lib/research-run.mjs';
 
 describe('collect');
 
@@ -193,6 +193,70 @@ test('rankCandidate prefers the page that OWNS the fact', () => {
   assert.ok(rankCandidate('https://docs.example.com/rate-limits', { prefer }) > rankCandidate('https://blog.other.com/how-to', { prefer }));
   assert.ok(rankCandidate('https://example.com/pricing', { prefer: [] }) > rankCandidate('https://example.com/blog/post', { prefer: [] }));
   assert.ok(rankCandidate('https://example.com/login', { prefer: [] }) < 0);
+});
+
+// ---------------------------------------------------------------- prefer: a path on a shared host
+//
+// Found 2026-09-26, collect run 36279879229: dispatched with `prefer: github.com` to collect
+// actions/upload-artifact's release notes, it captured an unrelated repository's Actions run
+// page. On a host that serves everyone, the host is not the owner - every page on GitHub got
+// the owner's bonus. The kit's topic signal caught it; the ranking should not have needed to.
+
+const bonus = (url, prefer) => rankCandidate(url, { prefer }) - rankCandidate(url, { prefer: [] });
+
+test('a preference with a path ranks that repository, not the whole shared host', () => {
+  const prefer = ['github.com/actions/upload-artifact'];
+  assert.equal(bonus('https://github.com/actions/upload-artifact/releases', prefer), 10);
+  assert.equal(bonus('https://github.com/actions/upload-artifact', prefer), 10, 'the repository root is the repository');
+  assert.equal(bonus('https://github.com/bitnami/support/actions/runs/24548123711', prefer), 0,
+    'another repository on the same host was ranked as the owner');
+  assert.equal(bonus('https://github.com/actions/upload-artifact-v2/readme', prefer), 0,
+    'a path matches at a segment boundary, not as a string prefix');
+  assert.equal(bonus('https://gist.github.com/actions/upload-artifact', prefer), 0,
+    'a path belongs to one host; it does not extend to subdomains');
+});
+
+test('the incident, replayed: the owner is selected over a stranger on the same host', () => {
+  const results = [
+    { url: 'https://github.com/bitnami/support/actions/runs/24548123711' },
+    { url: 'https://github.com/actions/upload-artifact/releases' },
+  ];
+  const [picked] = selectCandidates(results, { prefer: ['github.com/actions/upload-artifact'], perQuery: 1, seen: new Set() });
+  assert.equal(picked.url, 'https://github.com/actions/upload-artifact/releases');
+});
+
+test('a preference is read the way people write it: scheme, www, case and a trailing slash are ignored', () => {
+  for (const entry of ['https://github.com/actions/upload-artifact/', 'www.github.com/Actions/Upload-Artifact', 'github.com/actions/upload-artifact#readme']) {
+    assert.deepEqual(parsePreference(entry), { host: 'github.com', path: '/actions/upload-artifact' }, entry);
+  }
+  assert.equal(bonus('https://github.com/Actions/Upload-Artifact/releases', ['github.com/actions/upload-artifact']), 10);
+  assert.equal(parsePreference('  '), null, 'an empty entry is no preference, not a match-everything');
+  assert.equal(parsePreference('/actions/upload-artifact'), null, 'a path with no host is no preference');
+});
+
+test('a bare domain still covers the host and its subdomains, exactly as before', () => {
+  assert.deepEqual(parsePreference('tavily.com'), { host: 'tavily.com', path: '' });
+  assert.equal(bonus('https://docs.tavily.com/api', ['tavily.com']), 10);
+  assert.equal(bonus('https://tavily.com/pricing', ['tavily.com']), 10);
+  assert.equal(bonus('https://nottavily.com/pricing', ['tavily.com']), 0, 'a suffix is not a subdomain');
+});
+
+test('every place that explains `prefer` offers the path form', () => {
+  // The fix is invisible unless the person typing the preference knows a path is allowed:
+  // each of these told them "domains" and nothing else, which is how github.com got typed.
+  const repo = path.resolve(KIT_ROOT, '..');
+  const places = {
+    'collect.yml prefer input': fs.readFileSync(path.join(repo, '.github', 'workflows', 'collect.yml'), 'utf8')
+      .split('\n').find((line) => /^\s+description: .*OWN the fact/.test(line)) ?? '',
+    'collect-remote --help': fs.readFileSync(path.join(KIT_ROOT, 'bin', 'collect-remote.mjs'), 'utf8')
+      .split('--prefer <')[1]?.split('--query')[0] ?? '',
+    'MCP tool schema': fs.readFileSync(path.join(KIT_ROOT, 'lib', 'mcp.mjs'), 'utf8')
+      .split('\n').find((line) => /prefer: \{ type: 'string'/.test(line)) ?? '',
+  };
+  for (const [where, text] of Object.entries(places)) {
+    assert.ok(text, `could not find the prefer description in ${where} - this test is vacuous`);
+    assert.match(text, /github\.com\/[a-z-]+\/[a-z-]+/, `${where} does not show a path on a shared host`);
+  }
 });
 
 test('selectCandidates keeps the best per query and never re-offers what is collected', () => {

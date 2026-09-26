@@ -37,7 +37,8 @@ const HELP = `collect-remote - run the collector on GitHub Actions and bring the
   --repository OWNER/REPO   required
   --topic "<text>"          required. Visible to anyone who can read the repository.
   --prefer <domains>        optional, comma-separated. Domains that OWN the fact; ranked
-                            above pages merely about it.
+                            above pages merely about it. On a shared host, name the path:
+                            github.com/actions/upload-artifact, not github.com.
   --query "<text>"          optional, repeatable. The real search queries. Without one the
                             topic is used verbatim, which returns the words and not the
                             subject when the topic is made of common ones.
