@@ -287,6 +287,28 @@ test('the live workflow does not swallow the checks that decide its result', () 
   assert(/hostname/.test(yaml), 'the summary should reduce URLs to hostnames');
 });
 
+test('the live workflow refuses an auto-created environment before it spends (E-06)', () => {
+  // GitHub does not fail a workflow that names a missing environment: it CREATES one, with
+  // no protection rules and no secrets. collect.yml has refused that since ADR-0033 by
+  // requiring a marker variable an auto-created environment cannot have. This workflow did
+  // not - and on its first dispatch, 2026-09-26, it named `live-collection` before anyone
+  // had created it. It failed safely only because the new environment had no key.
+  const file = path.join(REPO, '.github', 'workflows', 'live-collection.yml');
+  if (!fs.existsSync(file)) return;
+  const lines = fs.readFileSync(file, 'utf8').split('\n').filter((line) => !line.trim().startsWith('#'));
+  const at = (re) => lines.findIndex((line) => re.test(line));
+
+  const marker = at(/vars\.RESEARCH_KIT_LIVE_ENV/);
+  assert(marker !== -1, 'nothing checks that the live-collection environment actually exists');
+  assert(lines.some((line) => /expected='live-collection'/.test(line)),
+    'the marker must be compared to the environment name, not merely be non-empty');
+  const credential = at(/secrets\.FIRECRAWL_API_KEY/);
+  const spends = at(/bin\/research\.mjs/);
+  assert(credential !== -1 && spends !== -1, 'the workflow no longer reads the key or collects - this test is vacuous');
+  assert(marker < credential && marker < spends,
+    'the environment check must run before the credential is read and before anything is spent');
+});
+
 test('the live workflow requires integrity, not research sufficiency', () => {
   // Found by RUNNING the predicate, not by reading it.
   //
