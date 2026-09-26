@@ -1,0 +1,16 @@
+# Round B: fifteen new queries in the kit's style, none repeated from round A (so no 1-hour cache hit).
+SerpAPI search API response time total_time_taken async parameter
+SerpAPI privacy policy search data retained 31 days deletion
+Firecrawl v2 search endpoint limit parameter sources web news
+Firecrawl rate limits free plan requests per minute search scrape
+GitHub Actions REST API list workflow runs return_run_details dispatch
+Node.js child_process spawnSync timeout option ETIMEDOUT killSignal
+Node.js single executable applications documentation useSnapshot
+EUDR regulation 2024/3234 amendment application dates December 2025
+Linux Foundation Model Context Protocol governance announcement
+Tavily search API rate limit requests per minute
+DuckDuckGo html lite endpoint rate limiting 202 response
+GitHub artifacts retention days default public repository download requires authentication
+Git core.autocrlf line endings gitattributes eol=lf text files
+Firecrawl keyless access limits per IP per day
+JSON Lines format specification newline delimited
