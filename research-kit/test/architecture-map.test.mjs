@@ -309,6 +309,31 @@ test('the live workflow refuses an auto-created environment before it spends (E-
     'the environment check must run before the credential is read and before anything is spent');
 });
 
+test('the live workflow gives its scratch plan something to collect', () => {
+  // Found 2026-09-26 by running the workflow's sequence rather than reading it: the scratch
+  // project is scaffolded from the template, whose plan has NO queries and NO urls, and the
+  // step that edits it only set budgets. research.mjs therefore collected nothing, wrote no
+  // ledger, and the next step failed "collection produced no fetch ledger" - on every run,
+  // with every key in place. The workflow had never been run, so nothing had noticed.
+  const file = path.join(REPO, '.github', 'workflows', 'live-collection.yml');
+  if (!fs.existsSync(file)) return;
+  const lines = fs.readFileSync(file, 'utf8').split('\n').filter((line) => !line.trim().startsWith('#'));
+  assert(lines.some((line) => /plan\.queries\s*=\s*\[\s*\{/.test(line)),
+    'the scratch plan is never given a query, so the run collects nothing and fails');
+});
+
+test('the live workflow hands the search key to collection, so the search seam is tested too', () => {
+  // Its header says to run it "after changing lib/serpapi.mjs" - but only FIRECRAWL_API_KEY
+  // reached the collection step, so a SerpAPI key in the environment was never read and the
+  // merged search (ADR-0027) was never exercised. Absent key: unchanged behaviour.
+  const file = path.join(REPO, '.github', 'workflows', 'live-collection.yml');
+  if (!fs.existsSync(file)) return;
+  const text = fs.readFileSync(file, 'utf8');
+  const step = text.slice(text.indexOf('name: collect into a scratch project'), text.indexOf('name: a ledger was written'));
+  assert(/SERPAPI_API_KEY:\s*\$\{\{\s*secrets\.SERPAPI_API_KEY\s*\}\}/.test(step),
+    'the collection step does not receive SERPAPI_API_KEY, so the search provider is never tested');
+});
+
 test('the live workflow requires integrity, not research sufficiency', () => {
   // Found by RUNNING the predicate, not by reading it.
   //

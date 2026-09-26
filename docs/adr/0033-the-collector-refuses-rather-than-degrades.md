@@ -286,3 +286,12 @@ environment, not by design: a key present at repository scope would have been re
 reads the key or spends, on the metered route (the keyless route reads no credential). The
 same honest limit applies: a repository-level variable of that name defeats it, deliberately
 and visibly. Pinned by `architecture-map.test.mjs`. Setup: `research-kit/README.md`.
+
+**Found in the same pass, and worse: the workflow could never have passed.** Its scratch project
+is scaffolded from the template, whose plan has no queries and no URLs, and the step that edits
+the plan only set budgets - so `research.mjs` collected nothing, wrote no ledger, and the next
+step failed "collection produced no fetch ledger" whatever keys were present. Confirmed by
+running the workflow's own step scripts locally, before and after. The plan now gets one fixed
+public query about the vendor. And only `FIRECRAWL_API_KEY` reached the collection step, so the
+merged search the header promised to test after a `lib/serpapi.mjs` change was never exercised;
+`SERPAPI_API_KEY` is now passed through, optional.
