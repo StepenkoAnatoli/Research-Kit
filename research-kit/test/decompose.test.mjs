@@ -3,7 +3,7 @@
 
 import { test, describe, assert, makeProject, makePassingProject, fs } from './harness.mjs';
 import { PATHS, resolve, readText, listFiles } from '../lib/core.mjs';
-import { decompose, parseRecipe, loadRecipe, docsHosts, RECIPE_DIR } from '../lib/decompose.mjs';
+import { decompose, parseRecipe, loadRecipe, docsHosts, RECIPE_DIR, searchSummary } from '../lib/decompose.mjs';
 import { UNIVERSAL_DIMENSIONS, seedRows, coverageOfUniversals } from '../lib/dimensions.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { runCheck } from '../lib/checks.mjs';
@@ -146,4 +146,73 @@ test('a map that already holds judged rows is not redrafted over without --force
   assert.match(readText(resolve(dir, PATHS.map)), /COVERED/, 'the judged map is untouched');
 
   assert.equal(decompose(dir, { topic: 'Something else', dryRun: true, force: true }).written, true);
+});
+
+// ---------------------------------------------------------------- failed searches
+//
+// Found 2026-09-26: `decompose` kept its failures in the result (F20) and then dropped them
+// on the floor. The map said "No material gathered - run without --dry-run" after every
+// search had failed on a live run, and the CLI printed the same success paragraph either
+// way - so a map drafted from an outage read exactly like a map of a quiet topic.
+
+const failing = (error) => ({ name: 'stub-transport', search: () => ({ ok: false, error }), runScrape: () => ({ ok: false }) });
+
+test('a map drafted after every search failed says so, and names the failure', () => {
+  const dir = makeProject();
+  decompose(dir, { topic: 'Example', adapter: failing('HTTP 402 Payment Required') });
+  const map = readText(resolve(dir, PATHS.map));
+  assert.match(map, /every search failed/i, 'the map does not say its searches failed');
+  assert.match(map, /HTTP 402 Payment Required/, 'the map does not carry the reason');
+  assert.ok(!/run without `--dry-run`/.test(map), 'the map blames a dry run that never happened');
+});
+
+test('a quiet topic and a dry run are still told apart from an outage', () => {
+  const quiet = makeProject();
+  decompose(quiet, { topic: 'Example', adapter: stubAdapter([]) });
+  const quietMap = readText(resolve(quiet, PATHS.map));
+  assert.ok(!/search failed|every search failed/i.test(quietMap), 'a quiet topic is reported as a failure');
+  assert.ok(!/run without `--dry-run`/.test(quietMap), 'a live run that found nothing is told to stop dry-running');
+
+  const dry = makeProject();
+  decompose(dry, { topic: 'Example', adapter: stubAdapter([]), dryRun: true });
+  assert.match(readText(resolve(dry, PATHS.map)), /run without `--dry-run`/, 'the dry-run hint is gone');
+});
+
+test('a query that fell back to the fetch provider is recorded as a degradation', () => {
+  const dir = makeProject();
+  const searchAdapter = { name: 'stub-search', search: () => ({ ok: false, error: 'rate limited' }) };
+  const out = decompose(dir, { topic: 'Example', adapter: stubAdapter([{ url: 'https://docs.example.com/a', title: 'A' }]), searchAdapter });
+  assert.equal(out.gathered, true);
+  const map = readText(resolve(dir, PATHS.map));
+  assert.match(map, /stub-search/, 'the provider that failed is not named');
+  assert.match(map, /fell back to stub-transport/, 'the fallback is not recorded');
+});
+
+test('a failure written into the map never carries a credential', () => {
+  // MAP.md is committed. An error string is vendor text, and vendor text has echoed keys.
+  const dir = makeProject();
+  const key = 'a'.repeat(24) + '0123456789abcdef'.repeat(3);
+  decompose(dir, { topic: 'Example', adapter: failing(`GET https://x.invalid/search?q=t&api_key=${key} failed\nsecond line ${key}`) });
+  const map = readText(resolve(dir, PATHS.map));
+  assert.ok(!map.includes(key), 'a credential-shaped string reached the committed map');
+  assert.ok(!/second line/.test(map), 'the map carries a multi-line error instead of its first line');
+});
+
+test('the CLI summary counts the searches that failed, and says when nothing was gathered', () => {
+  assert.equal(searchSummary({ searches: 4, failures: [], gathered: true }), '', 'a clean run needs no line');
+  const outage = searchSummary({ searches: 4, gathered: false, failures: [1, 2, 3, 4].map((n) => ({ query: `q${n}`, error: 'x', provider: 's' })) });
+  assert.match(outage, /0 of 4 searches answered/);
+  assert.match(outage, /NOTHING gathered/);
+  const degraded = searchSummary({ searches: 4, gathered: true, failures: [{ query: 'q1', error: 'x', provider: 's', degraded: true }] });
+  assert.match(degraded, /4 of 4 searches answered/);
+  assert.match(degraded, /1 fell back/);
+  assert.match(degraded, /FETCH credits/);
+  // Found by running the CLI into a real outage: every fallback failed too, and the line
+  // still said those queries "spent FETCH credits".
+  const both = searchSummary({ searches: 1, gathered: false, failures: [
+    { query: 'q1', error: 'x', provider: 's', degraded: true },
+    { query: 'q1', error: 'y', provider: 'f' },
+  ] });
+  assert.match(both, /0 of 1 searches answered, 1 failed; 1 fell back/);
+  assert.ok(!/FETCH credits/.test(both), 'a fallback that failed too is claimed to have spent');
 });
