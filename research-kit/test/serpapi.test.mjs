@@ -12,7 +12,7 @@
 // and they do not belong in a repository. The search id is preserved because `searchId()`
 // reads it; nothing else is touched.
 
-import { test, describe, assert, fs, path, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, fs, path, KIT_ROOT, tempDir } from './harness.mjs';
 import * as serpapi from '../lib/serpapi.mjs';
 import {
   SEARCH_PROVIDERS, SEARCH_PROVIDER_NAMES, FETCH_SHAPE, SEARCH_SHAPE,
@@ -280,6 +280,22 @@ test('SR-1: readKey prefers the environment, falls back to config, and is empty 
   assert.equal(serpapi.readKey({ env: { SERPAPI_API_KEY: '   ' }, config: {} }), '', 'whitespace is not a key');
 });
 
+test('SR-1: a key held ONLY in the machine config reaches the request - selection is not enough', () => {
+  // Found 2026-09-26: selectSearch read `serpapiKey` from the machine config and chose SerpAPI,
+  // but search() was called without a config and read only the environment - so every search
+  // failed "no SerpAPI key" while the status line said a key was configured. The merged run
+  // then fell back to the other provider on every query, and the second meter was never used.
+  const dir = tempDir('rk-cfgkey-');
+  fs.writeFileSync(path.join(dir, 'research-kit.config.json'), JSON.stringify({ serpapiKey: SENTINEL }));
+  const env = { RESEARCH_KIT_CONFIG: path.join(dir, 'research-kit.config.json') };
+  const job = stubJob({ ok: true, payload: REAL });
+  const r = serpapi.search('q', { env, job });
+  assert.equal(r.ok, true, `a configured key was not used: ${r.error}`);
+  assert.equal(job.calls[0]?.apiKey, SENTINEL);
+  // An EXPLICIT null still means "no config" - the deterministic form every other test uses.
+  assert.equal(serpapi.search('q', { env, config: null, job: stubJob({ ok: true, payload: REAL }) }).ok, false);
+});
+
 test('SR-3: redact refuses to act on a string too short to be a key', () => {
   // Replacing a 2-character "key" would turn every occurrence of those characters into
   // noise, which hides more than it protects.
@@ -296,8 +312,74 @@ test('SR-5: status reports credential presence and DECLINES to guess an allowanc
   const on = serpapi.status({ env: { SERPAPI_API_KEY: SENTINEL } });
   assert.equal(on.authenticated, true);
   assert.equal(on.source, 'SERPAPI_API_KEY');
-  assert.equal(on.searchesRemaining, null, 'no captured endpoint reports this - reporting a number would be inventing one');
+  assert.equal(on.searchesRemaining, null, 'status() stays offline - the vendor count is account()\'s job (E-26, ADR-0040)');
   assert.equal(on.raw.includes(SENTINEL), false, 'status leaked the key');
+});
+
+// ---------------------------------------------------------------- ADR-0040  the vendor's meter
+
+const ACCOUNT = {
+  account_id: 'acct-should-never-leave', api_key: SENTINEL, account_email: 'someone@example.invalid',
+  account_status: 'Active', plan_name: 'Free Plan', searches_per_month: 250, plan_searches_left: 98,
+  total_searches_left: 98, this_month_usage: 152, this_hour_searches: 9, account_rate_limit_per_hour: 250,
+  plan_renewal_date: '2026-10-14',
+};
+
+test('ADR-0040: account() reads the vendor meter into named fields', () => {
+  const job = stubJob({ ok: true, payload: ACCOUNT });
+  const r = serpapi.account({ key: SENTINEL, job });
+  assert.equal(r.ok, true, r.error);
+  assert.deepEqual(r.account, {
+    plan: 'Free Plan', perMonth: 250, perHour: 250, usedThisCycle: 152, left: 98, thisHour: 9, renews: '2026-10-14',
+  });
+  assert.equal(job.calls[0].kind, 'serpapi-account');
+});
+
+test('ADR-0040 / SR-3: only WHITELISTED fields leave - no key, no email, no account id', () => {
+  const r = serpapi.account({ key: SENTINEL, job: stubJob({ ok: true, payload: ACCOUNT }) });
+  const out = JSON.stringify(r);
+  assert.equal(out.includes(SENTINEL), false, 'the key reached the result');
+  assert.equal(out.includes('example.invalid'), false, 'the account email reached the result');
+  assert.equal(out.includes('acct-should-never-leave'), false, 'the account id reached the result');
+});
+
+test('ADR-0040: a missing or non-numeric field is null, never a guess', () => {
+  const r = serpapi.account({ key: SENTINEL, job: stubJob({ ok: true, payload: { searches_per_month: '250', plan_renewal_date: null } }) });
+  assert.equal(r.ok, true);
+  assert.equal(r.account.perMonth, null);
+  assert.equal(r.account.renews, null, 'accounts without a monthly plan have no renewal date (E-26)');
+});
+
+test('ADR-0040: no key is a refusal, and nothing is requested', () => {
+  const job = stubJob({ ok: true, payload: ACCOUNT });
+  const r = serpapi.account({ env: {}, config: null, job });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /SERPAPI_API_KEY/);
+  assert.equal(job.calls.length, 0);
+});
+
+test('ADR-0040 / SR-3: the endpoint override cannot send the key anywhere but the vendor or loopback', () => {
+  const job = stubJob({ ok: true, payload: ACCOUNT });
+  const r = serpapi.account({ key: SENTINEL, env: { [serpapi.ACCOUNT_ENDPOINT_ENV]: 'https://collector.evil.example/account.json' }, job });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /refusing/);
+  assert.equal(job.calls.length, 0, 'a request was built for a foreign host');
+});
+
+test('ADR-0040 / SR-3: a vendor error is returned in its own words, with the key scrubbed', () => {
+  const r = serpapi.account({ key: SENTINEL, job: stubJob({ ok: true, payload: { error: `Invalid API key: ${SENTINEL}` } }) });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /Invalid API key/);
+  assert.equal(r.error.includes(SENTINEL), false);
+});
+
+test('ADR-0040 / SR-1: a key held only in the machine config is used for the account read too', () => {
+  const dir = tempDir('rk-cfgacct-');
+  fs.writeFileSync(path.join(dir, 'research-kit.config.json'), JSON.stringify({ serpapiKey: SENTINEL }));
+  const job = stubJob({ ok: true, payload: ACCOUNT });
+  const r = serpapi.account({ env: { RESEARCH_KIT_CONFIG: path.join(dir, 'research-kit.config.json') }, job });
+  assert.equal(r.ok, true, r.error);
+  assert.equal(job.calls[0].apiKey, SENTINEL);
 });
 
 // ---------------------------------------------------------------- AR-3  the refusal
