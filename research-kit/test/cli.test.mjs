@@ -44,6 +44,10 @@ function run(bin, args, { root, env = {} } = {}) {
       USERPROFILE: process.env.USERPROFILE,
       APPDATA: process.env.APPDATA,
       // No key, no transport preference, unless a test asks for one.
+      // And never the network: with a key present, --status reads the search vendor's
+      // meter (ADR-0040). Pointed at a dead loopback port, that read fails fast and locally,
+      // so no test can spend a real call - or a real key that the machine config holds.
+      RESEARCH_KIT_SEARCH_ACCOUNT_ENDPOINT: 'http://127.0.0.1:9/account.json',
       ...env,
     },
   });
@@ -142,6 +146,18 @@ test('RR-5 / U-9 / U-10: with SerpAPI as the meter, --status labels the caps and
   assert.match(r.out, /account\.json/, 'the operator must be told where the account\'s own limits are');
   assert.match(r.out, /billing cycle/, 'the month must be named as not the vendor\'s (U-10)');
   assert.equal(r.out.includes(FAKE_KEY), false, 'the CLI printed the key');
+});
+
+test('ADR-0040: with a key, --status tries the vendor meter and says plainly when it cannot read it', () => {
+  const r = run('research.mjs', ['--status'], { root: project(), env: { SERPAPI_API_KEY: FAKE_KEY } });
+  assert.equal(r.status, 0, r.err);
+  assert.match(r.out, /vendor meter\s+unavailable from serpapi\.com\/account\.json/);
+  assert.equal(r.all.includes(FAKE_KEY), false, 'the CLI printed the key');
+});
+
+test('ADR-0040 / FR-5: with no key, --status makes no vendor-meter call and prints no such line', () => {
+  const r = run('research.mjs', ['--status'], { root: project() });
+  assert.equal(/vendor meter/.test(r.out), false);
 });
 
 test('RR-5: a fresh project reports zero searches, not NaN or blank', () => {

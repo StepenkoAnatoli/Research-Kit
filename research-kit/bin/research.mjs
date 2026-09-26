@@ -85,8 +85,28 @@ ${(transport.search.adapter?.METER_NOTES ?? [])
   // The selected search adapter says what the numbers mean for its vendor (U-9, U-10). A
   // machine with no separate search provider selects none that has notes, so it is told
   // nothing about a provider it never configured (FR-5).
-  .map((note) => `                   ${note}\n`).join('')}`);
+  .map((note) => `                   ${note}\n`).join('')}${vendorMeter(transport.search)}`);
   process.exit(0);
+}
+
+/**
+ * The search vendor's OWN count of this account, when the selected search adapter can read
+ * it (ADR-0040). The lines above are this machine's count and the documented plan; this is
+ * the vendor's answer, across every machine, for the billing cycle it actually uses. A
+ * provider with no such endpoint, or no key, prints nothing and makes no call.
+ */
+function vendorMeter(search) {
+  const read = search?.adapter?.account;
+  if (typeof read !== 'function' || search.notReady) return '';
+  const r = read();
+  if (!r.ok) {
+    return `vendor meter       unavailable from ${r.source} (${r.error}) - the lines above are this machine's count\n`;
+  }
+  const a = r.account;
+  const shown = (v) => (v === null ? '?' : v);
+  return `vendor meter       ${shown(a.usedThisCycle)} used this cycle, ${shown(a.left)} left of ${shown(a.perMonth)}`
+    + `${a.renews ? `, renews ${a.renews}` : ''}; ${shown(a.perHour)}/hour for this account, ${shown(a.thisHour)} this hour\n`
+    + `                   from ${r.source} - the vendor's own count, free and not counted (E-26)\n`;
 }
 
 let chosen;

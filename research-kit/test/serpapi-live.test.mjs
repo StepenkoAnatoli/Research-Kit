@@ -14,9 +14,10 @@
 // overridable endpoint on a request that carries an API key is otherwise a way to
 // exfiltrate one.
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { test, describe, assert, tempDir, fs, path } from './harness.mjs';
 import * as serpapi from '../lib/serpapi.mjs';
+import { KIT_ROOT as KIT_ROOT_DIR } from './harness.mjs';
 
 describe('serpapi-live');
 
@@ -296,4 +297,46 @@ test('allowedEndpoint: the vendor over https, or loopback, and nothing else', ()
     '',
     'not a url',
   ]) assert.equal(serpapi.allowedEndpoint(bad), false, `${bad} was allowed`);
+});
+
+// ---------------------------------------------------------------- ADR-0040  the vendor meter, live
+
+const ACCOUNT_PAYLOAD = {
+  account_id: 'acct-live', api_key: 'echoed-by-the-vendor', account_email: 'live@example.invalid',
+  plan_name: 'Free Plan', searches_per_month: 250, total_searches_left: 98, this_month_usage: 152,
+  this_hour_searches: 9, account_rate_limit_per_hour: 250, plan_renewal_date: '2026-10-14',
+};
+
+test('LIVE ADR-0040: account() goes parent -> child -> socket, sends ONLY the key, and reads the meter', async () => {
+  const vendor = await standIn({ body: JSON.stringify(ACCOUNT_PAYLOAD) });
+  try {
+    const r = serpapi.account({ key: KEY, endpoint: vendor.endpoint.replace('/search', '/account.json') });
+    assert.equal(r.ok, true, r.error);
+    assert.equal(r.account.left, 98);
+    assert.equal(r.account.perHour, 250);
+    const [req] = vendor.requests();
+    assert.equal(req.path, '/account.json');
+    assert.deepEqual(Object.keys(req.params), ['api_key'], 'the account request carried more than the key');
+  } finally { vendor.close(); }
+});
+
+test('LIVE ADR-0040: research.mjs --status prints the vendor meter, and never the key', async () => {
+  const vendor = await standIn({ body: JSON.stringify(ACCOUNT_PAYLOAD) });
+  try {
+    const root = tempDir('rk-status-live-');
+    const r = spawnSync(process.execPath, [path.join(KIT_ROOT_DIR, 'bin', 'research.mjs'), '--status'], {
+      cwd: root, encoding: 'utf8', timeout: 60_000, windowsHide: true,
+      env: {
+        PATH: process.env.PATH, SystemRoot: process.env.SystemRoot,
+        HOME: root, USERPROFILE: root, RESEARCH_KIT_CONFIG: path.join(root, 'absent.json'),
+        SERPAPI_API_KEY: KEY,
+        [serpapi.ACCOUNT_ENDPOINT_ENV]: vendor.endpoint.replace('/search', '/account.json'),
+      },
+    });
+    const out = `${r.stdout}${r.stderr}`;
+    assert.equal(r.status, 0, out);
+    assert.match(out, /vendor meter\s+152 used this cycle, 98 left of 250, renews 2026-10-14; 250\/hour for this account/);
+    assert.equal(out.includes(KEY), false, '--status printed the key');
+    assert.equal(out.includes('live@example.invalid'), false, '--status printed the account email');
+  } finally { vendor.close(); }
 });

@@ -35,6 +35,12 @@ export const name = 'serpapi';
 export const CONTRACTS = Object.freeze(['search']);
 
 export const ENDPOINT = 'https://serpapi.com/search';
+// The vendor's own meter (E-26): "free of charge, and using it will not be counted toward
+// your monthly quota". Overridable by environment ONLY within `allowedEndpoint` - the
+// vendor's host or loopback - so tests can point it at a stand-in and never at the network.
+export const ACCOUNT_ENDPOINT = 'https://serpapi.com/account.json';
+export const ACCOUNT_ENDPOINT_ENV = 'RESEARCH_KIT_SEARCH_ACCOUNT_ENDPOINT';
+export const ACCOUNT_TIMEOUT = 10_000;
 export const KEY_ENV = 'SERPAPI_API_KEY';
 export const CONFIG_KEY = 'serpapiKey';
 export const DEFAULT_TIMEOUT = 30_000;
@@ -201,6 +207,70 @@ export function allowedEndpoint(endpoint) {
     || url.hostname === '127.0.0.1';
 }
 
+/** The account request. Like `requestUrl`, the only other string that carries the key. */
+export function accountUrl(apiKey, endpoint = ACCOUNT_ENDPOINT) {
+  const url = new URL(endpoint);
+  url.searchParams.set('api_key', String(apiKey ?? ''));
+  return url;
+}
+
+/**
+ * `account.json` -> the meter, by WHITELIST.
+ *
+ * The payload carries `account_email`, `account_id` and, in the documented example, the
+ * `api_key` itself. Nothing here copies a field it does not name, so none of those can reach
+ * a terminal or a log. Names follow the vendor's documentation (E-26); a missing or
+ * non-numeric field is `null`, never a guess.
+ */
+export function normalizeAccount(payload) {
+  const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const str = (v) => (typeof v === 'string' && v ? v : null);
+  return {
+    plan: str(payload?.plan_name),
+    perMonth: num(payload?.searches_per_month),
+    perHour: num(payload?.account_rate_limit_per_hour),
+    usedThisCycle: num(payload?.this_month_usage),
+    left: num(payload?.total_searches_left ?? payload?.plan_searches_left),
+    thisHour: num(payload?.this_hour_searches),
+    // `null` for accounts without an active monthly plan (E-26).
+    renews: str(payload?.plan_renewal_date),
+  };
+}
+
+/**
+ * The vendor's own meter: `{ ok, source, account, error }`, and never a throw (IR-6).
+ *
+ * Why it exists (U-9, U-10, U-11; ADR-0040): the kit's local count cannot see other machines,
+ * counts a calendar month where SerpAPI counts a billing cycle, and can only quote the
+ * documented caps - while this account's enforced hourly limit was measured at 250, not the
+ * documented 50. The vendor answers all three for free, uncounted.
+ */
+export function account({
+  env = process.env,
+  config = undefined,
+  key = null,
+  timeout = ACCOUNT_TIMEOUT,
+  endpoint = env[ACCOUNT_ENDPOINT_ENV] || ACCOUNT_ENDPOINT,
+  job = runJob,
+} = {}) {
+  const source = 'serpapi.com/account.json';
+  const apiKey = key ?? readKey({ env, config: config === undefined ? loadConfig(env) : config });
+  const fail = (error) => ({ ok: false, source, account: null, error: redact(error, apiKey) });
+
+  if (!allowedEndpoint(endpoint)) {
+    return fail(`refusing to send a SerpAPI key to "${endpoint}". The endpoint may be the vendor's `
+      + 'own host or a loopback address (for tests), and nothing else.');
+  }
+  if (!apiKey) return fail(`no SerpAPI key: set ${KEY_ENV} or the machine config's ${CONFIG_KEY}`);
+
+  const answer = job({ kind: 'serpapi-account', apiKey, timeout, endpoint }, { timeout });
+  if (!answer?.ok) return fail(answer?.error || 'serpapi account request failed');
+  const payload = answer.payload;
+  if (!payload || typeof payload !== 'object') return fail('serpapi account request returned no payload');
+  if (typeof payload.error === 'string') return fail(payload.error);
+  return { ok: true, source, account: normalizeAccount(payload), error: null };
+}
+
 export function command(query, key = '') {
   // Defence in depth for the case `search()` refuses outright: if the query itself holds
   // the credential, this string must still not carry it. `cmd` is written into the
@@ -314,11 +384,11 @@ export function status({ env = process.env, config = null } = {}) {
     transport: name,
     authenticated: Boolean(source),
     source,
-    // Not knowable from any endpoint this project has read. Named rather than left null
-    // with no explanation.
+    // status() stays offline: the vendor's own count is `account()`'s job (E-26, ADR-0040),
+    // and a status probe that made a network call would change what every caller spends.
     searchesRemaining: null,
     raw: source
-      ? `serpapi: key configured via ${source}; remaining monthly allowance is not reported by any captured endpoint`
+      ? `serpapi: key configured via ${source}; the vendor's own count is read by account() from serpapi.com/account.json (E-26)`
       : `serpapi: no key (set ${KEY_ENV} or the machine config's ${CONFIG_KEY})`,
   };
 }
@@ -342,7 +412,7 @@ export const scrape = () => cannotFetch('scrape');
 export const runScrape = () => cannotFetch('scrape');
 export const map = () => cannotFetch('map');
 
-export default { name, search, status, command, CONTRACTS };
+export default { name, search, status, account, command, CONTRACTS };
 
 // ---------------------------------------------------------------- the child half
 
@@ -364,7 +434,7 @@ async function child() {
     process.stdout.write(JSON.stringify({ ok: false, error: `unparseable job: ${err.message}` }));
     return;
   }
-  if (job.kind !== 'serpapi-search') {
+  if (job.kind !== 'serpapi-search' && job.kind !== 'serpapi-account') {
     process.stdout.write(JSON.stringify({ ok: false, error: `unknown job kind "${job.kind}"` }));
     return;
   }
@@ -376,7 +446,9 @@ async function child() {
     process.stdout.write(JSON.stringify({ ok: false, error: `refusing to send a key to "${endpoint}"` }));
     return;
   }
-  const url = requestUrl(job.query, job.apiKey, endpoint);
+  const url = job.kind === 'serpapi-account'
+    ? accountUrl(job.apiKey, endpoint)
+    : requestUrl(job.query, job.apiKey, endpoint);
 
   try {
     const response = await fetch(url, {
