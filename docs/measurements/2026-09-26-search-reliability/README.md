@@ -99,3 +99,23 @@ the case for the merged search the kit already runs when a SerpAPI key is config
   now waits that out instead of losing the searches (`searchPatiently`).
 - **Not changed:** the kit's 30 s SerpAPI timeout. The data gives no reason to raise it,
   and a single ETIMEDOUT from another machine is not a reason either.
+
+## Addendum, 2026-09-26 22:55 UTC - a second ETIMEDOUT, on this machine
+
+`decompose.mjs` for `docs/decisions/2026-09-26-actions-sept-changes` logged
+`search failed on serpapi: spawnSync /opt/node22/bin/node ETIMEDOUT` on one of its four
+queries, at 22:55:26 UTC. The other three answered. The failed query degraded to
+`firecrawl-cli` as designed, and the map was written with 29 candidate pages.
+
+Seventeen seconds later SerpAPI's own meter (`--status`, ADR-0040) read: 159 searches used
+this cycle, 91 left, **6 in the last hour against an hourly limit of 250**. So it was not a
+rate limit, and not an exhausted account.
+
+What changes: the round A/B caveat above - "not the machine that saw the ETIMEDOUT" - no
+longer holds. This container, behind this proxy, has now seen one too. What does not change:
+the verdict. Two timeouts across two machines and one day, each on one query of a run that
+carried on, is the rare case the merged search already absorbs. It is still not a reason to
+raise the 30 s timeout: the slowest of the 30 measured calls took 14.3 s, and the fallback
+worked. **Revisit** if a single
+run loses more than one query to it, or a third occurs within a week - then measure again,
+from the machine that saw it, with per-call timings.

@@ -188,7 +188,9 @@ agent treating exit 0 as permission to build has skipped the only part that need
 "Supported" here means one specific thing, and nothing vaguer: **every commit runs the
 full offline suite on that platform in CI.** Linux and Windows both do
 ([`offline-suite.yml`](.github/workflows/offline-suite.yml)). macOS does not, so a macOS
-regression will not be caught before you hit it.
+regression will not be caught before you hit it. Until GitHub's `ubuntu-latest` finishes
+moving to Ubuntu 26.04 (2026-11-19), Linux is checked on both images, 24.04 and 26.04
+([ADR-0043](docs/adr/0043-the-suite-runs-on-ubuntu-26-04-through-the-migration.md)).
 
 | | Linux | Windows | macOS |
 |---|---|---|---|

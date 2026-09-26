@@ -66,7 +66,23 @@ export function docsHosts(results, { limit = 6 } = {}) {
   return [...counts].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([host, score]) => ({ host, score }));
 }
 
-function mapBody({ topic, rows, hosts, material, date, recipe }) {
+/**
+ * One line of vendor error text, safe to commit. MAP.md is checked in, and an error string
+ * is whatever the vendor or its CLI printed - which has echoed request URLs, and keys with
+ * them. So: the first line only, `api_key=`-style parameters blanked, any credential-shaped
+ * run (32+ token characters - a SerpAPI key, an `fc-` key, a GitHub token) replaced, capped.
+ * Pattern-based on purpose: the string may carry a credential this process never held.
+ */
+function scrubError(text) {
+  const line = String(text ?? '').split(/\r?\n/).find((l) => l.trim()) ?? '';
+  const clean = line
+    .replace(/((?:api[_-]?key|key|token|secret)=)[^&\s]+/gi, '$1<redacted>')
+    .replace(/[A-Za-z0-9_-]{32,}/g, '<redacted>')
+    .trim();
+  return clean.length > 160 ? `${clean.slice(0, 157)}...` : clean;
+}
+
+function mapBody({ topic, rows, hosts, material, date, recipe, failures = [], dryRun = false }) {
   const lines = [
     '# MAP - topic decomposition',
     '',
@@ -105,8 +121,22 @@ function mapBody({ topic, rows, hosts, material, date, recipe }) {
     for (const row of material) lines.push(`- [${row.title || row.url}](${row.url})`);
     lines.push('');
   }
+  // Three different empty maps, and they must not read alike: a dry run gathered nothing on
+  // purpose, a quiet topic was searched and answered with nothing, and an outage was never
+  // answered at all. Only the first is fixed by running without --dry-run.
+  const lost = failures.filter((f) => !f.degraded);
   if (!hosts.length && !material.length) {
-    lines.push('_No material gathered - run without `--dry-run`, or add URLs to `research/plan.json`._', '');
+    if (dryRun) lines.push('_No material gathered - run without `--dry-run`, or add URLs to `research/plan.json`._', '');
+    else if (lost.length) lines.push('_No material gathered - every search failed (below). This map is the bare checklist; re-run once the provider answers._', '');
+    else lines.push('_No material gathered - every search answered, and none returned a page. Add URLs to `research/plan.json`._', '');
+  }
+  if (failures.length) {
+    lines.push('Search failures - a map drafted from failed searches looks like a map of a quiet topic, so they are listed:', '');
+    for (const f of failures) {
+      const fell = f.degraded && f.fellBackTo ? ` - fell back to ${f.fellBackTo}` : '';
+      lines.push(`- \`${scrubError(f.query)}\` on ${f.provider}: ${scrubError(f.error)}${fell}`);
+    }
+    lines.push('');
   }
   return `${lines.join('\n')}\n`;
 }
@@ -161,6 +191,7 @@ export function decompose(root, {
   let material = [];
   let hosts = [];
   let spent = 0;
+  let searches = 0;
   const failures = [];
 
   if (!dryRun && adapter) {
@@ -170,6 +201,7 @@ export function decompose(root, {
       `${topic} pricing limits`,
       `${topic} terms of service`,
     ]);
+    searches = queries.length;
     const seen = new Set();
     // The SEARCH side (ADR-0027). Absent means "the fetch adapter" - what this function
     // did before the split, so a caller that has not been updated is unaffected.
@@ -179,7 +211,7 @@ export function decompose(root, {
       let ranker = searcher.name;
       // One bounded fallback, reported rather than absorbed (RR-1, RR-2).
       if (!found.ok && searcher !== adapter) {
-        failures.push({ query, error: found.error, provider: searcher.name, degraded: true });
+        failures.push({ query, error: found.error, provider: searcher.name, degraded: true, fellBackTo: adapter.name });
         log(`  search failed on ${searcher.name}: ${found.error}`);
         log(`  degrading to ${adapter.name} for this query - this spends fetch credits`);
         found = adapter.search(query, { limit });
@@ -224,12 +256,13 @@ export function decompose(root, {
     }
   }
 
-  writeText(file, mapBody({ topic, rows, hosts, material: material.slice(0, 20), date, recipe: loaded.name || recipe }));
+  writeText(file, mapBody({ topic, rows, hosts, material: material.slice(0, 20), date, recipe: loaded.name || recipe, failures, dryRun: dryRun || !adapter }));
   return {
     written: true,
     // "nothing was found" and "every attempt failed" are different answers.
     gathered: material.length > 0,
     failures,
+    searches,
     file: PATHS.map,
     rows: rows.length,
     universal: UNIVERSAL_DIMENSIONS.length,
@@ -239,4 +272,27 @@ export function decompose(root, {
     hosts,
     spent,
   };
+}
+
+/**
+ * The line the CLI prints about searching, or '' when every search answered first time.
+ * A degradation is counted as answered - the query did get results - but never silently:
+ * it moved spend onto the fetch budget, as `research.mjs` says of its own fallbacks.
+ */
+export function searchSummary({ searches = 0, failures = [], gathered = false } = {}) {
+  if (!failures.length) return '';
+  const lostQueries = new Set(failures.filter((f) => !f.degraded).map((f) => f.query));
+  const fellBack = new Set(failures.filter((f) => f.degraded).map((f) => f.query));
+  // Only a fallback that ANSWERED is known to have spent: one that failed too is a lost query.
+  const rescued = [...fellBack].filter((q) => !lostQueries.has(q)).length;
+  const lost = lostQueries.size;
+  const lines = [`searches   ${searches - lost} of ${searches} searches answered`
+    + (lost ? `, ${lost} failed` : '')
+    + (fellBack.size ? `; ${fellBack.size} fell back to the fetch provider` : '')
+    + (rescued ? `, ${rescued} answered there - those spent FETCH credits` : '')
+    + ' (reasons in research/MAP.md)'];
+  if (!gathered && lost) {
+    lines.push('NOTHING gathered: every search failed, so the map is the bare checklist. Re-run once the provider answers.');
+  }
+  return lines.join('\n');
 }

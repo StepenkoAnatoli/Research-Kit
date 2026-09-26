@@ -93,6 +93,26 @@ test('a failing verdict and a broken chain are both blockers, each named', () =>
   assert.equal(find(report.findings, 'ledger-chain').severity, 'fail');
 });
 
+test('on a collector, an unhanded corpus is information - not a pass that says it failed to arrive', () => {
+  // Found 2026-09-26 in a live-collection log, on a freshly scaffolded collector project:
+  //   pass  handoff-ledger-missing  research/raw/.fetches.jsonl is not in this checkout -
+  //                                 the corpus arrived without its ledger
+  // Nothing had arrived - nothing had been collected yet - and a PASS whose detail
+  // describes a failure is a line a reader must argue with.
+  const dir = makeProject();
+  const collector = runDoctor(dir, { env: machine({ config: { role: 'collector' } }).env, probe: READY, record: false });
+  const mine = find(collector.findings, 'handoff-ledger-missing');
+  assert.ok(mine, 'the collector no longer reports the missing ledger at all');
+  assert.equal(mine.severity, 'info');
+  assert.ok(!/arrived/.test(mine.detail), `a collector is told its corpus "arrived": ${mine.detail}`);
+  assert.match(mine.detail, /builder/, 'the collector is not told why the finding exists');
+
+  const builder = runDoctor(dir, { env: machine({ config: { role: 'builder' } }).env, probe: READY, record: false });
+  const theirs = find(builder.findings, 'handoff-ledger-missing');
+  assert.equal(theirs.severity, 'fail', 'on a builder it is still a blocker');
+  assert.match(theirs.detail, /arrived without its ledger/);
+});
+
 test('doctor counts each override by kind', () => {
   const dir = makePassingProject();
   writeText(resolve(dir, PATHS.overrides), [

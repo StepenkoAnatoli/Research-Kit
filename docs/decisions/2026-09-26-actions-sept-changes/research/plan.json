@@ -1,0 +1,46 @@
+{
+  "topic": "GitHub Actions changes of September 2026 that touch this kit",
+  "notes": "Phase 0 ran for real and came back mostly noise (a long topic matched word by word); the four changelog posts are known URLs, so they are fetched directly.",
+  "depth": "normal",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 1,
+  "maxScrapes": 2,
+  "prefer": [
+    "github.blog",
+    "docs.github.com"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://github.blog/changelog/2026-09-25-changes-to-query-results-in-the-github-actions-api-and-ui",
+      "type": "P",
+      "why": "U-1"
+    },
+    {
+      "url": "https://github.blog/changelog/2026-09-24-expired-github-actions-artifacts-no-longer-shown-in-ui-and-api",
+      "type": "P",
+      "why": "U-2"
+    },
+    {
+      "url": "https://github.blog/changelog/2026-09-17-workflow-execution-protections-in-github-actions-generally-available",
+      "type": "P",
+      "why": "U-3"
+    },
+    {
+      "url": "https://github.blog/changelog/2026-09-10-control-github-actions-cache-access-with-cache-mode",
+      "type": "P",
+      "why": "U-4"
+    },
+    {
+      "url": "https://docs.github.com/en/rest/actions/artifacts",
+      "type": "P",
+      "why": "U-2 - whether 'list workflow run artifacts' (the endpoint the kit calls) also omits expired artifacts"
+    },
+    {
+      "url": "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax",
+      "type": "P",
+      "why": "U-4 - the exact cache-mode syntax and levels"
+    }
+  ]
+}

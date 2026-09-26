@@ -21,6 +21,7 @@ function snapshot(dir) {
 }
 
 const failures = (findings) => findings.filter((f) => f.severity === 'fail');
+const warnings = (findings) => findings.filter((f) => f.severity === 'warn');
 
 test('the registry holds thirteen checks in a pinned order', () => {
   assert.equal(CHECKS.length, 13);
@@ -463,6 +464,41 @@ test('corroboration: a third, genuinely different page rescues a mirrored pair',
   // than silently absorbed, so a reader can see why three rows bought two witnesses.
   assert.match(findings[0].detail, /2 distinct documents across 2 hosts/);
   assert.match(findings[0].detail, /1 of 3 rows are republished copies/);
+});
+
+// collection-attempts had no tests until 2026-09-26. It counted an attempt only when the
+// unknown's cell named a URL present in the ledger, so a KNOWN-UNKNOWN citing the E-row it
+// reached for - the stronger proof, since an E-row is a CAPTURE of that URL - was warned as
+// never attempted. Found by a real corpus (docs/decisions/2026-09-26-actions-sept-changes U-2).
+
+test('collection-attempts: a KNOWN-UNKNOWN citing a captured E-row was reached for', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace('| CLOSED |', '| KNOWN-UNKNOWN |'));
+  const findings = runCheck('collection-attempts', snapshot(dir));
+  assert.equal(warnings(findings).length, 0, findings.map((f) => f.detail).join('\n'));
+});
+
+test('collection-attempts: naming the URL itself still counts, as it always did', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace('| CLOSED | E-01: 10 requests per minute, 1,000 credits |',
+    '| KNOWN-UNKNOWN | tried https://example.invalid/docs/limits; verify on day one |'));
+  assert.equal(warnings(runCheck('collection-attempts', snapshot(dir))).length, 0);
+});
+
+test('collection-attempts: a KNOWN-UNKNOWN that reached for nothing is still warned', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace('| CLOSED | E-01: 10 requests per minute, 1,000 credits |',
+    '| KNOWN-UNKNOWN | login-walled; verify on day one |'));
+  const findings = warnings(runCheck('collection-attempts', snapshot(dir)));
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].detail, /no recorded fetch attempt/);
+});
+
+test('collection-attempts: citing an E-row that does not exist is not an attempt', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace('| CLOSED | E-01: 10 requests per minute, 1,000 credits |',
+    '| KNOWN-UNKNOWN | E-09 would say; verify on day one |'));
+  assert.equal(warnings(runCheck('collection-attempts', snapshot(dir))).length, 1);
 });
 
 test('corroboration: a KNOWN-UNKNOWN is not asked for sources it was never going to have', () => {

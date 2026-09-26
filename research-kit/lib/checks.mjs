@@ -536,8 +536,15 @@ function collectionAttempts(corpus) {
   const out = [];
   for (const unknown of corpus.unknowns) {
     if (unknown.status !== 'KNOWN-UNKNOWN') continue;
-    // An attempt counts when the ledger holds any entry for a URL the row names.
-    const attempted = corpus.ledger.entries.some((entry) => entry.url && unknown.evidence.includes(entry.url));
+    // An attempt counts when the ledger holds any entry for a URL the row names - directly,
+    // or through an E-row it cites. The citation is the stronger proof: an E-row is a
+    // CAPTURE of its URL. Until 2026-09-26 only a literal URL counted, so a KNOWN-UNKNOWN
+    // citing the page it reached for was warned as never attempted.
+    const citedUrls = unknown.cites
+      .map((id) => corpus.evidence.find((row) => row.id.toUpperCase() === id.toUpperCase())?.url)
+      .filter(Boolean);
+    const attempted = corpus.ledger.entries.some((entry) => entry.url
+      && (unknown.evidence.includes(entry.url) || citedUrls.includes(entry.url)));
     if (attempted) continue;
     out.push(finding('warn', 'collection-attempts', 'unknown-attempted',
       `${unknown.id} is KNOWN-UNKNOWN with no recorded fetch attempt - an unreachable fact should have been reached for`,

@@ -22,14 +22,19 @@ on:
 
 # Third-party actions are pinned to COMMIT SHAs, not tags.
 #
-# A tag is mutable. `actions/checkout@v4` is whatever the v4 tag points at today, and
+# A tag is mutable. `actions/checkout@v7` is whatever the v7 tag points at today, and
 # whoever can move that tag can run code in this workflow with read access to the
 # repository - on a project whose entire value is that its claims are checkable, trusting
 # a moving reference for the environment those claims are produced in is the wrong trade.
 #
 # The version each SHA corresponds to is in the comment beside it. Updating is a reviewed
-# change, not something that happens while nobody is looking. Re-resolve with:
-#   gh api repos/actions/checkout/git/ref/tags/v4 --jq .object.sha
+# change, not something that happens while nobody is looking. Re-resolve to the COMMIT a
+# tag names, never the tag object - `gh api .../git/ref/tags/X --jq .object.sha`, the
+# instruction this comment used to give, returns the tag object for an annotated tag:
+#   git ls-remote https://github.com/actions/checkout 'refs/tags/v7.0.1*'
+# An annotated tag lists twice; the line ending in ^{} is the commit. Check `runs.using`
+# in that commit's action.yml too. How the current pins were chosen, and why they are
+# v7: docs/decisions/2026-09-26-actions-node24.
 
 permissions:
   contents: read
@@ -48,7 +53,12 @@ jobs:
         # to ignore red. Its one run was not wasted - it found the symlink containment
         # defect in audit.mjs, which is fixed and affects Linux too wherever a project
         # sits under a symlink. Add macos-latest here if that changes.
-        os: [ubuntu-latest, windows-latest]
+        #
+        # ubuntu-26.04 is TEMPORARY (ADR-0043): ubuntu-latest moves from 24.04 to 26.04
+        # between 2026-10-19 and 2026-11-19, and GitHub's advice is to test on 26.04 before
+        # that. Linux is still the one policy; this checks it on the image it is about to
+        # become. Remove the leg once ubuntu-latest resolves to 26.04 - it is then a duplicate.
+        os: [ubuntu-latest, ubuntu-26.04, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     defaults:
@@ -57,15 +67,15 @@ jobs:
         # `shell: bash` gets Git Bash on Windows so one script serves all three.
         shell: bash
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4, resolved 2026-09-21
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, resolved 2026-09-26
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4, resolved 2026-09-21
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0, resolved 2026-09-26
         with:
           node-version: '22'
 
       # Three of the conformance runners ship twice, in Node and in Python, and
       # must agree per vector. Without Python those tests report UNSUP and block.
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5, resolved 2026-09-21
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0, resolved 2026-09-26
         with:
           python-version: '3.12'
 

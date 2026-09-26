@@ -67,6 +67,19 @@ export function bodyHashOf(root, file) {
 }
 
 /**
+ * Why a page is being fetched, in words. `cacheDecision` answers in codes for the code that
+ * branches on them; this is for the operator reading the log. Printed verbatim, the code for
+ * "no capture yet" made a fresh fetch log as "collected <url> - not-collected".
+ */
+function whyFetched(decision) {
+  if (decision.reason === 'not-collected') return 'first capture';
+  if (decision.reason === 'forced') return 'refreshed: --force';
+  if (decision.reason === 'stale') return `refreshed: the last capture was ${decision.age} days old`;
+  if (decision.reason === 'undated') return 'refreshed: the last capture carries no date';
+  return decision.reason;
+}
+
+/**
  * Collect one URL: consult the cache, run the adapter through the `runScrape` seam,
  * write the capture, append the ledger entry, and add the evidence and source rows.
  *
@@ -106,7 +119,7 @@ export function collectOne(root, url, {
     if (preview.hit) {
       return { status: 'cached', url, entry: preview.entry, reason: `fresh capture from ${preview.entry.retrieved}`, spent: 0 };
     }
-    return { status: 'skipped', url, entry: null, reason: `would collect (${preview.reason})`, spent: 0 };
+    return { status: 'skipped', url, entry: null, reason: `would collect (${whyFetched(preview)})`, spent: 0 };
   }
 
   // ONE WRITER BOUNDARY for the whole durable operation (ADR-0025).
@@ -183,7 +196,7 @@ export function collectOne(root, url, {
 
     upsertRow(root, PATHS.sources, HEADERS.sources, [entry.url, type, result.title || titleFromUrl(entry.url), date, usedFor]);
 
-    return { status: 'collected', url: entry.url, entry, row: { id, finding }, reason: decision.reason, spent: 1, waits };
+    return { status: 'collected', url: entry.url, entry, row: { id, finding }, reason: whyFetched(decision), spent: 1, waits };
   });
 }
 

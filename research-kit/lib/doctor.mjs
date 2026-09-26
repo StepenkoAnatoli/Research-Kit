@@ -370,9 +370,19 @@ export function runDoctor(root, { env = process.env, gitPaths = {}, probe = prob
   // the arrival question - composed ONCE, from the corpus already read
   const handoff = verifyHandoff(root, { corpus });
   if (!handoff.ok) {
-    const severity = role === 'builder' ? 'fail' : 'pass';
+    // On a collector these are what a BUILDER would meet, so they are information, and
+    // they say so. They used to be graded `pass` with the builder's wording, which on a
+    // fresh collector project read "pass ... the corpus arrived without its ledger" when
+    // nothing had arrived and nothing had been collected.
     for (const finding of handoff.findings.filter((x) => x.name !== 'handoff-remedy')) {
-      findings.push(f(severity, finding.name, finding.detail));
+      if (role === 'builder') {
+        findings.push(f('fail', finding.name, finding.detail));
+      } else {
+        const here = finding.name === 'handoff-ledger-missing'
+          ? `${PATHS.ledger} does not exist yet - nothing has been collected here`
+          : finding.detail;
+        findings.push(f('info', finding.name, `${here}; a builder handed this corpus would be refused`));
+      }
     }
     if (role === 'builder') {
       findings.push(f('info', 'handoff-remedy', handoffRemedy(handoff)));

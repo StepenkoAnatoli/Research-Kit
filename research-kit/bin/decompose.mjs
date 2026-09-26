@@ -7,7 +7,7 @@
 import { parseFlags } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal } from '../lib/machine.mjs';
 import { selectTransport, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES } from '../lib/transport.mjs';
-import { decompose, RECIPE_DIR } from '../lib/decompose.mjs';
+import { decompose, searchSummary, RECIPE_DIR } from '../lib/decompose.mjs';
 import { UNIVERSAL_DIMENSIONS } from '../lib/dimensions.mjs';
 import { listFiles } from '../lib/core.mjs';
 
@@ -106,6 +106,11 @@ if (!result.written) {
   process.stderr.write(`${result.reason}\n`);
   process.exit(1);
 }
+
+// Printed before the "next, this part is yours" paragraph, because that paragraph reads the
+// same after an outage as after a good run - which is the defect this line exists for.
+const searched = searchSummary(result);
+if (searched) process.stderr.write(`${searched}\n`);
 
 process.stdout.write(`
 wrote ${result.file}: ${result.rows} rows (${result.universal} universal${result.added ? ` + ${result.added} from recipe ${result.recipe}` : ''}), ${result.material} candidate pages.
