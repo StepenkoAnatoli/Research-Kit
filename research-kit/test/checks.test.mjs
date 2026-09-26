@@ -567,6 +567,24 @@ test('capture-completeness: the render review is read from the ROW, never the ca
     'a note in the capture front-matter must NOT satisfy the review - the ledger hashes it');
 });
 
+test('gate-integrity passes on what it MEASURED, not on a state of the world', () => {
+  // It used to say "no override in effect". What it measured is that no override was
+  // RECORDED - and the escape hatch this kit documents most prominently, `git commit
+  // --no-verify`, records nothing. doctor.mjs has said so in its header since it was
+  // written: the bypassed hook cannot report itself.
+  //
+  // Found by sweeping all thirteen pass messages for claims wider than their measurement.
+  // It was the only one; the rest state what they counted. Pinned because the shorter
+  // sentence is the tempting one, and it is the false one.
+  const dir = makePassingProject();
+  const hit = runCheck('gate-integrity', snapshot(dir)).find((f) => f.rule === 'gate');
+  assert.equal(hit.severity, 'pass');
+  assert.match(hit.detail, /recorded/, 'the pass must say what it actually established');
+  assert.match(hit.detail, /--no-verify/, 'and name the bypass it cannot see');
+  assert.ok(!/no override in effect/.test(hit.detail),
+    'a pass that asserts no override is in effect claims more than any check here can know');
+});
+
 test('partial-render tells the reviewer where the note goes, and it is not front-matter', () => {
   // The test above pins that front-matter does not satisfy the review. This pins that the
   // MESSAGE does not send the reviewer there - which it did, for as long as the check

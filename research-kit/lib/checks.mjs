@@ -220,7 +220,24 @@ function gateIntegrity(corpus, options = {}) {
     out.push(finding('warn', 'gate-integrity', 'overrides-recorded',
       `${recent} override${recent === 1 ? '' : 's'} recorded in ${PATHS.overrides}`));
   }
-  if (!out.length) out.push(finding('pass', 'gate-integrity', 'gate', 'no override in effect'));
+  // "No override RECORDED" is what was measured. "No override in effect" is what this used
+  // to say, and the two differ by the escape hatch the kit documents most prominently:
+  // `git commit --no-verify` leaves nothing behind. doctor.mjs has said so in its header
+  // since it was written - "the third override is silent by nature, the bypassed hook
+  // cannot report itself" - while this line quietly claimed the opposite.
+  //
+  // Found by sweeping all thirteen pass messages for claims wider than their measurement,
+  // after two checks in one day turned out to be reporting the existence of a thing as
+  // proof that the thing was right. This was the only one of the thirteen; the rest state
+  // what they counted.
+  //
+  // Nothing here can be made to detect a bypassed hook, so the fix is the sentence. An
+  // accurate pass is worth more than a confident one: a reader who finds a claim false once
+  // discounts the next, and the next may be the true one (ADR-0035).
+  if (!out.length) {
+    out.push(finding('pass', 'gate-integrity', 'gate',
+      'no override recorded - and `git commit --no-verify` records nothing, so this is the absence of evidence rather than evidence of absence'));
+  }
   return out;
 }
 
