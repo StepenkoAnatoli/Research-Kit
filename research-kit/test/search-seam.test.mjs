@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
-import { runResearch, searchUsage, FREE_TIER_PER_HOUR, FREE_TIER_PER_MONTH } from '../lib/research-run.mjs';
+import { runResearch, searchUsage, searchSummaryLine, FREE_TIER_PER_HOUR, FREE_TIER_PER_MONTH } from '../lib/research-run.mjs';
 import { decompose } from '../lib/decompose.mjs';
 import * as serpapi from '../lib/serpapi.mjs';
 import { readLedger, readCorpus } from '../lib/corpus.mjs';
@@ -341,6 +341,43 @@ test('RR-6: each provider in a merged search is retried on its own', () => {
   assert.equal(firstCalls, 2);
   assert.equal(other.calls.search, 1, 'a provider that answered must not be asked again');
   assert.equal(run.searchFailures ?? 0, 0);
+});
+
+// ---------------------------------------------------------------- RR-7  the summary line
+
+// 2026-09-22, tavily-terms: SerpAPI timed out, the merge carried on with Firecrawl, and the
+// run summary printed `searches 0 on serpapi` - true, and read as "not used" rather than
+// "attempted and failed". The failure was in the log body; the one line people read hid it.
+
+test('RR-7: a merged run counts failures PER PROVIDER, so the summary can name the one that failed', () => {
+  const root = project();
+  const run = runResearch(root, {
+    adapter: fetchStub(),
+    searchAdapters: [searchStub({ fail: 'spawnSync node ETIMEDOUT' }), fetchStub()],
+    plan: plan({ queries: [{ q: 'one', why: 'U-1' }, { q: 'two', why: 'U-1' }] }),
+    sleep: () => {},
+  });
+  assert.deepEqual(run.searchFailuresOn, { 'stub-search': 2 });
+});
+
+test('RR-7: the summary line says "attempted and failed", never a bare zero', () => {
+  const line = searchSummaryLine({ searchesUsed: 0, searchTransport: 'serpapi', searchFailuresOn: { serpapi: 1 } });
+  assert.match(line, /^searches {3}0 on serpapi/);
+  assert.match(line, /1 attempt failed/, 'a failed provider must not read as an unused one');
+  assert.match(line, /\.failures\.jsonl/, 'the line must say where the reason is');
+});
+
+test('RR-7: a partial failure is reported beside the successes, and plurals are right', () => {
+  const line = searchSummaryLine({ searchesUsed: 3, searchTransport: 'serpapi', searchFailuresOn: { serpapi: 2, 'firecrawl-cli': 1 } });
+  assert.match(line, /^searches {3}3 on serpapi/);
+  assert.match(line, /2 attempts failed/);
+  assert.doesNotMatch(line, /firecrawl/, 'the line is about the search meter only');
+});
+
+test('RR-7: a clean run prints exactly the line it always printed', () => {
+  assert.equal(searchSummaryLine({ searchesUsed: 4, searchTransport: 'serpapi', searchFailuresOn: {} }), 'searches   4 on serpapi');
+  assert.equal(searchSummaryLine({ searchesUsed: 4, searchTransport: 'serpapi' }), 'searches   4 on serpapi',
+    'a run result from before this field existed must still render');
 });
 
 // ---------------------------------------------------------------- TR-8  the regression

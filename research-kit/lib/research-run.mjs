@@ -230,6 +230,10 @@ ${compatibility.remedy}`);
   // that merged them would hide the whole point of the split.
   let searchesUsed = 0;
   let searchFailures = 0;
+  // The same failures, by provider. `searchFailures` mixes providers, so it cannot say
+  // whether the meter the summary reports on was the one that failed (RR-7).
+  const searchFailuresOn = {};
+  const failedOn = (provider) => { searchFailuresOn[provider] = (searchFailuresOn[provider] ?? 0) + 1; };
   let degraded = 0;
 
   const searchers = (searchAdapters ?? []).filter(Boolean);
@@ -270,6 +274,7 @@ ${compatibility.remedy}`);
         if (Number.isFinite(r.searchesUsed)) searchesUsed += r.searchesUsed;
         if (!r.ok) {
           searchFailures += 1;
+          failedOn(one.name);
           log(`  search failed on ${one.name}: ${r.error}`);
           appendJsonLine(root, PATHS.failures, {
             at: new Date().toISOString(), op: 'search', query: text, provider: one.name, error: r.error,
@@ -309,6 +314,7 @@ ${compatibility.remedy}`);
     if (!found.ok && searcher !== adapter) {
       const reason = found.error;
       searchFailures += 1;
+      failedOn(searchName);
       appendJsonLine(root, PATHS.failures, {
         at: new Date().toISOString(), op: 'search', query: text, provider: searchName, error: reason, degraded: true,
       });
@@ -320,6 +326,7 @@ ${compatibility.remedy}`);
     }
 
     if (!found.ok) {
+      failedOn(ranker);
       log(`  search failed: ${text} - ${found.error}`);
       appendJsonLine(root, PATHS.failures, {
         at: new Date().toISOString(), op: 'search', query: text, provider: ranker, error: found.error,
@@ -399,9 +406,25 @@ ${compatibility.remedy}`);
     // collected + failed, because a failed fetch can still consume budget; reporting it as
     // "collected" told the operator they had pages they did not have.
     collected: spent - failed,
-    searchesUsed, searchFailures, degraded,
+    searchesUsed, searchFailures, searchFailuresOn, degraded,
     results, discovered,
   };
+}
+
+/**
+ * The run summary's line for the separate search meter.
+ *
+ * It printed `searches 0 on serpapi` after a run in which SerpAPI had timed out and the
+ * merge carried on without it (tavily-terms, 2026-09-22). True, and it read as "not used".
+ * A provider that was asked and failed now says so, and says where the reason is. A clean
+ * run prints exactly the line it always did.
+ */
+export function searchSummaryLine(run) {
+  const name = run.searchTransport;
+  const line = `searches   ${run.searchesUsed} on ${name}`;
+  const failed = Number(run.searchFailuresOn?.[name] ?? 0);
+  if (!failed) return line;
+  return `${line} - ${failed} attempt${failed === 1 ? '' : 's'} failed, reasons in ${PATHS.failures}`;
 }
 
 /** What has been spent, read from the run log the collector keeps. */
