@@ -136,6 +136,24 @@ test('--force collects again; the cache is a decision, not a law', () => {
   assert.equal(forced.status, 'collected');
 });
 
+test('a collected page says WHY it was fetched, in words, not as a cache code', () => {
+  // Found 2026-09-26 in a live-collection log: "collected https://docs.firecrawl.dev/... -
+  // not-collected". The reason was cacheDecision's internal code for "no capture yet",
+  // printed verbatim beside the word "collected" - a line that reads as its own contradiction.
+  const dir = makeProject();
+  const corpus = readCorpus(dir);
+  const first = collectOne(dir, 'https://x.invalid/limits', { runScrape: stubAdapter().runScrape, corpus });
+  assert.equal(first.reason, 'first capture');
+  const forced = collectOne(dir, 'https://x.invalid/limits', { runScrape: stubAdapter().runScrape, corpus, force: true });
+  assert.equal(forced.reason, 'refreshed: --force');
+  const stale = collectOne(dir, 'https://x.invalid/limits', {
+    runScrape: stubAdapter().runScrape, corpus, refreshDays: 1, now: new Date(Date.now() + 5 * 86400000),
+  });
+  assert.match(stale.reason, /^refreshed: the last capture was \d+ days old$/);
+  const preview = collectOne(dir, 'https://x.invalid/other', { runScrape: stubAdapter().runScrape, corpus, dryRun: true });
+  assert.equal(preview.reason, 'would collect (first capture)');
+});
+
 test('dry-run says what would happen and writes nothing at all', () => {
   const dir = makeProject();
   const corpus = readCorpus(dir);
