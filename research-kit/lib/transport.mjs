@@ -130,6 +130,20 @@ export function selectTransport({ explicit = '', env = process.env, probe = prob
 }
 
 /**
+ * A Firecrawl key that this run will not use, said at collection time - or ''.
+ *
+ * The kit never reads FIRECRAWL_API_KEY itself: the CLI does. With the key set and no CLI
+ * on PATH, auto-detect falls back to the keyless adapter, capped per IP, and the run said
+ * only "no CLI on PATH" (found 2026-09-27). Only doctor named the unused key. A fallback
+ * the operator asked for by name (`--transport http-keyless`) is their choice, not news.
+ */
+export function unusedKeyNote(chosen, env = process.env) {
+  if (!env.FIRECRAWL_API_KEY || !chosen?.probe || chosen.probe.installed) return '';
+  return `note:      FIRECRAWL_API_KEY is set, but the Firecrawl CLI is not on PATH - the key is unused and this run is keyless, capped per IP.\n`
+    + `           To use the key: npm install -g ${firecrawl.cliInstallSpec()}\n`;
+}
+
+/**
  * The SEARCH side, resolved independently and by the same ladder: explicit flag,
  * environment, machine config, then auto-detect.
  *
