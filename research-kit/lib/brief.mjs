@@ -103,7 +103,17 @@ function hostOfUrl(url) {
 
 function knownUnknowns(corpus) {
   const rows = corpus.unknowns.filter((u) => u.status === 'KNOWN-UNKNOWN');
-  if (!rows.length) return 'None. Every blocking unknown was closed with primary-source evidence.';
+  if (!rows.length) {
+    // Said "closed with primary-source evidence" whatever the Type column held, so a corpus
+    // resting on one secondary source told its builder the opposite (found 2026-09-27).
+    const typeOf = (id) => corpus.evidence.find((e) => e.id.toUpperCase() === id.toUpperCase())?.type ?? '';
+    const secondhand = corpus.unknowns
+      .filter((u) => u.status === 'CLOSED' && !u.cites.some((id) => /^E-\d+$/i.test(id) && typeOf(id) === 'P'))
+      .map((u) => u.id);
+    const none = 'None. Every blocking unknown was closed with cited evidence.';
+    if (!secondhand.length) return none;
+    return `${none} ${secondhand.join(', ')} ${secondhand.length === 1 ? 'rests' : 'rest'} on no primary (P) source; the Type column above shows what carries ${secondhand.length === 1 ? 'it' : 'them'}.`;
+  }
   return rows.map((u) => `- **${u.id}** - ${u.text}\n  - Day-one verification: ${u.evidence || '_not stated_'}`).join('\n');
 }
 

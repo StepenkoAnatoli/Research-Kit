@@ -135,6 +135,17 @@ test('every command the brief prints runs from the project folder', () => {
   }
 });
 
+// Found the same day: a corpus whose one source was typed S drafted "Every blocking unknown was
+// closed with primary-source evidence".
+test('a closure resting on no primary source is not called primary', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/\| P \|/, '| S |'));
+  renderBrief(dir, { force: true });
+  const unknowns = briefSection(readText(resolve(dir, PATHS.brief)), 'unknowns');
+  assert.doesNotMatch(unknowns, /primary-source evidence/, 'the only source is secondary');
+  assert.match(unknowns, /U-1 rests on no primary \(P\) source/);
+});
+
 test('judgedSection is the reader the audit consumes instead of a regex of its own', () => {
   const dir = makePassingProject();
   renderBrief(dir);
