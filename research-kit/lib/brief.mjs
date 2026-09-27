@@ -45,8 +45,20 @@ export const BRIEF_FILE_MARKER = '<!-- research-kit:brief=scaffold -->';
  * (`_agent or human ..._`) is not a declaration.
  */
 export function reviewedBy(text) {
-  const match = String(text ?? '').match(/^Reviewed by:[ \t]*\**[ \t]*(agent|human)\b/im);
-  return match ? match[1].toLowerCase() : 'undeclared';
+  // An ambiguous declaration is no declaration (found 2026-09-27): a line naming both
+  // roles - a careless edit of the placeholder reads "agent or human" - or two lines that
+  // disagree read as `undeclared`, never as whichever came first. A line quoted inside a
+  // code block is not the reviewer speaking.
+  const outside = String(text ?? '').replace(/^[ \t]*```[\s\S]*?^[ \t]*```/gm, '');
+  const said = new Set();
+  for (const [, value] of outside.matchAll(/^[ \t]*Reviewed by:(.*)$/gim)) {
+    const roles = new Set([...value.toLowerCase().matchAll(/\b(agent|human)\b/g)].map((m) => m[1]));
+    const first = value.replace(/^[ \t*]+/, '').toLowerCase().match(/^(agent|human)\b/);
+    if (!first) continue;                 // the drafted placeholder, or not a role at all
+    if (roles.size > 1) return 'undeclared';
+    said.add(first[1]);
+  }
+  return said.size === 1 ? [...said][0] : 'undeclared';
 }
 
 export function briefState(text) {
