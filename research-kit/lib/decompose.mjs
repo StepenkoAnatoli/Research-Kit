@@ -260,7 +260,6 @@ export function decompose(root, {
         found = adapter.search(query, { limit });
         if (Number.isFinite(found?.searchesUsed)) searchesUsed += found.searchesUsed;
         if (Number.isFinite(found?.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
-      if (Number.isFinite(found?.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
         ranker = adapter.name;
       }
       if (!found.ok) {

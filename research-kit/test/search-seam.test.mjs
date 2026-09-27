@@ -773,3 +773,16 @@ test('RR-9: every cited page a search found in this repository\'s corpora passes
   assert.ok(judged > 0, 'no corpus was judged - the test is not looking where the corpora are');
   assert.deepEqual(rejected, [], 'the floor rejects evidence a real research pass relied on');
 });
+
+// Found 2026-09-27 reviewing ADR-0065's change: decompose's fallback branch added the
+// fallback search's estimated credits twice - an edit matched a substring of a deeper line.
+test('DR-1: decompose counts a fallback search\'s credits once', () => {
+  const root = project();
+  const adapter = fetchStub();
+  adapter.search = () => ({ ok: true, query: 'q', searchesUsed: 1, creditsEstimate: 2, results: [] });
+  const failing = { name: 'failing-search', search: () => ({ ok: false, query: 'q', results: [], error: 'down' }) };
+  decompose(root, { topic: 'seam probe', adapter, searchAdapter: failing, maxScrapes: 0, log: () => {} });
+  const [usage] = jsonLines(root, '.usage.jsonl');
+  assert.equal(usage.searchesUsed, 4, 'four fallback searches');
+  assert.equal(usage.searchCreditsEstimate, 8, 'each fallback search is 2 credits, counted once');
+});
