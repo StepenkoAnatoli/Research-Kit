@@ -80,9 +80,48 @@ export function decodeEntities(text) {
  * So this returns the chosen block AND what it left behind, and the caller grades
  * honestly on both.
  */
+const BLOCKS = /<(article|main|section|div)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+const SEMANTIC_MIN_WORDS = 100;
+
+/**
+ * The block the page itself declares as its content: the largest <main> or <article> with
+ * at least SEMANTIC_MIN_WORDS words, or null.
+ *
+ * Searched on its own, not among the div blocks. That search is lazy and non-overlapping,
+ * so when <main> sits inside wrapper divs - as it does on GitHub Docs - the outer div's
+ * match ends at the first </div> inside <main>, and <main> is never a candidate. On
+ * 2026-09-27 that kept the 262-character summary of a Docs article and dropped the
+ * 17,385-character <main> around it; Firecrawl captured the same page whole.
+ */
+function declaredContent(html) {
+  const candidates = [...html.matchAll(/<(main|article)\b[^>]*>([\s\S]*?)<\/\1>/gi)]
+    .map((m) => m[2])
+    .filter((inner) => wordsOf(inner) >= SEMANTIC_MIN_WORDS);
+  if (!candidates.length) return null;
+  return candidates.reduce((best, inner) => (wordsOf(inner) > wordsOf(best) ? inner : best));
+}
+
 export function mainContent(html) {
   const cleaned = String(html).replace(BLOCK_DROP, ' ');
-  const blocks = [...cleaned.matchAll(/<(article|main|section|div)\b[^>]*>([\s\S]*?)<\/\1>/gi)].map((m) => m[2]);
+
+  // A page that marks its content, and puts real text in it, is believed. What is dropped
+  // is then whatever has words OUTSIDE that block - navigation, sidebars, footers, and any
+  // caveat box the page put elsewhere - counted the same way as below, so the grade stays
+  // honest about what the capture left out.
+  const declared = declaredContent(cleaned);
+  if (declared) {
+    const outside = cleaned.replace(declared, ' ');
+    // Outside the declared content, a block that is mostly link text is navigation -
+    // breadcrumbs, sidebars, "skip to content" - not content the capture lost. Counting it
+    // graded every keyless docs capture `partial` (20 such blocks on the Docs page above).
+    // A block of prose outside <main> is still reported: that is where a caveat box would be.
+    const dropped = [...outside.matchAll(BLOCKS)]
+      .map((m) => ({ words: wordsOf(m[2]), text: m[2] }))
+      .filter((entry) => entry.words >= 5 && linkShare(entry.text) < 0.5);
+    return { html: declared, dropped, chosenWords: wordsOf(declared), totalWords: wordsOf(cleaned), basis: 'declared' };
+  }
+
+  const blocks = [...cleaned.matchAll(BLOCKS)].map((m) => m[2]);
 
   // Selection considers only substantial blocks; the DROP analysis considers them all.
   // Filtering short blocks out of both is how a 60-character caveat box - exactly the
@@ -101,6 +140,14 @@ export function mainContent(html) {
     .filter((entry) => entry.words >= 5);
 
   return { html: best, dropped, chosenWords: wordsOf(best), totalWords: wordsOf(cleaned) };
+}
+
+/** The share of a block's words that sit inside links: near 1 for navigation, near 0 for prose. */
+function linkShare(html) {
+  const total = wordsOf(html);
+  if (!total) return 0;
+  const linked = [...String(html).matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/gi)].reduce((sum, m) => sum + wordsOf(m[1]), 0);
+  return linked / total;
 }
 
 function wordsOf(html) {
@@ -168,7 +215,7 @@ export function gradeCompleteness(markdown, extraction = null) {
   if (dropped.length) {
     const words = dropped.reduce((sum, entry) => sum + entry.words, 0);
     reasons.push(
-      `${dropped.length} sibling section(s) totalling ~${words} words were outside the densest block and are not in this capture`,
+      `${dropped.length} sibling section(s) totalling ~${words} words were outside ${extraction?.basis === 'declared' ? "the page's main content" : 'the densest block'} and are not in this capture`,
     );
   }
 
