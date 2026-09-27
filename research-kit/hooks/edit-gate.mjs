@@ -12,7 +12,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { evaluate, isGated } from '../lib/gate.mjs';
+import { evaluate, isGated, isPhaseOneEdit } from '../lib/gate.mjs';
 import { loadConfig } from '../lib/machine.mjs';
 
 function emit(decision, reason) {
@@ -39,6 +39,14 @@ const cwd = payload.cwd || payload.project_dir || process.cwd();
 const root = path.resolve(cwd);
 
 if (!isGated(root)) emit('allow', 'not a gated project');
+
+// The file this call edits. Every target must be phase-1 work to pass unjudged; a call that
+// names no file is judged as it always was.
+const input = payload.tool_input ?? {};
+const targets = [input.file_path, input.notebook_path].filter((t) => typeof t === 'string' && t);
+if (targets.length && targets.every((t) => isPhaseOneEdit(root, t))) {
+  emit('allow', 'phase-1 work: research/ and the project\'s own scaffolding are what phase 1 edits');
+}
 
 let verdict;
 try {

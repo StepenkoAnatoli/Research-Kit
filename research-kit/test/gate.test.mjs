@@ -122,6 +122,32 @@ test('a map-rule block on a passing gate says what is owed, and its fix works as
   assert.match(fix ?? '', /update docs\/ARCHITECTURE\.md/i, `"git add" alone stages nothing while the map is unchanged: ${fix}`);
 });
 
+// The edit-time hook, fed the payload the runtime sends. Found 2026-09-27: while phase 1 was open
+// it asked "the build is not ready" before EVERY edit - research/MAP.md and DISCOVERY.md
+// included, which are the phase-1 work AGENTS.md tells the agent to do. The commit gate lets
+// research/ and the project's scaffolding through (ADR-0048); the edit gate did not look at the
+// path at all.
+function editGate(dir, toolInput, cwd = dir) {
+  const r = spawnSync(process.execPath, [path.join(KIT_ROOT, 'hooks', 'edit-gate.mjs')], {
+    input: JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Write', cwd, tool_input: toolInput }),
+    encoding: 'utf8', env: { ...process.env, RESEARCH_KIT_CONFIG: path.join(tempDir(), 'absent.json') },
+  });
+  return JSON.parse(r.stdout).hookSpecificOutput;
+}
+
+test('the edit gate lets phase-1 work through and still stops code', () => {
+  const dir = makeProject();
+  for (const rel of ['research/MAP.md', 'research/DISCOVERY.md', 'research/EVIDENCE.md', 'AGENTS.md']) {
+    const out = editGate(dir, { file_path: path.join(dir, rel), content: 'x' });
+    assert.equal(out.permissionDecision, 'allow', `${rel} is phase-1 work and the edit gate said ${out.permissionDecision}: ${out.permissionDecisionReason}`);
+  }
+  assert.equal(editGate(dir, { file_path: 'research/BRIEF.md' }).permissionDecision, 'allow', 'a path relative to cwd');
+  assert.equal(editGate(dir, { file_path: path.join(dir, 'src', 'app.js'), content: 'x' }).permissionDecision, 'ask', 'code is phase 2');
+  assert.equal(editGate(dir, { file_path: path.join(dir, 'research', '..', 'src', 'app.js') }).permissionDecision, 'ask', 'a path that only passes through research/');
+  assert.equal(editGate(dir, { notebook_path: path.join(dir, 'analysis.ipynb') }).permissionDecision, 'ask', 'a notebook outside research/');
+  assert.equal(editGate(dir, {}).permissionDecision, 'ask', 'a call naming no file is judged as before');
+});
+
 test('undeclared code paths fall back to the documented defaults', () => {
   const dir = makeProject();
   assert.deepEqual(loadGateConfig(dir).codePaths, [...DEFAULT_CODE_PATHS]);

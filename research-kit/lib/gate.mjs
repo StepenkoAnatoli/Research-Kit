@@ -32,6 +32,19 @@ export const DEFAULT_CODE_PATHS = Object.freeze(['src', 'lib', 'bin', 'scripts',
 export const SCAFFOLDING = Object.freeze(['.gitattributes', '.gitignore', 'AGENTS.md', 'START_HERE.md']);
 
 /**
+ * Whether an edit to one file is phase-1 work: the corpus under research/, or the project's own
+ * scaffolding. The edit gate asks this about the file an edit names. It did not look at the
+ * file at all, so while phase 1 was open it interrupted every edit to research/MAP.md and
+ * DISCOVERY.md - the work AGENTS.md tells the agent to do (found 2026-09-27). The map is not
+ * here: an edit gives it content, and a map with content is phase 2 (ADR-0048).
+ */
+export function isPhaseOneEdit(root, file) {
+  const rel = path.relative(path.resolve(root), path.resolve(root, String(file))).split(path.sep).join('/');
+  if (!rel || rel.startsWith('../') || rel === '..' || path.isAbsolute(rel)) return false;
+  return rel.startsWith('research/') || SCAFFOLDING.includes(rel);
+}
+
+/**
  * The architecture map is a map of CODE, and in phase 1 there is none. The scaffold's empty
  * map may travel with the corpus; a map with a design in it is phase 2 and stays gated. The
  * template carries no token, so "empty" is "the template's bytes", line endings aside.
