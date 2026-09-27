@@ -24,8 +24,12 @@ supported `urls`, fetched directly, but no dispatch input reached them.
 - Each page counts against `max_pages`; the spend cap is unchanged.
 - **A dispatched page is typed `S`,** like any page the collector reached. The reviewer
   promotes it after reading, as with every other capture (DEFAULT_SOURCE_TYPE).
-- **The run log prints counts, never URLs.** It is readable by any signed-in user, and a
-  URL can name the subject or carry a signed query string.
+- **A dispatched URL is exactly as visible as the topic.** GitHub prints each step's
+  environment block into the run log, which any signed-in user can read on a public
+  repository, so the whole `queries` input appears there, URLs included. The plan step's
+  own log line prints counts only, so it adds no second copy. The input descriptions say
+  so, because the person typing a URL is the one who can keep a secret out of it. Never
+  send a signed or token-bearing URL.
 - `queriesInput` in `lib/dispatch.mjs` builds the input for `collect-remote --url` and the
   MCP `collect` tool's `urls`. It refuses a non-http(s) URL before dispatch, so a typo is
   caught on the caller's machine and never searched as text on the runner.

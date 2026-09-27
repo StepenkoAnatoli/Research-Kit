@@ -41,10 +41,12 @@ const HELP = `collect-remote - run the collector on GitHub Actions and bring the
                             github.com/actions/upload-artifact, not github.com.
   --query "<text>"          optional, repeatable. The real search queries. Without one the
                             topic is used verbatim, which returns the words and not the
-                            subject when the topic is made of common ones.
+                            subject when the topic is made of common ones. Visible to
+                            anyone who can read the repository, like --topic.
   --url "<https://...>"     optional, repeatable. A page you already know, fetched directly
                             instead of searched. Each counts against --max-pages. With only
-                            --url and no --query, nothing is searched.
+                            --url and no --query, nothing is searched. Visible to anyone who
+                            can read the repository, like --topic: never a signed URL.
   --prior "<text>"          optional. What you EXPECT to find, chained ahead of the first
                             page. Only possible now; refused once collection starts.
   --max-pages <1-25>        default 8. Each page costs at least one credit.

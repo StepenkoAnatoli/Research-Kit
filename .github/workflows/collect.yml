@@ -159,7 +159,7 @@ on:
         required: false
         default: ''
       queries:
-        description: 'The actual search queries, one per line. Optional: without them the topic is used verbatim, which is how three corpora here came back mostly noise. A topic is a description; a query is a question. A line that is an https:// URL is fetched directly instead of searched - the way to capture a page you already know. Each page counts against max_pages.'
+        description: 'The actual search queries, one per line. Optional: without them the topic is used verbatim, which is how three corpora here came back mostly noise. A topic is a description; a query is a question. A line that is an https:// URL is fetched directly instead of searched - the way to capture a page you already know. Each page counts against max_pages. Visible to anyone who can read this repository, like the topic: never a signed or token-bearing URL.'
         required: false
         default: ''
       prior:
@@ -513,8 +513,9 @@ jobs:
               : urls.length ? [] : [{ q: topic, why: "the dispatched topic", prefer: [] }];
             plan.urls = urls.map((url) => ({ url, why: "dispatched url", type: "S" }));
             fs.writeFileSync("research/plan.json", `${JSON.stringify(plan, null, 2)}\n`, "utf8");
-            // Counts only: this log is readable by any signed-in user, and a URL can name
-            // the subject - or carry a signed query string.
+            // Counts only - no second copy. GitHub already prints the environment of this step,
+            // QUERIES included, into the log, so a dispatched URL is exactly as visible as the
+            // topic; the input description says so (ADR-0045).
             console.log(`plan written: ${plan.queries.length} quer${plan.queries.length === 1 ? "y" : "ies"}, ${plan.urls.length} url${plan.urls.length === 1 ? "" : "s"}, maxScrapes ${plan.maxScrapes}, perQuery ${plan.perQuery}, limit ${plan.limit}, prefer [${plan.prefer.join(", ")}]`);
           '
 

@@ -555,10 +555,13 @@ test('URLs alone do not fall back to searching the topic, and nothing at all sti
   assert.deepEqual(empty.plan.urls, []);
 });
 
-test('only http(s) is a URL, and the public log names no URL', () => {
+test('only http(s) is a URL, and the plan line adds no second copy of one', () => {
+  // GitHub prints the step's environment - QUERIES included - into the log anyway, so a
+  // dispatched URL is as visible as the topic (ADR-0045). What this pins is narrower: the
+  // plan-writing line itself prints counts, so it adds no second copy.
   const { plan, log } = runPlan('file:///etc/passwd\nhttps://secret.example/path?token=x');
   assert.deepEqual(plan.urls.map((u) => u.url), ['https://secret.example/path?token=x']);
   assert.deepEqual(plan.queries.map((q) => q.q), ['file:///etc/passwd'], 'anything else is text to search, never a fetch');
-  assert.ok(!log.includes('secret.example'), `the run log is readable by any signed-in user and printed a URL: ${log}`);
+  assert.ok(!log.includes('secret.example'), `the plan line printed a URL: ${log}`);
   assert.match(log, /1 url/, 'the log should still say how many pages were asked for');
 });
