@@ -17,7 +17,7 @@ if (flags.help) {
   node research-kit/bin/brief.mjs [--force] [--state]
 
   --state   report the brief's state (template | legacy | draft | authored) and exit
-  --force   overwrite a draft or authored brief
+  --force   overwrite a draft or authored brief (the old one is kept as BRIEF.md.bak-<date>)
 
 Writing the brief is part of phase 1 and is not optional: a passing gate with no handoff
 means the next agent re-researches everything you just verified.
@@ -46,4 +46,5 @@ if (!result.written) {
   process.exit(1);
 }
 
+if (result.backup) process.stdout.write(`kept the brief it replaced at ${result.backup}\n`);
 process.stdout.write(`wrote ${result.file} (${result.state})\n\nReview the TODO sections - the corpus cannot fill them - then hand this file to the builder.\n`);

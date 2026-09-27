@@ -146,6 +146,23 @@ test('a closure resting on no primary source is not called primary', () => {
   assert.match(unknowns, /U-1 rests on no primary \(P\) source/);
 });
 
+// Found 2026-09-27: --force over an answered brief put the TODOs back and kept nothing of the
+// judgements it replaced. Forcing is still allowed; losing the answers is not.
+test('drafting over a brief with --force keeps the brief it replaced', () => {
+  const dir = makePassingProject();
+  renderBrief(dir);
+  const answered = readText(resolve(dir, PATHS.brief)).replace(/\*\*TODO\*\* - review the primary sources[\s\S]*?noted here\./, 'We trust the vendor page over the blog.');
+  writeText(resolve(dir, PATHS.brief), answered);
+  const first = renderBrief(dir, { force: true, date: '2026-09-27' });
+  assert.ok(first.backup, 'no backup was reported');
+  assert.equal(readText(resolve(dir, first.backup)), answered, 'the backup is not the brief that was replaced');
+  const second = renderBrief(dir, { force: true, date: '2026-09-27' });
+  assert.notEqual(second.backup, first.backup, 'a second force the same day overwrote the first backup');
+  assert.equal(readText(resolve(dir, first.backup)), answered);
+  const fresh = makePassingProject();
+  assert.equal(renderBrief(fresh, { force: true }).backup, undefined, 'the scaffold is not worth a backup');
+});
+
 test('judgedSection is the reader the audit consumes instead of a regex of its own', () => {
   const dir = makePassingProject();
   renderBrief(dir);

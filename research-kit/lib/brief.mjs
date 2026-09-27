@@ -4,7 +4,7 @@
 // FROM this definition and lib/audit.mjs reads the judged sections through it, so the
 // writer and its readers cannot drift.
 
-import { PATHS, resolve, readText, writeText, today, documentCommand } from './core.mjs';
+import { PATHS, resolve, readText, writeText, today, documentCommand, exists } from './core.mjs';
 import { readCorpus, sectionOf, claimOf, captureOf } from './corpus.mjs';
 import { readPrior } from './prior.mjs';
 
@@ -232,6 +232,14 @@ alone.
    after edits will refuse without \`--force\` so your judgements are preserved.
 `;
 
+  // --force over a brief that holds anybody's judgement keeps it beside the new draft.
+  // It restored the TODOs and kept nothing of the answers it replaced (found 2026-09-27).
+  let backup;
+  if (['draft', 'authored', 'legacy'].includes(state)) {
+    backup = `${PATHS.brief}.bak-${date}`;
+    for (let n = 2; exists(resolve(root, backup)); n += 1) backup = `${PATHS.brief}.bak-${date}-${n}`;
+    writeText(resolve(root, backup), existing);
+  }
   writeText(file, body);
-  return { written: true, state: briefState(body), file: PATHS.brief, reason: '' };
+  return { written: true, state: briefState(body), file: PATHS.brief, reason: '', ...(backup ? { backup } : {}) };
 }
