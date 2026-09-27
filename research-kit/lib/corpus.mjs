@@ -392,6 +392,7 @@ export function readCorpus(root) {
   return {
     root,
     intent: sectionOf(discoveryText, 'Build intent'),
+    intentHeading: /^#{1,6}\s+Build intent\s*$/mi.test(discoveryText ?? ''),
     discovery: { present: discoveryText !== null, text: discoveryText ?? '', table: unknownsTable },
     map: {
       present: mapText !== null, text: mapText ?? '', table: subtopicTable,

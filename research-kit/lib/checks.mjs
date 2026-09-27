@@ -30,8 +30,11 @@ function discoveryContract(corpus) {
       `${PATHS.discovery} is missing. A gated project without its contract fails harder, not open.`)];
   }
   if (!corpus.intent.trim()) {
-    out.push(finding('fail', 'discovery-contract', 'build-intent',
-      '## Build intent is empty - state what is being built, for whom, and what "done" means'));
+    // Missing and empty are different fixes: a renamed heading read as "is empty" while the
+    // intent sat under its new name (found 2026-09-27).
+    out.push(finding('fail', 'discovery-contract', 'build-intent', corpus.intentHeading === false
+      ? `${PATHS.discovery} has no "## Build intent" heading - the gate reads the intent from under that exact heading`
+      : '## Build intent is empty - state what is being built, for whom, and what "done" means'));
   }
   if (!corpus.unknowns.length) {
     out.push(finding('fail', 'discovery-contract', 'no-unknowns',

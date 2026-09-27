@@ -732,3 +732,14 @@ test('a retrieval date in the future fails hygiene', () => {
   assert.equal(f.severity, 'fail');
   assert.match(f.detail, /E-01 has retrieval date 2030-01-01, which is in the future/);
 });
+
+// Found 2026-09-27: renaming "## Build intent" (to "## Intent") failed as "## Build intent is
+// empty", and the intent was right there under its new name. Missing and empty are told apart.
+test('a missing Build intent heading is named as missing, not empty', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace('## Build intent', '## Intent'));
+  const f = runCheck('discovery-contract', snapshot(dir)).find((x) => x.rule === 'build-intent');
+  assert.ok(f, 'no build-intent finding');
+  assert.match(f.detail, /has no "## Build intent" heading/, f.detail);
+  assert.doesNotMatch(f.detail, /is empty/, f.detail);
+});
