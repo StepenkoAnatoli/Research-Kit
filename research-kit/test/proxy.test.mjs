@@ -168,6 +168,7 @@ test('LIVE: disclosure sends its requests through the configured proxy', async (
   const { seen, out } = await throughProxy(({ env, root }) =>
     runBin('disclosure.mjs', ['--repository', 'octo/repo', '--run', '1'], env, root));
   assert.ok(tunnelled(seen), `disclosure went around the proxy (exit ${out.status}): ${out.stderr}`);
+  assert.equal(out.status, 3, `the proxy refused every probe, so nothing was measured - not a clean exit 0:\n${out.stdout}`);
 });
 
 test('LIVE: collect-remote sends its requests through the configured proxy', async () => {

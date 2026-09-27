@@ -112,7 +112,13 @@ export async function probeRun({ repository, runId, needle = null, fetch: doFetc
 export function summarise(findings, needle) {
   const readable = findings.filter((f) => f.readable).map((f) => f.id);
   const leaked = findings.filter((f) => f.leaksNeedle).map((f) => f.id);
+  // A refusal (401, 403, 404) is an answer. A probe that never reached GitHub (status 0) is
+  // not, so "only the shape is public" needs every probe answered. Found 2026-09-27: with no
+  // network, every probe was unreachable and the verdict still read as clean, exit 0.
+  const unmeasured = findings.filter((f) => f.status === 0).map((f) => f.id);
   return {
+    unmeasured,
+    conclusive: unmeasured.length === 0,
     exposedNames: readable.includes('run') || readable.includes('jobs') || readable.includes('artifacts'),
     exposedContent: readable.includes('artifact-download') || readable.includes('logs'),
     exposedSubject: leaked.length > 0,
@@ -122,10 +128,23 @@ export function summarise(findings, needle) {
   };
 }
 
+/**
+ * The exit code the command reports: the finding itself. An exposure that was measured stands
+ * whatever else failed; a clean verdict needs every probe answered, and without that it is 3,
+ * "could not measure".
+ */
+export function exitCode(report) {
+  if (report.exposedSubject) return 2;
+  if (report.exposedContent) return 1;
+  return report.conclusive ? 0 : 3;
+}
+
 /** One line per probe, and a verdict that states its own limits. */
 export function render(report) {
+  // "false" is only a finding when every probe answered.
+  const shown = (value) => (value || report.conclusive !== false ? String(value) : 'not measured');
   const rows = report.findings.map((f) => {
-    const verdict = f.readable ? 'READABLE' : `refused ${f.status ?? '-'}`;
+    const verdict = f.readable ? 'READABLE' : f.status === 0 ? 'UNREACHABLE' : f.status == null ? 'not tried' : `refused ${f.status}`;
     const leak = f.leaksNeedle ? '  <-- SUBJECT VISIBLE' : '';
     return `  ${String(f.status ?? '-').padEnd(4)} ${f.label.padEnd(22)} ${verdict}${leak}${f.note ? `  (${f.note})` : ''}`;
   });
@@ -135,14 +154,19 @@ export function render(report) {
     '',
     ...rows,
     '',
-    `names and metadata exposed : ${report.exposedNames}`,
-    `content exposed            : ${report.exposedContent}`,
+    `names and metadata exposed : ${shown(report.exposedNames)}`,
+    `content exposed            : ${shown(report.exposedContent)}`,
     report.needleChecked
-      ? `the subject itself exposed : ${report.exposedSubject}`
+      ? `the subject itself exposed : ${shown(report.exposedSubject)}`
       : 'the subject itself         : not checked - pass --topic to search for it',
     '',
   ];
 
+  if (!report.exposedContent && !report.exposedSubject && report.conclusive === false) {
+    lines.push(`NOT MEASURED: ${report.unmeasured.length} probe(s) never reached GitHub (${report.unmeasured.join(', ')}).`,
+      'Nothing above says what a stranger can see. Run it again where api.github.com is reachable.');
+    return lines.join('\n');
+  }
   if (report.exposedContent || report.exposedSubject) {
     lines.push('This run discloses more than its shape. Research whose subject matters does not',
       'belong here: see docs/adr/0031 for why a visibility toggle alone is not the fix on a',

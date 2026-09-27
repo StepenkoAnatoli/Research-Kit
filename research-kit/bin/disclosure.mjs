@@ -9,11 +9,12 @@
 //   0  only the SHAPE is public - names, sizes, timings
 //   1  CONTENT is public - artifacts or logs can be read by a stranger
 //   2  the SUBJECT is public - the topic you passed was found in a public response
-//   3  could not measure
+//   3  could not measure - including any probe that never reached GitHub, unless an
+//      exposure was measured anyway
 
 import { parseFlags } from '../lib/core.mjs';
 import { requireRuntime, honourEnvProxy } from '../lib/runtime.mjs';
-import { probeRun, render } from '../lib/disclosure.mjs';
+import { probeRun, render, exitCode } from '../lib/disclosure.mjs';
 
 const HELP = `disclosure - what can a stranger see of a workflow run?
 
@@ -72,4 +73,4 @@ try {
 if (flags.json) process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 else process.stdout.write(`${render(report)}\n`);
 
-process.exit(report.exposedSubject ? 2 : report.exposedContent ? 1 : 0);
+process.exit(exitCode(report));
