@@ -550,3 +550,25 @@ test('every command the kit tells you to run, runs from where you are', () => {
     assert.ok(path.isAbsolute(file) && fs.existsSync(file), `a printed command names "${file}", which does not run from a project folder`);
   }
 });
+
+// Found 2026-09-27: five CLIs ignored a flag they did not know. `install-hooks --unistall` would
+// INSTALL the gates, and `new-project --topc "My topic"` scaffolded an "Untitled topic". Each CLI
+// here gets what it otherwise needs to succeed, so the refusal cannot be another error's.
+test('every CLI refuses a flag it does not know, before it does anything', () => {
+  const home = tempDir('rk-flag-home-');
+  const cases = [
+    ['install-hooks.mjs', ['--dry-run']],
+    ['new-project.mjs', [path.join(tempDir('rk-flag-np-'), 'p'), '--topic', 'x']],
+    ['timeline.mjs', []],
+    ['decompose.mjs', ['--topic', 'x', '--dry-run']],
+    ['evidence-context.mjs', ['--all']],
+    ['audit.mjs', []], ['brief.mjs', []], ['doctor.mjs', []], ['gate.mjs', []], ['handoff.mjs', []],
+    ['preflight.mjs', []], ['prior.mjs', []], ['research.mjs', ['--dry-run']], ['bundle.mjs', []],
+  ];
+  for (const [bin, args] of cases) {
+    const root = planned('flags');
+    const r = run(bin, [...args, '--no-such-flag'], { root, env: { HOME: home, USERPROFILE: home, RESEARCH_KIT_CONFIG: path.join(home, 'c.json') } });
+    assert.equal(r.status, 2, `${bin} exited ${r.status} on an unknown flag:\n${r.all.slice(0, 400)}`);
+    assert.match(r.err, /unknown option --no-such-flag/, `${bin} did not name the flag:\n${r.all.slice(0, 400)}`);
+  }
+});
