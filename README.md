@@ -327,6 +327,18 @@ Then open `research/MAP.md` and mark each row `COVERED`, `DISMISSED` or `GAP`. *
 is yours and is not automated** — deciding what counts as answered is the judgement the
 rest of the kit protects.
 
+Write the blocking unknowns into `research/DISCOVERY.md`, each tracing back to a map row,
+then the queries and pages that close them into `research/plan.json`. `research.mjs`
+refuses a plan with neither:
+
+```json
+{
+  "topic": "<your topic>",
+  "queries": [{ "q": "<what to search for>", "why": "U-1", "prefer": ["<the domain that owns the fact>"] }],
+  "urls": [{ "url": "https://<a page you already know>", "why": "U-1", "type": "P" }]
+}
+```
+
 **6. Collect.** The only step that spends credits:
 
 ```bash
@@ -340,7 +352,7 @@ node "$HOME/.agents/research-kit/bin/research.mjs"
 node "$HOME/.agents/research-kit/bin/preflight.mjs"
 ```
 
-`PASS` means the twelve corpus checks agree the evidence supports starting. Anything else
+`PASS` means the thirteen corpus checks agree the evidence supports starting. Anything else
 names what blocks and prints one fix.
 
 ### Reading a verdict
@@ -401,7 +413,7 @@ The kit runs on two boxes, and a machine declares which half it is (`role` in
 The corpus crosses the two through git, so the builder's first command is:
 
 ```
-node research-kit/bin/handoff.mjs
+node "$HOME/.agents/research-kit/bin/handoff.mjs"
 ```
 
 It verifies that `research/raw/.fetches.jsonl` (the ledger) is present and non-empty,

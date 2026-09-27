@@ -57,20 +57,22 @@ node research-kit/bin/install-hooks.mjs --role builder
 The project is the **current working directory**. The kit takes no project argument.
 
 ```
-node research-kit/bin/new-project.mjs . --topic "<topic>"   # the canonical shape
-node research-kit/bin/decompose.mjs --topic "<topic>"       # phase 0: the map, statuses blank
-                                                            # then YOU mark COVERED/DISMISSED/GAP
-node research-kit/bin/prior.mjs "<what you expect>"         # optional, and only possible NOW
-node research-kit/bin/research.mjs                          # collect (spends credits)
-node research-kit/bin/preflight.mjs                         # do not build until PASS
-node research-kit/bin/brief.mjs                             # the phase-1 -> phase-2 handoff
-node research-kit/bin/audit.mjs --zip                       # one pasteable attachment
+node "$HOME/.agents/research-kit/bin/new-project.mjs" . --topic "<topic>"                # the canonical shape
+node "$HOME/.agents/research-kit/bin/decompose.mjs" --topic "<topic>"                    # phase 0: the map, statuses blank
+                                                             # then YOU mark COVERED/DISMISSED/GAP,
+                                                             # write the unknowns into research/DISCOVERY.md
+                                                             # and the queries/urls into research/plan.json
+node "$HOME/.agents/research-kit/bin/prior.mjs" "<what you expect>"                      # optional, and only possible NOW
+node "$HOME/.agents/research-kit/bin/research.mjs"                                       # collect (spends credits)
+node "$HOME/.agents/research-kit/bin/preflight.mjs"                                      # do not build until PASS
+node "$HOME/.agents/research-kit/bin/brief.mjs"                                          # the phase-1 -> phase-2 handoff
+node "$HOME/.agents/research-kit/bin/audit.mjs" --zip                                    # one pasteable attachment
 ```
 
 On a builder machine, the first command is instead:
 
 ```
-node research-kit/bin/handoff.mjs     # did the corpus arrive whole?
+node "$HOME/.agents/research-kit/bin/handoff.mjs"     # did the corpus arrive whole?
 ```
 
 ## Every command
@@ -329,7 +331,7 @@ config, or a probe:
 
 ## What is built
 
-Everything the protocol needs: the corpus, the chain, the twelve checks, the verdict,
+Everything the protocol needs: the corpus, the chain, the thirteen checks, the verdict,
 both gates, both transports, phase 0, the brief, the audit and its bundle.
 
 And, since 2026-09-20, the **release-evidence validator layer** — which this file said
@@ -431,7 +433,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1036 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1040 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

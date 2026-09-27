@@ -262,3 +262,52 @@ test('the README installs the Firecrawl CLI version the adapter was tested again
   assert.ok(named.length > 0, 'the README no longer says how to install the Firecrawl CLI');
   for (const version of named) assert.equal(version, TESTED_CLI_VERSION, `README installs firecrawl-cli@${version}`);
 });
+
+// ---------------------------------------------------------------- the docs, followed literally
+
+// Found 2026-09-27 following the docs as written, not reading them.
+const OPERATOR_DOCS = ['README.md', 'AGENTS.md', 'research-kit/README.md', 'research-kit/START_HERE.md',
+  'research-kit/skill/SKILL.md', 'research-kit/template/AGENTS.md', 'research-kit/template/START_HERE.md'];
+const readDoc = (rel) => fs.readFileSync(path.join(REPO, rel), 'utf8');
+
+test('every node command in the operator docs has balanced quotes', () => {
+  // The root AGENTS.md said `node research-kit/bin/research.mjs" --plan ...` four times: pasted
+  // into a shell, the stray quote leaves the command unterminated.
+  for (const rel of OPERATOR_DOCS) {
+    for (const [n, line] of readDoc(rel).split('\n').entries()) {
+      const command = line.match(/\bnode\s+[^`]*/)?.[0];
+      if (!command) continue;
+      assert.equal((command.match(/"/g) ?? []).length % 2, 0, `${rel}:${n + 1} has an unbalanced quote: ${command.trim()}`);
+    }
+  }
+});
+
+test('the README walkthrough writes the plan before it collects', () => {
+  // research.mjs refuses an empty plan, and the README went from classifying the map straight
+  // to collecting without ever naming research/plan.json.
+  for (const [rel, step] of [['README.md', 'research.mjs" --dry-run'], ['research-kit/README.md', 'research.mjs"  ']]) {
+    const text = readDoc(rel);
+    const collect = text.indexOf(step);
+    assert.ok(collect > 0, `${rel} no longer shows the collect step`);
+    assert.ok(text.slice(0, collect).includes('research/plan.json'), `${rel} reaches "collect" without naming research/plan.json`);
+  }
+});
+
+test('the builder is told to run handoff from the installed kit', () => {
+  // `node research-kit/bin/handoff.mjs` exists only in a checkout of this repository, and the
+  // builder runs it from a project folder.
+  for (const rel of ['README.md', 'research-kit/README.md']) {
+    assert.doesNotMatch(readDoc(rel), /^node research-kit\/bin\/handoff\.mjs/m, `${rel} tells the builder to run handoff from a repository path`);
+  }
+});
+
+test('a check count the docs state is the registry\'s', async () => {
+  const { CHECKS } = await import('../lib/checks.mjs');
+  const words = { eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15 };
+  for (const rel of OPERATOR_DOCS) {
+    for (const [, said] of readDoc(rel).matchAll(/\b(eleven|twelve|thirteen|fourteen|fifteen|\d+) (?:corpus |contract )?checks\b/gi)) {
+      const n = words[said.toLowerCase()] ?? Number(said);
+      assert.equal(n, CHECKS.length, `${rel} says ${said} checks; the registry holds ${CHECKS.length}`);
+    }
+  }
+});
