@@ -10,7 +10,7 @@
 // example goes red and names itself instead of teaching the wrong thing.
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, assertEqual, fs, path, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, assertEqual, fs, path, KIT_ROOT, tempDir } from './harness.mjs';
 import { runExamples } from '../examples/release-evidence/run-example.mjs';
 import { canonicalJson, sha256 } from '../lib/release-validator.mjs';
 
@@ -32,22 +32,30 @@ test('the checked-in packages match what build.mjs would generate', () => {
   // the two cannot silently diverge - otherwise a hash-rule change leaves correct-looking
   // files that teach a stale format. Rebuilding into a scratch copy and comparing is what
   // makes "checked in" and "derived" the same thing.
-  const before = new Map();
-  for (const dir of fs.readdirSync(EXAMPLES).filter((name) => /^\d\d-/.test(name))) {
-    for (const file of walk(path.join(EXAMPLES, dir))) {
-      before.set(path.relative(EXAMPLES, file), fs.readFileSync(file, 'utf8'));
-    }
-  }
-  const rebuild = spawnSync(process.execPath, [path.join(EXAMPLES, 'build.mjs')], {
+  //
+  // It is a scratch copy now. Until 2026-09-27 (break-test) build.mjs ran over the
+  // checked-in tree itself: a stale example failed once and was rewritten on the way, so
+  // the next run passed and the edit was gone, and a read-only checkout could not run it.
+  const kit = path.join(tempDir('rk-examples-'), 'research-kit');
+  const copy = path.join(kit, 'examples', 'release-evidence');
+  fs.cpSync(EXAMPLES, copy, { recursive: true });
+  for (const dir of ['lib', 'schemas']) fs.cpSync(path.join(KIT_ROOT, dir), path.join(kit, dir), { recursive: true });
+  const rebuild = spawnSync(process.execPath, [path.join(copy, 'build.mjs')], {
     encoding: 'utf8', timeout: 60_000, windowsHide: true,
   });
   assertEqual(rebuild.status, 0, rebuild.stderr || rebuild.stdout);
 
-  const drifted = [];
-  for (const [relative, content] of before) {
-    const now = fs.readFileSync(path.join(EXAMPLES, relative), 'utf8');
-    if (now !== content) drifted.push(relative);
-  }
+  const packages = (root) => {
+    const files = new Map();
+    for (const dir of fs.readdirSync(root).filter((name) => /^\d\d-/.test(name))) {
+      for (const file of walk(path.join(root, dir))) files.set(path.relative(root, file), fs.readFileSync(file, 'utf8'));
+    }
+    return files;
+  };
+  const committed = packages(EXAMPLES);
+  const generated = packages(copy);
+  const drifted = [...new Set([...committed.keys(), ...generated.keys()])]
+    .filter((relative) => committed.get(relative) !== generated.get(relative)).sort();
   assertEqual(drifted.length, 0,
     'the committed examples differ from what build.mjs generates, so they are stale:\n  '
     + drifted.join('\n  ') + '\n  run: node research-kit/examples/release-evidence/build.mjs');
