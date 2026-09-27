@@ -10,7 +10,7 @@
 import { parseFlags, flagList, refuseUnknownFlags, checkFlagValues, resolve, readText, parseJson } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal } from '../lib/machine.mjs';
 import { selectTransport, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES } from '../lib/transport.mjs';
-import { runResearch, searchSummaryLine, readPlan, usageSummary, topicMatch, DEPTHS, DEPTH_SCRAPES } from '../lib/research-run.mjs';
+import { runResearch, searchSummaryLine, readPlan, planProblems, usageSummary, topicMatch, DEPTHS, DEPTH_SCRAPES } from '../lib/research-run.mjs';
 import { parseCapture, readLedger } from '../lib/corpus.mjs';
 import { readPrior } from '../lib/prior.mjs';
 import { heading } from '../lib/render.mjs';
@@ -125,6 +125,11 @@ function vendorMeter(search) {
   }
   try { parseJson(planText); } catch (err) {
     process.stderr.write(`${planPath} does not parse as JSON (${err.message}) - fix it, then run this again.\n`);
+    process.exit(2);
+  }
+  const problems = planProblems(parseJson(planText));
+  if (problems.length) {
+    process.stderr.write(`${planPath} has ${problems.length} problem(s) - fix them, then run this again:\n${problems.map((p) => `  ${p}`).join('\n')}\n`);
     process.exit(2);
   }
   const planned = readPlan(root, typeof flags.plan === 'string' ? flags.plan : '');

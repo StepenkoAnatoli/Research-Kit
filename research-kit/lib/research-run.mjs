@@ -45,6 +45,39 @@ export function preferList(value) {
   return [];
 }
 
+/**
+ * Everything in a parsed plan this kit cannot use, named - or [] when it is sound.
+ *
+ * readPlan replaces what it cannot use with a default, which suits a reader but not the
+ * moment before a run: "depth": "thorough" ran as quick, "maxScrapes": "five" as 10, a
+ * query written {"query": ...} was skipped so the run did nothing, and "not a url" and
+ * ftp:// were queued for fetching - all in silence (found 2026-09-27).
+ */
+export function planProblems(plan) {
+  const out = [];
+  if (!plan || typeof plan !== 'object' || Array.isArray(plan)) return ['the plan must be a JSON object'];
+  if (plan.depth !== undefined && !DEPTHS.includes(plan.depth)) out.push(`depth must be one of ${DEPTHS.join(', ')}, not ${JSON.stringify(plan.depth)}`);
+  for (const [key, min] of [['refreshDays', 0], ['maxScrapes', 0], ['limit', 1], ['perQuery', 1]]) {
+    if (plan[key] !== undefined && !(Number.isInteger(plan[key]) && plan[key] >= min)) {
+      out.push(`${key} must be a whole number of at least ${min}, not ${JSON.stringify(plan[key])}`);
+    }
+  }
+  const text = (v) => typeof v === 'string' && v.trim() !== '';
+  if (plan.queries !== undefined && !Array.isArray(plan.queries)) out.push('queries must be a list: [{ "q": "..." }]');
+  else (plan.queries ?? []).forEach((query, i) => {
+    if (!(text(query) || (query && typeof query === 'object' && text(query.q)))) out.push(`queries[${i}] has no "q": ${JSON.stringify(query)}`);
+  });
+  if (plan.urls !== undefined && !Array.isArray(plan.urls)) out.push('urls must be a list: [{ "url": "https://..." }]');
+  else (plan.urls ?? []).forEach((entry, i) => {
+    const url = typeof entry === 'string' ? entry : entry?.url;
+    if (typeof url !== 'string') { out.push(`urls[${i}] has no "url": ${JSON.stringify(entry)}`); return; }
+    let ok = false;
+    try { ok = ['http:', 'https:'].includes(new URL(url).protocol); } catch { /* not a URL */ }
+    if (!ok) out.push(`urls[${i}] is not an http(s) URL: ${url}`);
+  });
+  return out;
+}
+
 export function readPlan(root, file = '') {
   const plan = readJson(resolve(root, file || PATHS.plan), null);
   if (!plan) return { topic: '', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 3, maxScrapes: 10, prefer: [], queries: [], urls: [] };
