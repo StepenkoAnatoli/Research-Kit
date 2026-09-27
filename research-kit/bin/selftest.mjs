@@ -9,11 +9,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { parseFlags, listFiles } from '../lib/core.mjs';
+import { parseFlags, listFiles, refuseUnknownFlags } from '../lib/core.mjs';
 import { runPending, TEST_TIMEOUT } from '../test/harness.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 
 const { flags, positional } = parseFlags(process.argv.slice(2));
+refuseUnknownFlags(flags, ['help']);
 const dir = path.join(KIT_ROOT, 'test');
 
 if (flags.help) {

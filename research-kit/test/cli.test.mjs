@@ -558,6 +558,9 @@ test('every CLI refuses a flag it does not know, before it does anything', () =>
   const home = tempDir('rk-flag-home-');
   const cases = [
     ['install-hooks.mjs', ['--dry-run']],
+    // install copies the kit into place: a typo'd --dryrun deployed for real.
+    ['install.mjs', ['--dry-run']],
+    ['selftest.mjs', ['no-test-file-has-this-name']],
     ['new-project.mjs', [path.join(tempDir('rk-flag-np-'), 'p'), '--topic', 'x']],
     ['timeline.mjs', []],
     ['decompose.mjs', ['--topic', 'x', '--dry-run']],
