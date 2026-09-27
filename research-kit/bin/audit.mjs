@@ -13,6 +13,17 @@ import { kitCommand } from '../lib/core.mjs';
 const { flags } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['force', 'help', 'list', 'show', 'topic', 'version', 'zip']);
 checkFlagValues(flags, { topic: 'value', show: 'value', version: 'value' });
+// A flag that only means something beside another is refused alone: `audit --version v9`
+// rendered a new audit and never mentioned v9, and --topic without --zip was dropped the
+// same way (found 2026-09-27).
+if (flags.version !== undefined && flags.show === undefined) {
+  process.stderr.write('--version only works with --show <topic>: audit --show <topic> --version <v>\n');
+  process.exit(2);
+}
+if (flags.topic !== undefined && !flags.zip) {
+  process.stderr.write('--topic only works with --zip: audit --zip --topic <topic>\n');
+  process.exit(2);
+}
 const root = process.cwd();
 
 if (flags.help) {
