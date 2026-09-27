@@ -17,7 +17,7 @@ import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
 import * as serpapi from '../lib/serpapi.mjs';
-import { nodeHonoursEnvProxy, envProxyPlan, honourEnvProxy, PROXY_VARIABLES } from '../lib/runtime.mjs';
+import { nodeHonoursEnvProxy, envProxyPlan, honourEnvProxy, fetchEnv, PROXY_VARIABLES } from '../lib/runtime.mjs';
 
 describe('proxy');
 
@@ -338,4 +338,57 @@ test('the SerpAPI child is started with the flag, from the environment its calle
   serpapi.search('q', { key: KEY, env: PROXIED, job });
   serpapi.account({ key: KEY, env: PROXIED, job });
   assert.deepEqual(handed, [PROXIED, PROXIED], 'search() and account() must hand their environment to the child');
+});
+
+// ---------------------------------------------------------------- a proxy value Node cannot use
+//
+// Found 2026-09-27: with the flag on, a scheme-less value such as HTTPS_PROXY=proxy.example:8080
+// (a form curl accepts) makes Node's fetch throw at startup - "Invalid URL protocol", an
+// uncaught exception from inside Node, not a fetch error. Without the flag, the same value was
+// ignored and requests went direct. So turning the proxy on for such a value turned a working
+// machine into a crashing one. The value is left alone, and the operator is told.
+
+const MALFORMED = ['proxy.example:8080', 'not a url', 'http://', 'socks5://127.0.0.1:1080'];
+
+test('a proxy value Node cannot use is not turned on: the flag stays off, and the plan says why', () => {
+  for (const value of MALFORMED) {
+    const env = { HTTPS_PROXY: value, PATH: '/bin' };
+    assert.equal(fetchEnv(env).NODE_USE_ENV_PROXY, undefined, `${value}: the child would crash on its first request`);
+    assert.equal(planFor(env, { version: '24.21.0', setGlobal: SWITCH }), 'invalid', value);
+    assert.equal(planFor(env, { version: '22.22.2' }), 'invalid', value);
+  }
+  assert.equal(planFor({ HTTPS_PROXY: 'http://ok.example:8080', HTTP_PROXY: 'proxy.example:8080' }), 'invalid',
+    'one unusable variable is enough: Node builds every configured proxy when the flag is on');
+  assert.equal(fetchEnv({ HTTPS_PROXY: 'https://ok.example:8443' }).NODE_USE_ENV_PROXY, '1', 'an https proxy URL is usable');
+});
+
+test('invalid: the command names the variable, says requests go direct, and shows the form Node needs', async () => {
+  const written = [];
+  const got = await honourEnvProxy({
+    env: { https_proxy: 'proxy.example:8080' }, version: '24.21.0', execArgv: [],
+    setGlobal: () => assert.fail('turned on a proxy Node cannot parse'), spawn: () => assert.fail('restarted into a crash'),
+    stderr: { write: (text) => written.push(text) },
+  });
+  assert.equal(got, 'invalid');
+  const text = written.join('');
+  assert.match(text, /https_proxy/);
+  assert.match(text, /direct/);
+  assert.match(text, /http:\/\/proxy\.example:8080/, 'the operator is not shown the spelling that works');
+});
+
+test('LIVE: a scheme-less proxy value does not break a search that would have gone direct', async () => {
+  // The stand-in answers plain requests itself, so it can play the vendor: reached directly,
+  // it returns the payload. The malformed proxy value must leave that path working.
+  const vendor = await standInProxy({ body: JSON.stringify(PAYLOAD) });
+  try {
+    const root = tempDir('rk-proxy-bad-');
+    const r = serpapi.search('direct despite a bad proxy value', {
+      key: KEY, endpoint: `${vendor.url}/search`, timeout: 15_000,
+      env: { ...hostEnv(root), HTTP_PROXY: 'proxy.example:8080', HTTPS_PROXY: 'proxy.example:8080' },
+    });
+    assert.equal(r.ok, true, `the search broke on a proxy value it should have left alone: ${String(r.error).slice(0, 300)}`);
+    assert.equal(r.results[0].url, 'https://a.example/1');
+  } finally {
+    vendor.close();
+  }
 });

@@ -534,6 +534,16 @@ test('behind a proxy, a Node that cannot use it is named, with the version to mo
     assert.equal(find(nodeFindings(ok, { https_proxy: 'http://p:1' }), 'proxy').severity, 'pass', `${ok} honours the proxy`);
   }
   assert.equal(find(nodeFindings('22.20.0'), 'proxy'), undefined, 'no proxy, nothing to say');
+  // A value Node cannot parse crashes every fetch once the flag is on, so the kit leaves it off
+  // and doctor says so - on every Node, since no version can use it (ADR-0047).
+  const bad = find(nodeFindings('24.21.0', { HTTPS_PROXY: 'proxy.example:8080' }), 'proxy');
+  assert.equal(bad.severity, 'warn', 'a proxy value Node cannot use was reported as working');
+  assert.match(bad.detail, /cannot use/);
+  assert.match(bad.fix, /http:\/\/proxy\.example:8080/);
+  assert.equal(find(nodeFindings('24.21.0', { https_proxy: 'http://ok:1', HTTPS_PROXY: 'proxy.example:8080' }), 'proxy').severity, 'pass',
+    'the lowercase variable wins when both are set (E-03), so the malformed one is never read');
+  const secret = find(nodeFindings('24.21.0', { HTTPS_PROXY: 'user:hunter2@proxy.example:8080' }), 'proxy');
+  assert.equal(`${secret.detail} ${secret.fix}`.includes('hunter2'), false, 'doctor printed a proxy password');
 });
 
 test('doctor reports the Node line: supported, odd and short-lived, or below the floor', () => {

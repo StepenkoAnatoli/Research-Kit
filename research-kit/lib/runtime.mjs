@@ -60,6 +60,43 @@ export function proxyVariable(env = process.env) {
   return PROXY_VARIABLES.find((key) => env[key]) ?? null;
 }
 
+// Node takes a proxy as an http: or https: URL with a host (E-03).
+function usableProxyUrl(value) {
+  try {
+    const url = new URL(String(value));
+    return (url.protocol === 'http:' || url.protocol === 'https:') && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The proxy variable whose value Node cannot use, or null. Only the values Node reads count:
+ * when both spellings are set, the lowercase one wins (E-03).
+ *
+ * Found 2026-09-27: with the flag on, Node builds every configured proxy up front, and one it
+ * cannot parse throws "Invalid URL protocol" from inside Node - an uncaught exception, not a
+ * fetch error, even for a request the other proxy would carry. HTTPS_PROXY=proxy.example:8080
+ * is enough, and curl accepts that form. Without the flag the value is ignored and requests
+ * go direct, so for such a value the flag stays off.
+ */
+export function unusableProxy(env = process.env) {
+  for (const [lower, upper] of [['https_proxy', 'HTTPS_PROXY'], ['http_proxy', 'HTTP_PROXY']]) {
+    const name = env[lower] ? lower : env[upper] ? upper : null;
+    if (name && !usableProxyUrl(env[name])) return name;
+  }
+  return null;
+}
+
+/**
+ * The spelling Node would accept, for a message. A bare host:port gains http://, as curl reads
+ * it; anything else gets a template. Never echoes a value that could hold a password.
+ */
+export function proxySpelling(value) {
+  const bare = String(value ?? '').trim().replace(/\/$/, '');
+  return /^[\w.-]+:\d+$/.test(bare) ? `http://${bare}` : 'http://host:port';
+}
+
 /**
  * The environment for a child process that fetches: `env`, plus the one flag that makes the
  * child's built-in fetch use a configured proxy. A Node that predates the flag ignores it,
@@ -74,7 +111,7 @@ export function proxyVariable(env = process.env) {
  */
 export function fetchEnv(env = process.env) {
   if (env.NODE_USE_ENV_PROXY !== undefined) return env;
-  if (!proxyVariable(env)) return env;
+  if (!proxyVariable(env) || unusableProxy(env)) return env;
   return { ...env, NODE_USE_ENV_PROXY: '1' };
 }
 
@@ -91,6 +128,8 @@ function proxyChosen(env, execArgv) {
 /**
  * How THIS process's own fetch reaches a configured proxy:
  *   'none'         no proxy, or the choice was made at startup
+ *   'invalid'      a proxy value Node cannot use: turning it on would crash every fetch, so
+ *                  requests go direct, as they did before (unusableProxy)
  *   'set'          Node 24.14+ and 25.4+: http.setGlobalProxyFromEnv() turns it on in place (E-03)
  *   'reexec'       Node 22.21+ and 24.0-24.13: only the startup flag exists, so the command
  *                  starts again with it
@@ -103,6 +142,7 @@ export function envProxyPlan({
   setGlobal = http.setGlobalProxyFromEnv,
 } = {}) {
   if (!proxyVariable(env) || proxyChosen(env, execArgv)) return 'none';
+  if (unusableProxy(env)) return 'invalid';
   if (typeof setGlobal === 'function') return 'set';
   return nodeHonoursEnvProxy(version) ? 'reexec' : 'unsupported';
 }
@@ -129,6 +169,11 @@ export function honourEnvProxy({
 } = {}) {
   const plan = envProxyPlan({ env, version, execArgv, setGlobal });
   if (plan === 'set') setGlobal(env);
+  if (plan === 'invalid') {
+    const name = unusableProxy(env);
+    stderr.write(`${name} is not a proxy URL Node can use, so requests go direct. `
+      + `Write it as ${proxySpelling(env[name])}.\n`);
+  }
   if (plan === 'unsupported') {
     stderr.write(`${proxyVariable(env)} is set, but node ${version} cannot send its requests through a proxy, `
       + 'so they go direct. Upgrade to Node 22.21 or later on the 22 line, or to 24 or 26.\n');

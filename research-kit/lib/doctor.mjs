@@ -17,7 +17,7 @@ import { validateProject, hookExecutability, GATE_MARKERS, KIT_ROOT } from './sc
 import { settingsState, deployedDrift, driftNote } from './installer.mjs';
 import { recordOverride } from './provenance.mjs';
 import { probeFirecrawl, selectTransport } from './transport.mjs';
-import { nodeLine, nodeHonoursEnvProxy, proxyVariable } from './runtime.mjs';
+import { nodeLine, nodeHonoursEnvProxy, proxyVariable, unusableProxy, proxySpelling } from './runtime.mjs';
 import { verifyBundle, bundleSummary } from './bundle.mjs';
 import {
   posture, machineRole, collectionPolicy, readMachineConfig, retiredEnvNotes,
@@ -72,7 +72,12 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
   // provider's requests, and remote collection (dispatch, the MCP server, disclosure). The
   // Firecrawl CLI has its own proxy handling. No vendor is named here (NFR-3).
   const proxy = proxyVariable(env);
-  if (proxy) {
+  const unusable = unusableProxy(env);
+  if (unusable) {
+    out.push(f('warn', 'proxy',
+      `${unusable} is set to a value Node cannot use as a proxy (it takes an http:// or https:// URL) - the kit's requests go direct`,
+      `write it as ${proxySpelling(env[unusable])}`));
+  } else if (proxy) {
     out.push(nodeHonoursEnvProxy(nodeVersion)
       ? f('pass', 'proxy', `${proxy} is set, and node ${nodeVersion} sends the kit's requests through it`)
       : f('warn', 'proxy',

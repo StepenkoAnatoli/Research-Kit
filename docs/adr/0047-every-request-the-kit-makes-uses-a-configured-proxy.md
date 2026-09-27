@@ -49,6 +49,16 @@ error named no proxy.
 4. **doctor's finding is `proxy`, not `keyless-proxy`,** and it names every path the proxy
    carries: keyless pages, search requests and remote collection. It does not name the search
    vendor, which only the adapter and the registry may do (NFR-3).
+5. **A proxy value Node cannot use is left off.** Node takes an http: or https: URL with a
+   host (E-03). With the flag on, it builds every configured proxy up front, and one it cannot
+   parse throws "Invalid URL protocol" from inside Node, an uncaught exception. Measured on
+   22.22.2 and 24.21.0: `HTTPS_PROXY=proxy.example:8080`, a form curl accepts, is enough, even
+   for a request the other variable would carry. So `fetchEnv` and `honourEnvProxy` leave
+   such a value off. Requests go direct, as they did before the flag. The command says so in
+   one line and doctor warns, each showing the spelling Node needs.
+   - Only the values Node reads count: when both spellings are set, the lowercase one wins
+     (E-03).
+   - No message echoes the value, because a value can hold a password.
 
 ## Rejected alternatives
 
@@ -63,6 +73,10 @@ error named no proxy.
 - **Always restart, even where `setGlobalProxyFromEnv` exists.** That keeps a second process
   alive for the whole life of an MCP server when an in-place switch is available.
 - **Raise the floor to 22.21.** ADR-0046 rejected this: it refuses machines that have no proxy.
+- **Rewrite a bare `host:port` as `http://host:port`, as curl reads it.** Node itself refuses
+  the value, so every other Node tool on the machine still does. Rewriting it for the kit
+  alone would hide a misconfiguration the operator should fix once, for all of them. The
+  message shows the spelling, and the operator makes the change.
 
 ## Consequences
 
