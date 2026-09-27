@@ -282,12 +282,22 @@ carried by review and by the record these rules produce.
    report that never admits a mistake cannot be distinguished from one that
    never checked.
 
-3. **An ADR for any choice with a rejected alternative.** When a decision
-   set an alternative aside - a deferred refactor, a rejected design, a
-   "not now" - it is recorded as an ADR, dated, with the reason a future
-   explorer would need to avoid re-suggesting it, and (for dated calls) the
-   trigger that expires it. Existing ADRs are never re-litigated; a decision
-   that is genuinely wrong is superseded by a new ADR that says so.
+   **The short form** (ADR-0075). A commit that touches no declared code path
+   (`research/kit.json`) - tests, docs, wording, a fixture - may carry the
+   same parts as one line each: **what changed**, **why**, **what you
+   verified**, **what you got wrong**. The got-wrong line stays, for the
+   reason above. Anything under a declared code path uses the full form.
+
+3. **An ADR for any design choice with a rejected alternative.** When a
+   decision about how the kit behaves, what it stores or what it promises -
+   a module's responsibility, a format, a rule, a deferred refactor, a
+   rejected design, a "not now" - set an alternative aside, it is recorded as
+   an ADR, dated, with the reason a future explorer would need to avoid
+   re-suggesting it, and (for dated calls) the trigger that expires it. Test
+   mechanics, wording, and a bug fix with one obvious remedy do not need one:
+   the commit report's **why** names any alternative that was set aside
+   (ADR-0075). Existing ADRs are never re-litigated; a decision that is
+   genuinely wrong is superseded by a new ADR that says so.
 
 4. **One commit per task - the revert test.** A task is a change that can be
    reverted alone: `git revert <sha>` undoes it without breaking what was
