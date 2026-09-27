@@ -26,7 +26,7 @@ import path from 'node:path';
 import { parseFlags, flagList, canonicalJson } from '../lib/core.mjs';
 import { requireRuntime, honourEnvProxy } from '../lib/runtime.mjs';
 import {
-  dispatchCollection, waitForRun, fetchCorpus, queriesInput,
+  dispatchCollection, waitForRun, fetchCorpus, queriesInput, usableOutDir,
   tokenFromEnv, redact, DispatchError, API_VERSION, TOKEN_VARS,
 } from '../lib/dispatch.mjs';
 
@@ -123,6 +123,15 @@ if (queriesValue.error) {
   process.exit(EXIT.CANNOT_START);
 }
 
+// So is an --out this process cannot write: found after the wait, it cost a paid run.
+// `--no-wait` downloads nothing, so it has no folder to check.
+const outDir = path.resolve(String(flags.out ?? '.'));
+if (!flags['no-wait']) {
+  try { usableOutDir(outDir); } catch (e) {
+    die(EXIT.CANNOT_START, { error: `${e.code}: ${e.message}`, code: e.code, remedy: e.remedy });
+  }
+}
+
 const { token, from, detail } = tokenFromEnv();
 if (!token) die(EXIT.CANNOT_START, { error: detail, remedy: 'create a fine-grained token with Actions: read and write on this repository only' });
 
@@ -132,7 +141,6 @@ await honourEnvProxy();
 const repository = String(flags.repository);
 const workflow = String(flags.workflow ?? 'collect.yml');
 const ref = String(flags.ref ?? 'main');
-const outDir = path.resolve(String(flags.out ?? '.'));
 const timeoutMs = Number(flags.timeout ?? 1800) * 1000;
 
 const inputs = {

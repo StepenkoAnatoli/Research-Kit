@@ -476,6 +476,17 @@ test('collect-remote refuses a --url that is not http(s), before it asks for a t
   assert.ok(!/token/i.test(r.err.split('\n')[0] ?? ''), 'the URL refusal must come first');
 });
 
+test('collect-remote refuses an --out it cannot write, before it asks for a token or dispatches', () => {
+  // Found only after the download, this cost a paid run and up to half an hour of waiting.
+  const root = project();
+  fs.writeFileSync(path.join(root, 'a-file'), 'x');
+  const r = run('collect-remote.mjs', ['--repository', 'o/r', '--topic', 't', '--out', path.join(root, 'a-file', 'sub')], { root });
+  assert.equal(r.status, 3, r.all);
+  assert.match(r.all, /OUT_DIR/);
+  assert.match(r.all, /writable folder/);
+  assert.ok(!/token/i.test(r.err.split('\n')[0] ?? ''), 'the folder refusal must come first');
+});
+
 test('collect-remote documents --url', () => {
   const r = run('collect-remote.mjs', ['--help'], { root: project() });
   assert.match(r.out, /--url/);

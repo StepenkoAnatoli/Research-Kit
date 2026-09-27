@@ -5,10 +5,10 @@
 // sent, that a token never appears in an error, that a 204 is diagnosed rather than
 // swallowed. The live path is verified separately, by running it.
 
-import { test, describe, assert } from './harness.mjs';
+import { test, describe, assert, tempDir, cleanup, fs, path } from './harness.mjs';
 import {
   dispatchCollection, waitForRun, listArtifacts, downloadArtifact, unwrapArtifact, queriesInput,
-  tokenFromEnv, redact, DispatchError, API_VERSION, TOKEN_VARS,
+  tokenFromEnv, redact, DispatchError, API_VERSION, TOKEN_VARS, fetchCorpus,
 } from '../lib/dispatch.mjs';
 import { rawZip } from './artifact-fixtures.mjs';
 
@@ -290,4 +290,26 @@ test('a URL that is not http(s) is refused before dispatch, not searched on the 
     assert.equal(r.value, undefined, `${bad} was accepted`);
     assert.match(r.error, /http\(s\)/, `${bad}: the refusal should say what is expected`);
   }
+});
+
+test('fetchCorpus refuses an out_dir it cannot write BEFORE it downloads anything', async () => {
+  // The download is the slow, rate-limited part; learning afterwards that the folder was
+  // unusable wasted it, and the raw ENOTDIR that surfaced carried no code a caller could
+  // branch on (the MCP server reported it as UNKNOWN).
+  const dir = tempDir();
+  try {
+    const file = path.join(dir, 'a-file');
+    fs.writeFileSync(file, 'x');
+    const doFetch = stubFetch([jsonResponse(200, { artifacts: [] })]);
+    await assert.rejects(
+      () => fetchCorpus({ repository: REPO, runId: 1, token: TOKEN, outDir: path.join(file, 'sub'), fetch: doFetch }),
+      (err) => {
+        assert.ok(err instanceof DispatchError, `a raw ${err.code ?? err.name} escaped`);
+        assert.equal(err.code, 'OUT_DIR');
+        assert.match(err.message, /a-file/);
+        assert.match(err.remedy, /writable folder/);
+        return true;
+      });
+    assert.equal(doFetch.calls.length, 0, 'the run was queried before the folder was checked');
+  } finally { cleanup(dir); }
 });

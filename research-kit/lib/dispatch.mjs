@@ -304,6 +304,25 @@ export async function getRunSummary({ repository, runId, token, fetch: doFetch =
 }
 
 /**
+ * `usableOutDir(dir)` -> `dir`, created if absent, or a named `OUT_DIR` failure.
+ *
+ * Exported because every caller that downloads should check it before it spends
+ * anything: `collect-remote` before it dispatches a paid run, the MCP server before it
+ * reads the run, and `fetchCorpus` before it downloads.
+ */
+export function usableOutDir(dir) {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.accessSync(dir, fs.constants.W_OK);
+  } catch (err) {
+    throw new DispatchError('OUT_DIR', `${dir} is not a folder this process can write (${err.code ?? err.message})`, {
+      remedy: 'pass an existing writable folder, or omit it for the default',
+    });
+  }
+  return dir;
+}
+
+/**
  * `fetchCorpus(...)` -> `{ file, validation, artifact }`.
  *
  * Download, unwrap GitHub's outer ZIP, write it down, and judge it with the validator a
@@ -316,6 +335,10 @@ export async function fetchCorpus({
   fetch: doFetch = globalThis.fetch, api = GITHUB_API,
   expectedClientRef = null,
 } = {}) {
+  // The folder is checked first: the download is the slow, rate-limited part, and an
+  // unusable folder found after it would waste it and surface as a raw ENOTDIR.
+  const dir = usableOutDir(outDir ?? os.tmpdir());
+
   const artifacts = await listArtifacts({ repository, runId, token, fetch: doFetch, api });
   const wanted = artifacts.filter((a) => !a.expired && a.name.startsWith('research-kit-corpus-v1-'));
   if (wanted.length !== 1) {
@@ -330,8 +353,6 @@ export async function fetchCorpus({
   const bytes = await downloadArtifact({ repository, artifactId: wanted[0].id, token, fetch: doFetch, api });
   const { bytes: pkg, unwrapped, name } = unwrapArtifact(bytes);
 
-  const dir = outDir ?? os.tmpdir();
-  fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, unwrapped ? name : `${wanted[0].name}.zip`);
   fs.writeFileSync(file, pkg);
 
