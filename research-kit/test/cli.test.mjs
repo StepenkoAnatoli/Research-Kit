@@ -531,7 +531,9 @@ test('new-project prints next steps that run from the project it just made', () 
   const target = tempDir('rk-next-');
   const r = run('new-project.mjs', [target, '--topic', 'a topic'], { root: project() });
   assert.equal(r.status, 0, r.all);
-  const commands = [...r.out.matchAll(/node (\S+\.mjs)/g)].map((m) => m[1]);
+  // A kit under a folder with a space prints its commands double-quoted (ADR-0050), and a
+  // checkout in "C:\Users\Jane Doe\..." is ordinary: an unquoted-only match made this red there.
+  const commands = [...r.out.matchAll(/node ("[^"]+\.mjs"|\S+\.mjs)/g)].map((m) => m[1].replace(/^"|"$/g, ''));
   assert.ok(commands.length >= 3, `expected the next steps to name commands: ${r.out}`);
   for (const file of commands) {
     assert.ok(path.isAbsolute(file), `"${file}" is relative, so it only runs from one directory`);
@@ -791,4 +793,17 @@ test('preflight says when the brief was drafted under the other verdict', () => 
   assert.equal(r.status, 0, r.all);
   assert.match(r.out, /BRIEF\.md was drafted when the gate failed/, r.out);
   assert.match(r.out, /brief\.mjs/);
+});
+
+// Found 2026-09-27 (break-test): `selftest.mjs` run from any folder but the repository root
+// crashed at import - fi-validator-conformance reads `research-kit/schemas/...` relative to
+// the cwd - so no test ran and no count was printed. The suite now runs from the repository
+// root whatever the caller's cwd, and a relative result file still lands where it was asked.
+test('the suite runs from any cwd, and a relative result file lands in the caller\'s folder', () => {
+  const root = tempDir('rk-suite-cwd-');
+  const r = run('selftest.mjs', ['fi-validator-conformance'], { root, env: { RESEARCH_KIT_RESULT_FILE: 'result.json' } });
+  assert.equal(r.status, 0, `the suite failed from another cwd:\n${r.all.slice(0, 600)}`);
+  assert.match(r.out, /\d+ passed, 0 failed/);
+  const result = JSON.parse(fs.readFileSync(path.join(root, 'result.json'), 'utf8'));
+  assert.equal(result.exit, 0);
 });

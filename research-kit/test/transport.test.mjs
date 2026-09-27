@@ -7,7 +7,7 @@ import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.m
 import { readText } from '../lib/core.mjs';
 import * as firecrawl from '../lib/firecrawl.mjs';
 import * as httpKeyless from '../lib/http-transport.mjs';
-import { TRANSPORTS, TRANSPORT_NAMES, selectTransport, selectSearch, probeFirecrawl } from '../lib/transport.mjs';
+import { TRANSPORTS, TRANSPORT_NAMES, selectTransport, selectSearch, probeFirecrawl, unusedKeyNote } from '../lib/transport.mjs';
 import { mergeByRank } from '../lib/research-run.mjs';
 
 describe('transport');
@@ -659,4 +659,24 @@ test('keyless search reports DuckDuckGo\'s bot check as a failed search, with th
   assert.equal(r.ok, false, 'a bot check was reported as a successful search');
   assert.match(r.error, /bot check/i);
   assert.deepEqual(r.results, []);
+});
+
+// Found 2026-09-27: with FIRECRAWL_API_KEY set and no CLI on PATH, a run fell back to the
+// keyless adapter - capped per IP - and said only "no CLI on PATH". The key the operator set
+// was unused, and nothing at collection time said so; only doctor did.
+test('a key with no CLI to use it is named at collection time, with the install command', () => {
+  const absent = () => ({ installed: false, authenticated: false, version: null, credits: null });
+  const installed = () => ({ installed: true, authenticated: true, version: '1.0.0', credits: 900 });
+  const key = { FIRECRAWL_API_KEY: 'fc-test' };
+
+  const fallback = selectTransport({ env: key, probe: absent, config: {} });
+  const note = unusedKeyNote(fallback, key);
+  assert.match(note, /FIRECRAWL_API_KEY is set/);
+  assert.match(note, /not on PATH/);
+  assert.ok(note.includes(firecrawl.cliInstallSpec()), note);
+
+  assert.equal(unusedKeyNote(selectTransport({ env: {}, probe: absent, config: {} }), {}), '', 'no key: nothing unused');
+  assert.equal(unusedKeyNote(selectTransport({ env: key, probe: installed, config: {} }), key), '', 'the CLI uses the key');
+  assert.equal(unusedKeyNote(selectTransport({ explicit: 'http-keyless', env: key, probe: absent, config: {} }), key), '',
+    'keyless was asked for by name: the operator chose it');
 });

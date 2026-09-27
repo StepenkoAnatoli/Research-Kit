@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { test, describe, assert, assertEqual } from './harness.mjs';
+import { test, describe, assert, assertEqual, requirePython } from './harness.mjs';
 
 // Ported 2026-09-20 under ADR-0029.
 describe('fi-sidecar-conformance-vectors');
@@ -43,7 +43,7 @@ test('FI Node CLI is byte-deterministic and agrees with the Node library', async
 });
 
 test('FI Python runner agrees with Node on every vector row and expected code', () => {
-  const python = spawnSync('python', [
+  const python = spawnSync(requirePython('FI sidecar Node/Python agreement'), [
     path.join(ROOT, 'bin', 'fi_sidecar_conformance.py'), '--vectors', VECTOR_FILE, '--json',
   ], { encoding: 'utf8' });
   const node = runCli();

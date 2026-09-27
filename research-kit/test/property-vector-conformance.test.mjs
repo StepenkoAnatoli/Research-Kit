@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { test, describe, assert, assertEqual } from './harness.mjs';
+import { test, describe, assert, assertEqual, requirePython } from './harness.mjs';
 
 // Ported 2026-09-20 under ADR-0029.
 describe('property-vector-conformance');
@@ -41,7 +41,7 @@ test('Node CLI produces a byte-identical report for exported property vectors', 
 });
 
 test('Python independently reproduces exported property vector rows', () => {
-  const python = spawnSync('python', [
+  const python = spawnSync(requirePython('property vector Node/Python agreement'), [
     path.join(ROOT, 'bin', 'property_vector_conformance.py'), '--vectors', VECTOR_FILE, '--json',
   ], { encoding: 'utf8' });
   const node = runNodeCli();

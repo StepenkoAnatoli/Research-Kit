@@ -4,6 +4,7 @@
 // off disk judges different bytes from the ones about to be committed. These tests stage
 // one thing and leave another in the working tree, then assert which one decided.
 
+import os from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability } from './harness.mjs';
 import { PATHS, resolve, readText, writeText } from '../lib/core.mjs';
@@ -125,10 +126,26 @@ test('a caller that injects a corpus gets that corpus judged, not the index', ()
   assert.equal(injected.allow, false);
 });
 
+// The count is taken in a PRIVATE temp directory. It used to be the shared one, where any
+// commit on the machine (the gate makes the same directory) or a second suite running at
+// the same time changed the count, and this test failed with nothing leaked (break-test,
+// 2026-09-27). os.tmpdir() reads the environment on every call, so pointing it here for
+// one evaluation is enough.
 test('the scratch directory does not survive the verdict', () => {
   const dir = makeRepo();
-  const before = fs.readdirSync(tempDir().replace(/research-kit-[^\\/]*$/, '')).filter((n) => n.startsWith('research-kit-index-')).length;
-  evaluate(dir, { gate: 'commit', stagedPaths: [], record: false });
-  const after = fs.readdirSync(tempDir().replace(/research-kit-[^\\/]*$/, '')).filter((n) => n.startsWith('research-kit-index-')).length;
-  assert.equal(after, before, 'every commit would otherwise leak a copy of the corpus into the temp directory');
+  const scratch = tempDir('rk-index-tmp-');
+  const saved = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
+  Object.assign(process.env, { TMPDIR: scratch, TEMP: scratch, TMP: scratch });
+  let seen;
+  try {
+    assert.equal(os.tmpdir(), scratch, 'the private temp directory was not taken up');
+    evaluate(dir, { gate: 'commit', stagedPaths: [], record: false });
+    seen = fs.readdirSync(scratch);
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+  assert.deepEqual(seen, [], 'every commit would otherwise leak a copy of the corpus into the temp directory');
 });

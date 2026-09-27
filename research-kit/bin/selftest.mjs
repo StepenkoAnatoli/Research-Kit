@@ -39,6 +39,16 @@ if (!files.length) {
   process.exit(2);
 }
 
+// Tests name kit files as `research-kit/...`, relative to the repository root, so the suite
+// runs from there whatever folder it was started in - otherwise one import-time read from
+// another cwd crashed the run before any test ran. A relative result file is the caller's,
+// so it is resolved against the folder they started in, before the move.
+const invokedFrom = process.cwd();
+if (process.env.RESEARCH_KIT_RESULT_FILE) {
+  process.env.RESEARCH_KIT_RESULT_FILE = path.resolve(invokedFrom, process.env.RESEARCH_KIT_RESULT_FILE);
+}
+process.chdir(path.resolve(KIT_ROOT, '..'));
+
 const started = Date.now();
 for (const file of files) {
   await import(pathToFileURL(path.join(dir, file)).href);
@@ -95,7 +105,7 @@ if (unsupported.length) {
 }
 if (blocking) {
   writeResultFile(1);
-  process.stdout.write(`\nA red suite stops work. cwd: ${process.cwd()}\n`);
+  process.stdout.write(`\nA red suite stops work. cwd: ${process.cwd()} (started in ${invokedFrom})\n`);
   process.exit(1);
 }
 

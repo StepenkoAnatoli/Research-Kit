@@ -6,7 +6,7 @@
 
 import { parseFlags, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal } from '../lib/machine.mjs';
-import { selectTransport, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES } from '../lib/transport.mjs';
+import { selectTransport, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES, unusedKeyNote } from '../lib/transport.mjs';
 import { decompose, searchSummary, resolveTopic, RECIPE_DIR } from '../lib/decompose.mjs';
 import { UNIVERSAL_DIMENSIONS } from '../lib/dimensions.mjs';
 import { listFiles } from '../lib/core.mjs';
@@ -93,6 +93,7 @@ if (spends) {
     adapter = chosen.adapter;
     searchAdapter = chosen.search.adapter;
     process.stdout.write(`transport: ${chosen.name} - ${chosen.why}\n`);
+    process.stdout.write(unusedKeyNote(chosen));
     if (!chosen.search.sameAsFetch) {
       process.stdout.write(`search:    ${chosen.search.name} - ${chosen.search.why}\n`);
     }

@@ -16,7 +16,7 @@
 // remembered to put in a packet.
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, fs, path, KIT_ROOT, requireCapability } from './harness.mjs';
+import { test, describe, assert, fs, path, KIT_ROOT, requireCapability, findPython } from './harness.mjs';
 import { canonicalJson, sha256 } from '../lib/release-validator.mjs';
 
 describe('canonical-float-policy');
@@ -24,13 +24,7 @@ describe('canonical-float-policy');
 const COMMON = path.join(KIT_ROOT, 'bin', 'conformance_common.py');
 
 /** Is there a usable python on this host? The Python runners are part of the contract. */
-const PYTHON = (() => {
-  for (const exe of ['python', 'python3']) {
-    const probe = spawnSync(exe, ['--version'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
-    if (!probe.error && probe.status === 0) return exe;
-  }
-  return null;
-})();
+const PYTHON = findPython();
 
 /**
  * A host without Python cannot run these tests, and that is NOT a skip.
