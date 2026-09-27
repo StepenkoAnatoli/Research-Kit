@@ -150,6 +150,19 @@ test('pages left out by the budget are named, and --status states the budget the
   assert.match(status.out, /up to 2 scrapes/, `--status overstated the budget:\n${status.out}`);
 });
 
+// Found 2026-09-27: the README offers --dry-run as "see what it would fetch, and the cost", and a
+// plan made of queries dry-ran to nothing - no query named, and "searches 0" at the end.
+test('a dry run names every query it would search, and on which provider', () => {
+  const root = project('dry queries');
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({
+    topic: 'dry queries', depth: 'probe', maxScrapes: 2, refreshDays: 30, limit: 8, perQuery: 3, prefer: [],
+    queries: [{ q: 'first query text' }, 'second query text'], urls: [],
+  }));
+  const dry = run('research.mjs', ['--dry-run', '--transport', 'http-keyless'], { root });
+  assert.match(dry.out, /would search\s+"first query text" on http-keyless/, dry.out);
+  assert.match(dry.out, /would search\s+"second query text"/, dry.out);
+});
+
 test('RR-5: --status reports the search meter, with its caveat', () => {
   const r = run('research.mjs', ['--status'], { root: project() });
   assert.match(r.out, /searches \(this project\)/, 'the count is one project on this machine, not the box');

@@ -340,6 +340,10 @@ ${compatibility.remedy}`);
     const prefer = uniq([...preferList(settings.prefer), ...preferList(typeof query === 'object' ? query?.prefer : null)]);
     if (dryRun) {
       discovered.push({ query: text, results: [], note: 'search not run under --dry-run' });
+      // Named, because a preview that omits the searches previews nothing for a plan made of
+      // them (found 2026-09-27). Pages are not known until the search runs; the query and the
+      // meter it would spend on are.
+      log(`  would search "${text}" on ${searchers.length > 1 ? searchers.map((one) => one.name).join(' + ') : searchName}, keeping up to ${settings.perQuery} page(s)`);
       continue;
     }
     // MORE THAN ONE PROVIDER: ask each, interleave by rank, and attribute every row.
