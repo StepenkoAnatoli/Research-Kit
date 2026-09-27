@@ -15,6 +15,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { evaluate, isGated, isPhaseOneEdit } from '../lib/gate.mjs';
 import { loadConfig } from '../lib/machine.mjs';
+import { PATHS } from '../lib/core.mjs';
 
 function emit(decision, reason) {
   process.stdout.write(`${JSON.stringify({
@@ -71,6 +72,21 @@ if (!isGated(root)) emit('allow', 'not a gated project');
 // names no file is judged as it always was.
 const input = payload.tool_input ?? {};
 const targets = [input.file_path, input.notebook_path].filter((t) => typeof t === 'string' && t);
+
+// research/raw/ is written by the collector and nothing else: captures and the ledger are
+// fetched, never typed (AGENTS.md), and a ledger line forged with a correct hash and chain
+// link would pass preflight. So an edit there is denied whatever the verdict - only the
+// two deliberate off-switches, editGate.mode=off and research/GATE_OFF, let it through.
+const rawDir = path.resolve(root, PATHS.raw);
+const inRaw = (t) => {
+  const rel = path.relative(rawDir, path.resolve(cwd, t));
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+};
+if (targets.some(inRaw) && loadConfig().editGate.mode !== 'off' && !fs.existsSync(path.resolve(root, PATHS.gateOff))) {
+  emit('deny', `${PATHS.raw}/ holds fetched evidence: captures and the hash-chained ledger are written only by `
+    + `research.mjs, never by hand. Collect the page with research.mjs (it records the fetch), and put `
+    + `your reading of it in ${PATHS.evidence}.`);
+}
 if (targets.length && targets.every((t) => isPhaseOneEdit(root, path.resolve(cwd, t)))) {
   emit('allow', 'phase-1 work: research/ and the project\'s own scaffolding are what phase 1 edits');
 }
