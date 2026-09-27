@@ -58,6 +58,19 @@ test('a long row in any table keeps its structured columns in place', () => {
   assert.equal(sources.rows[0]['Used for'], 'U-1');
 });
 
+// Found 2026-09-27: a Raw cell written with Windows separators (research\\raw\\x.md) was
+// normalised by splitting on path.sep - which is \\ only on Windows. The same corpus passed there
+// and failed on a Linux builder with "no cached page behind it". A capture path never holds a
+// literal backslash, so every platform reads one as a separator.
+test('a Raw cell with backslashes reads the same on every platform', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/research\/raw\/([^ |]+)/, (m, name) => `research\\raw\\${name}`));
+  assert.match(readText(resolve(dir, PATHS.evidence)), /research\\raw\\/, 'the fixture did not write a backslash path');
+  const corpus = readCorpus(dir);
+  assert.match(corpus.evidence[0].raw, /^research\/raw\/[^\\]+$/, corpus.evidence[0].raw);
+  assert.equal(corpus.problems.some((p) => p.kind === 'raw-dangling'), false, 'the capture was reported missing');
+});
+
 test('parseTable stops at the end of the table, not the end of the file', () => {
   const text = `${tableRow(HEADERS.sources)}\n|---|---|---|---|---|\n| https://x.invalid | P | T | 2026-01-01 | U-1 |\n\n## Another section\n\n| not | a | row |\n`;
   assert.equal(parseTable(text, HEADERS.sources).rows.length, 1);

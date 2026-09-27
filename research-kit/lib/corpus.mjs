@@ -423,7 +423,9 @@ function normalizeRawCell(cell) {
   if (!text || text === '-') return '';
   const link = text.match(/\]\(([^)]+)\)/);
   const value = (link ? link[1] : text).trim().replace(/^`|`$/g, '');
-  return value.split(path.sep).join('/');
+  // Every backslash is a separator. Splitting on path.sep converted them only on Windows, so a
+  // row written there passed on Windows and failed on a Linux builder (found 2026-09-27).
+  return value.replace(/\\/g, '/');
 }
 
 /**
