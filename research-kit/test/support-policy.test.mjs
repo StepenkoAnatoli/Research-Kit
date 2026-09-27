@@ -155,6 +155,26 @@ test('the prerequisites named in the policy are the ones the suite actually need
     `CI pins Python ${python?.[1]} but the README promises 3.12+`);
 });
 
+test('the Node lines the README says are tested are exactly the ones CI runs', () => {
+  // Until 2026-09-27 the README promised "Node 22+" and CI ran only 22, so 24 (Active LTS)
+  // and 26 (Current) - the lines an operator installing Node today gets - were never run.
+  // docs/decisions/2026-09-27-node-support. The claim now names the lines; this keeps the
+  // list and the workflow in step, in both directions.
+  const yaml = fs.readFileSync(WORKFLOW, 'utf8');
+  const executable = yaml.split('\n').filter((line) => !line.trim().startsWith('#')).join('\n');
+  const pinned = [...executable.matchAll(/node-version:\s*'?(\d+)/g)].map((m) => m[1]);
+  const matrix = executable.match(/^\s*node:\s*\[([^\]]+)\]/m);
+  const lines = new Set([...pinned, ...(matrix ? matrix[1].split(',').map((v) => v.trim().replace(/['"]/g, '')) : [])]);
+  const tested = [...lines].map(Number).sort((a, b) => a - b);
+
+  const readme = fs.readFileSync(ROOT_README, 'utf8');
+  const claim = readme.match(/Node ((?:\d+, )*\d+ and \d+) are each tested/);
+  assert(claim, 'the README does not say which Node lines CI tests');
+  const promised = claim[1].split(/, | and /).map(Number).sort((a, b) => a - b);
+  assertEqual(JSON.stringify(tested), JSON.stringify(promised),
+    `CI runs Node ${tested.join(', ')} but the README says it tests ${promised.join(', ')}`);
+});
+
 test('the onboarding path names commands that exist', () => {
   // A quickstart that names a binary nobody shipped is the most expensive kind of wrong:
   // it fails on the reader's first command, before they have any reason to trust the rest.

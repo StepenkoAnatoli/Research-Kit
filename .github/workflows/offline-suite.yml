@@ -218,9 +218,40 @@ jobs:
   # matrix were named `suite`, the required check `suite` would never appear again and
   # every pull request would wait forever for a job that cannot run. This job keeps that
   # name attached to one thing that either passes or does not.
+  # The other Node lines the kit promises. The platform matrix above runs Node 22 on Linux and
+  # Windows; this runs 24 (Active LTS) and 26 (Current) on Linux, so every supported line is
+  # tested on every commit (docs/decisions/2026-09-27-node-support, ADR-0046). Linux only:
+  # the platform-specific checks above are about the OS, not the Node line.
+  node-lines:
+    name: node
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['24', '26']
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, resolved 2026-09-26
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0, resolved 2026-09-26
+        with:
+          node-version: ${{ matrix.node }}
+
+      # The conformance runners ship in Node and Python and must agree; without Python
+      # those tests report UNSUP and block, exactly as on the platform legs.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0, resolved 2026-09-26
+        with:
+          python-version: '3.12'
+
+      - name: versions
+        run: node --version
+
+      - name: selftest
+        run: node research-kit/bin/selftest.mjs
+
   suite:
     name: suite
-    needs: [platform]
+    needs: [platform, node-lines]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -231,6 +262,12 @@ jobs:
           if [ "$result" != "success" ]; then
             echo "the platform matrix did not pass: $result"
             echo "open the platform legs above; a single-platform failure is the point of this matrix"
+            exit 1
+          fi
+          lines="${{ needs.node-lines.result }}"
+          if [ "$lines" != "success" ]; then
+            echo "a Node line did not pass: $lines"
+            echo "open the node legs above; the kit promises every line it names in the README"
             exit 1
           fi
           # Deliberately does NOT list the platforms.
