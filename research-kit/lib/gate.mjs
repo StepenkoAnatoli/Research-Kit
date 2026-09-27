@@ -88,7 +88,9 @@ export function architectureMapBreach(root, stagedPaths) {
     rule: 'architecture-map-same-commit',
     touched,
     detail: `${touched.length} staged path(s) are inside a declared code path, and ${PATHS.architecture} is not staged with them`,
-    fix: `git add ${PATHS.architecture}`,
+    // It said "git add docs/ARCHITECTURE.md", which stages nothing while the map is unchanged:
+    // followed exactly, the commit stayed blocked (found 2026-09-27).
+    fix: `update ${PATHS.architecture} for what ${touched.length === 1 ? touched[0] : 'these paths'} changed, then git add ${PATHS.architecture}`,
   };
 }
 

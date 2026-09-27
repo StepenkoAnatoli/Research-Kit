@@ -1,7 +1,8 @@
 // The gate verdict, the diff-scope rule, the architecture-map rule, and the three
 // overrides. Plus the one that matters: it actually blocks.
 
-import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path } from './harness.mjs';
+import { spawnSync } from 'node:child_process';
+import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
 import { PATHS, resolve, writeText, readText, writeJson } from '../lib/core.mjs';
 import { evaluate, isGated, splitPathList, architectureMapBreach, loadGateConfig, DEFAULT_CODE_PATHS } from '../lib/gate.mjs';
 import { GATE_MARKERS, TEMPLATE_DIR } from '../lib/scaffold.mjs';
@@ -105,6 +106,20 @@ test('the architecture-map rule: a declared code path stages the map with it', (
   const verdict = evaluate(dir, { gate: 'commit', stagedPaths: ['research-kit/lib/gate.mjs'] });
   assert.equal(verdict.allow, false);
   assert.equal(verdict.breach.rule, 'architecture-map-same-commit');
+});
+
+// Found 2026-09-27 committing product code in a project whose preflight PASSes: the block said
+// "Phase 1 is not done until preflight prints PASS" - false, it passed - and its fix,
+// "git add docs/ARCHITECTURE.md", stages nothing while the map is unchanged, so following it
+// exactly left the commit blocked.
+test('a map-rule block on a passing gate says what is owed, and its fix works as written', () => {
+  const dir = makePassingProject();
+  const r = spawnSync(process.execPath, [path.join(KIT_ROOT, 'bin', 'gate.mjs'), '--staged', 'src/app.js'], { cwd: dir, encoding: 'utf8', env: { ...process.env, RESEARCH_KIT_GATE: '' } });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.doesNotMatch(r.stderr, /Phase 1 is not done/, `the gate passes, and the block says it does not:\n${r.stderr}`);
+  assert.match(r.stderr, /research gate passes/i, r.stderr);
+  const [, fix] = r.stderr.match(/Fix: ([^\n]+)/) ?? [];
+  assert.match(fix ?? '', /update docs\/ARCHITECTURE\.md/i, `"git add" alone stages nothing while the map is unchanged: ${fix}`);
 });
 
 test('undeclared code paths fall back to the documented defaults', () => {
