@@ -72,8 +72,13 @@ export function repairRowArity(cells, width, free = width - 1) {
   };
 }
 
-/** The column a split row's extra cells belong to: the free-text one, where a stray | lands. */
-const FREE_TEXT_COLUMNS = ['finding'];
+/**
+ * The column a split row's extra cells belong to: each table's prose column, where a stray |
+ * lands. Folding there keeps the structured columns to its right - Raw, Status, Evidence,
+ * Retrieved - where they are. When a table has two prose columns the fold may shift text
+ * between them, which costs nothing a gate reads.
+ */
+const FREE_TEXT_COLUMNS = ['finding', 'unknown', 'why it matters', 'title'];
 
 /**
  * Parse the first markdown table whose header starts with `header[0]`.

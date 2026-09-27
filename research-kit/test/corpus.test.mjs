@@ -43,6 +43,21 @@ test('a long evidence row folds its extra cells into Finding, and says why the r
   assert.match(table.problems[0].detail, /a \| inside a cell.*\\\|/, table.problems[0].detail);
 });
 
+// The same day, in DISCOVERY: an unknown reading "Node 22 | 24" moved its prose into Status, and
+// preflight reported 'U-1 has status "THE MATRIX MUST DROP..."'. Every table folds a long row into
+// its prose column, so the structured columns to its right stay where they are.
+test('a long row in any table keeps its structured columns in place', () => {
+  const unknowns = parseTable(`${tableRow(HEADERS.unknowns)}\n|---|---|---|---|---|\n| U-1 | Node 22 | 24 end dates | the matrix drops them | CLOSED | E-01 |\n`, HEADERS.unknowns);
+  assert.equal(unknowns.rows[0].Status, 'CLOSED');
+  assert.equal(unknowns.rows[0].Evidence, 'E-01');
+  const map = parseTable(`${tableRow(HEADERS.subtopics)}\n|---|---|---|---|---|\n| D-1 | Access | public | or not | COVERED | U-1 |\n`, HEADERS.subtopics);
+  assert.equal(map.rows[0].Status, 'COVERED');
+  assert.equal(map.rows[0]['Covered by'], 'U-1');
+  const sources = parseTable(`${tableRow(HEADERS.sources)}\n|---|---|---|---|---|\n| https://x.invalid | P | A | B title | 2026-01-01 | U-1 |\n`, HEADERS.sources);
+  assert.equal(sources.rows[0].Retrieved, '2026-01-01');
+  assert.equal(sources.rows[0]['Used for'], 'U-1');
+});
+
 test('parseTable stops at the end of the table, not the end of the file', () => {
   const text = `${tableRow(HEADERS.sources)}\n|---|---|---|---|---|\n| https://x.invalid | P | T | 2026-01-01 | U-1 |\n\n## Another section\n\n| not | a | row |\n`;
   assert.equal(parseTable(text, HEADERS.sources).rows.length, 1);
