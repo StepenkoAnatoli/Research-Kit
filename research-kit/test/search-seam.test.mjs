@@ -694,3 +694,43 @@ test('RR-8: each search says what it found, and one that found nothing is record
   runResearch(project(), { adapter: fetchStub(), searchAdapter: searchStub(), plan: plan(), log: (l) => found.push(l) });
   assert.ok(found.some((l) => /found 1\b/.test(l)), `a search that found something is not reported:\n${found.join('\n')}`);
 });
+
+// Found 2026-09-27: SerpAPI returned only generic "postgres" pages (home page, Reddit,
+// Wikipedia, forums) for "postgres pg_sync_replication_slots function", and the kit scraped
+// the home page - a page about nothing the query asked - because ranking read only URLs.
+test('RR-9: a search whose results all miss the query spends no scrape, and says so', () => {
+  const root = project();
+  const offTopic = searchStub({ results: ['https://www.postgresql.org/', 'https://www.reddit.com/r/x/postgres_scale', 'https://en.wikipedia.org/wiki/PostgreSQL'] });
+  const base = offTopic.search;
+  offTopic.search = (...a) => { const r = base(...a); r.results = r.results.map((row, i) => ({ ...row, title: ['PostgreSQL: The world\'s most advanced open source database', 'At what scale does just use postgres stop being enough?', 'PostgreSQL - Wikipedia'][i] })); return r; };
+  const fetcher = fetchStub();
+  const lines = [];
+  const run = runResearch(root, {
+    adapter: fetcher, searchAdapter: offTopic, log: (l) => lines.push(l),
+    plan: plan({ queries: [{ q: 'postgres pg_sync_replication_slots function', why: 'U-1' }] }),
+  });
+  assert.equal(fetcher.calls.scrape, 0, 'a page that matched nothing in the query was scraped');
+  assert.equal(run.spent, 0);
+  assert.ok(lines.some((l) => /no result matched/.test(l)), `the skip was silent:\n${lines.join('\n')}`);
+  assert.ok(jsonLines(root, '.failures.jsonl').some((f) => f.op === 'search-off-topic'), 'the skip is not in the failure log');
+});
+
+test('RR-9: a result that carries the query\'s terms is still selected', () => {
+  const root = project();
+  const good = searchStub({ results: ['https://www.postgresql.org/docs/current/logical-replication-failover.html'] });
+  const base = good.search;
+  good.search = (...a) => { const r = base(...a); r.results[0].title = 'PostgreSQL: Documentation: 18: 29.3. Logical Replication Failover'; return r; };
+  const fetcher = fetchStub();
+  runResearch(root, { adapter: fetcher, searchAdapter: good, plan: plan({ queries: [{ q: 'postgres logical replication failover slots', why: 'U-1' }] }) });
+  assert.equal(fetcher.calls.scrape, 1, 'an on-topic result was rejected');
+});
+
+test('RR-9: a result on a domain the plan prefers is kept even when its title is terse', () => {
+  const root = project();
+  const terse = searchStub({ results: ['https://docs.example.com/pricing'] });
+  const base = terse.search;
+  terse.search = (...a) => { const r = base(...a); r.results[0].title = 'Pricing'; return r; };
+  const fetcher = fetchStub();
+  runResearch(root, { adapter: fetcher, searchAdapter: terse, plan: plan({ prefer: ['docs.example.com'], queries: [{ q: 'example rate limits', why: 'U-1' }] }) });
+  assert.equal(fetcher.calls.scrape, 1, 'the operator\'s own preferred domain was overruled');
+});

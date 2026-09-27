@@ -213,9 +213,48 @@ export function mergeByRank(lists) {
  */
 export { urlKey };
 
-export function selectCandidates(results, { prefer = [], perQuery = 3, seen = new Set() } = {}) {
+/**
+ * Does a search result carry the query it answers? Title, snippet and URL are read, because
+ * ranking reads only the URL - and on 2026-09-27 a query for "postgres
+ * pg_sync_replication_slots function" came back with only generic "postgres" pages, the home
+ * page scored 0 as the best of them, and the kit spent a scrape on a page about nothing the
+ * query asked.
+ *
+ * A result must carry at least HALF the query's distinctive terms (4+ characters, not a
+ * stopword). An identifier is matched as a phrase with `_` and `-` read as spaces, so
+ * `sync_replication_slots` matches "sync replication slots" in a title or a URL. A query with
+ * fewer than two distinctive terms is not judged: overlap cannot tell its results apart.
+ */
+const RELEVANCE_STOPWORDS = new Set(['with', 'what', 'when', 'which', 'does', 'from', 'that', 'this', 'into', 'about', 'your', 'have', 'will', 'there', 'their', 'than', 'then', 'them', 'they', 'how', 'the', 'and', 'for']);
+const plain = (text) => String(text ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+export function queryTerms(query) {
+  return [...new Set(String(query ?? '').toLowerCase().split(/\s+/)
+    .map((word) => plain(word))
+    .filter((term) => term.replace(/ /g, '').length >= 4 && !RELEVANCE_STOPWORDS.has(term)))];
+}
+export function matchesQuery(row, query) {
+  const terms = queryTerms(query);
+  if (terms.length < 2) return true;
+  let url = String(row?.url ?? '');
+  try { url = decodeURIComponent(url); } catch { /* a malformed escape is read as written */ }
+  const text = ` ${plain(`${row?.title ?? ''} ${row?.description ?? ''} ${url}`)} `;
+  const hits = terms.filter((term) => text.includes(term)).length;
+  return hits >= Math.ceil(terms.length / 2);
+}
+
+/** Is this URL on a domain the plan's `prefer` names? */
+export function isPreferred(url, prefer = []) {
+  return prefer.map(parsePreference).filter(Boolean).some((preference) => matchesPreference(url, preference));
+}
+
+export function selectCandidates(results, { prefer = [], perQuery = 3, seen = new Set(), query = '' } = {}) {
   const taken = new Set();
   return results
+    // Only a result that carries the query is worth a scrape (RR-9). `query` is optional so
+    // a caller ranking a list it built itself is not judged.
+    // A domain the operator named in `prefer` is taken on their word: they said it carries the
+    // fact, and a page there titled "Pricing" can hold the limits the query asks about.
+    .filter((row) => !query || matchesQuery(row, query) || isPreferred(row.url, prefer))
     .map((row) => ({ ...row, score: rankCandidate(row.url, { prefer }) }))
     // `seen` may hold keys (runResearch) or raw URLs (older callers); either excludes.
     .filter((row) => row.url && !seen.has(row.url) && !seen.has(urlKey(row.url)))
@@ -399,7 +438,7 @@ ${compatibility.remedy}`);
       const merged = mergeByRank(lists);
       log(`  searched   ${lists.map((l) => `${l.provider} ${l.results.length}`).join(', ')} -> ${merged.length} distinct`);
       discovered.push({ query: text, results: merged, provider: lists.map((l) => l.provider).join('+'), searchId: null });
-      for (const candidate of selectCandidates(merged, { prefer, perQuery: settings.perQuery, seen })) {
+      for (const candidate of selectCandidates(merged, { prefer, perQuery: settings.perQuery, seen, query: text })) {
         targets.push({
           url: candidate.url,
           type: DEFAULT_SOURCE_TYPE,
@@ -457,7 +496,14 @@ ${compatibility.remedy}`);
       log(`  search     found ${found.results.length} for "${text}" (${ranker})`);
     }
     discovered.push({ query: text, results: found.results, provider: ranker, searchId: found.searchId ?? null });
-    for (const candidate of selectCandidates(found.results, { prefer, perQuery: settings.perQuery, seen })) {
+    const picked = selectCandidates(found.results, { prefer, perQuery: settings.perQuery, seen, query: text });
+    if (found.results.length && !found.results.some((row) => matchesQuery(row, text) || isPreferred(row.url, prefer))) {
+      log(`  no result matched "${text}" - none of the ${found.results.length} carry half its terms; nothing scraped for it`);
+      appendJsonLine(root, PATHS.failures, {
+        at: new Date().toISOString(), op: 'search-off-topic', query: text, provider: ranker, results: found.results.length,
+      });
+    }
+    for (const candidate of picked) {
       targets.push({
         // Discovered by a search, not chosen by a person: context until an agent reads
         // the page and promotes it. Ranking preference is not source authority.
