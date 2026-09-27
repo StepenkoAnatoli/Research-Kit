@@ -119,7 +119,7 @@ export const TOOLS = Object.freeze([
       required: ['repository', 'topic'],
       properties: {
         repository: { type: 'string', description: 'owner/name of the repository holding the collector workflow' },
-        topic: { type: 'string', description: 'What to research. Visible to anyone who can read that repository.' },
+        topic: { type: 'string', minLength: 1, description: 'What to research. Visible to anyone who can read that repository.' },
         prefer: { type: 'string', description: 'Optional, comma-separated. Domains that OWN the fact - e.g. "tavily.com". On a shared host name the path - "github.com/actions/upload-artifact", not "github.com". Ranked above pages merely about it.' },
         queries: { type: 'array', items: { type: 'string' }, description: 'Optional. The actual search queries. Without them the topic is used verbatim, which matches the words rather than the subject when the topic is made of common ones.' },
         urls: { type: 'array', items: { type: 'string' }, description: 'Optional. Pages you already know (http or https), fetched directly instead of searched - an API response, a changelog post. Each counts against max_pages. With urls and no queries, nothing is searched. Visible to anyone who can read that repository, like the topic: never a signed or token-bearing URL.' },
@@ -399,6 +399,9 @@ export function validateArgs(tool, args) {
     if (!prop) return `unknown argument ${key}`;
     if (prop.type === 'integer' && !Number.isInteger(value)) return `${key} must be an integer`;
     if (prop.type === 'string' && typeof value !== 'string') return `${key} must be a string`;
+    // Counted after trimming, so a blank topic is refused here rather than by GitHub's 422
+    // after a dispatch round trip (found 2026-09-27).
+    if (prop.minLength !== undefined && typeof value === 'string' && value.trim().length < prop.minLength) return `${key} must not be empty`;
     if (prop.enum && !prop.enum.includes(value)) return `${key} must be one of ${prop.enum.join(', ')}`;
     if (prop.minimum !== undefined && value < prop.minimum) return `${key} must be at least ${prop.minimum}`;
     if (prop.maximum !== undefined && value > prop.maximum) return `${key} must be at most ${prop.maximum}`;

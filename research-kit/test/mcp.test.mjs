@@ -233,6 +233,11 @@ test('an unknown or mistyped argument is refused, not ignored', () => {
   assert.match(validateArgs(collect, { repository: 'o/r', topic: 'x', token: 'oops' }), /unknown argument token/);
   assert.match(validateArgs(collect, { repository: 'o/r', topic: 'x', max_pages: '8' }), /must be an integer/);
   assert.match(validateArgs(collect, { repository: 'o/r', topic: 'x', max_pages: 99 }), /at most 25/);
+  // Found 2026-09-27: an empty topic passed validation and reached GitHub, which answered
+  // HTTP 422 "Required input 'topic' not provided" - the one bad argument not refused here.
+  assert.match(validateArgs(collect, { repository: 'o/r', topic: '' }) ?? '', /topic must not be empty/);
+  assert.match(validateArgs(collect, { repository: 'o/r', topic: '   ' }) ?? '', /topic must not be empty/);
+  assert.equal(collect.inputSchema.properties.topic.minLength, 1, 'the schema a client reads does not say so');
   assert.match(validateArgs(collect, { repository: 'o/r', topic: 'x', depth: 'deep' }), /must be one of/);
   assert.equal(validateArgs(collect, { repository: 'o/r', topic: 'x', max_pages: 8, depth: 'quick' }), null);
 });
