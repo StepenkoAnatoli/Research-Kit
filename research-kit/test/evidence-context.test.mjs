@@ -70,6 +70,19 @@ test('the excerpt is bounded, so the command cannot print the page', () => {
   assert(excerpt.length <= 121, `excerpt is ${excerpt.length} chars, which is not bounded`);
 });
 
+// Found 2026-09-27 reviewing collector run 36300088606: its capture was one JSON document with
+// no blank line, so the whole page was one block and the excerpt was its first 420 characters
+// (Node v0.8, v0.10) - never the v22 and v24 dates the finding quoted.
+test('a long single-block page is excerpted where the finding points, not from its top', () => {
+  const lines = [];
+  for (let v = 0; v <= 30; v += 1) lines.push(`  "v${v}": {`, `    "start": "20${10 + (v % 10)}-04-01",`, `    "end": "20${20 + (v % 10)}-04-30"`, '  },');
+  lines.push('  "v22": {', '    "codename": "Jod",', '    "end": "2027-04-30"', '  }');
+  const body = `{\n${lines.join('\n')}\n}`;
+  const excerpt = excerptFor(body, 'Node 22 (Jod) ends 2027-04-30: `"v22": {... "end": "2027-04-30"`', { limit: 200 });
+  assert(excerpt.includes('Jod') && excerpt.includes('2027-04-30'), `the excerpt missed what the finding quotes:\n${excerpt}`);
+  assert(excerpt.length <= 203, `excerpt is ${excerpt.length} chars, which is not bounded`);
+});
+
 test('a lowercase or mistyped id is handled, not thrown', () => {
   const root = fixture();
   try {
