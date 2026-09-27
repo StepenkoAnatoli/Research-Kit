@@ -115,7 +115,7 @@ test('known unknowns are listed with their day-one steps, or the section says no
   renderBrief(dir, { force: true });
   const unknowns = briefSection(readText(resolve(dir, PATHS.brief)), 'unknowns');
   assert.match(unknowns, /U-1/);
-  assert.match(unknowns, /Day-one verification: day one: log in/);
+  assert.match(unknowns, /Day-one verification: log in and read the billing page/, 'the step, labelled once');
 });
 
 // Found 2026-09-27 reviewing a package the collector returned: from the project folder, the
@@ -193,4 +193,16 @@ test('a draft with any edit still refuses without --force', () => {
   const text = readText(resolve(dir, PATHS.brief));
   writeText(resolve(dir, PATHS.brief), text.replace('## Intent\n\n', '## Intent\n\nA sentence somebody added.\n\n'));
   assert.equal(renderBrief(dir).written, false, 'an edit outside the TODO sections was overwritten');
+});
+
+// Found 2026-09-27: an Evidence cell written as "Day one: measure lag under load" was
+// rendered "Day-one verification: Day one: measure lag under load".
+test('a known unknown\'s day-one step is not labelled twice', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace(/^(\| U-1 \|.*)$/m,
+    '$1\n| U-2 | What is the lag budget? | Sizes the standby | KNOWN-UNKNOWN | Day one: measure lag under load |'));
+  renderBrief(dir, { force: true });
+  const text = readText(resolve(dir, PATHS.brief));
+  assert.match(text, /Day-one verification: measure lag under load/);
+  assert.doesNotMatch(text, /Day-one verification: Day one/i);
 });

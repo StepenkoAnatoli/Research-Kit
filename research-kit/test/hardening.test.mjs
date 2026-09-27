@@ -292,10 +292,13 @@ test('F07: an unanswered TODO says the handoff is not approved', () => {
 
 test('F27: the line-ending remedy never deletes, and checks before it changes anything', () => {
   const remedy = lineEndingRemedy(['research/raw/a.md']);
-  assert.doesNotMatch(remedy, /git rm/, 'uncommitted evidence is irreplaceable');
+  // `git rm --cached` touches the index only; any other `git rm` deletes a file.
+  const removals = remedy.split('\n').filter((line) => /git rm\b/.test(line));
+  assert.ok(removals.every((line) => /--cached/.test(line)), `uncommitted evidence is irreplaceable: ${removals.join(' / ')}`);
   assert.doesNotMatch(remedy, /checkout -- research\//);
   assert.match(remedy, /git status --porcelain/, 'the preservation check comes first');
-  assert.match(remedy, /--renormalize research\/raw\/a\.md/, 'and the scope is the affected files');
+  assert.ok(remedy.indexOf('git status --porcelain') < remedy.indexOf('git rm'), 'the check comes before any change');
+  assert.match(remedy, /git checkout HEAD -- research\/raw\/a\.md/, 'and the scope is the affected files');
 });
 
 test('F27: with no git metadata, the remedy refuses to suggest a command at all', () => {
