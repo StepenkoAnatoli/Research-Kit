@@ -202,7 +202,9 @@ and a **usage error exits 2 from every subcommand**, printing the usage block to
 `test/support-policy.test.mjs` pins that by running the CLI. It writes exactly one thing,
 only when asked: `fi-validate --report <file>`),
 `selftest.mjs` (the whole suite, queued by the harness — which **awaits** every test,
-so `ok` means the assertions settled; ADR-0021).
+so `ok` means the assertions settled; ADR-0021. It runs from the repository root whatever
+the caller's cwd, resolving a relative `RESEARCH_KIT_RESULT_FILE` against the caller's
+folder first; started anywhere else, it crashed at import before any test ran - ADR-0071).
 
 ### Not lib, not bin — but load-bearing
 
