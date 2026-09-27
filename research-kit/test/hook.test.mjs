@@ -170,6 +170,10 @@ const POSTURE_ROWS = [
   { name: 'unreadable, snapshot fail-open', config: '{"failOpen": fal', snapshot: '{"failOpen": true}', exit: 0 },
   { name: 'unreadable, snapshot fail-closed', config: '{"failOpen": fal', snapshot: '{"failOpen": false}', exit: 1 },
   { name: 'unreadable, no snapshot', config: '{"failOpen": fal', snapshot: null, exit: 2 },
+  // Windows Notepad saves UTF-8 with a byte-order mark. Both readers take it as the config it
+  // is, rather than as an unreadable one that fails closed (found 2026-09-27).
+  { name: 'BOM, fail-open', config: '\uFEFF{"failOpen": true}', snapshot: null, exit: 0 },
+  { name: 'BOM, fail-closed', config: '\uFEFF{"failOpen": false}', snapshot: null, exit: 1 },
 ];
 
 for (const row of POSTURE_ROWS) {

@@ -111,11 +111,22 @@ export function appendLine(p, line) {
   return p;
 }
 
+/**
+ * JSON.parse for a file a person may have saved: a leading byte-order mark is dropped.
+ * Windows Notepad writes UTF-8 with one, and JSON.parse refuses it - so a plan, kit.json,
+ * machine config or settings file saved there was reported as not parsing, with the
+ * invisible mark quoted as the bad token (found 2026-09-27).
+ */
+export function parseJson(text) {
+  const t = String(text ?? '');
+  return JSON.parse(t.charCodeAt(0) === 0xFEFF ? t.slice(1) : t);
+}
+
 export function readJson(p, fallback = null) {
   const text = readText(p);
   if (text === null) return fallback;
   try {
-    return JSON.parse(text);
+    return parseJson(text);
   } catch {
     return fallback;
   }

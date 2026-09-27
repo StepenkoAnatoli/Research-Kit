@@ -187,6 +187,15 @@ test('a plan that does not parse is named as not parsing, not as empty', () => {
   assert.match(missing.err, /research\/nope\.json does not exist/, missing.err);
 });
 
+test('research reads a plan saved with a byte-order mark', () => {
+  const root = planned('bom plan');
+  const file = path.join(root, 'research', 'plan.json');
+  fs.writeFileSync(file, `\uFEFF${fs.readFileSync(file, 'utf8')}`);
+  const r = run('research.mjs', ['--dry-run', '--transport', 'http-keyless'], { root });
+  assert.equal(r.status, 0, r.all);
+  assert.match(r.out, /would search\s+"a planned query"/, r.out);
+});
+
 // Found the same day: --only with text no query contains ran nothing, printed "collected 0" and
 // exited 0 - indistinguishable from a search that found nothing.
 test('--only that matches no query says so and exits 2', () => {

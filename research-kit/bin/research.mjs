@@ -7,7 +7,7 @@
 //
 // `--dry-run` and `--status` still work there, because they spend nothing.
 
-import { parseFlags, flagList, refuseUnknownFlags, resolve, readText } from '../lib/core.mjs';
+import { parseFlags, flagList, refuseUnknownFlags, resolve, readText, parseJson } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal } from '../lib/machine.mjs';
 import { selectTransport, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES } from '../lib/transport.mjs';
 import { runResearch, searchSummaryLine, readPlan, usageSummary, topicMatch, DEPTHS, DEPTH_SCRAPES } from '../lib/research-run.mjs';
@@ -122,7 +122,7 @@ function vendorMeter(search) {
     process.stderr.write(`${planPath} does not exist - nothing to collect. new-project writes research/plan.json.\n`);
     process.exit(2);
   }
-  try { JSON.parse(planText); } catch (err) {
+  try { parseJson(planText); } catch (err) {
     process.stderr.write(`${planPath} does not parse as JSON (${err.message}) - fix it, then run this again.\n`);
     process.exit(2);
   }
