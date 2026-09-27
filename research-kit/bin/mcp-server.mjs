@@ -26,7 +26,7 @@
 // The token needs exactly one permission - Actions: read and write, on the one repository
 // holding the collector workflow. See the front-page README.
 
-import { requireRuntime } from '../lib/runtime.mjs';
+import { requireRuntime, honourEnvProxy } from '../lib/runtime.mjs';
 import { createStdioLoop, handle, SUPPORTED_VERSIONS, SERVER_INFO, TOOLS } from '../lib/mcp.mjs';
 import { tokenFromEnv, TOKEN_VARS, redact } from '../lib/dispatch.mjs';
 
@@ -51,6 +51,11 @@ A corpus this server returns is EVIDENCE, not approved research. Read buildAutho
 }
 
 requireRuntime({ node: true });
+
+// Before anything is read or written: this process fetches, and Node's fetch ignores a proxy
+// unless told. Where only the startup flag exists, the server starts again with it on these
+// same streams, so nothing may touch stdin or stdout before this line.
+await honourEnvProxy();
 
 // Reported once, on stderr, before the first message. A server that starts happily and
 // then fails every call for a missing credential is harder to diagnose than one that says

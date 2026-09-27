@@ -9,7 +9,7 @@ import { collectOne, writeRaw, captureName, bodyHashOf } from '../lib/collect.mj
 import { rateLimitWaitMs } from '../lib/firecrawl.mjs';
 import { topicMatch } from '../lib/research-run.mjs';
 import { verifyLedger } from '../lib/provenance.mjs';
-import { runResearch, readPlan, rankCandidate, selectCandidates, parsePreference, DEPTH_SCRAPES, usageSummary } from '../lib/research-run.mjs';
+import { runResearch, readPlan, rankCandidate, selectCandidates, parsePreference, urlKey, DEPTH_SCRAPES, usageSummary } from '../lib/research-run.mjs';
 
 describe('collect');
 
@@ -259,6 +259,63 @@ test('every place that explains `prefer` offers the path form', () => {
   }
 });
 
+// ---------------------------------------------------------------- one page, one fetch
+//
+// Found 2026-09-27, collect run 36283114657: the dispatched URL .../ui-and-api was fetched,
+// and then the search returned .../ui-and-api/ and it was fetched again - two credits, one
+// page. Plan URLs never entered the "seen" set before searching, and the set compared
+// exact strings.
+
+test('urlKey names one page one way', () => {
+  assert.equal(urlKey('HTTPS://WWW.Example.com/Path/?q=1#frag'), urlKey('https://example.com/Path?q=1'));
+  assert.equal(urlKey('http://example.com/a/'), urlKey('https://example.com/a'), 'http and https serve one page');
+  assert.notEqual(urlKey('https://example.com/a?page=2'), urlKey('https://example.com/a'), 'a query string can be a different page');
+  assert.notEqual(urlKey('https://example.com/A'), urlKey('https://example.com/a'), 'paths are case-sensitive');
+  assert.equal(urlKey('https://example.com/'), urlKey('https://example.com'), 'the root is one page');
+});
+
+test('a page given by URL is not fetched again when a search returns its other spelling', () => {
+  const dir = makeProject();
+  writeJson(resolve(dir, PATHS.plan), {
+    topic: 'Fixture', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 1, maxScrapes: 10,
+    prefer: ['x.example'],
+    urls: [{ url: 'https://x.example/page', why: 'U-1', type: 'S' }],
+    queries: [{ q: 'the page', why: 'U-1' }],
+  });
+  // The variant outranks the other result on its own (the prefer bonus), so only the
+  // dedupe can stop it being chosen.
+  const adapter = stubAdapter({ results: [{ url: 'https://x.example/page/' }, { url: 'https://y.example/other' }] });
+  const run = runResearch(dir, { adapter });
+  const urls = readCorpus(dir).evidence.map((row) => row.url);
+  assert.deepEqual(urls.sort(), ['https://x.example/page', 'https://y.example/other']);
+  assert.equal(run.spent, 2, 'one page was paid for twice');
+});
+
+test('two queries that find the same page each still contribute a page of their own', () => {
+  // The single-provider path queued its picks without recording them, so the second query
+  // took the same top result again - collected once, "cached" once - and its own next-best
+  // page was never fetched.
+  const dir = makeProject();
+  writeJson(resolve(dir, PATHS.plan), {
+    topic: 'Fixture', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 1, maxScrapes: 10, urls: [],
+    queries: [{ q: 'first', why: 'U-1' }, { q: 'second', why: 'U-2' }],
+  });
+  const adapter = stubAdapter({ results: [{ url: 'https://docs.example.com/shared' }, { url: 'https://docs.example.com/other' }] });
+  runResearch(dir, { adapter });
+  assert.deepEqual(readCorpus(dir).evidence.map((row) => row.url).sort(),
+    ['https://docs.example.com/other', 'https://docs.example.com/shared']);
+});
+
+test('a page already in the corpus is not re-offered in another spelling, nor twice in one list', () => {
+  const seen = new Set([urlKey('https://x.example/page')]);
+  const picked = selectCandidates([
+    { url: 'https://www.x.example/page/#top' },
+    { url: 'https://z.example/p' },
+    { url: 'https://z.example/p/' },
+  ], { perQuery: 3, seen });
+  assert.deepEqual(picked.map((c) => c.url), ['https://z.example/p']);
+});
+
 test('selectCandidates keeps the best per query and never re-offers what is collected', () => {
   const seen = new Set(['https://docs.example.com/a']);
   const picked = selectCandidates([
@@ -282,6 +339,47 @@ test('a run collects the plan\'s urls and stops at the budget', () => {
   assert.equal(run.spent, DEPTH_SCRAPES.probe);
   assert.ok(run.results.some((r) => r.status === 'skipped' && /budget exhausted/.test(r.reason)),
     'the third URL is named, not silently dropped');
+});
+
+// Found 2026-09-27 reading the merge in runResearch: a per-query `prefer` written as a
+// string was spread into single characters ("d", "o", "c", ...) and matched nothing, and a
+// top-level `prefer` written as a string was dropped by readPlan. Both silently: the run
+// looked like it had a preference and ranked as if it had none.
+
+const preferRun = (plan) => {
+  const dir = makeProject();
+  writeJson(resolve(dir, PATHS.plan), {
+    topic: 'Fixture', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 1, maxScrapes: 10, urls: [], ...plan,
+  });
+  // The competitor outranks the owner on its own (+8 for a docs/pricing path); only a
+  // preference that actually works (+10) puts the owner first. The first version used a
+  // blog as the competitor, which lost on its own penalty - and the test passed on the
+  // broken code.
+  const adapter = stubAdapter({
+    results: [
+      { url: 'https://other.com/docs/pricing', title: 'Other' },
+      { url: 'https://owner.example.com/facts', title: 'Facts' },
+    ],
+  });
+  runResearch(dir, { adapter });
+  return readCorpus(dir).evidence.map((row) => row.url);
+};
+
+test('the prefer fixture is not vacuous: with no preference, the competitor wins', () => {
+  assert.deepEqual(preferRun({ queries: [{ q: 'facts', why: 'U-1' }] }), ['https://other.com/docs/pricing']);
+});
+
+test('a per-query prefer written as a string is a preference, not a list of letters', () => {
+  assert.deepEqual(preferRun({ queries: [{ q: 'facts', why: 'U-1', prefer: 'owner.example.com' }] }),
+    ['https://owner.example.com/facts']);
+});
+
+test('a top-level prefer written as a string is kept, split the way the workflow input is', () => {
+  assert.deepEqual(preferRun({ prefer: 'owner.example.com', queries: [{ q: 'facts', why: 'U-1' }] }),
+    ['https://owner.example.com/facts']);
+  const dir = makeProject();
+  writeJson(resolve(dir, PATHS.plan), { prefer: 'docs.x.com, github.com/actions/upload-artifact  other.org' });
+  assert.deepEqual(readPlan(dir).prefer, ['docs.x.com', 'github.com/actions/upload-artifact', 'other.org']);
 });
 
 test('a run fans a query out through the adapter and collects what it selects', () => {

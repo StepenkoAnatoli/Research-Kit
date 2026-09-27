@@ -1,7 +1,7 @@
 <!-- research-kit:brief=scaffold -->
 # Brief - {{TOPIC}}
 
-This is the scaffold, not a brief. `node {{KIT}}/bin/brief.mjs` drafts the real one from
+This is the scaffold, not a brief. `node "{{KIT}}/bin/brief.mjs"` drafts the real one from
 the corpus once the gate passes; the marker on the first line is what tells the drafter
 that nothing here is anybody's judgement yet.
 

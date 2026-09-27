@@ -18,8 +18,8 @@ before spending), and a configured credential.
 **Supported on Linux and Windows; macOS is best-effort and untested.** "Supported" means
 the full offline suite runs on that platform in CI on every commit — see
 [the support policy](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#supported-platforms) for why the distinction is worded
-that way and what it has already caught. Needs Node 22+, Git, and Python 3.12+ for the
-cross-language conformance runners.
+that way and what it has already caught. Needs Node 22+ (22, 24 and 26 are each tested on
+every commit), Git, and Python 3.12+ for the cross-language conformance runners.
 
 New here? [Your first 30 minutes](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#your-first-30-minutes) is one ordered path
 from nothing to a `preflight` verdict, and
@@ -98,7 +98,7 @@ node research-kit/bin/handoff.mjs     # did the corpus arrive whole?
 | `property-replay.mjs` | replay a captured property failure deterministically |
 | `evidence-context.mjs` | what one unknown rests on (`--unknown U-5`, `--all`, `--json`), read-only |
 | `artifact.mjs` | the portable package: `create` (derives authorization, never takes it) and `validate` (offline, read-only) |
-| `collect-remote.mjs` | run the collector on GitHub and bring the result back (`--repository`, `--topic`, `--query`, `--prefer`, `--prior`, `--json`) |
+| `collect-remote.mjs` | run the collector on GitHub and bring the result back (`--repository`, `--topic`, `--query`, `--url`, `--prefer`, `--prior`, `--json`) |
 | `mcp-server.mjs` | the collector as an MCP server over stdio, for an agent that speaks the protocol |
 | `disclosure.mjs` | what a stranger can read of a workflow run (`--repository`, `--run`, `--topic`), unauthenticated and read-only |
 | `selftest.mjs` | the whole suite, offline |
@@ -426,7 +426,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-949 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1005 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

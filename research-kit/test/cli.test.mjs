@@ -131,9 +131,27 @@ test('FR-6: the flag outranks the environment, end to end through the CLI', () =
     `the flag lost to the environment:\n${r.out}`);
 });
 
+// Found 2026-09-27: a plan naming five pages with maxScrapes 2 printed two lines and "budget 2",
+// and said nothing about the other three - pages the operator wrote down, left unfetched without
+// a word. And --status said "up to 10 scrapes" for that plan: the depth's cap, not the run's.
+test('pages left out by the budget are named, and --status states the budget the run will use', () => {
+  const root = project('budget');
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({
+    topic: 'budget', depth: 'normal', maxScrapes: 2, refreshDays: 30, limit: 8, perQuery: 3, prefer: [], queries: [],
+    urls: [1, 2, 3, 4, 5].map((i) => ({ url: `https://x.invalid/page-${i}`, type: 'P', why: `page ${i}` })),
+  }));
+  const dry = run('research.mjs', ['--plan', 'research/plan.json', '--dry-run', '--transport', 'http-keyless'], { root });
+  for (const i of [3, 4, 5]) {
+    assert.match(dry.out, new RegExp(`page-${i}.*budget`), `page-${i} was left out without a word:\n${dry.out}`);
+  }
+  assert.match(dry.out, /left\s+3 over the budget/, `the summary does not count what was left out:\n${dry.out}`);
+  const status = run('research.mjs', ['--status', '--transport', 'http-keyless'], { root });
+  assert.match(status.out, /up to 2 scrapes/, `--status overstated the budget:\n${status.out}`);
+});
+
 test('RR-5: --status reports the search meter, with its caveat', () => {
   const r = run('research.mjs', ['--status'], { root: project() });
-  assert.match(r.out, /searches \(this box\)/);
+  assert.match(r.out, /searches \(this project\)/, 'the count is one project on this machine, not the box');
   assert.match(r.out, /in the last hour/);
   assert.match(r.out, /50\/hour and 250\/month/, 'the free-tier caps are not stated');
   assert.match(r.out, /not billed/, 'the over-count caveat is missing from the display');
@@ -162,7 +180,7 @@ test('ADR-0040 / FR-5: with no key, --status makes no vendor-meter call and prin
 
 test('RR-5: a fresh project reports zero searches, not NaN or blank', () => {
   const r = run('research.mjs', ['--status'], { root: project() });
-  assert.match(r.out, /searches \(this box\) 0 in the last hour, 0 this month/);
+  assert.match(r.out, /searches \(this project\) 0 in the last hour, 0 this month/);
 });
 
 // ---------------------------------------------------------------- FR-8  --dry-run
@@ -375,4 +393,52 @@ test('the run summary distinguishes what landed from what it cost', () => {
   assert.match(r.out, /^failed\s+\d+/m);
   assert.match(r.out, /^spent\s+\d+ \(budget consumed: collected \+ failed\)/m,
     'the cost must be reported separately from what arrived');
+});
+
+test('collect-remote refuses a --url that is not http(s), before it asks for a token', () => {
+  // Fail fast on the caller's typo: without this, the missing-token refusal would hide it,
+  // and with a token the bad line would have been searched as text on the runner.
+  const r = run('collect-remote.mjs', ['--repository', 'o/r', '--topic', 't', '--url', 'ftp://x.example/a'], { root: project() });
+  assert.equal(r.status, 3, r.all);
+  assert.match(r.all, /not an http\(s\) URL/);
+  assert.ok(!/token/i.test(r.err.split('\n')[0] ?? ''), 'the URL refusal must come first');
+});
+
+test('collect-remote documents --url', () => {
+  const r = run('collect-remote.mjs', ['--help'], { root: project() });
+  assert.match(r.out, /--url/);
+});
+
+test('new-project prints next steps that run from the project it just made', () => {
+  // Found 2026-09-27 by following the README on a fresh machine: from a project folder,
+  // the printed "node research-kit/bin/decompose.mjs" crashes with MODULE_NOT_FOUND - that
+  // path exists only at the repository root, which is the one place a project must not be.
+  const target = tempDir('rk-next-');
+  const r = run('new-project.mjs', [target, '--topic', 'a topic'], { root: project() });
+  assert.equal(r.status, 0, r.all);
+  const commands = [...r.out.matchAll(/node (\S+\.mjs)/g)].map((m) => m[1]);
+  assert.ok(commands.length >= 3, `expected the next steps to name commands: ${r.out}`);
+  for (const file of commands) {
+    assert.ok(path.isAbsolute(file), `"${file}" is relative, so it only runs from one directory`);
+    assert.ok(fs.existsSync(file), `"${file}" does not exist`);
+  }
+  assert.ok(r.out.includes(target), 'the next steps should say which folder to run them from');
+});
+
+test('every command the kit tells you to run, runs from where you are', () => {
+  // Found 2026-09-27 following the README on a fresh machine: from a project folder, the
+  // remedies printed by preflight, doctor and research named "node research-kit/bin/...",
+  // which exists only at the repository root. Copy-pasting a fix produced MODULE_NOT_FOUND.
+  // Every printed command now names the running kit by its full path (kitCommand).
+  const root = project();
+  const outputs = [
+    run('preflight.mjs', [], { root }).all,
+    run('doctor.mjs', [], { root }).all,
+    run('research.mjs', ['--dry-run'], { root }).all,
+  ].join('\n');
+  const commands = [...outputs.matchAll(/node ("[^"]+\.mjs"|\S+\.mjs)/g)].map((m) => m[1].replace(/^"|"$/g, ''));
+  assert.ok(commands.length >= 3, `expected the CLIs to print some next steps, found ${commands.length}`);
+  for (const file of commands) {
+    assert.ok(path.isAbsolute(file) && fs.existsSync(file), `a printed command names "${file}", which does not run from a project folder`);
+  }
 });

@@ -59,7 +59,7 @@ export function renderTemplate(text, tokens) {
  *
  * An occurrence inside an inline code span is a document QUOTING the token - which is
  * what `docs/ARCHITECTURE.md` does when it explains that the two `START_HERE.md` copies
- * "differ only in how the kit path is spelled (`~/.agents/research-kit` vs `{{KIT}}`)".
+ * "differ only in how the kit path is spelled (`$HOME/.agents/research-kit` vs `{{KIT}}`)".
  * Flagging that made doctor permanently red on a correct project, and a diagnostic that
  * is always red is one nobody reads (ADR-0010's own argument).
  *
@@ -89,7 +89,7 @@ export function templateFiles(templateDir = TEMPLATE_DIR) {
 // ---------------------------------------------------------------- writing the shape
 
 /** Structure is always repaired; content is never clobbered without `force`. */
-export function scaffoldProject(dir, { topic = 'Untitled topic', kit = '~/.agents/research-kit', force = false, templateDir = TEMPLATE_DIR, date = today() } = {}) {
+export function scaffoldProject(dir, { topic = 'Untitled topic', kit = '$HOME/.agents/research-kit', force = false, templateDir = TEMPLATE_DIR, date = today() } = {}) {
   const written = [];
   const skipped = [];
   const repaired = [];

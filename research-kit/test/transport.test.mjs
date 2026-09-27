@@ -211,6 +211,53 @@ test('htmlToMarkdown keeps headings, lists, links and tables; drops scripts', ()
   assert.match(md, /\| Plan \| Credits \|/);
 });
 
+test('a page that marks its content with <main> is believed over a denser fragment', () => {
+  // Found 2026-09-27: on a GitHub Docs page the keyless extractor kept the 262-character
+  // summary and dropped the 17,385-character <main> around it - words-per-tag favours a
+  // short, link-free fragment over an article full of links and inline code. Firecrawl
+  // captured the same page whole. This fixture has the same shape.
+  const section = (n) => `<h2>Step ${n}</h2><p>Open <a href="/s">Settings</a>, then <code>Actions</code>, then <a href="/p">Policies</a> for rule ${n}; `
+    + 'every rule names an actor and an event, and a policy is active once saved. '.repeat(3) + '</p>';
+  // Nested the way the real page is: <main> inside wrapper divs. The block finder matches
+  // lazily and without overlap, so the outer div's match ends at the first </div> INSIDE
+  // <main> - and <main> itself is never a candidate. An un-nested <main> matched whole and
+  // made this fixture pass on the broken code.
+  const html = '<html><body><div id="__next"><div class="layout"><header><nav><a href="/a">Docs</a><a href="/b">Pricing</a><a href="/c">Blog</a></nav></header>'
+    // The intro must be over 200 characters, as the real one is (262): the extractor never
+    // considers a block of 200 or less, and a shorter intro made this fixture pass on the
+    // broken code.
+    + '<main><div class="intro">Control who can trigger GitHub Actions workflows and which events are permitted to run them across an enterprise, organization, and repository. Rules layer with other protections and apply before any run starts.</div>'
+    + Array.from({ length: 8 }, (_, i) => section(i + 1)).join('')
+    + '<p>If you select <strong>Evaluate</strong> (GitHub Enterprise Cloud only), you can monitor the rule first.</p></main>'
+    + '<footer><div>Help and support, contact us, terms and privacy for this site.</div></footer></div></div></body></html>';
+  const md = httpKeyless.htmlToMarkdown(httpKeyless.mainContent(html).html);
+  assert.match(md, /GitHub Enterprise Cloud only/, 'the fact at the end of the article was dropped');
+  assert.match(md, /## Step 8/, 'the article body was dropped');
+  assert.doesNotMatch(md, /Pricing/, 'navigation outside <main> leaked into the content');
+});
+
+test('outside a declared <main>, navigation is not dropped content, but a text caveat is', () => {
+  // The real Docs page, after the fix above: 5,921 characters kept, and still graded
+  // partial for "20 sibling sections outside" - breadcrumbs and sidebar link lists. Every
+  // keyless docs capture would carry that warning. Link-heavy blocks outside the page's own
+  // content are navigation; a block of prose outside it is still reported.
+  const body = '<main>' + '<p>Rules name an actor and an event, and a policy is active as soon as it is saved. </p>'.repeat(40) + '</main>';
+  const nav = '<div class="crumbs"><a href="/">Home</a> <a href="/a">GitHub Actions</a> <a href="/b">How-tos</a> <a href="/c">Administer</a></div>';
+  const navOnly = httpKeyless.mainContent(`<html><body><div id="x"><div>${nav}${body}</div></div></body></html>`);
+  assert.equal(navOnly.dropped.length, 0, `navigation was counted as dropped content: ${JSON.stringify(navOnly.dropped.map((d) => d.words))}`);
+  const caveat = '<div class="note">Enterprise keys are exempt from this cap on weekends and holidays.</div>';
+  const withCaveat = httpKeyless.mainContent(`<html><body><div id="x"><div>${nav}${body}${caveat}</div></div></body></html>`);
+  assert.equal(withCaveat.dropped.length, 1, 'a prose caveat outside <main> must still be reported');
+  const grade = httpKeyless.gradeCompleteness(httpKeyless.htmlToMarkdown(withCaveat.html), withCaveat);
+  assert.match(grade.omitted, /outside the page's main content/, `the reason should say what was left out: ${grade.omitted}`);
+});
+
+test('a thin <main> is not trusted over the density heuristic', () => {
+  const html = '<html><body><main><p>Loading...</p></main><div class="content">'
+    + 'Real prose about rate limits and credits sits here, outside the main element. '.repeat(20) + '</div></body></html>';
+  assert.match(httpKeyless.mainContent(html).html, /Real prose/, 'an empty shell of a <main> must not win');
+});
+
 test('decodeEntities handles named, decimal and hex references', () => {
   assert.equal(httpKeyless.decodeEntities('a&amp;b &#65; &#x42; &nbsp;c'), 'a&b A B  c');
 });
@@ -256,6 +303,41 @@ test('with no proxy, or with the operator\'s own setting, the environment is lef
   assert.equal(childEnvOf({ PATH: '/bin' }).NODE_USE_ENV_PROXY, undefined, 'no proxy, no flag');
   assert.equal(childEnvOf({ HTTPS_PROXY: 'http://127.0.0.1:9', NODE_USE_ENV_PROXY: '0' }).NODE_USE_ENV_PROXY, '0',
     'an operator who set the flag - even to 0 - decided; the transport does not overrule them');
+});
+
+// Found 2026-09-26: a complete GitHub API response (748 characters of JSON) was captured and
+// graded `partial` - "only 748 characters of main content were extracted". Nothing was
+// extracted and nothing was dropped: the grader was written for HTML pages and applied its
+// length bar to every body. A CLOSED unknown resting on it would be flagged for a gap that
+// does not exist.
+
+const scrapeServed = (contentType, body) => httpKeyless.scrape('https://x.invalid/api', {
+  spawn: () => ({ status: 0, stderr: '', stdout: JSON.stringify({ ok: true, url: 'https://x.invalid/api', statusCode: 200, contentType, body }) }),
+});
+
+test('a short JSON or text response captured whole is graded full, and kept verbatim', () => {
+  const json = '{"total_count":1,"artifacts":[{"id":10638148916,"expired":false}]}';
+  for (const type of ['application/json; charset=utf-8', 'application/vnd.github+json', 'text/plain', 'text/csv', 'application/xml']) {
+    const result = scrapeServed(type, json);
+    assert.equal(result.completeness, 'full', `${type}: a whole body was graded ${result.completeness} (${result.omitted})`);
+    assert.equal(result.omitted, '');
+    assert.equal(result.markdown, json, `${type}: the body was rewritten instead of kept as served`);
+  }
+});
+
+test('HTML is still graded by what extraction kept, and an unknown type is treated as HTML', () => {
+  assert.equal(scrapeServed('text/html; charset=utf-8', '<html><body><p>short</p></body></html>').completeness, 'partial');
+  assert.equal(scrapeServed(undefined, '<html><body><p>short</p></body></html>').completeness, 'partial',
+    'a response with no content type keeps the old behaviour');
+});
+
+test('an empty body or a binary type is never graded full', () => {
+  const empty = scrapeServed('application/json', '');
+  assert.equal(empty.completeness, 'partial');
+  assert.match(empty.omitted, /empty/);
+  const pdf = scrapeServed('application/pdf', '%PDF-1.7 binary junk');
+  assert.equal(pdf.completeness, 'partial', 'a PDF read as text is not a faithful copy');
+  assert.match(pdf.omitted, /application\/pdf/, 'the reason names the content type');
 });
 
 test('the rendezvous returns a result object rather than throwing, when the job fails', () => {

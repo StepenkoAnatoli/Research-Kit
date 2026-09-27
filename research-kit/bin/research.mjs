@@ -15,6 +15,7 @@ import { parseCapture, readLedger } from '../lib/corpus.mjs';
 import { readPrior } from '../lib/prior.mjs';
 import { heading } from '../lib/render.mjs';
 
+import { kitCommand } from '../lib/core.mjs';
 const { flags } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['depth', 'dry-run', 'force', 'help', 'only', 'plan', 'refresh-days', 'search-transport', 'status', 'transport']);
 const root = process.cwd();
@@ -72,14 +73,14 @@ evidence rows      ${usage.evidence}
 ledger entries     ${usage.ledgerEntries} (${usage.scrapes} scrape, ${usage.failures} failed)
 ${heading('plan')}
 topic              ${plan.topic || '(unset)'}
-depth              ${plan.depth} - up to ${DEPTH_SCRAPES[plan.depth]} scrapes
+depth              ${plan.depth} - up to ${Math.min(plan.maxScrapes, DEPTH_SCRAPES[plan.depth] ?? DEPTH_SCRAPES.quick)} scrapes a run${plan.maxScrapes < (DEPTH_SCRAPES[plan.depth] ?? DEPTH_SCRAPES.quick) ? ` (the plan's maxScrapes; this depth allows ${DEPTH_SCRAPES[plan.depth] ?? DEPTH_SCRAPES.quick})` : ''}
 queries / urls     ${plan.queries.length} / ${plan.urls.length}
 refresh-days       ${plan.refreshDays}
 ${heading('machine')}
 role               ${policy.role}${policy.mayCollect ? '' : ' - this machine must NOT collect'}
 transport          ${transport.name} (${transport.why})
 search transport   ${transport.search.name}${transport.search.sameAsFetch ? ' - same meter as fetch' : ` (${transport.search.why})`}
-searches (this box) ${usage.search.lastHour} in the last hour, ${usage.search.thisMonth} this month${usage.search.providers.length ? ` (${usage.search.providers.join(', ')})` : ''}
+searches (this project) ${usage.search.lastHour} in the last hour, ${usage.search.thisMonth} this month${usage.search.providers.length ? ` (${usage.search.providers.join(', ')})` : ''}
                    free-tier caps are ${usage.search.perHourCap}/hour and ${usage.search.perMonthCap}/month; ${usage.search.caveat}
 ${(transport.search.adapter?.METER_NOTES ?? [])
   // The selected search adapter says what the numbers mean for its vendor (U-9, U-10). A
@@ -126,7 +127,7 @@ try {
 // - after the first page lands, `bin/prior.mjs` refuses, and rightly.
 if (spends && !readPrior(root, { entries: readLedger(root).entries }).present) {
   process.stdout.write('prior:     none registered. What do you expect to find? '
-    + 'node research-kit/bin/prior.mjs "..." - this is the last moment that answer counts\n');
+    + `${kitCommand('prior.mjs', '"..."')} - this is the last moment that answer counts\n`);
 }
 process.stdout.write(`transport: ${chosen.name} - ${chosen.why}\n`);
 if (!chosen.search.sameAsFetch) {
@@ -151,7 +152,7 @@ collected  ${run.collected}
 cached     ${run.cached}
 failed     ${run.failed}
 spent      ${run.spent} (budget consumed: collected + failed)
-`);
+${run.overBudget ? `left       ${run.overBudget} over the budget - run again to fetch them; a page already fetched costs nothing\n` : ''}`);
 
 // The topic signal, printed at the one moment it helps: the pages are on disk and nobody
 // has read them yet. It decides nothing - see `topicMatch` for the two thresholds that were
@@ -179,6 +180,6 @@ if (run.searchTransport !== run.transport) {
   }
 }
 if (run.spent) {
-  process.stdout.write('\nNext: rewrite each auto-extracted Finding cell into a real claim, then run\n  node research-kit/bin/preflight.mjs\n');
+  process.stdout.write(`\nNext: rewrite each auto-extracted Finding cell into a real claim, then run\n  ${kitCommand('preflight.mjs')}\n`);
 }
 process.exit(0);

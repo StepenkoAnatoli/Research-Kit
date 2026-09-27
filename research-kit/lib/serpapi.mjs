@@ -28,6 +28,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from './machine.mjs';
+import { fetchEnv } from './runtime.mjs';
 
 export const name = 'serpapi';
 
@@ -97,12 +98,16 @@ export function redact(text, key) {
 
 // ---------------------------------------------------------------- the rendezvous
 
-export function runJob(job, { timeout = DEFAULT_TIMEOUT, spawn = spawnSync, nodePath = process.execPath } = {}) {
+// The child's fetch uses a configured proxy only when told to (fetchEnv). Found 2026-09-27:
+// this child was started without it after the keyless one was fixed, so behind a proxy every
+// search went around it and failed "fetch failed".
+export function runJob(job, { timeout = DEFAULT_TIMEOUT, spawn = spawnSync, nodePath = process.execPath, env = process.env } = {}) {
   const result = spawn(nodePath, [SELF], {
     input: JSON.stringify(job),
     encoding: 'utf8',
     timeout,
     windowsHide: true,
+    env: fetchEnv(env),
   });
   if (result.error) return { ok: false, error: result.error.message };
   const text = String(result.stdout ?? '').trim();
@@ -263,7 +268,7 @@ export function account({
   }
   if (!apiKey) return fail(`no SerpAPI key: set ${KEY_ENV} or the machine config's ${CONFIG_KEY}`);
 
-  const answer = job({ kind: 'serpapi-account', apiKey, timeout, endpoint }, { timeout });
+  const answer = job({ kind: 'serpapi-account', apiKey, timeout, endpoint }, { timeout, env });
   if (!answer?.ok) return fail(answer?.error || 'serpapi account request failed');
   const payload = answer.payload;
   if (!payload || typeof payload !== 'object') return fail('serpapi account request returned no payload');
@@ -338,7 +343,7 @@ export function search(query, {
     };
   }
 
-  const answer = job({ kind: 'serpapi-search', query: text, apiKey, timeout, endpoint }, { timeout });
+  const answer = job({ kind: 'serpapi-search', query: text, apiKey, timeout, endpoint }, { timeout, env });
   const scrub = (value) => redact(value, apiKey);
 
   if (!answer.ok) {

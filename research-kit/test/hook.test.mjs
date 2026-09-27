@@ -8,7 +8,7 @@ import { spawnSync, execFileSync } from 'node:child_process';
 import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, KIT_ROOT, requireCapability } from './harness.mjs';
 import { PATHS, resolve, writeText, readText } from '../lib/core.mjs';
 import { posture } from '../lib/machine.mjs';
-import { hookExecutability } from '../lib/scaffold.mjs';
+import { hookExecutability, scaffoldProject } from '../lib/scaffold.mjs';
 import { splitPathList } from '../lib/gate.mjs';
 
 describe('hook');
@@ -102,6 +102,25 @@ test('a staged change confined to research/ is ALLOWED while the verdict fails',
 
   const result = runHook(dir);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+});
+
+test('a fresh project\'s first commit - scaffold and corpus together - is ALLOWED while the verdict fails', () => {
+  requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
+  const dir = tempDir('rk-fresh-');
+  git(dir, ['init', '-q']);
+  git(dir, ['config', 'user.email', 'fixture@example.invalid']);
+  git(dir, ['config', 'user.name', 'Fixture']);
+  scaffoldProject(dir, { topic: 'Anything', kit: KIT_ROOT });
+  git(dir, ['add', '-A', '-f']);
+  const first = runHook(dir);
+  assert.equal(first.status, 0, `the first commit of a new project was refused: ${first.stdout}${first.stderr}`);
+
+  // A design written into the map is phase 2, and stays blocked.
+  const map = resolve(dir, PATHS.architecture);
+  writeText(map, readText(map).replace('| _module_ | _the one concept it is responsible for_ | _ADR or decision_ |', '| src/app.js | the app | ADR-0001 |'));
+  git(dir, ['add', PATHS.architecture]);
+  const designed = runHook(dir);
+  assert.notEqual(designed.status, 0, `a design committed before the gate passes: ${designed.stdout}`);
 });
 
 test('a passing project allows the commit', () => {

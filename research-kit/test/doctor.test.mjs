@@ -505,3 +505,52 @@ test('registeredPath reads the path out of a command, quoted or bare', async () 
   assert.equal(registeredPath('node /opt/kit/hooks/edit-gate.mjs'), '/opt/kit/hooks/edit-gate.mjs');
   assert.equal(registeredPath('node /opt/kit/hooks/other.mjs'), '');
 });
+
+// ---------------------------------------------------------------- the Node this machine runs
+//
+// docs/decisions/2026-09-27-node-support. The kit's requests on Node's fetch - keyless pages,
+// SerpAPI searches, remote collection - use a configured proxy only on a Node with
+// NODE_USE_ENV_PROXY: 22.21+ on the 22 line, 24.0+ after, never 23 (E-02, E-04). Measured: on
+// 22.20.0 the fetch went around the proxy and got HTTP 403. Nothing told the operator; the
+// error named no proxy.
+
+const nodeFindings = (nodeVersion, extraEnv = {}) => {
+  const { env } = machine({ config: { role: 'collector' } });
+  const scrubbed = { ...env };
+  for (const key of ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy']) delete scrubbed[key];
+  return machineHealth({ env: { ...scrubbed, ...extraEnv }, probe: READY, nodeVersion });
+};
+
+test('behind a proxy, a Node that cannot use it is named, with the version to move to', () => {
+  const old = find(nodeFindings('22.20.0', { HTTPS_PROXY: 'http://proxy.example:8080' }), 'proxy');
+  assert.ok(old, 'a proxy is configured and doctor says nothing about whether Node can use it');
+  assert.equal(old.severity, 'warn', 'the Firecrawl CLI has its own proxy handling; this is the fallback');
+  assert.match(old.detail, /22\.20\.0/);
+  assert.match(`${old.detail} ${old.fix}`, /22\.21/, 'the operator is not told which version fixes it');
+  assert.match(old.detail, /search requests/, 'the finding must name every path the proxy carries, not only the keyless one');
+  assert.match(old.detail, /remote collection/);
+  assert.equal(find(nodeFindings('23.11.1', { https_proxy: 'http://p:1' }), 'proxy').severity, 'warn', '23 never had the flag');
+  for (const ok of ['22.21.0', '22.23.3', '24.0.0', '26.10.0']) {
+    assert.equal(find(nodeFindings(ok, { https_proxy: 'http://p:1' }), 'proxy').severity, 'pass', `${ok} honours the proxy`);
+  }
+  assert.equal(find(nodeFindings('22.20.0'), 'proxy'), undefined, 'no proxy, nothing to say');
+  // A value Node cannot parse crashes every fetch once the flag is on, so the kit leaves it off
+  // and doctor says so - on every Node, since no version can use it (ADR-0047).
+  const bad = find(nodeFindings('24.21.0', { HTTPS_PROXY: 'proxy.example:8080' }), 'proxy');
+  assert.equal(bad.severity, 'warn', 'a proxy value Node cannot use was reported as working');
+  assert.match(bad.detail, /cannot use/);
+  assert.match(bad.fix, /http:\/\/proxy\.example:8080/);
+  assert.equal(find(nodeFindings('24.21.0', { https_proxy: 'http://ok:1', HTTPS_PROXY: 'proxy.example:8080' }), 'proxy').severity, 'pass',
+    'the lowercase variable wins when both are set (E-03), so the malformed one is never read');
+  const secret = find(nodeFindings('24.21.0', { HTTPS_PROXY: 'user:hunter2@proxy.example:8080' }), 'proxy');
+  assert.equal(`${secret.detail} ${secret.fix}`.includes('hunter2'), false, 'doctor printed a proxy password');
+});
+
+test('doctor reports the Node line: supported, odd and short-lived, or below the floor', () => {
+  assert.equal(find(nodeFindings('24.21.0'), 'node').severity, 'pass');
+  const odd = find(nodeFindings('25.9.0'), 'node');
+  assert.equal(odd.severity, 'warn', 'an odd line below 27 is never LTS and ends after six months');
+  assert.match(`${odd.detail} ${odd.fix}`, /24|26/);
+  assert.equal(find(nodeFindings('27.0.0'), 'node').severity, 'pass', 'from 27 every line goes LTS');
+  assert.equal(find(nodeFindings('21.7.3'), 'node').severity, 'fail', 'below the floor the kit does not run');
+});

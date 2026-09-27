@@ -23,6 +23,13 @@ describe('serpapi-live');
 
 const KEY = ['4', '7', 'c', 'e'].join('') + 'b'.repeat(60);
 
+// The stand-in is on loopback, and the child obeys a configured proxy (fetchEnv). On a
+// machine whose proxy is set and whose NO_PROXY does not name loopback, every request below
+// would go to that proxy instead - measured 2026-09-27: 8 of these 15 failed that way. The
+// vendor here is local, so the child gets the machine's environment without its proxy.
+const LOCAL = Object.fromEntries(Object.entries(process.env)
+  .filter(([name]) => !['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].includes(name)));
+
 // The stand-in vendor runs in ITS OWN PROCESS, and it has to.
 //
 // The first version hosted the server in this process, and every request timed out. The
@@ -110,7 +117,7 @@ const PAYLOAD = {
 test('LIVE: the whole path works - parent, child process, real fetch, real socket', async () => {
   const vendor = await standIn({ body: JSON.stringify(PAYLOAD) });
   try {
-    const r = serpapi.search('a real query', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000 });
+    const r = serpapi.search('a real query', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000, env: LOCAL });
 
     assert.equal(r.ok, true, `the live path failed: ${r.error}`);
     assert.equal(r.results.length, 2);
@@ -127,7 +134,7 @@ test('LIVE: the request the CHILD actually sends carries exactly three parameter
   // BUILDS; this asserts what came out of a socket at the other end.
   const vendor = await standIn({ body: JSON.stringify(PAYLOAD) });
   try {
-    serpapi.search('a b&c', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000 });
+    serpapi.search('a b&c', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000, env: LOCAL });
 
     assert.equal(vendor.requests().length, 1, 'the child made no request, or made several');
     const [sent] = vendor.requests();
@@ -148,7 +155,7 @@ test('LIVE: a 401 carrying the documented error key is reported in the vendor\'s
   // Confirmed against the real vendor by hand; pinned here so it stays true.
   const vendor = await standIn({ status: 401, body: JSON.stringify({ error: 'Invalid API key. Your API key should be here: https://serpapi.com/manage-api-key' }) });
   try {
-    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000 });
+    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000, env: LOCAL });
     assert.equal(r.ok, false);
     assert.match(r.error, /Invalid API key/);
     assert.equal(r.error.includes(KEY), false, 'the key survived into the error');
@@ -160,7 +167,7 @@ test('LIVE: a 401 carrying the documented error key is reported in the vendor\'s
 test('LIVE: an exhausted allowance arrives as an ordinary failure, not a crash', async () => {
   const vendor = await standIn({ status: 200, body: JSON.stringify({ error: 'Your account has run out of searches.' }) });
   try {
-    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000 });
+    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000, env: LOCAL });
     assert.equal(r.ok, false);
     assert.match(r.error, /run out of searches/);
     assert.deepEqual(r.results, []);
@@ -172,7 +179,7 @@ test('LIVE: an exhausted allowance arrives as an ordinary failure, not a crash',
 test('LIVE: a 500 with no error key is an HTTP failure', async () => {
   const vendor = await standIn({ status: 500, body: JSON.stringify({ something: 'else' }) });
   try {
-    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000 });
+    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000, env: LOCAL });
     assert.equal(r.ok, false);
     assert.match(r.error, /500/);
   } finally {
@@ -184,7 +191,7 @@ test('LIVE: an HTML error page is reported as a non-JSON body, with its size', a
   const body = '<html><body>502 Bad Gateway</body></html>';
   const vendor = await standIn({ status: 502, body, headers: { 'content-type': 'text/html' } });
   try {
-    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000 });
+    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000, env: LOCAL });
     assert.equal(r.ok, false);
     assert.match(r.error, /non-JSON body/);
     assert.match(r.error, new RegExp(String(body.length)));
@@ -196,7 +203,7 @@ test('LIVE: an HTML error page is reported as a non-JSON body, with its size', a
 test('LIVE: truncated JSON is a parse failure, not a half-read result', async () => {
   const vendor = await standIn({ status: 200, body: '{"organic_results": [{"link": "https://a.exa' });
   try {
-    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000 });
+    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000, env: LOCAL });
     assert.equal(r.ok, false);
     assert.deepEqual(r.results, [], 'a truncated payload produced candidates');
   } finally {
@@ -207,7 +214,7 @@ test('LIVE: truncated JSON is a parse failure, not a half-read result', async ()
 test('LIVE: a connection killed mid-flight is a returned failure, not a throw', async () => {
   const vendor = await standIn({ mode: 'destroy' });
   try {
-    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000 });
+    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000, env: LOCAL });
     assert.equal(r.ok, false);
     assert.ok(r.error.length > 0);
     assert.equal(r.error.includes(KEY), false, 'a socket error leaked the key');
@@ -222,7 +229,7 @@ test('LIVE: a server that never answers is bounded by the timeout', async () => 
   const vendor = await standIn({ mode: 'silent' });  // never resolves; never replies
   try {
     const started = Date.now();
-    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 1200 });
+    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 1200, env: LOCAL });
     const elapsed = Date.now() - started;
 
     assert.equal(r.ok, false);
@@ -235,7 +242,7 @@ test('LIVE: a server that never answers is bounded by the timeout', async () => 
 test('LIVE: an empty result set round-trips as a success with no candidates', async () => {
   const vendor = await standIn({ body: JSON.stringify({ search_metadata: { id: 'empty' }, organic_results: [] }) });
   try {
-    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000 });
+    const r = serpapi.search('q', { key: KEY, endpoint: vendor.endpoint, timeout: 15_000, env: LOCAL });
     assert.equal(r.ok, true);
     assert.deepEqual(r.results, []);
     assert.equal(r.searchesUsed, 1, 'the vendor bills an empty response as one search');
@@ -274,7 +281,7 @@ test('the CHILD refuses a bad endpoint too, even handed one directly', () => {
   // that the parent already checked.
   const answer = serpapi.runJob(
     { kind: 'serpapi-search', query: 'q', apiKey: KEY, endpoint: 'https://evil.example/search', timeout: 5000 },
-    { timeout: 10_000 },
+    { timeout: 10_000, env: LOCAL },
   );
   assert.equal(answer.ok, false);
   assert.match(answer.error, /refusing to send a key/);
@@ -310,7 +317,7 @@ const ACCOUNT_PAYLOAD = {
 test('LIVE ADR-0040: account() goes parent -> child -> socket, sends ONLY the key, and reads the meter', async () => {
   const vendor = await standIn({ body: JSON.stringify(ACCOUNT_PAYLOAD) });
   try {
-    const r = serpapi.account({ key: KEY, endpoint: vendor.endpoint.replace('/search', '/account.json') });
+    const r = serpapi.account({ key: KEY, endpoint: vendor.endpoint.replace('/search', '/account.json'), env: LOCAL });
     assert.equal(r.ok, true, r.error);
     assert.equal(r.account.left, 98);
     assert.equal(r.account.perHour, 250);

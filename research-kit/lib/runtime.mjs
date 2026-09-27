@@ -10,7 +10,8 @@
 // the corpus has no business refusing to run because a language it never calls is absent.
 // Each entrypoint asks for what it actually uses.
 
-import { spawnSync } from 'node:child_process';
+import http from 'node:http';
+import { spawn as spawnChild, spawnSync } from 'node:child_process';
 
 /** Node 22 is the floor: the kit uses `structuredClone` on arrays and modern ESM only. */
 export const REQUIRED_NODE_MAJOR = 22;
@@ -23,6 +24,197 @@ export function checkNode(version = process.versions.node) {
   return major >= REQUIRED_NODE_MAJOR
     ? { ok: true, detail: `node ${version}` }
     : { ok: false, detail: `node ${version}; this kit needs ${REQUIRED_NODE_MAJOR} or newer`, fix: 'install Node 22+ from nodejs.org, then reopen the terminal' };
+}
+
+function nodeParts(version) {
+  const [major, minor] = String(version).split('.').map(Number);
+  return { major, minor: Number.isFinite(minor) ? minor : 0 };
+}
+
+/**
+ * Whether this Node's built-in fetch can route through HTTPS_PROXY via NODE_USE_ENV_PROXY,
+ * which `fetchEnv` gives a fetching child and `honourEnvProxy` gives a command. The flag exists from 22.21.0 on the 22 line
+ * and from 24.0.0 on the 24 line, and 23 never had it (docs/decisions/2026-09-27-node-support,
+ * E-02, E-04). Below that the flag is ignored and the fetch goes around the proxy: measured
+ * on 22.20.0, an HTTP 403 that named no proxy.
+ */
+export function nodeHonoursEnvProxy(version = process.versions.node) {
+  const { major, minor } = nodeParts(version);
+  if (major === 22) return minor >= 21;
+  return major >= 24;
+}
+
+// ---------------------------------------------------------------- a configured proxy
+//
+// Node's built-in fetch ignores HTTPS_PROXY unless told to use it, and it is told at startup
+// (NODE_USE_ENV_PROXY=1 or --use-env-proxy, E-02) or, from 24.14 and 25.4, in place with
+// http.setGlobalProxyFromEnv() (E-03). Every request the kit makes on Node's fetch goes
+// through here: a child that fetches is started with `fetchEnv`, and a command that fetches
+// in its own process calls `honourEnvProxy` before its first request.
+
+/** The variables Node's proxy support reads, both cases (E-03). */
+export const PROXY_VARIABLES = Object.freeze(['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy']);
+
+/** The first proxy variable set in `env`, or null. */
+export function proxyVariable(env = process.env) {
+  return PROXY_VARIABLES.find((key) => env[key]) ?? null;
+}
+
+// Node takes a proxy as an http: or https: URL with a host (E-03).
+function usableProxyUrl(value) {
+  try {
+    const url = new URL(String(value));
+    return (url.protocol === 'http:' || url.protocol === 'https:') && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The proxy variable whose value Node cannot use, or null. Only the values Node reads count:
+ * when both spellings are set, the lowercase one wins (E-03).
+ *
+ * Found 2026-09-27: with the flag on, Node builds every configured proxy up front, and one it
+ * cannot parse throws "Invalid URL protocol" from inside Node - an uncaught exception, not a
+ * fetch error, even for a request the other proxy would carry. HTTPS_PROXY=proxy.example:8080
+ * is enough, and curl accepts that form. Without the flag the value is ignored and requests
+ * go direct, so for such a value the flag stays off.
+ */
+export function unusableProxy(env = process.env) {
+  for (const [lower, upper] of [['https_proxy', 'HTTPS_PROXY'], ['http_proxy', 'HTTP_PROXY']]) {
+    const name = env[lower] ? lower : env[upper] ? upper : null;
+    if (name && !usableProxyUrl(env[name])) return name;
+  }
+  return null;
+}
+
+/**
+ * The spelling Node would accept, for a message. A bare host:port gains http://, as curl reads
+ * it; anything else gets a template. Never echoes a value that could hold a password.
+ */
+export function proxySpelling(value) {
+  const bare = String(value ?? '').trim().replace(/\/$/, '');
+  return /^[\w.-]+:\d+$/.test(bare) ? `http://${bare}` : 'http://host:port';
+}
+
+/**
+ * The environment for a child process that fetches: `env`, plus the one flag that makes the
+ * child's built-in fetch use a configured proxy. A Node that predates the flag ignores it,
+ * so setting it costs nothing there.
+ *
+ * Found 2026-09-26 in a cloud container, Node 22.22.2: a GitHub API page that curl fetched
+ * through the proxy came back HTTP 403, GitHub's unauthenticated rate limit, because going
+ * around the proxy lost the authentication the proxy adds. On a network that allows traffic
+ * only through the proxy, the same bypass fails earlier, at the connection. Either way the
+ * error names no proxy. An operator who set NODE_USE_ENV_PROXY themselves - even to 0 -
+ * decided, and is not overruled.
+ */
+export function fetchEnv(env = process.env) {
+  if (env.NODE_USE_ENV_PROXY !== undefined) return env;
+  if (!proxyVariable(env) || unusableProxy(env)) return env;
+  return { ...env, NODE_USE_ENV_PROXY: '1' };
+}
+
+// Whoever started this process chose at startup: the variable (even set to 0) or the flag,
+// on the command line or in NODE_OPTIONS. The flag wins over the variable (E-02). Either
+// way the choice is theirs. Our own restart sets the variable, so it cannot loop.
+function proxyChosen(env, execArgv) {
+  const flag = /(^|\s)--(no-)?use-env-proxy(\s|=|$)/;
+  return env.NODE_USE_ENV_PROXY !== undefined
+    || execArgv.some((arg) => flag.test(arg))
+    || flag.test(env.NODE_OPTIONS ?? '');
+}
+
+/**
+ * How THIS process's own fetch reaches a configured proxy:
+ *   'none'         no proxy, or the choice was made at startup
+ *   'invalid'      a proxy value Node cannot use: turning it on would crash every fetch, so
+ *                  requests go direct, as they did before (unusableProxy)
+ *   'set'          Node 24.14+ and 25.4+: http.setGlobalProxyFromEnv() turns it on in place (E-03)
+ *   'reexec'       Node 22.21+ and 24.0-24.13: only the startup flag exists, so the command
+ *                  starts again with it
+ *   'unsupported'  older: nothing can; the command says so, and so does doctor
+ */
+export function envProxyPlan({
+  env = process.env,
+  version = process.versions.node,
+  execArgv = process.execArgv,
+  setGlobal = http.setGlobalProxyFromEnv,
+} = {}) {
+  if (!proxyVariable(env) || proxyChosen(env, execArgv)) return 'none';
+  if (unusableProxy(env)) return 'invalid';
+  if (typeof setGlobal === 'function') return 'set';
+  return nodeHonoursEnvProxy(version) ? 'reexec' : 'unsupported';
+}
+
+/**
+ * Make this process's own fetch use a configured proxy. Called by every command that fetches
+ * in its own process, before its first request: collect-remote, disclosure, mcp-server.
+ *
+ * Resolves with the plan it followed. For 'reexec' it never resolves: the command runs again
+ * as a child with the flag, on the same standard streams (an MCP client keeps talking to the
+ * same pipes), and this process forwards stop signals and leaves with the child's exit code.
+ */
+export function honourEnvProxy({
+  env = process.env,
+  version = process.versions.node,
+  execArgv = process.execArgv,
+  argv = process.argv,
+  execPath = process.execPath,
+  setGlobal = http.setGlobalProxyFromEnv,
+  spawn = spawnChild,
+  exit = (code) => process.exit(code),
+  stderr = process.stderr,
+  signals = process,
+} = {}) {
+  const plan = envProxyPlan({ env, version, execArgv, setGlobal });
+  if (plan === 'set') setGlobal(env);
+  if (plan === 'invalid') {
+    const name = unusableProxy(env);
+    stderr.write(`${name} is not a proxy URL Node can use, so requests go direct. `
+      + `Write it as ${proxySpelling(env[name])}.\n`);
+  }
+  if (plan === 'unsupported') {
+    stderr.write(`${proxyVariable(env)} is set, but node ${version} cannot send its requests through a proxy, `
+      + 'so they go direct. Upgrade to Node 22.21 or later on the 22 line, or to 24 or 26.\n');
+  }
+  if (plan !== 'reexec') return Promise.resolve(plan);
+
+  return new Promise(() => {
+    const child = spawn(execPath, [...execArgv, ...argv.slice(1)], {
+      stdio: 'inherit',
+      env: { ...env, NODE_USE_ENV_PROXY: '1' },
+      windowsHide: true,
+    });
+    for (const signal of ['SIGINT', 'SIGTERM']) signals.on(signal, () => child.kill(signal));
+    child.on('error', (error) => {
+      stderr.write(`could not start again with the proxy turned on: ${error.message}\n`);
+      exit(3);
+    });
+    child.on('exit', (code) => exit(code ?? 1));
+  });
+}
+
+/**
+ * The Node line as doctor reports it: `pass`, `warn` or `fail`, with the reason.
+ * Below the floor the kit does not run. An odd line below 27 is never LTS and ends six
+ * months after it starts (E-01) - 23 and 25 are already end-of-life. From 27 every line
+ * goes LTS, so the rule stops there.
+ */
+export function nodeLine(version = process.versions.node) {
+  const { major } = nodeParts(version);
+  if (!Number.isFinite(major)) return { level: 'fail', detail: `could not read a Node version from ${JSON.stringify(version)}`, fix: '' };
+  if (major < REQUIRED_NODE_MAJOR) {
+    return { level: 'fail', detail: `node ${version}; this kit needs ${REQUIRED_NODE_MAJOR} or newer`, fix: 'install Node 24 (Active LTS) from nodejs.org' };
+  }
+  if (major % 2 === 1 && major < 27) {
+    return {
+      level: 'warn',
+      detail: `node ${version} is an odd-numbered line: never LTS, and end-of-life six months after release`,
+      fix: 'move to Node 24 (Active LTS) or 26',
+    };
+  }
+  return { level: 'pass', detail: `node ${version}`, fix: '' };
 }
 
 /** `{ ok, detail }` - ok when git is on PATH and answers. Only for commands that use it. */

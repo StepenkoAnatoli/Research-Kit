@@ -13,6 +13,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { fetchEnv } from './runtime.mjs';
 
 export const name = 'http-keyless';
 export const FULL_THRESHOLD = 1500;
@@ -22,25 +23,7 @@ const USER_AGENT = 'research-kit/1.0 (+keyless transport; https://example.invali
 
 const SELF = fileURLToPath(import.meta.url);
 
-const PROXY_VARIABLES = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'];
-
-/**
- * The environment the fetch child runs in: the caller's, plus the one flag that makes
- * Node's built-in fetch honour a configured proxy.
- *
- * `fetch` ignores HTTPS_PROXY unless NODE_USE_ENV_PROXY=1 (a Node version that predates the
- * flag ignores it, so setting it costs nothing there). Without it, a machine whose egress
- * is proxy-only got a bare "HTTP 403" for a page curl fetched through the same proxy: the
- * transport had gone around the proxy it was given. Found 2026-09-26 in a cloud container,
- * Node 22.22.2. An operator who set NODE_USE_ENV_PROXY themselves - even to 0 - decided,
- * and is not overruled.
- */
-export function fetchEnv(env = process.env) {
-  if (env.NODE_USE_ENV_PROXY !== undefined) return env;
-  if (!PROXY_VARIABLES.some((key) => env[key])) return env;
-  return { ...env, NODE_USE_ENV_PROXY: '1' };
-}
-
+// The child's fetch uses a configured proxy only when told to: fetchEnv (runtime.mjs).
 function runJob(job, { timeout = 60_000, spawn = spawnSync, nodePath = process.execPath, env = process.env } = {}) {
   const result = spawn(nodePath, [SELF], {
     input: JSON.stringify(job),
@@ -80,9 +63,48 @@ export function decodeEntities(text) {
  * So this returns the chosen block AND what it left behind, and the caller grades
  * honestly on both.
  */
+const BLOCKS = /<(article|main|section|div)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+const SEMANTIC_MIN_WORDS = 100;
+
+/**
+ * The block the page itself declares as its content: the largest <main> or <article> with
+ * at least SEMANTIC_MIN_WORDS words, or null.
+ *
+ * Searched on its own, not among the div blocks. That search is lazy and non-overlapping,
+ * so when <main> sits inside wrapper divs - as it does on GitHub Docs - the outer div's
+ * match ends at the first </div> inside <main>, and <main> is never a candidate. On
+ * 2026-09-27 that kept the 262-character summary of a Docs article and dropped the
+ * 17,385-character <main> around it; Firecrawl captured the same page whole.
+ */
+function declaredContent(html) {
+  const candidates = [...html.matchAll(/<(main|article)\b[^>]*>([\s\S]*?)<\/\1>/gi)]
+    .map((m) => m[2])
+    .filter((inner) => wordsOf(inner) >= SEMANTIC_MIN_WORDS);
+  if (!candidates.length) return null;
+  return candidates.reduce((best, inner) => (wordsOf(inner) > wordsOf(best) ? inner : best));
+}
+
 export function mainContent(html) {
   const cleaned = String(html).replace(BLOCK_DROP, ' ');
-  const blocks = [...cleaned.matchAll(/<(article|main|section|div)\b[^>]*>([\s\S]*?)<\/\1>/gi)].map((m) => m[2]);
+
+  // A page that marks its content, and puts real text in it, is believed. What is dropped
+  // is then whatever has words OUTSIDE that block - navigation, sidebars, footers, and any
+  // caveat box the page put elsewhere - counted the same way as below, so the grade stays
+  // honest about what the capture left out.
+  const declared = declaredContent(cleaned);
+  if (declared) {
+    const outside = cleaned.replace(declared, ' ');
+    // Outside the declared content, a block that is mostly link text is navigation -
+    // breadcrumbs, sidebars, "skip to content" - not content the capture lost. Counting it
+    // graded every keyless docs capture `partial` (20 such blocks on the Docs page above).
+    // A block of prose outside <main> is still reported: that is where a caveat box would be.
+    const dropped = [...outside.matchAll(BLOCKS)]
+      .map((m) => ({ words: wordsOf(m[2]), text: m[2] }))
+      .filter((entry) => entry.words >= 5 && linkShare(entry.text) < 0.5);
+    return { html: declared, dropped, chosenWords: wordsOf(declared), totalWords: wordsOf(cleaned), basis: 'declared' };
+  }
+
+  const blocks = [...cleaned.matchAll(BLOCKS)].map((m) => m[2]);
 
   // Selection considers only substantial blocks; the DROP analysis considers them all.
   // Filtering short blocks out of both is how a 60-character caveat box - exactly the
@@ -101,6 +123,14 @@ export function mainContent(html) {
     .filter((entry) => entry.words >= 5);
 
   return { html: best, dropped, chosenWords: wordsOf(best), totalWords: wordsOf(cleaned) };
+}
+
+/** The share of a block's words that sit inside links: near 1 for navigation, near 0 for prose. */
+function linkShare(html) {
+  const total = wordsOf(html);
+  if (!total) return 0;
+  const linked = [...String(html).matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/gi)].reduce((sum, m) => sum + wordsOf(m[1]), 0);
+  return linked / total;
 }
 
 function wordsOf(html) {
@@ -168,7 +198,7 @@ export function gradeCompleteness(markdown, extraction = null) {
   if (dropped.length) {
     const words = dropped.reduce((sum, entry) => sum + entry.words, 0);
     reasons.push(
-      `${dropped.length} sibling section(s) totalling ~${words} words were outside the densest block and are not in this capture`,
+      `${dropped.length} sibling section(s) totalling ~${words} words were outside ${extraction?.basis === 'declared' ? "the page's main content" : 'the densest block'} and are not in this capture`,
     );
   }
 
@@ -182,10 +212,52 @@ export function command(argv) {
   return ['http-keyless', ...argv].map((p) => (/\s/.test(p) ? JSON.stringify(p) : p)).join(' ');
 }
 
+/**
+ * What a response's Content-Type says about how to keep it.
+ *
+ * `html` - a page: extract the main content, and grade by what extraction kept (the length
+ * bar and the dropped siblings). A response with no Content-Type is treated as html, which
+ * is what every response was before the type was read.
+ * `text` - JSON, XML, CSV, plain text, Markdown: kept verbatim, and graded on whether the
+ * body arrived at all. Nothing was extracted, so nothing can have been dropped. Found
+ * 2026-09-26: a complete 748-character GitHub API response was graded `partial` by the
+ * HTML length bar.
+ * `binary` - PDF, images, archives: `response.text()` is not a faithful copy of these, so
+ * the capture is never graded full, and the reason names the type.
+ */
+export function bodyKind(contentType) {
+  const type = String(contentType ?? '').split(';')[0].trim().toLowerCase();
+  if (!type || type === 'text/html' || type === 'application/xhtml+xml') return 'html';
+  if (type.startsWith('text/')) return 'text';
+  if (/^application\/([\w.+-]+\+)?(json|xml|yaml|x-yaml|x-ndjson|csv|javascript)$/.test(type)) return 'text';
+  return 'binary';
+}
+
+function verbatim(url, job, argv, kind) {
+  const body = job.body ?? '';
+  const type = String(job.contentType ?? '').split(';')[0].trim();
+  const reasons = [];
+  if (!body.length) reasons.push('the response body was empty');
+  if (kind === 'binary') reasons.push(`the response is ${type}, which is not text; this capture is not a faithful copy of it`);
+  return {
+    ok: true,
+    url: job.url ?? url,
+    title: '',
+    markdown: body,
+    statusCode: job.statusCode ?? '',
+    transport: name,
+    cmd: command(argv),
+    completeness: reasons.length ? 'partial' : 'full',
+    omitted: reasons.join('; '),
+  };
+}
+
 export function scrape(url, opts = {}) {
   const argv = ['scrape', String(url)];
   const job = runJob({ kind: 'fetch', url: String(url) }, opts);
   if (!job.ok) return { ok: false, url, error: job.error, cmd: command(argv), transport: name };
+  const kind = bodyKind(job.contentType);
+  if (kind !== 'html') return verbatim(url, job, argv, kind);
   const html = job.body ?? '';
   const extraction = mainContent(html);
   const markdown = htmlToMarkdown(extraction.html);
@@ -291,6 +363,7 @@ async function child() {
       ok: response.ok,
       url: response.url || job.url,
       statusCode: response.status,
+      contentType: response.headers.get('content-type') ?? '',
       body,
       error: response.ok ? '' : `HTTP ${response.status}`,
     }));

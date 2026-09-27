@@ -155,6 +155,26 @@ test('the prerequisites named in the policy are the ones the suite actually need
     `CI pins Python ${python?.[1]} but the README promises 3.12+`);
 });
 
+test('the Node lines the README says are tested are exactly the ones CI runs', () => {
+  // Until 2026-09-27 the README promised "Node 22+" and CI ran only 22, so 24 (Active LTS)
+  // and 26 (Current) - the lines an operator installing Node today gets - were never run.
+  // docs/decisions/2026-09-27-node-support. The claim now names the lines; this keeps the
+  // list and the workflow in step, in both directions.
+  const yaml = fs.readFileSync(WORKFLOW, 'utf8');
+  const executable = yaml.split('\n').filter((line) => !line.trim().startsWith('#')).join('\n');
+  const pinned = [...executable.matchAll(/node-version:\s*'?(\d+)/g)].map((m) => m[1]);
+  const matrix = executable.match(/^\s*node:\s*\[([^\]]+)\]/m);
+  const lines = new Set([...pinned, ...(matrix ? matrix[1].split(',').map((v) => v.trim().replace(/['"]/g, '')) : [])]);
+  const tested = [...lines].map(Number).sort((a, b) => a - b);
+
+  const readme = fs.readFileSync(ROOT_README, 'utf8');
+  const claim = readme.match(/Node ((?:\d+, )*\d+ and \d+) are each tested/);
+  assert(claim, 'the README does not say which Node lines CI tests');
+  const promised = claim[1].split(/, | and /).map(Number).sort((a, b) => a - b);
+  assertEqual(JSON.stringify(tested), JSON.stringify(promised),
+    `CI runs Node ${tested.join(', ')} but the README says it tests ${promised.join(', ')}`);
+});
+
 test('the onboarding path names commands that exist', () => {
   // A quickstart that names a binary nobody shipped is the most expensive kind of wrong:
   // it fails on the reader's first command, before they have any reason to trust the rest.
@@ -166,6 +186,30 @@ test('the onboarding path names commands that exist', () => {
   assert(referenced.length >= 5, `expected the onboarding path to name several commands, found ${referenced.length}`);
   const missing = [...new Set(referenced)].filter((rel) => !fs.existsSync(path.join(REPO, rel)));
   assertEqual(missing.length, 0, `the onboarding path names commands that do not exist: ${missing.join(', ')}`);
+});
+
+test('the onboarding path installs the kit first, and runs project commands from the project', () => {
+  // Found 2026-09-27 by following this section on a fresh machine. Step 5 said to cd to the
+  // project and then ran "node research-kit/bin/new-project.mjs" - a path that exists only
+  // at the repository root - so it crashed with MODULE_NOT_FOUND. install.mjs, which puts
+  // the kit where a project can reach it, was not in the path at all. install-hooks.mjs was
+  // marked "only on a build machine", so a collector following it never got the commit gate.
+  const readme = fs.readFileSync(ROOT_README, 'utf8');
+  const section = readme.slice(readme.indexOf('## Your first 30 minutes'), readme.indexOf('## When something fails'));
+  const at = (needle) => section.indexOf(needle);
+  assert(at('bin/install.mjs') !== -1 && at('bin/install.mjs') < at('new-project.mjs'),
+    'the path never installs the kit before a project needs it');
+  assert(at('bin/install-hooks.mjs') !== -1 && at('bin/install-hooks.mjs') < at('new-project.mjs'),
+    'the path never installs the gates before a project needs them');
+  assert(!/only on a build machine/i.test(section), 'every machine needs the gates, not only a builder');
+
+  const projectCommands = section.split('\n').map((l) => l.trim())
+    .filter((l) => /^node \S*(new-project|decompose|research|preflight)\.mjs/.test(l));
+  assert(projectCommands.length >= 4, `expected the project steps to name their commands, found ${projectCommands.length}`);
+  for (const line of projectCommands) {
+    assert(/\.agents\/research-kit\/bin\//.test(line),
+      `"${line}" runs from the project folder, so it must name the installed kit, not a repository-relative path`);
+  }
 });
 
 test('every subcommand reports a usage error the same way', () => {

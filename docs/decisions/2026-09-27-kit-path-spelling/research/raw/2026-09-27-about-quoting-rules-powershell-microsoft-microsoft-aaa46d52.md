@@ -1,0 +1,729 @@
+---
+url: https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1
+retrieved: 2026-09-27
+command: firecrawl scrape https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1 --only-main-content --json
+statusCode: 200
+transport: firecrawl-cli
+completeness: full
+title: about_Quoting_Rules - PowerShell | Microsoft Learn
+---
+Table of contents Exit editor mode
+
+Ask LearnAsk Learn
+
+Reading modeTable of contents[Read in English](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1)Add to CollectionsAdd to Plans[Edit](https://github.com/MicrosoftDocs/PowerShell-Docs/blob/main/reference/5.1/Microsoft.PowerShell.Core/About/about_Quoting_Rules.md)
+
+* * *
+
+Copy MarkdownPrint
+
+* * *
+
+Note
+
+Access to this page requires authorization. You can try [signing in](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1#) or changing directories.
+
+
+Access to this page requires authorization. You can try changing directories.
+
+
+# about\_Quoting\_Rules
+
+Feedback
+
+Summarize this article for me
+
+
+[Section titled: Short description](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1#short-description)
+
+## Short description
+
+Describes rules for using single and double quotation marks in PowerShell.
+
+[Section titled: Long description](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1#long-description)
+
+## Long description
+
+When parsing, PowerShell first looks to interpret input as an expression. But
+when a command invocation is encountered, parsing continues in argument mode.
+Non-numeric arguments without quotes are treated as strings. If you have
+arguments that contain spaces, such as paths, then you must enclose those
+argument values in quotes. For more information about argument parsing, see the
+**Argument mode** section of [about\_Parsing](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_parsing?view=powershell-5.1#argument-mode).
+
+Quotation marks are used to specify a literal string. You can enclose a string
+in single quotation marks (`'`) or double quotation marks (`"`).
+
+Quotation marks are also used to create a _here-string_. A here-string is a
+single-quoted or double-quoted string in which quotation marks are interpreted
+literally. A here-string can span multiple lines. All the lines in a
+here-string are interpreted as strings, even though they're not enclosed in
+quotation marks.
+
+In commands to remote computers, quotation marks define the parts of the
+command that are run on the remote computer. In a remote session, quotation
+marks also determine whether the variables in a command are interpreted first
+on the local computer or on the remote computer.
+
+Note
+
+PowerShell treats smart quotation marks, also called typographic or curly
+quotes, as normal quotation marks for strings. Don't use smart quotation
+marks to enclose strings. When writing strings that contain smart quotation
+marks, follow the guidance in the
+[Including quote characters in a string](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1#including-quote-characters-in-a-string) section of this document. For
+more information about smart quotation marks, see the _Smart Quotes_ section
+in the Wikipedia article [Quotation marks in English](https://en.wikipedia.org/wiki/Quotation_marks_in_English#Smart_quotes).
+
+[Section titled: Double-quoted strings](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1#double-quoted-strings)
+
+## Double-quoted strings
+
+A string enclosed in double quotation marks is an _expandable_ string. Variable
+names preceded by a dollar sign (`$`) are replaced with the variable's value
+before the string is passed to the command for processing.
+
+For example:
+
+PowerShell
+
+Copy
+
+```powershell
+$i = 5
+"The value of $i is $i."
+```
+
+The output of this command is:
+
+Output
+
+Copy
+
+```output
+The value of 5 is 5.
+```
+
+Also, in a double-quoted string, expressions are evaluated, and the result is
+inserted in the string. For example:
+
+PowerShell
+
+Copy
+
+```powershell
+"The value of $(2+3) is 5."
+```
+
+The output of this command is:
+
+Output
+
+Copy
+
+```output
+The value of 5 is 5.
+```
+
+Only basic variable references can be directly embedded in an expandable
+string. Variables references using array indexing or member access must be
+enclosed in a subexpression. For example:
+
+PowerShell
+
+Copy
+
+```powershell
+"PS version: $($PSVersionTable.PSVersion)"
+```
+
+Output
+
+Copy
+
+```output
+PS version:  5.1.22621.4111
+```
+
+To separate a variable name from subsequent characters in the string, enclose
+it in braces (`{}`). This is especially important if the variable name is
+followed by a colon (`:`). PowerShell considers everything between the `$` and
+the `:` a scope specifier, typically causing the interpretation to fail. For
+example, `"$HOME: where the heart is."` throws an error, but
+`"${HOME}: where the heart is."` works as intended.
+
+To prevent the substitution of a variable value in a double-quoted string, use
+the backtick character (`````), which is the PowerShell escape character.
+
+In the following example, the backtick character that precedes the first `$i`
+variable prevents PowerShell from replacing the variable name with its value.
+For example:
+
+PowerShell
+
+Copy
+
+```powershell
+$i = 5
+"The value of `$i is $i."
+```
+
+The output of this command is:
+
+Output
+
+Copy
+
+```output
+The value of $i is 5.
+```
+
+[Section titled: Single-quoted strings](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1#single-quoted-strings)
+
+## Single-quoted strings
+
+A string enclosed in single quotation marks is a _verbatim_ string. The string
+is passed to the command exactly as you type it. No substitution is performed.
+For example:
+
+PowerShell
+
+Copy
+
+```powershell
+$i = 5
+'The value of $i is $i.'
+```
+
+The output of this command is:
+
+Output
+
+Copy
+
+```output
+The value $i is $i.
+```
+
+Similarly, expressions in single-quoted strings aren't evaluated. They're
+interpreted as string literals. For example:
+
+PowerShell
+
+Copy
+
+```powershell
+'The value of $(2+3) is 5.'
+```
+
+The output of this command is:
+
+Output
+
+Copy
+
+```output
+The value of $(2+3) is 5.
+```
+
+[Section titled: Including quote characters in a string](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1#including-quote-characters-in-a-string)
+
+## Including quote characters in a string
+
+To make double-quotation marks appear in a string, enclose the entire string
+in single quotation marks. For example:
+
+PowerShell
+
+Copy
+
+```powershell
+'As they say, "live and learn."'
+```
+
+The output of this command is:
+
+Output
+
+Copy
+
+```output
+As they say, "live and learn."
+```
+
+You can also enclose a single-quoted string in a double-quoted string. For
+example:
+
+PowerShell
+
+Copy
+
+```powershell
+"As they say, 'live and learn.'"
+```
+
+The output of this command is:
+
+Output
+
+Copy
+
+```output
+As they say, 'live and learn.'
+```
+
+Or, double the quotation marks around a double-quoted phrase. For example:
+
+PowerShell
+
+Copy
+
+```powershell
+"As they say, ""live and learn."""
+```
+
+The output of this command is:
+
+Output
+
+Copy
+
+```output
+As they say, "live and learn."
+```
+
+To include a single quotation mark in a single-quoted string, use a second
+consecutive single quote. For example:
+
+PowerShell
+
+Copy
+
+```powershell
+'don''t'
+```
+
+The output of this command is:
+
+Output
+
+Copy
+
+```output
+don't
+```
+
+To force PowerShell to interpret a double quotation mark literally, use a
+backtick character. This prevents PowerShell from interpreting the quotation
+mark as a string delimiter. For example:
+
+PowerShell
+
+Copy
+
+```powershell
+"Use a quotation mark (`") to begin a string."
+'Use a quotation mark (`") to begin a string.'
+```
+
+Because the contents of single-quoted strings are interpreted literally, the
+backtick character is treated as a literal character and displayed in the
+output.
+
+Output
+
+Copy
+
+```output
+Use a quotation mark (") to begin a string.
+Use a quotation mark (`") to begin a string.
+```
+
+Because PowerShell interprets smart quotation marks, like `‘`, `’`, `“`, and
+`”`, as normal quotation marks, smart quotation marks also need to be escaped.
+For example:
+
+PowerShell
+
+Copy
+
+```powershell
+"Double ““smart quotation marks`” must be escaped in a double-quoted string."
+'Single ‘‘smart quotation marks’’ must be escaped in a single-quoted string.'
+```
+
+Output
+
+Copy
+
+```output
+Double “smart quotation marks” must be escaped in a double-quoted string.
+Single ‘smart quotation marks’ must be escaped in a single-quoted string.
+```
+
+[Section titled: Here-strings](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1#here-strings)
+
+## Here-strings
+
+The quotation rules for here-strings are slightly different.
+
+A here-string is a single-quoted or double-quoted string surrounded by at signs
+(`@`). Quotation marks within a here-string are interpreted literally.
+
+A here-string:
+
+- spans multiple lines
+- begins with the opening mark followed by a newline
+- ends with a newline followed by the closing mark
+- includes every line between the opening and closing marks as part of a single
+string
+
+Like regular strings, variables are replaced by their values in double-quoted
+here-strings. In single-quoted here-strings, variables aren't replaced by their
+values.
+
+You can use here-strings for any text, but they're particularly useful for the
+following kinds of text:
+
+- Text that contains literal quotation marks
+- Multiple lines of text, such as the text in an HTML or XML block
+- The Help text for a script or function document
+
+A here-string can have either of the following formats, where `<Enter>`
+represents the linefeed or newline hidden character that's added when you press
+the `ENTER` key.
+
+Double-quotes:
+
+Copy
+
+```
+@"<Enter>
+<string> [string] ...<Enter>
+"@
+```
+
+Single-quotes:
+
+Copy
+
+```
+@'<Enter>
+<string> [string] ...<Enter>
+'@
+```
+
+Note
+
+The final newline character is part of the closing mark. It's not added to
+the here-string.
+
+A here-string contains all the text between the opening and closing marks. In
+the here-string, all quotation marks are interpreted literally. For example:
+
+PowerShell
+
+Copy
+
+```powershell
+@"
+For help, type "Get-Help"
+"@
+```
+
+The output of this command is:
+
+Output
+
+Copy
+
+```output
+For help, type "Get-Help"
+```
+
+Using a here-string can simplify using a string in a command. For example:
+
+PowerShell
+
+Copy
+
+```powershell
+@"
+Use a quotation mark, like ' or ", to begin a string.
+"@
+```
+
+The output of this command is:
+
+Output
+
+Copy
+
+```output
+Use a quotation mark, like ' or ", to begin a string.
+```
+
+In single-quoted here-strings, variables are interpreted literally and
+reproduced exactly. For example:
+
+PowerShell
+
+Copy
+
+```powershell
+@'
+The $PROFILE variable contains the path
+of your PowerShell profile.
+'@
+```
+
+The output of this command is:
+
+Output
+
+Copy
+
+```output
+The $PROFILE variable contains the path
+of your PowerShell profile.
+```
+
+In double-quoted here-strings, variables are replaced by their values. For
+example:
+
+PowerShell
+
+Copy
+
+```powershell
+@"
+Even if you have not created a profile,
+the path of the profile file is:
+$PROFILE.
+"@
+```
+
+The output of this command is:
+
+Output
+
+Copy
+
+```output
+Even if you have not created a profile,
+the path of the profile file is:
+C:\Users\User1\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1.
+```
+
+Here-strings are typically used to assign multiple lines to a variable. For
+example, the following here-string assigns a page of XML to the $page variable.
+
+PowerShell
+
+Copy
+
+```powershell
+$page = [xml] @"
+<command:command xmlns:maml="http://schemas.microsoft.com/maml/2004/10"
+xmlns:command="http://schemas.microsoft.com/maml/dev/command/2004/10"
+xmlns:dev="http://schemas.microsoft.com/maml/dev/2004/10">
+<command:details>
+        <command:name>
+               Format-Table
+        </command:name>
+        <maml:description>
+            <maml:para>Formats the output as a table.</maml:para>
+        </maml:description>
+        <command:verb>format</command:verb>
+        <command:noun>table</command:noun>
+        <dev:version></dev:version>
+</command:details>
+...
+</command:command>
+"@
+```
+
+Here-strings are also a convenient format for input to the
+`ConvertFrom-StringData` cmdlet, which converts here-strings to hash tables.
+For more information, see `ConvertFrom-StringData`.
+
+Note
+
+PowerShell allows double- or single-quoted strings to span multiple lines
+without using the `@` syntax of here-strings. However, full here-string
+syntax is the preferred usage.
+
+[Section titled: Interpretation of expandable strings](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1#interpretation-of-expandable-strings)
+
+## Interpretation of expandable strings
+
+Expanded strings don't necessarily look the same as the default output that you
+see in the console.
+
+Collections, including arrays, are converted to strings by placing a single
+space between the string representations of the elements. A different separator
+can be specified by setting preference variable `$OFS`. For more information,
+see the [`$OFS` preference variable](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_preference_variables?view=powershell-5.1#ofs).
+
+Instances of any other type are converted to strings by calling the
+`ToString()` method, which may not give a meaningful representation. For
+example:
+
+PowerShell
+
+Copy
+
+```powershell
+"hashtable: $(@{ key = 'value' })"
+```
+
+Output
+
+Copy
+
+```output
+hashtable: System.Collections.Hashtable
+```
+
+To get the same output as in the console, use a subexpression in which you pipe
+to `Out-String`. Apply the `Trim()` method if you want to remove any leading
+and trailing empty lines.
+
+PowerShell
+
+Copy
+
+```powershell
+"hashtable:`n$((@{ key = 'value' } | Out-String).Trim())"
+```
+
+Output
+
+Copy
+
+```output
+hashtable:
+Name                           Value
+----                           -----
+key                            value
+```
+
+[Section titled: Culture settings affect string interpretation](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1#culture-settings-affect-string-interpretation)
+
+## Culture settings affect string interpretation
+
+The `ToString()` methods uses the current configured culture settings to
+convert values to strings. For example, the culture of the following PowerShell
+session is set to `de-DE`. When the `ToString()` method converts the value of
+`$x` to a string it uses a comma (`,`) for the decimal separator. Also, the
+`ToString()` method converts the date to a string using the appropriate format
+for the German locale settings.
+
+PowerShell
+
+Copy
+
+```powershell
+PS> Get-Culture
+
+LCID             Name             DisplayName
+----             ----             -----------
+1031             de-DE            German (Germany)
+
+PS> $x = 1.2
+PS> $x.ToString()
+1,2
+
+PS> (Get-Date 2024-03-19).ToString()
+19.03.2024 00:00:00
+```
+
+However, PowerShell uses the invariant culture when interpreting expandable
+string expressions.
+
+PowerShell
+
+Copy
+
+```powershell
+PS? "$x"
+1.2
+
+PS> "$(Get-Date 2024-03-19)"
+03/19/2024 00:00:00
+```
+
+[Section titled: Passing quoted strings to external commands](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1#passing-quoted-strings-to-external-commands)
+
+## Passing quoted strings to external commands
+
+Some native commands expect arguments that contain quote characters. PowerShell
+interprets the quoted string before passing it to the external command. This
+interpretation removes the outer quote characters.
+
+For more information about this behavior, see the [about\_Parsing](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_parsing?view=powershell-5.1#passing-arguments-that-contain-quote-characters) article.
+
+Warning
+
+On Windows, when passing arguments to batch files, the arguments are passed
+as raw command-line strings to `cmd.exe`. Although PowerShell and the
+underlying API attempt to interpret your parameters safely, untrusted input
+should be passed another way.
+
+[Section titled: See also](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1#see-also)
+
+## See also
+
+- [about\_Special\_Characters](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_special_characters?view=powershell-5.1)
+- [ConvertFrom-StringData](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/convertfrom-stringdata?view=powershell-5.1)
+
+Reading mode disabled
+
+Collaborate with us on GitHub
+
+
+The source for this content can be found on GitHub, where you can also create and review issues and pull requests. For more information, see [our contributor guide](https://learn.microsoft.com/powershell/scripting/community/contributing/powershell-style-guide).
+
+
+![](https://learn.microsoft.com/media/logos/logo-powershell-core.svg)![](https://learn.microsoft.com/media/logos/logo-powershell-core.svg)
+
+PowerShell
+feedback
+
+PowerShell
+is an open source project. Select a link to provide feedback:
+
+[Open a documentation issue](https://github.com/MicrosoftDocs/PowerShell-Docs/issues/new?template=04-customer-feedback.yml&pageUrl=https%3A%2F%2Flearn.microsoft.com%2Fen-us%2Fpowershell%2Fmodule%2Fmicrosoft.powershell.core%2Fabout%2Fabout_quoting_rules%3Fview%3Dpowershell-5.1&pageQueryParams=%3Fview%3Dpowershell-5.1&contentSourceUrl=https%3A%2F%2Fgithub.com%2FMicrosoftDocs%2FPowerShell-Docs%2Fblob%2Fmain%2Freference%2F5.1%2FMicrosoft.PowerShell.Core%2FAbout%2Fabout_Quoting_Rules.md&documentVersionIndependentId=61c4ba2e-b08d-089b-74bc-70d6306523e5&platformId=ae7a8207-3c3a-dc9a-4250-c89bfeecea5d&feedback=%0A%0A%5BEnter+feedback+here%5D%0A&author=%40sdwheeler&metadata=*+ID%3A+0a9ce399-c725-2430-bbd0-b8887d1beda6%0A*+PlatformId%3A+ae7a8207-3c3a-dc9a-4250-c89bfeecea5d+%0A*+Service%3A+**powershell**&labels=needs-triage) [Provide product feedback](https://github.com/PowerShell/PowerShell/issues/new/choose)
+
+* * *
+
+## Feedback
+
+Was this page helpful?
+
+
+YesNoNo
+
+Need help with this topic?
+
+
+Want to try using Ask Learn to clarify or guide you through this topic?
+
+
+Ask LearnAsk Learn
+
+Suggest a fix?
+
+* * *
+
+## Additional resources
+
+* * *
+
+- Last updated on 09/29/2025
+
+Ask Learn is an AI assistant that can answer questions, clarify concepts, and define terms using trusted Microsoft documentation.
+
+Please sign in to use Ask Learn.
+
+[Sign in](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_quoting_rules?view=powershell-5.1#)

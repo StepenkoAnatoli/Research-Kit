@@ -7,7 +7,7 @@
 // rather than as an absence of evidence.
 
 import { test, describe, assert } from './harness.mjs';
-import { probeRun, summarise, render, PROBES } from '../lib/disclosure.mjs';
+import { probeRun, summarise, render, exitCode, PROBES } from '../lib/disclosure.mjs';
 
 describe('disclosure');
 
@@ -109,6 +109,42 @@ test('an unreachable endpoint is a refusal to conclude, not a clean result', asy
     assert.equal(f.readable, false);
     assert.match(f.note ?? '', /unreachable|nothing to try/);
   }
+  // Found 2026-09-27: with no network the command exited 0, "only the shape is public" - the
+  // clean result this test's name rules out. It had checked the findings and never the verdict.
+  assert.equal(report.conclusive, false, 'a probe that never reached GitHub cannot support a clean verdict');
+  assert.deepEqual([...report.unmeasured].sort(), PROBES.map((p) => p.id).sort());
+  assert.equal(exitCode(report), 3, 'unreachable is "could not measure", exit 3 - not 0');
+  const text = render(report);
+  assert.match(text, /NOT MEASURED/);
+  assert.doesNotMatch(text, /Only the SHAPE/, 'the rendering told the reader only the shape is public');
+  assert.doesNotMatch(text, /refused 0/, 'an unreachable probe was reported as a refusal');
+  assert.doesNotMatch(text, /refused -/, 'a probe that was never tried was reported as a refusal');
+  assert.match(text, /not tried/);
+});
+
+test('an exposure found stands even when another probe could not be made', async () => {
+  const table = {
+    ...OPEN,
+    '/actions/artifacts/5/zip': { status: 200, body: 'PK' },
+  };
+  const answered = stub(table);
+  const doFetch = async (url, init) => {
+    if (url.includes('/actions/secrets')) throw new Error('ECONNRESET');
+    return answered(url, init);
+  };
+  const report = await probeRun({ repository: 'o/r', runId: 1, fetch: doFetch });
+  assert.equal(report.exposedContent, true, 'the readable artifact is a finding whatever else failed');
+  assert.equal(report.conclusive, false);
+  assert.deepEqual(report.unmeasured, ['secrets']);
+  assert.equal(exitCode(report), 1);
+});
+
+test('every probe answered and nothing readable beyond the shape: conclusive, exit 0', async () => {
+  const report = await probeRun({ repository: 'o/r', runId: 1, needle: 'layoff plan', fetch: stub(OPEN) });
+  assert.equal(report.conclusive, true, 'a refusal is an answer: 401 and 403 were measured');
+  assert.deepEqual(report.unmeasured, []);
+  assert.equal(exitCode(report), 0);
+  assert.match(render(report), /Only the SHAPE/);
 });
 
 test('the rendering names the control it is arguing for', async () => {

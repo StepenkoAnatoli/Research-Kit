@@ -158,8 +158,10 @@ instead of a command:
 
 Two tools: `collect` starts a run and returns its id; `fetch_corpus` takes that id and
 returns a link to the validated package. The server speaks **both** protocol eras -
-`2026-07-28` and `2025-11-25` - because the specification is ahead of every shipped client
-and a server only the spec can talk to is one nothing can call. The same token, the same one permission, and the
+`2026-07-28`, and `2025-11-25` or `2025-06-18` on the older handshake - because the
+specification is ahead of every shipped client, clients built on the official SDK before
+December 2025 still ask for `2025-06-18`, and a server only the spec can talk to is one
+nothing can call. The same token, the same one permission, and the
 same rule at the end - the result carries `buildAuthorized`, and it is `false` for every
 freshly collected corpus.
 
@@ -217,7 +219,10 @@ there saying so.
 
 **Requirements:** Node 22+ and Git. Python 3.12+ is needed for the cross-language
 conformance runners; without it those tests report `UNSUP` and **block** rather than
-silently passing.
+silently passing. Node 22, 24 and 26 are each tested on every commit - the three lines Node
+supports (as of 2026-09). Behind an HTTPS proxy, the kit's own requests (keyless pages,
+SerpAPI searches, remote collection) need Node 22.21+ or 24+ to use it; `doctor` says so
+when yours cannot.
 
 ## Bring your own keys
 
@@ -269,8 +274,8 @@ default ([research/BRIEF.md](research/BRIEF.md)).
 just want research back and do not care where it runs,
 [Start here](#start-here-if-this-is-new-to-you) is shorter.
 
-One path, in order. Nothing here needs a credential — steps 1–4 and 7 are entirely
-offline, and only step 6 can spend anything.
+One path, in order. Steps 1–4 and 7 are entirely offline and need no credential; step 5's
+map searches and step 6's collection are the only steps that can spend anything.
 
 **1. Check the machine.** This answers "is anything missing" before you spend time on it.
 
@@ -278,11 +283,16 @@ offline, and only step 6 can spend anything.
 node research-kit/bin/doctor.mjs
 ```
 
-**2. Say what this machine is for.** A *collector* holds a key and gathers evidence; a
-*builder* has no key and consumes what a collector pushed. The default is collector.
+**2. Install the kit and its gates.** `install.mjs` copies the kit to
+`~/.agents/research-kit`, where every project on this machine reaches it. `install-hooks.mjs`
+installs the commit and edit gates, which are what hold a project to "research first". A
+*collector* holds a key and gathers evidence; a *builder* has no key and consumes what a
+collector pushed. The default is collector.
 
 ```bash
-node research-kit/bin/install-hooks.mjs --role builder   # only on a build machine
+node research-kit/bin/install.mjs
+node research-kit/bin/install-hooks.mjs                  # a collector (the default)
+node research-kit/bin/install-hooks.mjs --role builder   # instead, on a build machine
 ```
 
 **3. See a validator actually work, before you own any data.** Six synthetic packages —
@@ -302,12 +312,15 @@ describe each file's shape and say nothing about how they refer to each other.
 node research-kit/bin/selftest.mjs
 ```
 
-**5. Scaffold a project.** The project is the **current working directory** — the kit
-takes no project argument, so `cd` there first.
+**5. Scaffold a project.** A project is its own folder, outside this repository. It is the
+**current working directory** - the kit takes no project argument - so `cd` there first,
+and call the installed kit by its full path. `$HOME` works in bash, zsh, Git Bash and
+PowerShell.
 
 ```bash
-node research-kit/bin/new-project.mjs . --topic "<your topic>"
-node research-kit/bin/decompose.mjs --topic "<your topic>"
+mkdir "$HOME/my-research" && cd "$HOME/my-research"
+node "$HOME/.agents/research-kit/bin/new-project.mjs" . --topic "<your topic>"
+node "$HOME/.agents/research-kit/bin/decompose.mjs" --topic "<your topic>"
 ```
 
 Then open `research/MAP.md` and mark each row `COVERED`, `DISMISSED` or `GAP`. **This step
@@ -317,14 +330,14 @@ rest of the kit protects.
 **6. Collect.** The only step that spends credits:
 
 ```bash
-node research-kit/bin/research.mjs --dry-run   # see what it would fetch, and the cost
-node research-kit/bin/research.mjs
+node "$HOME/.agents/research-kit/bin/research.mjs" --dry-run   # see what it would fetch, and the cost
+node "$HOME/.agents/research-kit/bin/research.mjs"
 ```
 
 **7. Ask whether you may build yet.**
 
 ```bash
-node research-kit/bin/preflight.mjs
+node "$HOME/.agents/research-kit/bin/preflight.mjs"
 ```
 
 `PASS` means the twelve corpus checks agree the evidence supports starting. Anything else
@@ -367,7 +380,7 @@ into the project first, then run the kit from wherever it is installed:
 
 ```
 cd ~/projects/my-thing
-node ~/.agents/research-kit/bin/preflight.mjs
+node "$HOME/.agents/research-kit/bin/preflight.mjs"
 ```
 
 From any other directory it reports on the directory it is standing in.

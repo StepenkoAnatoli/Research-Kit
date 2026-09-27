@@ -4,7 +4,7 @@
 import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path } from './harness.mjs';
 import { PATHS, resolve, writeText, readText, writeJson } from '../lib/core.mjs';
 import { evaluate, isGated, splitPathList, architectureMapBreach, loadGateConfig, DEFAULT_CODE_PATHS } from '../lib/gate.mjs';
-import { GATE_MARKERS } from '../lib/scaffold.mjs';
+import { GATE_MARKERS, TEMPLATE_DIR } from '../lib/scaffold.mjs';
 
 describe('gate');
 
@@ -53,6 +53,33 @@ test('diff-scope: a commit confined to research/ is allowed while the verdict fa
 
   const both = evaluate(dir, { gate: 'commit', stagedPaths: ['research/EVIDENCE.md', 'src/a.js'] });
   assert.equal(both.allow, false, 'code and research together still blocks');
+});
+
+// Found 2026-09-27, on a fresh collector and on a builder that unpacked a remote package: after
+// new-project, `git add -A && git commit` was refused. The scaffold's own .gitattributes,
+// .gitignore, AGENTS.md, START_HERE.md and docs/ARCHITECTURE.md sit outside research/. So for
+// the whole of phase 1 the corpus travelled without the .gitattributes that keeps its hashes
+// valid on a Windows checkout (ADR-0020), and without the rules that bind whoever opens it.
+test('diff-scope: the project\'s own scaffolding is committed with its corpus while the verdict fails', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace('CLOSED', 'OPEN'));
+  const template = readText(path.join(TEMPLATE_DIR, 'docs', 'ARCHITECTURE.md'));
+  const staged = (text) => ({ stagedText: (rel) => (rel === PATHS.architecture ? text : null) });
+  const scaffolding = ['.gitattributes', '.gitignore', 'AGENTS.md', 'START_HERE.md', 'research/EVIDENCE.md'];
+
+  assert.equal(evaluate(dir, { gate: 'commit', stagedPaths: scaffolding }).allow, true, 'the corpus\'s own files were refused');
+  assert.equal(evaluate(dir, { gate: 'commit', stagedPaths: [...scaffolding, PATHS.architecture], ...staged(template) }).allow, true,
+    'the empty map of code that does not exist yet was refused');
+  assert.equal(evaluate(dir, { gate: 'commit', stagedPaths: [PATHS.architecture], ...staged(template.replace(/\n/g, '\r\n')) }).allow, true,
+    'a Windows checkout of the same empty map is the same map');
+
+  // What stays phase 2.
+  const designed = template.replace('| _module_ | _the one concept it is responsible for_ | _ADR or decision_ |', '| src/app.js | the app | ADR-0001 |');
+  assert.notEqual(designed, template, 'the fixture did not change the map');
+  assert.equal(evaluate(dir, { gate: 'commit', stagedPaths: [PATHS.architecture], ...staged(designed) }).allow, false, 'a map with a design in it is phase 2');
+  assert.equal(evaluate(dir, { gate: 'commit', stagedPaths: [PATHS.architecture], ...staged(null) }).allow, false, 'an unreadable map is not an empty one');
+  assert.equal(evaluate(dir, { gate: 'commit', stagedPaths: ['src/AGENTS.md'] }).allow, false, 'only the root files are the project\'s own');
+  assert.equal(evaluate(dir, { gate: 'commit', stagedPaths: ['AGENTS.md', 'src/a.js'] }).allow, false, 'scaffolding does not carry code with it');
 });
 
 test('GATE_OFF is a no-op, reported, and recorded in the overrides log', () => {

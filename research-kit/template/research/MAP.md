@@ -6,7 +6,7 @@
 
 ## Subtopics
 
-Drafted by `node {{KIT}}/bin/decompose.mjs --topic "{{TOPIC}}"`, seeded with the
+Drafted by `node "{{KIT}}/bin/decompose.mjs" --topic "{{TOPIC}}"`, seeded with the
 universal checklist and statuses BLANK. Phase 0 gathers material; it does not judge.
 
 Mark every row COVERED (cite the U-## rows that cover it), DISMISSED (reason required -

@@ -1,7 +1,7 @@
 # Discovery Contract - {{TOPIC}}
 
 Started {{DATE}}. This file is the definition of "enough information to build".
-`node {{KIT}}/bin/preflight.mjs` reads it and blocks the build until every unknown
+`node "{{KIT}}/bin/preflight.mjs"` reads it and blocks the build until every unknown
 below is either `CLOSED` with evidence or `KNOWN-UNKNOWN` with a verification step.
 
 ## Build intent

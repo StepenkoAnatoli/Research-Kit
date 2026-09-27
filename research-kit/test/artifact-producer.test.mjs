@@ -6,14 +6,16 @@
 // because the way this gets lost is somebody adding a convenient option later.
 
 import { test, describe, assert, fs, path, os, cleanup } from './harness.mjs';
-import { sha256, canonicalJson, resolve, readText, writeText } from '../lib/core.mjs';
+import { sha256, canonicalJson, resolve, readText, writeText, today, PATHS, HEADERS } from '../lib/core.mjs';
 import {
   createArtifact, deriveState, collectProjectFiles, packageName, checkClientRef,
   findingsReviewState, roleOf, mediaTypeOf, EXCLUDED, GITHUB_API_VERSION,
 } from '../lib/artifact.mjs';
 import { validateArtifact, MANIFEST_PATH, MANIFEST_DIGEST_PATH } from '../lib/artifact-validator.mjs';
 import { openZip } from '../lib/artifact-zip.mjs';
-import { readCorpus } from '../lib/corpus.mjs';
+import { readCorpus, appendRow } from '../lib/corpus.mjs';
+import { writeRaw } from '../lib/collect.mjs';
+import { firstFinding } from '../lib/finding.mjs';
 import { collectedProject, approvedProject, IDENTITY } from './artifact-fixtures.mjs';
 
 describe('artifact-producer');
@@ -90,6 +92,40 @@ test('an unrewritten Finding is detected by re-running the extractor over the ca
   const after = findingsReviewState(root, readCorpus(root));
   assert.equal(after.reviewed, true, 'a rewritten Finding must read as reviewed');
   assert.deepEqual(after.unrewritten, []);
+});
+
+// Found 2026-09-27 on a real remote collection, run 36287211468. A corpus holding one JSON
+// capture, which nobody had touched, was packaged with findingsReviewed: true - and that flag is
+// one of the four conditions for buildAuthorized. The check ran the extractor over the whole
+// capture FILE and read its front-matter as the page: it picked "url: https://..." and so never
+// matched the collector's sentence. The collector extracts from the page body, falling back to
+// the page's title or URL (collect.mjs). These captures and rows are made by the same calls.
+const SCHEDULE = ['{',
+  ...[['v18', '2022-04-19', '2023-10-18', '2025-04-30'], ['v20', '2023-04-18', '2024-10-22', '2026-04-30'],
+    ['v22', '2024-04-24', '2025-10-21', '2027-04-30'], ['v24', '2025-05-06', '2026-10-20', '2028-04-30']]
+    .flatMap(([v, start, maintenance, end]) => [`  "${v}": {`, `    "start": "${start}",`,
+      `    "maintenance": "${maintenance}",`, `    "end": "${end}",`, '    "codename": "x"', '  },']),
+  '  "v26": {', '    "start": "2026-04-22",', '    "end": "2029-04-30"', '  }', '}'].join('\n');
+
+test('an untouched Finding on a JSON capture is unrewritten - the front-matter is not the page', () => {
+  const root = approvedProject();                 // E-01 is rewritten: only the rows below are untouched
+  const date = today();
+  const pages = [
+    // The real URL: its length is what made the front-matter line outscore the page ("full-sentence").
+    { url: 'https://raw.githubusercontent.com/nodejs/Release/main/schedule.json', title: '', markdown: SCHEDULE }, // a line is picked
+    { url: 'https://example.org/tiny.json', title: 'Release schedule', markdown: '{\n  "end": "2027-04-30"\n}' }, // falls back to the title
+    { url: 'https://example.org/empty.json', title: '', markdown: '{}' },                                // falls back to the URL
+  ];
+  const ids = pages.map((page, i) => {
+    const entry = writeRaw(root, { ...page, cmd: 'fixture', statusCode: 200, transport: 'firecrawl-cli', completeness: 'full' }, { date });
+    const id = `E-9${i}`;
+    appendRow(root, PATHS.evidence, HEADERS.evidence, [id, date, 'S', page.url, firstFinding(page.markdown, page.title || page.url), entry.file]);
+    return id;
+  });
+  assert.notEqual(firstFinding(SCHEDULE, 'x'), 'x', 'the first page must exercise a picked line, not the fallback');
+  const state = findingsReviewState(root, readCorpus(root));
+  assert.equal(state.reviewed, false, 'a corpus with three untouched Findings was judged reviewed');
+  assert.deepEqual([...state.unrewritten].sort(), ids);
 });
 
 // ---------------------------------------------------------------- what travels

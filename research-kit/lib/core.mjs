@@ -4,6 +4,7 @@
 // artifact lives and what its table header is. No module below this one decides
 // anything about research, gates, or evidence.
 
+import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -304,4 +305,20 @@ export function refuseUnknownFlags(flags, known, { help = '', exit = 2, note = n
 export function sleepSync(ms) {
   if (!Number.isFinite(ms) || ms <= 0) return;
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * A command that runs one of this kit's entrypoints, spelled so it works from any folder:
+ * `node <full path of the running kit>/bin/<script>`.
+ *
+ * Every hint and remedy the kit prints to a terminal is built here. They used to say
+ * "node research-kit/bin/...", which exists only at the repository root - so from a project
+ * folder, the very place the kit is used, copying a fix produced MODULE_NOT_FOUND (found
+ * 2026-09-27 following the README on a fresh machine). Text written INTO a project's files
+ * (the brief, the timeline) keeps a portable spelling instead: those files travel.
+ */
+export function kitCommand(script, args = '') {
+  const file = fileURLToPath(new URL(`../bin/${script}`, import.meta.url));
+  const spelled = /\s/.test(file) ? JSON.stringify(file) : file;
+  return `node ${spelled}${args ? ` ${args}` : ''}`;
 }

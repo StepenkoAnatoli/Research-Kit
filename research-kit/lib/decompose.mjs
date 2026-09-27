@@ -11,9 +11,10 @@ import path from 'node:path';
 import {
   PATHS, HEADERS, resolve, exists, readText, writeText, today, hostOf, uniq,
 } from './core.mjs';
-import { readCorpus, cacheDecision, tableRow } from './corpus.mjs';
+import { readCorpus, cacheDecision, tableRow, appendJsonLine } from './corpus.mjs';
 import { seedRows, UNIVERSAL_DIMENSIONS } from './dimensions.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
+import { urlKey } from './research-run.mjs';
 import { KIT_ROOT } from './scaffold.mjs';
 
 export const RECIPE_DIR = path.join(KIT_ROOT, 'recipes');
@@ -192,6 +193,9 @@ export function decompose(root, {
   let hosts = [];
   let spent = 0;
   let searches = 0;
+  let searchesUsed = 0;
+  let cached = 0;
+  let failedScrapes = 0;
   const failures = [];
 
   if (!dryRun && adapter) {
@@ -208,6 +212,7 @@ export function decompose(root, {
     const searcher = searchAdapter ?? adapter;
     for (const query of queries) {
       let found = searcher.search(query, { limit });
+      if (Number.isFinite(found?.searchesUsed)) searchesUsed += found.searchesUsed;
       let ranker = searcher.name;
       // One bounded fallback, reported rather than absorbed (RR-1, RR-2).
       if (!found.ok && searcher !== adapter) {
@@ -215,6 +220,7 @@ export function decompose(root, {
         log(`  search failed on ${searcher.name}: ${found.error}`);
         log(`  degrading to ${adapter.name} for this query - this spends fetch credits`);
         found = adapter.search(query, { limit });
+        if (Number.isFinite(found?.searchesUsed)) searchesUsed += found.searchesUsed;
         ranker = adapter.name;
       }
       if (!found.ok) {
@@ -225,8 +231,9 @@ export function decompose(root, {
         continue;
       }
       for (const row of found.results) {
-        if (seen.has(row.url)) continue;
-        seen.add(row.url);
+        // One page, one candidate - the identity runResearch uses (urlKey).
+        if (seen.has(urlKey(row.url))) continue;
+        seen.add(urlKey(row.url));
         material.push({ ...row, rankedBy: ranker });
       }
     }
@@ -237,7 +244,7 @@ export function decompose(root, {
     for (const row of material) {
       if (spent >= maxScrapes) break;
       const decision = cacheDecision(corpus.captures, row.url, { refreshDays, now });
-      if (decision.hit) { log(`  cached    ${row.url}`); continue; }
+      if (decision.hit) { cached += 1; log(`  cached    ${row.url}`); continue; }
       const outcome = collectOne(root, row.url, {
         runScrape: (url) => adapter.runScrape(url),
         corpus,
@@ -252,7 +259,24 @@ export function decompose(root, {
         discoveredBy: row.rankedBy ?? '',
       });
       if (outcome.status === 'collected' || outcome.status === 'failed') spent += 1;
+      if (outcome.status === 'failed') failedScrapes += 1;
       log(`  ${outcome.status.padEnd(9)} ${row.url}`);
+    }
+
+    // Phase 0 is mostly searching, and a search spends on its provider's meter. Found
+    // 2026-09-27: two runs made 8 SerpAPI searches - the vendor counted them - and
+    // `research.mjs --status` counted 0, because only research-run wrote a usage row. The
+    // same row, for the same reason research-run writes one for a search-only run (DR-1).
+    if (spent || searchesUsed) {
+      appendJsonLine(root, PATHS.usage, {
+        at: new Date().toISOString(), command: 'decompose', budget: maxScrapes,
+        attempts: spent, spent, cached, failed: failedScrapes,
+        transport: adapter.name,
+        searchTransport: searcher.name,
+        searchesUsed,
+        searchFailures: failures.filter((x) => !x.degraded).length,
+        degraded: failures.filter((x) => x.degraded).length,
+      });
     }
   }
 

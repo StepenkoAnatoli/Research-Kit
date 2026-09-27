@@ -17,6 +17,7 @@ import { validateProject, hookExecutability, GATE_MARKERS, KIT_ROOT } from './sc
 import { settingsState, deployedDrift, driftNote } from './installer.mjs';
 import { recordOverride } from './provenance.mjs';
 import { probeFirecrawl, selectTransport } from './transport.mjs';
+import { nodeLine, nodeHonoursEnvProxy, proxyVariable, unusableProxy, proxySpelling } from './runtime.mjs';
 import { verifyBundle, bundleSummary } from './bundle.mjs';
 import {
   posture, machineRole, collectionPolicy, readMachineConfig, retiredEnvNotes,
@@ -25,13 +26,14 @@ import {
   EDIT_GATE_HOOK, KIT_HOME, namesHook,
 } from './machine.mjs';
 
+import { kitCommand } from './core.mjs';
 function f(severity, name, detail, fix = '') {
   return { severity, name, detail, ...(fix ? { fix } : {}) };
 }
 
 // ---------------------------------------------------------------- machine
 
-export function machineHealth({ env = process.env, gitPaths = {}, probe = probeFirecrawl } = {}) {
+export function machineHealth({ env = process.env, gitPaths = {}, probe = probeFirecrawl, nodeVersion = process.versions.node } = {}) {
   const out = [];
   const read = readMachineConfig(env);
   const post = posture(env);
@@ -60,6 +62,27 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
       `unknown - ${policy.reason}. Metered collection is refused until this is resolved.`, policy.remedy));
   } else {
     out.push(f('pass', 'machine-role', `${role}${policy.mayCollect ? ' - this machine may collect' : ' - this machine must NOT collect'}`));
+  }
+
+  // The Node line, and whether it can use this machine's proxy
+  // (docs/decisions/2026-09-27-node-support, ADR-0046).
+  const line = nodeLine(nodeVersion);
+  out.push(f(line.level, 'node', line.detail, line.fix));
+  // Every request the kit makes on Node's fetch depends on it: keyless pages, a keyed search
+  // provider's requests, and remote collection (dispatch, the MCP server, disclosure). The
+  // Firecrawl CLI has its own proxy handling. No vendor is named here (NFR-3).
+  const proxy = proxyVariable(env);
+  const unusable = unusableProxy(env);
+  if (unusable) {
+    out.push(f('warn', 'proxy',
+      `${unusable} is set to a value Node cannot use as a proxy (it takes an http:// or https:// URL) - the kit's requests go direct`,
+      `write it as ${proxySpelling(env[unusable])}`));
+  } else if (proxy) {
+    out.push(nodeHonoursEnvProxy(nodeVersion)
+      ? f('pass', 'proxy', `${proxy} is set, and node ${nodeVersion} sends the kit's requests through it`)
+      : f('warn', 'proxy',
+        `${proxy} is set, but node ${nodeVersion} cannot send requests through it - keyless pages, search requests and remote collection go around the proxy, and fail with an error that names no proxy`,
+        'upgrade to Node 22.21 or later on the 22 line, or to 24 or 26'));
   }
 
   const version = gitVersion(gitPaths);
@@ -158,10 +181,10 @@ export function gateHealth(root, { env = process.env, gitPaths = {}, record = tr
 
   if (!global) {
     out.push(f('warn', 'gate-commit', 'no machine-wide core.hooksPath is set - the commit gate is not installed',
-      'node research-kit/bin/install-hooks.mjs'));
+      kitCommand('install-hooks.mjs')));
   } else {
     const state = commitGateState({ hooksPath: global, kitHome: readInstallState(env)?.kitHome ?? KIT_HOME });
-    const repair = 'node research-kit/bin/install-hooks.mjs';
+    const repair = kitCommand('install-hooks.mjs');
     if (state.state === 'current') {
       out.push(f('pass', 'gate-commit', `${global} (pre-commit ${state.mode.reason})`));
     } else if (state.state === 'foreign') {
@@ -195,7 +218,7 @@ export function gateHealth(root, { env = process.env, gitPaths = {}, record = tr
   } catch {
     registered = 'unparseable';
   }
-  const repair = 'node research-kit/bin/install-hooks.mjs --edit-only';
+  const repair = kitCommand('install-hooks.mjs', '--edit-only');
   if (registered === 'current') out.push(f('pass', 'gate-edit', `registered in ${runtime.settingsPath}, pointing at the deployed kit`));
   else if (registered === 'foreign') {
     out.push(f('fail', 'gate-edit',
@@ -328,7 +351,7 @@ export function runDoctor(root, { env = process.env, gitPaths = {}, probe = prob
     findings.push(verdict.pass
       ? f('pass', 'preflight', `PASS (${verdict.counts.warn} warning(s))`)
       : f('fail', 'preflight', `${verdict.counts.fail} blocking finding(s): ${verdict.failures.slice(0, 3).map((x) => `${x.check}/${x.rule}`).join(', ')}`,
-        'node research-kit/bin/preflight.mjs'));
+        kitCommand('preflight.mjs')));
 
     const chain = corpus.chain;
     if (!chain.present) {

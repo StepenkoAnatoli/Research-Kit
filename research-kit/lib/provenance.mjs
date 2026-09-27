@@ -21,6 +21,7 @@ import {
 } from './core.mjs';
 import { readCorpus, readLedger } from './corpus.mjs';
 
+import { kitCommand } from './core.mjs';
 // LIVENESS, not age (ADR-0025).
 //
 // Age alone cannot tell an abandoned lock from a live writer, and a collection run
@@ -284,7 +285,7 @@ export function appendFetch(root, fields) {
     if (ledger.problems.length) {
       const err = new Error(
         `${PATHS.ledger} has ${ledger.problems.length} unparsed line(s) - refusing to append onto a damaged chain. `
-        + `Repair it first: node research-kit/bin/doctor.mjs --fix-arity`,
+        + `Repair it first: ${kitCommand('doctor.mjs', '--fix-arity')}`,
       );
       err.code = 'LEDGER_DAMAGED';
       err.problems = ledger.problems;
@@ -294,7 +295,7 @@ export function appendFetch(root, fields) {
     if (tail && !tail.endsWith('\n')) {
       const err = new Error(
         `${PATHS.ledger} does not end with a newline - its last line was never finished. `
-        + `Repair it first: node research-kit/bin/doctor.mjs --fix-arity`,
+        + `Repair it first: ${kitCommand('doctor.mjs', '--fix-arity')}`,
       );
       err.code = 'LEDGER_TORN_TAIL';
       throw err;

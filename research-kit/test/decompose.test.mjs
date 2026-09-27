@@ -6,6 +6,7 @@ import { PATHS, resolve, readText, listFiles } from '../lib/core.mjs';
 import { decompose, parseRecipe, loadRecipe, docsHosts, RECIPE_DIR, searchSummary } from '../lib/decompose.mjs';
 import { UNIVERSAL_DIMENSIONS, seedRows, coverageOfUniversals } from '../lib/dimensions.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
+import { searchUsage } from '../lib/research-run.mjs';
 import { runCheck } from '../lib/checks.mjs';
 
 describe('decompose');
@@ -215,4 +216,33 @@ test('the CLI summary counts the searches that failed, and says when nothing was
   ] });
   assert.match(both, /0 of 1 searches answered, 1 failed; 1 fell back/);
   assert.ok(!/FETCH credits/.test(both), 'a fallback that failed too is claimed to have spent');
+});
+
+// Found 2026-09-27: two decompose runs made 8 SerpAPI searches in an hour - the vendor's own meter
+// said "8 this hour" - and research.mjs --status counted 0. decompose wrote no usage row, so the
+// one command that does nothing but search was invisible to the local meter. research-run
+// records a search-only run for exactly that reason (DR-1).
+test('phase 0 records the searches it spent, so the local meter sees them', () => {
+  const dir = makeProject();
+  const searchAdapter = { name: 'serpapi', search: (query) => ({ ok: true, query, results: [{ url: 'https://docs.example.com/a', title: 'A' }], searchesUsed: 1 }) };
+  decompose(dir, { topic: 'Example limits', adapter: stubAdapter([]), searchAdapter });
+  const usage = searchUsage(dir);
+  assert.equal(usage.thisMonth, 4, `phase 0 searched four times and the meter saw ${usage.thisMonth}`);
+  assert.equal(usage.lastHour, 4);
+  assert.deepEqual(usage.providers, ['serpapi']);
+
+  const dry = makeProject();
+  decompose(dry, { topic: 'Example limits', adapter: stubAdapter([]), searchAdapter, dryRun: true });
+  assert.equal(searchUsage(dry).thisMonth, 0, 'a dry run spends nothing, and records nothing');
+});
+
+test('phase 0 lists one page once, whatever its spelling', () => {
+  // The same identity runResearch uses (urlKey): a trailing slash or www. is not a second
+  // candidate, and with a scrape budget would not be a second fetch.
+  const dir = makeProject();
+  const out = decompose(dir, { topic: 'Example', adapter: stubAdapter([
+    { url: 'https://docs.example.com/a', title: 'A' },
+    { url: 'https://www.docs.example.com/a/', title: 'A again' },
+  ]) });
+  assert.equal(out.material, 1, 'two spellings of one page were listed as two candidates');
 });

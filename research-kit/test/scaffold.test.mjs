@@ -2,7 +2,8 @@
 // have caught the drift: 76 of 112 tests failing on a fresh checkout because the fixture
 // invented a directory the template never carried.
 
-import { test, describe, assert, makeProject, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
+import { spawnSync } from 'node:child_process';
+import { test, describe, assert, makeProject, tempDir, fs, path, KIT_ROOT, requireCapability } from './harness.mjs';
 import { PATHS, resolve, readText, writeText } from '../lib/core.mjs';
 import {
   LAYOUT, GATE_MARKERS, HOOK_MODE, hookExecutability, scaffoldProject, createEmptyProject,
@@ -52,6 +53,79 @@ test('scaffoldProject renders every template file with no placeholder left behin
     assert.deepEqual(unresolvedPlaceholders(text), [], `${rel} still holds a placeholder`);
   }
   assert.match(readText(resolve(dir, PATHS.discovery)), /Widget pricing/);
+});
+
+// Found 2026-09-27 reading a real returned package: START_HERE.md said
+// "node ~/.agents/research-kit\bin\doctor.mjs". In bash each \b is an escaped b, so it ran
+// ".../research-kitbindoctor.mjs" - MODULE_NOT_FOUND - and every other template file already
+// wrote /bin/. Scaffolded with this kit's own path, every command a project's documents give
+// must name a file that exists, read exactly as written.
+test('every node command in a scaffolded project names a kit file that exists', () => {
+  const dir = scaffoldProject(tempDir(), { topic: 'Anything', kit: KIT_ROOT }).dir;
+  const commands = [];
+  for (const rel of templateFiles().filter((f) => f.endsWith('.md'))) {
+    for (const [, file] of readText(resolve(dir, rel)).matchAll(/\bnode\s+("[^"]+"|\S+\.mjs)/g)) {
+      commands.push({ rel, file: file.replace(/^"|"$/g, '') });
+    }
+  }
+  assert.ok(commands.some((c) => c.rel === 'START_HERE.md'), 'START_HERE.md gives no command - this test is vacuous');
+  for (const { rel, file } of commands) {
+    assert.ok(fs.existsSync(file), `${rel} tells its reader to run "node ${file}", which does not exist`);
+  }
+});
+
+// docs/decisions/2026-09-27-kit-path-spelling. A project that travels spells the kit
+// $HOME/.agents/research-kit, and every command double-quotes its path. That reaches node as one
+// absolute path in every PowerShell (U-2) and in bash and zsh (U-3), with a space in the home
+// folder. The bare ~ it replaced reaches node literally in Windows PowerShell 5.1, 7.4 and 7.5
+// (U-1), and a quoted ~ is never expanded (U-3).
+const TRAVELLING_KIT = '$HOME/.agents/research-kit';
+const SH = ['sh', '/bin/sh'].find((candidate) => spawnSync(candidate, ['-c', 'echo ok'], { encoding: 'utf8' }).stdout?.trim() === 'ok') ?? null;
+
+// What node receives when a reader types "node <arg>": through Windows PowerShell 5.1 on Windows,
+// the shell Windows ships, and through sh elsewhere. The home folder is the one given.
+function argumentNodeReceives(arg, home) {
+  // No quote characters inside: Windows PowerShell 5.1 rewrites embedded double quotes in an
+  // argument to a native command, and the probe must not be the thing that breaks.
+  const echo = 'process.stdout.write(String(process.argv[1]))';
+  if (process.platform === 'win32') {
+    const script = `& '${process.execPath}' -e '${echo}' ${arg}`;
+    return spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+      { encoding: 'utf8', env: { ...process.env, USERPROFILE: home, HOME: home } }).stdout ?? '';
+  }
+  requireCapability(SH, 'SHELL-NOT-FOUND', 'no POSIX sh on this host');
+  return spawnSync(SH, ['-c', `"${process.execPath}" -e '${echo}' ${arg}`], { encoding: 'utf8', env: { ...process.env, HOME: home } }).stdout ?? '';
+}
+
+test('a travelling project\'s commands reach node whole, from a home folder with a space', () => {
+  const dir = scaffoldProject(tempDir(), { topic: 'Anything', kit: TRAVELLING_KIT }).dir;
+  const home = path.join(tempDir('rk-home-'), 'a home with space');
+  fs.mkdirSync(path.join(home, '.agents'), { recursive: true });
+  fs.symlinkSync(KIT_ROOT, path.join(home, '.agents', 'research-kit'), 'junction');
+  const commands = [];
+  for (const rel of templateFiles().filter((file) => file.endsWith('.md'))) {
+    for (const [, arg] of readText(resolve(dir, rel)).matchAll(/\bnode\s+("[^"]+"|\S+?\.mjs)/g)) commands.push({ rel, arg });
+  }
+  assert.ok(commands.length >= 10, `only ${commands.length} commands found - this test is looking in the wrong place`);
+  for (const { rel, arg } of commands) {
+    const received = argumentNodeReceives(arg, home);
+    assert.ok(received && fs.existsSync(received), `${rel}: "node ${arg}" hands node ${JSON.stringify(received)}, which is not a file`);
+  }
+});
+
+// U-1 cannot be exercised on a host without Windows PowerShell, so it is held here as text: no
+// document that tells a reader to run the kit may spell it with a bare ~.
+test('no document that runs the kit spells it with a bare ~', () => {
+  const docs = [
+    ...templateFiles().filter((file) => file.endsWith('.md')).map((file) => path.join(TEMPLATE_DIR, file)),
+    path.join(KIT_ROOT, 'START_HERE.md'),
+    path.join(KIT_ROOT, 'skill', 'SKILL.md'),
+  ];
+  for (const file of docs) {
+    assert.doesNotMatch(readText(file), /\bnode\s+"?~\//, `${path.relative(KIT_ROOT, file)} tells its reader to run node ~/..., which Windows PowerShell 5.1 hands to node unexpanded`);
+  }
+  const workflow = readText(path.join(KIT_ROOT, '..', '.github', 'workflows', 'collect.yml'));
+  assert.match(workflow, /"--kit", "\$HOME\/\.agents\/research-kit"/, 'the collector must scaffold packages with the $HOME spelling');
 });
 
 test('structure is always repaired; content is never clobbered without --force', () => {
@@ -117,7 +191,7 @@ test('START_HERE.md is deployed and scaffolded, and is NOT a LAYOUT entry', () =
 test('the two START_HERE copies differ only in how the kit path is spelled', () => {
   const kitCopy = readText(path.join(KIT_ROOT, 'START_HERE.md'));
   const templateCopy = readText(path.join(TEMPLATE_DIR, 'START_HERE.md'));
-  assert.equal(kitCopy, templateCopy.replace(/\{\{KIT\}\}/g, '~/.agents/research-kit'));
+  assert.equal(kitCopy, templateCopy.replace(/\{\{KIT\}\}/g, '$HOME/.agents/research-kit'));
 });
 
 test('the deployed hook\'s mode is part of its contract', () => {

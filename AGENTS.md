@@ -170,8 +170,10 @@ The sequence is decompose -> contract -> collect -> gate -> brief.
    **Do not start building until it prints PASS.** A failed check names exactly which unknown is unproven.
 
    This gate is enforced, not advisory. Once the machine-wide hook is installed,
-   `git commit` refuses any staged change outside `research/` while the gate fails,
-   and the edit-time hook interrupts the agent's edits in the same state. A
+   `git commit` refuses any staged change outside `research/` while the gate fails -
+   except the project's own scaffolding (`.gitattributes`, `.gitignore`, `AGENTS.md`,
+   `START_HERE.md`, and `docs/ARCHITECTURE.md` while it is still the empty template,
+   ADR-0048) - and the edit-time hook interrupts the agent's edits in the same state. A
    project is gated when any of `research/DISCOVERY.md`, `research/plan.json`,
    `research/EVIDENCE.md`, or `research/raw/` exists. There are exactly three
    overrides: `git commit --no-verify`, a deliberate `research/GATE_OFF` file

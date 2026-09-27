@@ -30,6 +30,21 @@ export const DEPTHS = Object.freeze(Object.keys(DEPTH_SCRAPES));
  * had worked. A flag that silently ignores its argument is worse than an absent one: the
  * operator watches a run happen and believes it was theirs.
  */
+/**
+ * A `prefer` value as a list of entries, whether the plan wrote a list or a string.
+ *
+ * A string is split on commas and whitespace - the way collect.yml splits its `prefer`
+ * input - so "docs.x.com, github.com/actions/upload-artifact" is two entries. Until
+ * 2026-09-27 a string was silently lost: dropped at the top level by an Array.isArray
+ * guard, and spread into single characters per query, so a plan that plainly stated a
+ * preference ranked as if it had none.
+ */
+export function preferList(value) {
+  if (Array.isArray(value)) return value.map((entry) => String(entry ?? '').trim()).filter(Boolean);
+  if (typeof value === 'string') return value.split(/[\s,]+/).filter(Boolean);
+  return [];
+}
+
 export function readPlan(root, file = '') {
   const plan = readJson(resolve(root, file || PATHS.plan), null);
   if (!plan) return { topic: '', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 3, maxScrapes: 10, prefer: [], queries: [], urls: [] };
@@ -40,7 +55,7 @@ export function readPlan(root, file = '') {
     limit: Number.isFinite(plan.limit) ? plan.limit : 8,
     perQuery: Number.isFinite(plan.perQuery) ? plan.perQuery : 3,
     maxScrapes: Number.isFinite(plan.maxScrapes) ? plan.maxScrapes : 10,
-    prefer: Array.isArray(plan.prefer) ? plan.prefer : [],
+    prefer: preferList(plan.prefer),
     queries: Array.isArray(plan.queries) ? plan.queries : [],
     urls: Array.isArray(plan.urls) ? plan.urls : [],
   };
@@ -154,11 +169,35 @@ export function mergeByRank(lists) {
   return merged;
 }
 
+/**
+ * One page, one name: the identity used to decide "we already have this page".
+ *
+ * Scheme, `www.`, host case, a trailing slash and the fragment are dropped; the path's case
+ * and the query string are kept, because either can name a different page. Found
+ * 2026-09-27: collect run 36283114657 fetched a dispatched .../ui-and-api, then fetched the
+ * search result .../ui-and-api/ as a second page - two credits for one. Identity only: the
+ * URL a capture records is still the one that was fetched.
+ */
+export function urlKey(url) {
+  try {
+    const parsed = new URL(String(url));
+    const host = parsed.host.toLowerCase().replace(/^www\./, '');
+    const path = parsed.pathname.replace(/\/+$/, '');
+    return `//${host}${path}${parsed.search}`;
+  } catch {
+    return String(url ?? '');
+  }
+}
+
 export function selectCandidates(results, { prefer = [], perQuery = 3, seen = new Set() } = {}) {
+  const taken = new Set();
   return results
     .map((row) => ({ ...row, score: rankCandidate(row.url, { prefer }) }))
-    .filter((row) => row.url && !seen.has(row.url))
+    // `seen` may hold keys (runResearch) or raw URLs (older callers); either excludes.
+    .filter((row) => row.url && !seen.has(row.url) && !seen.has(urlKey(row.url)))
     .sort((a, b) => b.score - a.score)
+    // Two spellings of one page in the same list are one candidate: the better-ranked.
+    .filter((row) => { const key = urlKey(row.url); if (taken.has(key)) return false; taken.add(key); return true; })
     .slice(0, perQuery);
 }
 
@@ -265,6 +304,7 @@ ${compatibility.remedy}`);
   // The search side keeps its OWN counters, because it is a separate meter and a summary
   // that merged them would hide the whole point of the split.
   let searchesUsed = 0;
+  let overBudget = 0;
   let searchFailures = 0;
   // The same failures, by provider. `searchFailures` mixes providers, so it cannot say
   // whether the meter the summary reports on was the one that failed (RR-7).
@@ -276,12 +316,15 @@ ${compatibility.remedy}`);
   const searcher = searchAdapter ?? searchers[0] ?? adapter;
   const searchName = searcher?.name ?? adapter?.name ?? '';
 
-  const seen = new Set(corpus.captures.entries.map((e) => e.url).filter(Boolean));
+  const seen = new Set(corpus.captures.entries.map((e) => e.url).filter(Boolean).map(urlKey));
   const targets = [];
 
   for (const entry of settings.urls) {
     const url = typeof entry === 'string' ? entry : entry.url;
     if (!url) continue;
+    // Seen before any search runs, so a search result that is this page - in any spelling -
+    // is not queued a second time.
+    seen.add(urlKey(url));
     targets.push({
       url,
       type: (typeof entry === 'object' && entry.type) || 'P',
@@ -294,7 +337,7 @@ ${compatibility.remedy}`);
     const text = typeof query === 'string' ? query : query.q;
     if (!text) continue;
     if (only.length && !only.some((needle) => text.toLowerCase().includes(needle.toLowerCase()))) continue;
-    const prefer = uniq([...(settings.prefer ?? []), ...((typeof query === 'object' && query.prefer) || [])]);
+    const prefer = uniq([...preferList(settings.prefer), ...preferList(typeof query === 'object' ? query?.prefer : null)]);
     if (dryRun) {
       discovered.push({ query: text, results: [], note: 'search not run under --dry-run' });
       continue;
@@ -335,7 +378,7 @@ ${compatibility.remedy}`);
           // All finders, not the first. A URL both returned is attributed to both.
           rankedBy: (candidate.providers ?? [candidate.provider]).filter(Boolean).join('+'),
         });
-        seen.add(candidate.url);
+        seen.add(urlKey(candidate.url));
       }
       continue;
     }
@@ -384,17 +427,26 @@ ${compatibility.remedy}`);
         from: `query: ${text} (via ${ranker})`,
         rankedBy: ranker,
       });
+      // Recorded as the merged path records it, so the next query cannot pick this page
+      // again and lose its own best result to a duplicate.
+      seen.add(urlKey(candidate.url));
     }
   }
 
   for (const target of targets) {
-    if (seen.has(target.url) === false) seen.add(target.url);
+    seen.add(urlKey(target.url));
     const decision = cacheDecision(corpus.captures, target.url, { refreshDays: freshness, force, now });
     // The budget binds in a DRY RUN too. A preview that ignores it answers a different
     // question from the one execution will answer - it shows work that would never
     // happen, and hides the cap the operator is previewing against.
     if (!decision.hit && attempts >= budget) {
-      results.push({ ...target, status: 'skipped', reason: `budget exhausted (${budget} scrapes at depth ${tier})` });
+      const reason = `budget exhausted (${budget} scrapes at depth ${tier})`;
+      results.push({ ...target, status: 'skipped', reason });
+      // Said on the terminal, not only in the result. Found 2026-09-27: a plan naming five
+      // pages with a budget of 2 printed two lines, and the three pages the operator wrote
+      // down were left out without a word.
+      log(`  skipped   ${target.url} - ${reason}`);
+      overBudget += 1;
       continue;
     }
     if (!decision.hit) attempts += 1;
@@ -438,6 +490,8 @@ ${compatibility.remedy}`);
     transport: adapter.name,
     searchTransport: searchName,
     depth: tier, budget, attempts, spent, cached, failed,
+    // Pages the budget left out this run; the next run reaches them, a cached page being free.
+    overBudget,
     // What actually landed on disk, as distinct from what the run cost. `spent` is
     // collected + failed, because a failed fetch can still consume budget; reporting it as
     // "collected" told the operator they had pages they did not have.
@@ -530,7 +584,8 @@ export function searchUsage(root, { now = new Date(), provider = '' } = {}) {
     perHourCap: FREE_TIER_PER_HOUR,
     perMonthCap: FREE_TIER_PER_MONTH,
     // Named so nobody reads these numbers as the vendor's.
-    caveat: 'counted from this machine\'s own runs; a repeat served from the provider\'s free cache is counted here but not billed',
+    // Per project: the usage file lives in research/raw/ (Found 2026-09-27: this said "this box").
+    caveat: 'counted from this project\'s own runs on this machine; a repeat served from the provider\'s free cache is counted here but not billed',
   };
 }
 

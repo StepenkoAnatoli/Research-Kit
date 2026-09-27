@@ -43,7 +43,7 @@
 // discipline as pinning `X-GitHub-Api-Version` on the GitHub side, for the same reason:
 // this protocol has already broken compatibility once.
 
-import { dispatchCollection, getRunSummary, fetchCorpus, tokenFromEnv, redact, DispatchError } from './dispatch.mjs';
+import { dispatchCollection, getRunSummary, fetchCorpus, tokenFromEnv, redact, DispatchError, queriesInput } from './dispatch.mjs';
 
 /**
  * DUAL-ERA, and the reason is that the specification is ahead of every client.
@@ -70,8 +70,17 @@ export const LEGACY_VERSION = '2025-11-25';
 /** The revision this server prefers when nobody says otherwise. */
 export const PROTOCOL_VERSION = MODERN_VERSION;
 
-/** Every revision this server will serve, newest first. */
-export const SUPPORTED_VERSIONS = Object.freeze([MODERN_VERSION, LEGACY_VERSION]);
+/**
+ * Every revision this server will serve, newest first.
+ *
+ * 2025-06-18 since 2026-09-27 (docs/decisions/2026-09-27-mcp-protocol-versions, ADR-0049):
+ * nothing 2025-11-25 changed touches what this server does (E-01), and a client on the official
+ * SDK up to 1.24.0 asks for 2025-06-18 and refuses 2025-11-25 (E-04). Answering it anything
+ * else disconnected it; the specification requires the echo from a server that supports the
+ * version (E-03). 2025-03-26 is not served: these results carry structuredContent and
+ * resource_link, both new in 2025-06-18 (E-02).
+ */
+export const SUPPORTED_VERSIONS = Object.freeze([MODERN_VERSION, LEGACY_VERSION, '2025-06-18']);
 
 /** JSON-RPC error codes. -32022 is MCP's, the rest are JSON-RPC's own. */
 export const ERRORS = Object.freeze({
@@ -113,6 +122,7 @@ export const TOOLS = Object.freeze([
         topic: { type: 'string', description: 'What to research. Visible to anyone who can read that repository.' },
         prefer: { type: 'string', description: 'Optional, comma-separated. Domains that OWN the fact - e.g. "tavily.com". On a shared host name the path - "github.com/actions/upload-artifact", not "github.com". Ranked above pages merely about it.' },
         queries: { type: 'array', items: { type: 'string' }, description: 'Optional. The actual search queries. Without them the topic is used verbatim, which matches the words rather than the subject when the topic is made of common ones.' },
+        urls: { type: 'array', items: { type: 'string' }, description: 'Optional. Pages you already know (http or https), fetched directly instead of searched - an API response, a changelog post. Each counts against max_pages. With urls and no queries, nothing is searched. Visible to anyone who can read that repository, like the topic: never a signed or token-bearing URL.' },
         prior: { type: 'string', description: 'Optional. What you EXPECT the evidence to say, and what you know you cannot know yet. Registered on the runner and chained ahead of the first page, so it can only be supplied now. Nothing grades it - being wrong is the point (ADR-0039).' },
         max_pages: { type: 'integer', minimum: 1, maximum: 25, description: 'Pages to collect. Each costs at least one credit. Default 8.' },
         depth: { type: 'string', enum: ['probe', 'quick', 'normal'], description: 'Collection tier. Default quick.' },
@@ -280,8 +290,11 @@ async function callTool(message, deps) {
   const tool = TOOLS.find((t) => t.name === name);
   if (!tool) return err(message.id, ERRORS.INVALID_PARAMS, `unknown tool ${name}`);
 
+  // Arguments that fail the schema are a TOOL result the model can read and correct, not a
+  // protocol error a client raises as an exception (SEP-1303, 2025-11-25; E-01 of
+  // docs/decisions/2026-09-27-mcp-protocol-versions). An unknown tool, above, stays one.
   const invalid = validateArgs(tool, args);
-  if (invalid) return err(message.id, ERRORS.INVALID_PARAMS, invalid);
+  if (invalid) return ok(message.id, { isError: true, content: [text(`${invalid}. Call ${name} again with arguments its inputSchema allows.`)] });
 
   const { token, detail } = tokenFromEnv(deps.env);
   if (!token) {
@@ -296,6 +309,8 @@ async function callTool(message, deps) {
 
   try {
     if (name === 'collect') {
+      const queries = queriesInput({ queries: args.queries ?? [], urls: args.urls ?? [] });
+      if (queries.error) return ok(message.id, { isError: true, content: [text(`${queries.error}. urls takes page addresses starting with https://`)] });
       const started = await deps.dispatch({
         repository: args.repository,
         inputs: {
@@ -306,7 +321,7 @@ async function callTool(message, deps) {
           client_ref: args.client_ref ?? '',
           prior: args.prior ?? '',
           prefer: args.prefer ?? '',
-          queries: Array.isArray(args.queries) ? args.queries.join(String.fromCharCode(10)) : '',
+          queries: queries.value ?? '',
         },
         token,
       });

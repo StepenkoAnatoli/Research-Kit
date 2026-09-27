@@ -9,6 +9,7 @@ import { writeAudit, listVersions, resolveVersion, zipAudit } from '../lib/audit
 import { readText, resolve } from '../lib/core.mjs';
 import { heading } from '../lib/render.mjs';
 
+import { kitCommand } from '../lib/core.mjs';
 const { flags } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['force', 'help', 'list', 'show', 'topic', 'version', 'zip']);
 const root = process.cwd();
@@ -84,4 +85,4 @@ if (!result.written) {
 process.stdout.write(`${heading(`audit v${result.version}`)}\n`);
 process.stdout.write(`${result.main}\n`);
 for (const file of result.subtopics) process.stdout.write(`${file}\n`);
-process.stdout.write(`\nOne attachment instead of ${result.subtopics.length + 1} pastes:\n  node research-kit/bin/audit.mjs --zip\n`);
+process.stdout.write(`\nOne attachment instead of ${result.subtopics.length + 1} pastes:\n  ${kitCommand('audit.mjs', '--zip')}\n`);

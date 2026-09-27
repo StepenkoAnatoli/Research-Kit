@@ -18,6 +18,7 @@ import { runPreflight } from './preflight.mjs';
 import { briefSection, judgedSection, BRIEF_SECTIONS } from './brief.mjs';
 import { writeZip } from './archive.mjs';
 
+import { kitCommand } from './core.mjs';
 /**
  * Filename budget, in characters, for the two variable segments of an audit path.
  *
@@ -324,7 +325,7 @@ export function writeAudit(root, { date = today(), force = false, env = process.
 export function zipAudit(root, { topic = '', date = today() } = {}) {
   const { known, topics } = listVersions(root);
   if (!known.length) {
-    return { ok: false, exit: 1, reason: 'no audits exist yet', fix: 'node research-kit/bin/audit.mjs' };
+    return { ok: false, exit: 1, reason: 'no audits exist yet', fix: kitCommand('audit.mjs') };
   }
 
   let slug = '';
@@ -385,7 +386,7 @@ export function zipAudit(root, { topic = '', date = today() } = {}) {
     const text = readText(abs);
     if (text === null) {
       // A partial bundle looks like a complete one until somebody reads it.
-      return { ok: false, exit: 1, reason: `the manifest names ${file}, which is not on disk - refusing to bundle short`, fix: 'node research-kit/bin/audit.mjs' };
+      return { ok: false, exit: 1, reason: `the manifest names ${file}, which is not on disk - refusing to bundle short`, fix: kitCommand('audit.mjs') };
     }
     entries.push({ name: path.basename(file), data: text });
   }
