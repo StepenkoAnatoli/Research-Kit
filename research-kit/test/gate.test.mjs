@@ -127,10 +127,10 @@ test('a map-rule block on a passing gate says what is owed, and its fix works as
 // included, which are the phase-1 work AGENTS.md tells the agent to do. The commit gate lets
 // research/ and the project's scaffolding through (ADR-0048); the edit gate did not look at the
 // path at all.
-function editGate(dir, toolInput, cwd = dir) {
+function editGate(dir, toolInput, cwd = dir, config = path.join(tempDir(), 'absent.json')) {
   const r = spawnSync(process.execPath, [path.join(KIT_ROOT, 'hooks', 'edit-gate.mjs')], {
     input: JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Write', cwd, tool_input: toolInput }),
-    encoding: 'utf8', env: { ...process.env, RESEARCH_KIT_CONFIG: path.join(tempDir(), 'absent.json') },
+    encoding: 'utf8', env: { ...process.env, RESEARCH_KIT_CONFIG: config },
   });
   return JSON.parse(r.stdout).hookSpecificOutput;
 }
@@ -197,4 +197,24 @@ test('one verdict, three callers: the same snapshot cannot yield two answers', a
   const viaGate = evaluate(dir, { gate: 'commit', stagedPaths: [], corpus });
   assert.equal(direct.pass, viaGate.allow);
   assert.equal(direct.pass, evaluate(dir, { gate: 'edit', corpus }).allow);
+});
+
+// Found 2026-09-27: the edit gate said "allow: phase-1 work" to a Write into research/raw/ -
+// a capture or the ledger itself. Evidence is fetched, never typed (AGENTS.md), and a
+// ledger line forged with a correct hash and chain link passes preflight. research.mjs
+// writes these files itself, so no legitimate agent edit goes there.
+test('the edit gate denies typing into research/raw/, even on a passing gate', () => {
+  const dir = makePassingProject();
+  for (const rel of ['research/raw/2026-09-27-a-page-x-12345678.md', 'research/raw/.fetches.jsonl']) {
+    const out = editGate(dir, { file_path: path.join(dir, rel), content: 'x' });
+    assert.equal(out.permissionDecision, 'deny', `${rel}: ${out.permissionDecision} - ${out.permissionDecisionReason}`);
+    assert.match(out.permissionDecisionReason, /research\.mjs/);
+  }
+  assert.equal(editGate(dir, { file_path: path.join(dir, 'research/EVIDENCE.md') }).permissionDecision, 'allow', 'the rest of research/ is still phase-1 work');
+
+  const off = path.join(tempDir(), 'off.json');
+  fs.writeFileSync(off, JSON.stringify({ editGate: { mode: 'off' } }));
+  assert.equal(editGate(dir, { file_path: path.join(dir, 'research/raw/.fetches.jsonl') }, dir, off).permissionDecision, 'allow', 'editGate.mode=off turns the whole gate off');
+  fs.writeFileSync(path.join(dir, 'research/GATE_OFF'), '');
+  assert.equal(editGate(dir, { file_path: path.join(dir, 'research/raw/.fetches.jsonl') }).permissionDecision, 'allow', 'GATE_OFF turns the whole gate off');
 });

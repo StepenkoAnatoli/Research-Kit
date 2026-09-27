@@ -589,3 +589,33 @@ test('topicMatch scores high on a generic topic even when the corpus is off-topi
   assert.equal(topicMatch(distinctive, unrelated).strong, 0,
     'a distinctive topic does NOT match unrelated pages');
 });
+
+// Found 2026-09-27: a forced re-collection on the same day wrote to the same file name,
+// because the name is date + title + URL digest. A page that had changed in between
+// replaced the earlier reading, and its ledger entry no longer verified - an honest
+// refresh read as a capture edited after the fact.
+test('a same-day re-collection of a changed page keeps the earlier capture and both verify', () => {
+  const dir = makeProject();
+  const page = (markdown) => ({ runScrape: (url) => ({
+    ok: true, url, title: 'Rate limits', markdown, statusCode: 200,
+    transport: 'stub-transport', completeness: 'full', omitted: '', cmd: `stub scrape ${url}`,
+  }) });
+  const url = 'https://x.invalid/limits';
+  const first = collectOne(dir, url, { ...page(PAGE), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  const firstText = readText(resolve(dir, first.entry.file));
+  const second = collectOne(dir, url, { ...page(`${PAGE}\n\nUpdated: the limit is now 20.`), corpus: readCorpus(dir), force: true, transportName: 'stub-transport' });
+  assert.equal(second.status, 'collected', second.reason);
+  assert.notEqual(second.entry.file, first.entry.file, 'the refresh wrote over the earlier capture');
+  assert.equal(readText(resolve(dir, first.entry.file)), firstText, 'the earlier reading changed');
+  assert.equal(verifyLedger(dir).ok, true, JSON.stringify(verifyLedger(dir).problems));
+  assert.equal(readCorpus(dir).captures.byUrl.get(url).file, second.entry.file, 'the fresher capture is not the one the corpus holds for the URL');
+});
+
+test('a same-day re-collection of an unchanged page reuses its capture', () => {
+  const dir = makeProject();
+  const url = 'https://x.invalid/limits';
+  const first = collectOne(dir, url, { runScrape: stubAdapter().runScrape, corpus: readCorpus(dir), transportName: 'stub-transport' });
+  const second = collectOne(dir, url, { runScrape: stubAdapter().runScrape, corpus: readCorpus(dir), force: true, transportName: 'stub-transport' });
+  assert.equal(second.entry.file, first.entry.file);
+  assert.equal(verifyLedger(dir).ok, true);
+});

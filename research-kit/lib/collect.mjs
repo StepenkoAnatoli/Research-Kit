@@ -9,7 +9,7 @@
 
 import fs from 'node:fs';
 import {
-  PATHS, HEADERS, resolve, today, sha256, titleFromUrl, hostOf, urlDigest, writeText, readText,
+  PATHS, HEADERS, resolve, today, sha256, titleFromUrl, hostOf, urlDigest, writeText, readText, exists,
   sleepSync,
 } from './core.mjs';
 import { rateLimitWaitMs } from './firecrawl.mjs';
@@ -32,7 +32,7 @@ export function captureName(url, { date = today(), title = '' } = {}) {
  * caller stores a fact instead of reconstructing one.
  */
 export function writeRaw(root, result, { date = today() } = {}) {
-  const file = `${PATHS.raw}/${captureName(result.url, { date, title: result.title })}`;
+  const base = captureName(result.url, { date, title: result.title });
   const front = [
     '---',
     `url: ${result.url}`,
@@ -47,7 +47,17 @@ export function writeRaw(root, result, { date = today() } = {}) {
     '',
   ].join('\n');
   const body = String(result.markdown ?? '');
-  writeText(resolve(root, file), `${front}${body}\n`);
+  const text = `${front}${body}\n`;
+  // A capture is never overwritten with different bytes. The name is date + title + URL
+  // digest, so a re-collection the same day lands on the same name: an identical page
+  // reuses the file, and a changed one goes to `.r2`, `.r3`... - sorting AFTER the
+  // original, which is how readCaptures picks the latest of a day. Overwriting destroyed
+  // the earlier reading and broke its ledger hash (found 2026-09-27).
+  let file = `${PATHS.raw}/${base}`;
+  for (let n = 2; exists(resolve(root, file)) && readText(resolve(root, file)) !== text; n += 1) {
+    file = `${PATHS.raw}/${base.replace(/\.md$/, `.r${n}.md`)}`;
+  }
+  writeText(resolve(root, file), text);
   return captureEntry({
     file,
     url: result.url,

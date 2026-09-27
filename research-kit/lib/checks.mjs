@@ -591,12 +591,32 @@ function hygiene(corpus) {
   // one URL fetched on the SAME DAY, which no refresh produces and which is the real
   // duplicate this check was written for.
   const superseded = supersededRows(corpus);
+  // Fetches the ledger records per URL per day. Two rows for one URL on one day are a
+  // refresh when the ledger holds a fetch for each of them - `research.mjs --force` - and
+  // a duplicate when it does not, which is what a pasted row looks like.
+  const fetchesOn = new Map();
+  for (const entry of corpus.ledger?.entries ?? []) {
+    if (entry.op !== 'scrape' || !entry.url) continue;
+    const key = `${urlKey(entry.url)} ${String(entry.at ?? '').slice(0, 10)}`;
+    fetchesOn.set(key, (fetchesOn.get(key) ?? 0) + 1);
+  }
+  const rowsOn = new Map();
+  for (const row of corpus.evidence) {
+    if (!row.url) continue;
+    const key = `${urlKey(row.url)} ${row.retrieved}`;
+    rowsOn.set(key, (rowsOn.get(key) ?? 0) + 1);
+  }
+  const fetchedEach = (row) => {
+    const key = `${urlKey(row.url)} ${row.retrieved}`;
+    return (fetchesOn.get(key) ?? 0) >= (rowsOn.get(key) ?? 0);
+  };
   const seenUrl = new Map();
   for (const row of corpus.evidence) {
     if (!row.url) continue;
     const held = seenUrl.get(row.url);
     if (held) {
-      const isRefresh = superseded.has(held.id.toUpperCase()) && held.retrieved !== row.retrieved;
+      const isRefresh = superseded.has(held.id.toUpperCase())
+        && (held.retrieved !== row.retrieved || fetchedEach(row));
       // The same ID twice is duplicate-id's to name, not a second row citing the same URL.
       if (!isRefresh && held.id.toUpperCase() !== row.id.toUpperCase()) {
         out.push(finding('warn', 'hygiene', 'duplicate-url',

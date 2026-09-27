@@ -14,6 +14,7 @@ import path from 'node:path';
 import { PATHS, resolve, exists } from './core.mjs';
 import { readCorpus, captureOf } from './corpus.mjs';
 import { verifyLedger } from './provenance.mjs';
+import { briefState, judgedSection, JUDGED_SECTIONS } from './brief.mjs';
 
 export const HANDOFF_REMEDY = [
   'Something did not travel. The remedy lives on the COLLECTOR machine:',
@@ -142,6 +143,9 @@ export function verifyHandoff(root, { corpus = null } = {}) {
     // "Something did not travel" is anything that is not purely a line-ending rewrite.
     didNotTravel: travelled.length > 0,
     entries: snapshot.ledger.entries.length,
+    // Not a finding: the corpus can arrive whole while the brief is unreviewed. The CLI
+    // says so, because phase 2 starts from that file.
+    brief: briefReview(snapshot),
     // No ledger entry, no evidence row, no capture: nothing was ever collected, so there is
     // nothing that could have failed to travel. The CLI says so on a collector.
     nothingCollected: !snapshot.ledger.entries.length && !snapshot.evidence.length && !snapshot.captures.entries.length,
@@ -162,4 +166,12 @@ export function handoffRemedy(report) {
     parts.push(lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo }));
   }
   return parts.join('\n\n');
+}
+
+/** `{ state, todo }`: the brief's state and the judged sections still carrying a TODO. */
+export function briefReview(snapshot) {
+  const text = snapshot.brief?.present ? snapshot.brief.text : '';
+  const state = briefState(text);
+  const todo = state === 'draft' ? JUDGED_SECTIONS.filter((key) => !judgedSection(text, key).answered) : [];
+  return { state, todo };
 }

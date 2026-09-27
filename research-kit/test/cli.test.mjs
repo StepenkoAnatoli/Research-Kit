@@ -11,7 +11,8 @@
 // network.
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, tempDir, fs, path, KIT_ROOT, makePassingProject } from './harness.mjs';
+import { renderBrief } from '../lib/brief.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
 import { spellCommand, documentCommand } from '../lib/core.mjs';
 
@@ -756,4 +757,16 @@ test('artifact with no subcommand names the flag it does not know', () => {
   const r = run('artifact.mjs', ['--bogus-flag'], { root: project() });
   assert.equal(r.status, 2);
   assert.match(r.err, /unknown option --bogus-flag/);
+});
+
+// Found 2026-09-27: a builder got "handoff OK" for a brief whose two judged sections were
+// still TODO - a handoff nobody had reviewed - and nothing in the output said so.
+test('handoff OK names a brief that is still a draft, without failing', () => {
+  const root = makePassingProject();
+  renderBrief(root);
+  const r = run('handoff.mjs', [], { root });
+  assert.equal(r.status, 0, r.all);
+  assert.match(r.out, /BRIEF\.md is a draft/);
+  assert.match(r.out, /contradictions/);
+  assert.match(r.out, /decision/);
 });
