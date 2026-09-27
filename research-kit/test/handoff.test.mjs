@@ -1,6 +1,8 @@
 // The arrival question, and one remedy per cause (ADR-0011, ADR-0020).
 
-import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path } from './harness.mjs';
+import { spawnSync } from 'node:child_process';
+import os from 'node:os';
+import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability } from './harness.mjs';
 import { PATHS, resolve, writeText } from '../lib/core.mjs';
 import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy } from '../lib/handoff.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
@@ -71,7 +73,7 @@ test('a line-ending rewrite gets the LOCAL remedy, and no push remedy', () => {
   // In a real repository the same cause gets the runnable, non-destructive remedy.
   const inRepo = lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo: true });
   assert.match(inRepo, /\.gitattributes/);
-  assert.match(inRepo, /--renormalize/);
+  assert.match(inRepo, /git checkout HEAD -- research\/raw\//, 'the capture is rewritten here, from the committed copy');
   assert.match(inRepo, /re-collecting spends paid credits/);
 });
 
@@ -139,4 +141,43 @@ test('doctor makes handoff a BLOCKER on a builder and silent on a collector', ()
   const collector = runDoctor(dir, { env: { ...process.env, RESEARCH_KIT_CONFIG: collectorConfig }, probe, record: false });
   assert.equal(collector.blocking.some((f) => f.name.startsWith('handoff-')), false,
     "a collector's existing reporters already own the same states");
+});
+
+// Found 2026-09-27: the printed line-ending remedy, run verbatim after a real
+// core.autocrlf=true checkout, left every capture CRLF and handoff still failed.
+// `git add --renormalize` fixes the INDEX, and git will not rewrite a working file it
+// believes is unchanged, so the bytes handoff reads never changed. The remedy is judged
+// here by running it.
+test('the line-ending remedy, run as printed, makes a CRLF checkout pass', () => {
+  const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  requireCapability(git(os.tmpdir(), '--version').status === 0, 'no-git', 'git is not installed');
+  const dir = makePassingProject();
+  fs.rmSync(path.join(dir, '.gitattributes'), { force: true });
+  for (const args of [['init', '-q'], ['config', 'user.email', 't@t'], ['config', 'user.name', 't'],
+    ['add', '-A'], ['commit', '-q', '--no-verify', '-m', 'corpus']]) {
+    assert.equal(git(dir, ...args).status, 0, `git ${args.join(' ')}`);
+  }
+  git(dir, 'config', 'core.autocrlf', 'true');
+  fs.rmSync(path.join(dir, 'research', 'raw'), { recursive: true });
+  git(dir, 'checkout', '-q', '--', 'research/raw');
+  const before = verifyHandoff(dir);
+  assert.ok(before.lineEndings.length, 'the checkout did not produce CRLF captures');
+
+  const remedy = handoffRemedy(before);
+  for (const line of remedy.split('\n').map((l) => l.trim())) {
+    if (line.startsWith('printf ')) {
+      fs.appendFileSync(path.join(dir, '.gitattributes'), 'research/raw/* text eol=lf\n*.jsonl text eol=lf\n');
+    } else if (line.startsWith('git ') && !line.startsWith('git status')) {
+      const args = line.replace(/\s+#.*$/, '').split(/\s+/).slice(1);
+      const r = git(dir, ...args);
+      assert.equal(r.status, 0, `${line}\n${r.stderr}`);
+    }
+  }
+  const after = verifyHandoff(dir);
+  assert.equal(after.ok, true, `the remedy did not fix it:\n${remedy}\n${JSON.stringify(after.findings.map((f) => f.detail))}`);
+});
+
+test('the line-ending remedy does not append a pin that is already there', () => {
+  assert.doesNotMatch(lineEndingRemedy(['research/raw/a.md'], { pinned: true }), /printf/);
+  assert.match(lineEndingRemedy(['research/raw/a.md'], { pinned: false }), /printf/);
 });

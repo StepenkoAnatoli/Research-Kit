@@ -11,7 +11,7 @@
 // both is what used to send operators to re-collect a corpus already on disk.
 
 import path from 'node:path';
-import { PATHS, resolve, exists } from './core.mjs';
+import { PATHS, resolve, exists, readText } from './core.mjs';
 import { readCorpus, captureOf } from './corpus.mjs';
 import { verifyLedger } from './provenance.mjs';
 import { briefState, judgedSection, JUDGED_SECTIONS } from './brief.mjs';
@@ -34,10 +34,15 @@ export const HANDOFF_REMEDY = [
  * A diagnostic that prints `git rm -r research/` (or anything that re-checks-out the
  * whole directory) is telling an operator to discard uncommitted evidence, notes and
  * decisions to fix a line-ending problem - and in a folder with no git metadata, there
- * is nothing to restore them from. The prerequisites come first, the scope is named,
- * and `--renormalize` does the job without removing anything.
+ * is nothing to restore them from. The prerequisites come first and the scope is named.
+ *
+ * Judged by running it (2026-09-27): `git add --renormalize` fixes only the INDEX, and git
+ * will not rewrite a working file it believes is unchanged - so the capture handoff reads
+ * stayed CRLF. Each affected file is dropped from the index only (`git rm --cached`: the
+ * file stays on disk) and checked out from HEAD through the pin, which writes LF bytes.
+ * The pin is printed only when `.gitattributes` does not already carry it.
  */
-export function lineEndingRemedy(files = [], { isRepo = true } = {}) {
+export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } = {}) {
   const named = files.slice(0, 5);
   const more = files.length > named.length ? `, +${files.length - named.length} more` : '';
 
@@ -66,16 +71,26 @@ export function lineEndingRemedy(files = [], { isRepo = true } = {}) {
     '',
     '    git status --porcelain research/        # expect no unstaged or untracked work',
     '',
-    'Then pin the line endings and renormalise ONLY the affected files:',
+    ...(pinned
+      ? ['.gitattributes already pins the line endings. Rewrite ONLY the affected files through it:']
+      : ['Then pin the line endings, and rewrite ONLY the affected files through the pin:']),
     '',
-    '    printf "research/raw/* text eol=lf\\n*.jsonl text eol=lf\\n" >> .gitattributes',
-    '    git add .gitattributes',
-    ...named.map((file) => `    git add --renormalize ${file}`),
-    ...(files.length > named.length ? ['    git add --renormalize research/raw/   # the rest'] : []),
-    '    git checkout -- .gitattributes',
+    ...(pinned ? [] : [
+      '    printf "research/raw/* text eol=lf\\n*.jsonl text eol=lf\\n" >> .gitattributes',
+      '    git add .gitattributes',
+    ]),
+    ...named.flatMap((file) => [
+      `    git rm --cached --quiet -- ${file}   # the index entry only: the file stays on disk`,
+      `    git checkout HEAD -- ${file}`,
+    ]),
+    ...(files.length > named.length ? [
+      '    git rm -r --cached --quiet -- research/raw/   # the rest: index entries only',
+      '    git checkout HEAD -- research/raw/',
+    ] : []),
     '',
-    'No file is removed and no directory is re-checked-out: `--renormalize` rewrites the',
-    'index through the new .gitattributes and leaves untracked work where it is.',
+    'No file is deleted and nothing outside the affected captures is checked out. The',
+    'checkout rewrites each capture from the committed copy as LF - git would not rewrite',
+    'a file it believes unchanged, which is why the index entry goes first.',
     '',
     'Going to the collector fixes nothing here, and re-collecting spends paid credits to',
     'reproduce a corpus that is already on disk.',
@@ -163,7 +178,9 @@ export function handoffRemedy(report) {
   if (report.lineEndings?.length) {
     // Whether this is a repository at all decides which remedy is even runnable.
     const isRepo = exists(path.join(report.root ?? '.', '.git'));
-    parts.push(lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo }));
+    const attributes = readText(path.join(report.root ?? '.', '.gitattributes')) ?? '';
+    const pinned = /^research\/raw\/\*\s+text\s+eol=lf\s*$/m.test(attributes);
+    parts.push(lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo, pinned }));
   }
   return parts.join('\n\n');
 }
