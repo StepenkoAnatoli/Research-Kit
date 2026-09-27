@@ -671,3 +671,20 @@ test('a row cited OUTSIDE the note still counts', () => {
   assert.equal(findings[0].severity, 'pass');
   assert.equal(findings[0].rule, 'independent', 'two genuine citations are still two');
 });
+
+// Found 2026-09-27: an evidence row could name a different URL from the page its capture was
+// fetched from, and preflight passed. The URL cell is what the brief and SOURCES show a reader
+// as the source, so a slip there misattributes the claim with nothing to catch it.
+test('an evidence row naming a URL other than its capture\'s fails citations', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (text) => text.replace('https://example.invalid/docs/limits', 'https://example.invalid/docs/pricing'));
+  const findings = runCheck('citations', readCorpus(dir));
+  const hit = findings.find((f) => f.rule === 'url-mismatch');
+  assert.ok(hit && hit.severity === 'fail', JSON.stringify(findings));
+  assert.match(hit.detail, /E-01 names https:\/\/example\.invalid\/docs\/pricing.*fetched from https:\/\/example\.invalid\/docs\/limits/);
+
+  const spelled = makePassingProject();
+  corrupt(spelled, PATHS.evidence, (text) => text.replace('https://example.invalid/docs/limits', 'https://www.example.invalid/docs/limits/'));
+  assert.equal(runCheck('citations', readCorpus(spelled)).some((f) => f.rule === 'url-mismatch'), false,
+    'another spelling of the same page is the same page');
+});

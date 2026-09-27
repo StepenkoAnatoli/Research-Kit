@@ -7,7 +7,7 @@
 // A check emits findings. It never decides what a finding MEANS for the build - that is
 // the verdict's single judgement, in lib/preflight.mjs.
 
-import { hostOf, PATHS, resolve, exists, ageInDays } from './core.mjs';
+import { hostOf, PATHS, resolve, exists, ageInDays, urlKey } from './core.mjs';
 import { captureOf, traceOf, citedIds } from './corpus.mjs';
 import { documentGroups, closestPair } from './similarity.mjs';
 import { coverageOfUniversals } from './dimensions.mjs';
@@ -71,6 +71,14 @@ function citations(corpus) {
     if (!exists(resolve(corpus.root, capture.file))) {
       out.push(finding('fail', 'citations', 'raw-missing', `${row.id} cites ${capture.file}, which is not on disk`, { row: row.id, line: row.line }));
       continue;
+    }
+    // The row's URL is what a reader is shown as the source. It was never compared with the
+    // page its capture was fetched from, so a row could name another page and pass (found
+    // 2026-09-27). Compared by urlKey: another spelling of the same page is the same page.
+    if (row.url && capture.url && urlKey(row.url) !== urlKey(capture.url)) {
+      out.push(finding('fail', 'citations', 'url-mismatch',
+        `${row.id} names ${row.url}, but its capture ${capture.file} was fetched from ${capture.url} - the URL cell must be the page the claim rests on`,
+        { row: row.id, line: row.line }));
     }
     if (capture.bytes < MIN_CAPTURE_CHARS) {
       out.push(finding('warn', 'citations', 'raw-thin',
