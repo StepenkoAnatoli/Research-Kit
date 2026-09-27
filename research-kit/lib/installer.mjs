@@ -141,7 +141,17 @@ export function removeEditGate({ env = process.env } = {}) {
     });
     if (hooks.length) kept.push({ ...entry, hooks });
   }
-  const next = { ...read.settings, hooks: { ...(read.settings.hooks ?? {}), PreToolUse: kept } };
+  // Containers the kit's entry leaves empty go too, and a file with nothing left is removed:
+  // --uninstall on a machine that had no settings file left {"hooks": {"PreToolUse": []}}
+  // behind (found 2026-09-27). An empty settings file and none behave the same.
+  const hooks = { ...(read.settings.hooks ?? {}), PreToolUse: kept };
+  if (!kept.length) delete hooks.PreToolUse;
+  const next = { ...read.settings, hooks };
+  if (!Object.keys(hooks).length) delete next.hooks;
+  if (!Object.keys(next).length) {
+    fs.rmSync(file, { force: true });
+    return { ok: true, file, removed, deleted: true };
+  }
   writeText(file, `${JSON.stringify(next, null, 2)}\n`);
   return { ok: true, file, removed };
 }

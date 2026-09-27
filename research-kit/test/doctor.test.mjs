@@ -252,6 +252,21 @@ test('removeEditGate takes out a retired entry too', () => {
   assert.equal(hooks[0].matcher, 'Bash');
 });
 
+// Found 2026-09-27: install then --uninstall on a machine with no settings file left
+// {"hooks": {"PreToolUse": []}} behind - not the pre-install state --uninstall promises.
+test('uninstalling the edit gate leaves no empty hook containers, and no file it made empty', () => {
+  const { env, settingsFile } = machine();
+  installEditGate({ kitHome: KIT_ROOT, env });
+  removeEditGate({ env });
+  assert.equal(fs.existsSync(settingsFile), false, `left behind: ${fs.existsSync(settingsFile) ? readText(settingsFile) : ''}`);
+
+  const theirs = machine({ settings: { model: 'x', hooks: { PostToolUse: [{ hooks: [{ type: 'command', command: 'node /theirs.mjs' }] }] } } });
+  installEditGate({ kitHome: KIT_ROOT, env: theirs.env });
+  removeEditGate({ env: theirs.env });
+  assert.deepEqual(readJson(theirs.settingsFile), { model: 'x', hooks: { PostToolUse: [{ hooks: [{ type: 'command', command: 'node /theirs.mjs' }] }] } },
+    'everything the operator had is kept, and only the empty list the kit made is gone');
+});
+
 test('gateHealth reports the edit gate in three states', () => {
   assert.equal(editGateState(null), 'none');
   assert.equal(editGateState({}), 'none');
