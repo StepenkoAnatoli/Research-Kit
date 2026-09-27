@@ -32,7 +32,7 @@ import {
   PATHS, resolve, exists, isDirectory, readText, sha256, canonicalJson, nowIso, listFiles,
 } from './core.mjs';
 import { buildZip } from './archive.mjs';
-import { readCorpus } from './corpus.mjs';
+import { readCorpus, parseCapture } from './corpus.mjs';
 import { verifyHandoff } from './handoff.mjs';
 import { runPreflight } from './preflight.mjs';
 import { briefState } from './brief.mjs';
@@ -223,7 +223,13 @@ export function findingsReviewState(root, corpus) {
     if (!row.raw) continue;
     const text = readText(resolve(root, row.raw));
     if (text === null) continue;
-    const extracted = String(firstFinding(text, '') ?? '').trim();
+    // The collector's own call, over what it extracted from: the page body after the
+    // front-matter, falling back to the page's title or URL (collect.mjs). Found 2026-09-27
+    // on run 36287211468: run over the whole FILE, the extractor read the front-matter as the
+    // page, never matched an untouched JSON capture's Finding, and a corpus nobody had
+    // reviewed was packaged as reviewed - one of the four conditions for buildAuthorized.
+    const { front, body } = parseCapture(text);
+    const extracted = String(firstFinding(body, front.title || front.url || row.url || '') ?? '').trim();
     if (!extracted) continue;
     if (String(row.finding ?? '').trim() === extracted) unrewritten.push(row.id);
   }
