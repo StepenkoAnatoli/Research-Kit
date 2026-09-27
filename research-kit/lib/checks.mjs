@@ -509,7 +509,11 @@ export function supersededRows(corpus) {
     if (rows.length < 2) continue;
     const ordered = [...rows].sort((a, b) => String(a.retrieved).localeCompare(String(b.retrieved)));
     const current = ordered[ordered.length - 1];
-    for (const row of ordered.slice(0, -1)) superseded.set(row.id.toUpperCase(), current);
+    // A row is never superseded by itself: a row pasted twice read "E-01 has been superseded
+    // by E-01" (found 2026-09-27). The duplicate ID is hygiene's to name.
+    for (const row of ordered.slice(0, -1)) {
+      if (row.id.toUpperCase() !== current.id.toUpperCase()) superseded.set(row.id.toUpperCase(), current);
+    }
   }
   return superseded;
 }
@@ -589,7 +593,8 @@ function hygiene(corpus) {
     const held = seenUrl.get(row.url);
     if (held) {
       const isRefresh = superseded.has(held.id.toUpperCase()) && held.retrieved !== row.retrieved;
-      if (!isRefresh) {
+      // The same ID twice is duplicate-id's to name, not a second row citing the same URL.
+      if (!isRefresh && held.id.toUpperCase() !== row.id.toUpperCase()) {
         out.push(finding('warn', 'hygiene', 'duplicate-url',
           `${row.id} cites the same URL as ${held.id} on the same day - one row per fetched page`,
           { row: row.id, line: row.line }));

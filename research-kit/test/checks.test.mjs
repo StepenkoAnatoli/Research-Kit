@@ -706,3 +706,18 @@ test('a torn ledger tail names the repair; a broken line inside the chain does n
   assert.doesNotMatch(inside.detail, /--fix-arity/, 'fix-arity only drops a torn tail');
   assert.match(inside.detail, /git/, inside.detail);
 });
+
+// Found 2026-09-27: an evidence row pasted twice failed with "U-1 rests on E-01, which has
+// been superseded by E-01". The duplicate ID is the problem, and hygiene names it; a row is
+// never superseded by itself.
+test('a duplicated evidence row is not reported as superseded by itself', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/^(\| E-01 \|.*)$/m, '$1\n$1'));
+  const corpus = snapshot(dir);
+  assert.equal(supersededRows(corpus).has('E-01'), false, 'E-01 was superseded by E-01');
+  const findings = runCheck('evidence-supersession', corpus);
+  assert.equal(findings.some((f) => /superseded by E-01/.test(f.detail)), false, JSON.stringify(findings));
+  const hygiene = runCheck('hygiene', corpus);
+  assert.ok(hygiene.some((f) => f.rule === 'duplicate-id'), 'the duplicate ID is not named');
+  assert.equal(hygiene.some((f) => /E-01 cites the same URL as E-01/.test(f.detail)), false, 'a row compared with itself');
+});
