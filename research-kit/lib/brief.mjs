@@ -4,7 +4,7 @@
 // FROM this definition and lib/audit.mjs reads the judged sections through it, so the
 // writer and its readers cannot drift.
 
-import { PATHS, resolve, readText, writeText, today, documentCommand, exists } from './core.mjs';
+import { PATHS, resolve, readText, writeText, today, documentCommand, exists, sha256 } from './core.mjs';
 import { readCorpus, sectionOf, claimOf, captureOf } from './corpus.mjs';
 import { readPrior } from './prior.mjs';
 
@@ -47,6 +47,34 @@ export function briefState(text) {
   if (drafted) return 'authored';
   const hasHeadings = BRIEF_SECTIONS.some((s) => sectionOf(body, s.heading));
   return hasHeadings ? 'legacy' : 'template';
+}
+
+/**
+ * The stamp a drafted brief ends with: a hash of its own text and a hash of what it was
+ * drafted from. The first says whether anybody has edited it since - an untouched draft
+ * holds no judgement, so it is redrafted without --force. The second says whether the
+ * corpus has moved on since, which `hygiene/brief-stale` reports (ADR-0055).
+ */
+const DRAFT_STAMP = /\n?<!-- research-kit:brief-draft body=([0-9a-f]{16}) inputs=([0-9a-f]{16}) -->\s*$/;
+
+const shortHash = (text) => sha256(String(text).replace(/\r\n/g, '\n')).slice(0, 16);
+
+/** What the brief is drafted FROM, parsed, so a reformatted table is not a change. */
+export function briefInputsHash(snapshot) {
+  return shortHash(JSON.stringify({
+    topic: snapshot.map?.topic || snapshot.plan?.topic || '',
+    intent: snapshot.intent ?? '',
+    unknowns: (snapshot.unknowns ?? []).map((u) => [u.id, u.text, u.status, u.evidence]),
+    evidence: (snapshot.evidence ?? []).map((e) => [e.id, e.retrieved, e.type, e.url, e.finding, e.raw]),
+  }));
+}
+
+/** `{ edited, inputs }` for a stamped draft, or `null` for anything without the stamp. */
+export function draftStamp(text) {
+  const body = String(text ?? '');
+  const m = DRAFT_STAMP.exec(body);
+  if (!m) return null;
+  return { edited: shortHash(body.slice(0, m.index)) !== m[1], inputs: m[2] };
 }
 
 export function briefSection(text, key) {
@@ -159,7 +187,9 @@ export function renderBrief(root, { force = false, date = today(), corpus = null
   const existing = readText(file, '');
   const state = briefState(existing);
 
-  if (!force && (state === 'draft' || state === 'authored')) {
+  // An untouched draft is the drafter's own output: nothing in it is anybody's judgement.
+  const untouched = state === 'draft' && draftStamp(existing)?.edited === false;
+  if (!force && !untouched && (state === 'draft' || state === 'authored')) {
     return { written: false, state, reason: `${PATHS.brief} is ${state} - re-run with --force to overwrite the judgements in it` };
   }
   if (!force && state === 'legacy') {
@@ -229,17 +259,22 @@ alone.
 
 1. Review the ${TODO_MARK} sections above (${BRIEF_SECTIONS.filter((s) => s.judged).map((s) => s.heading.split(' ')[0]).join(', ')}) before handing off.
 2. Hand this file to the builder (phase 2). Re-running \`${documentCommand('brief.mjs')}\`
-   after edits will refuse without \`--force\` so your judgements are preserved.
+   redrafts this file while it is unedited; after any edit it refuses without \`--force\`,
+   so your judgements are preserved.
 `;
 
   // --force over a brief that holds anybody's judgement keeps it beside the new draft.
   // It restored the TODOs and kept nothing of the answers it replaced (found 2026-09-27).
   let backup;
-  if (['draft', 'authored', 'legacy'].includes(state)) {
+  if (!untouched && ['draft', 'authored', 'legacy'].includes(state)) {
     backup = `${PATHS.brief}.bak-${date}`;
     for (let n = 2; exists(resolve(root, backup)); n += 1) backup = `${PATHS.brief}.bak-${date}-${n}`;
     writeText(resolve(root, backup), existing);
   }
-  writeText(file, body);
-  return { written: true, state: briefState(body), file: PATHS.brief, reason: '', ...(backup ? { backup } : {}) };
+  const stamped = `${body}\n<!-- research-kit:brief-draft body=${shortHash(body)} inputs=${briefInputsHash(snapshot)} -->\n`;
+  writeText(file, stamped);
+  return {
+    written: true, state: briefState(stamped), file: PATHS.brief, reason: '',
+    ...(untouched ? { replacedUnedited: true } : {}), ...(backup ? { backup } : {}),
+  };
 }

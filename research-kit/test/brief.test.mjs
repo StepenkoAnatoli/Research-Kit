@@ -173,3 +173,24 @@ test('judgedSection is the reader the audit consumes instead of a regex of its o
   writeText(resolve(dir, PATHS.brief), text.replace(/## Decision\n\n\*\*TODO\*\*[\s\S]*?\n\n## Next steps/, '## Decision\n\nBuild the collector first.\n\n## Next steps'));
   assert.equal(judgedSection(readText(resolve(dir, PATHS.brief)), 'decision').answered, true);
 });
+
+// Found 2026-09-27: a brief drafted while the gate failed said "Gate: FAIL" after the
+// project passed, and brief.mjs refused to redraft it without --force - though nobody
+// had written a word in it. An untouched draft holds no judgement to protect.
+test('an unedited draft is redrafted without --force, and nothing is backed up', () => {
+  const dir = makePassingProject();
+  renderBrief(dir, { verdict: { pass: false, counts: { fail: 3 } } });
+  assert.match(readText(resolve(dir, PATHS.brief)), /Gate: FAIL/);
+  const again = renderBrief(dir, { verdict: { pass: true, counts: { fail: 0 } } });
+  assert.equal(again.written, true, again.reason);
+  assert.equal(again.backup, undefined, 'an untouched draft is not worth a backup');
+  assert.match(readText(resolve(dir, PATHS.brief)), /Gate: PASS/);
+});
+
+test('a draft with any edit still refuses without --force', () => {
+  const dir = makePassingProject();
+  renderBrief(dir);
+  const text = readText(resolve(dir, PATHS.brief));
+  writeText(resolve(dir, PATHS.brief), text.replace('## Intent\n\n', '## Intent\n\nA sentence somebody added.\n\n'));
+  assert.equal(renderBrief(dir).written, false, 'an edit outside the TODO sections was overwritten');
+});

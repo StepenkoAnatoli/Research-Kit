@@ -47,4 +47,5 @@ if (!result.written) {
 }
 
 if (result.backup) process.stdout.write(`kept the brief it replaced at ${result.backup}\n`);
+if (result.replacedUnedited) process.stdout.write('replaced the previous draft, which nobody had edited\n');
 process.stdout.write(`wrote ${result.file} (${result.state})\n\nReview the TODO sections - the corpus cannot fill them - then hand this file to the builder.\n`);
