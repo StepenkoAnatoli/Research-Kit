@@ -54,6 +54,25 @@ test('scaffoldProject renders every template file with no placeholder left behin
   assert.match(readText(resolve(dir, PATHS.discovery)), /Widget pricing/);
 });
 
+// Found 2026-09-27 reading a real returned package: START_HERE.md said
+// "node ~/.agents/research-kit\bin\doctor.mjs". In bash each \b is an escaped b, so it ran
+// ".../research-kitbindoctor.mjs" - MODULE_NOT_FOUND - and every other template file already
+// wrote /bin/. Scaffolded with this kit's own path, every command a project's documents give
+// must name a file that exists, read exactly as written.
+test('every node command in a scaffolded project names a kit file that exists', () => {
+  const dir = scaffoldProject(tempDir(), { topic: 'Anything', kit: KIT_ROOT }).dir;
+  const commands = [];
+  for (const rel of templateFiles().filter((f) => f.endsWith('.md'))) {
+    for (const [, file] of readText(resolve(dir, rel)).matchAll(/\bnode\s+("[^"]+"|\S+\.mjs)/g)) {
+      commands.push({ rel, file: file.replace(/^"|"$/g, '') });
+    }
+  }
+  assert.ok(commands.some((c) => c.rel === 'START_HERE.md'), 'START_HERE.md gives no command - this test is vacuous');
+  for (const { rel, file } of commands) {
+    assert.ok(fs.existsSync(file), `${rel} tells its reader to run "node ${file}", which does not exist`);
+  }
+});
+
 test('structure is always repaired; content is never clobbered without --force', () => {
   const dir = scaffoldProject(tempDir(), { topic: 'First' }).dir;
   writeText(resolve(dir, PATHS.evidence), '# my own evidence, irreplaceable\n');
