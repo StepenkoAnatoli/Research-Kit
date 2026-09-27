@@ -290,8 +290,11 @@ async function callTool(message, deps) {
   const tool = TOOLS.find((t) => t.name === name);
   if (!tool) return err(message.id, ERRORS.INVALID_PARAMS, `unknown tool ${name}`);
 
+  // Arguments that fail the schema are a TOOL result the model can read and correct, not a
+  // protocol error a client raises as an exception (SEP-1303, 2025-11-25; E-01 of
+  // docs/decisions/2026-09-27-mcp-protocol-versions). An unknown tool, above, stays one.
   const invalid = validateArgs(tool, args);
-  if (invalid) return err(message.id, ERRORS.INVALID_PARAMS, invalid);
+  if (invalid) return ok(message.id, { isError: true, content: [text(`${invalid}. Call ${name} again with arguments its inputSchema allows.`)] });
 
   const { token, detail } = tokenFromEnv(deps.env);
   if (!token) {

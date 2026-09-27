@@ -117,6 +117,23 @@ test('a 2025-06-18 client is answered 2025-06-18; a 2025-03-26 client is not', a
   assert.equal(SUPPORTED_VERSIONS.includes('2025-03-26'), false);
 });
 
+// docs/decisions/2026-09-27-mcp-protocol-versions, U-5. SEP-1303 (2025-11-25): "input validation
+// errors should be returned as Tool Execution Errors rather than Protocol Errors to enable model
+// self-correction" (E-01). This server answered them with JSON-RPC -32602, which a client raises
+// as an exception the model never reads. An unknown tool stays a protocol error.
+test('arguments that fail the schema come back as a tool result the model can read', async () => {
+  const call = (name, args) => handle({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name, arguments: args } }, deps());
+  const bad = await call('collect', { repository: 'o/r', topic: 'x', max_pages: 99 });
+  assert.equal(bad.error, undefined, 'invalid arguments were answered as a protocol error');
+  assert.equal(bad.result.isError, true);
+  assert.match(bad.result.content[0].text, /at most 25/, 'the model must be told what to correct');
+  const typo = await call('collect', { repository: 'o/r', topic: 'x', token: 'oops' });
+  assert.equal(typo.result?.isError, true);
+  assert.match(typo.result.content[0].text, /unknown argument token/);
+  const unknown = await call('no_such_tool', {});
+  assert.equal(unknown.error?.code, ERRORS.INVALID_PARAMS, 'an unknown tool stays a protocol error');
+});
+
 test('an unknown requested version falls back to LEGACY, not to this server preference', async () => {
   // Answering a client we cannot place with `2026-07-28` would be a correct statement of
   // preference and a guaranteed disconnection: no shipped client lists it. The legacy
