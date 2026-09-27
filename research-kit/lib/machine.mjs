@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { exists, readText, writeText, ensureDir, readJson, nowIso } from './core.mjs';
+import { exists, readText, writeText, ensureDir, readJson, nowIso, parseJson } from './core.mjs';
 
 import { kitCommand } from './core.mjs';
 // ---------------------------------------------------------------- anchors (ADR-0012)
@@ -153,7 +153,7 @@ export function readMachineConfig(env = process.env) {
   }
   const text = readText(file);
   try {
-    const raw = JSON.parse(text ?? '');
+    const raw = parseJson(text ?? '');
     const { settings, retired } = shape(raw && typeof raw === 'object' ? raw : {});
     try { writeText(lastGoodPath(file), text); } catch { /* snapshot is best-effort */ }
     return { settings, state: 'readable', source: file, error: null, retiredKeys: retired };

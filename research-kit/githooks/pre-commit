@@ -35,7 +35,10 @@ posture_without_kit() {
   _file="$1"
   [ -f "$_file" ] || return 0                       # absent: the fail-open default answers
 
-  _first=$(tr -d '[:space:]' < "$_file" | cut -c1)
+  # A leading UTF-8 byte-order mark (Windows Notepad writes one) is not part of the JSON,
+  # as parseJson in lib/core.mjs drops it; without this the config read as unreadable.
+  _bom=$(printf '\357\273\277')
+  _first=$(tr -d '[:space:]' < "$_file" | sed "1s/^$_bom//" | cut -c1)
   _last=$(tr -d '[:space:]' < "$_file" | sed 's/.*\(.\)$/\1/')
   if [ "$_first" = "{" ] && [ "$_last" = "}" ]; then
     if grep -q '"failOpen"[[:space:]]*:[[:space:]]*false' "$_file"; then return 1; fi

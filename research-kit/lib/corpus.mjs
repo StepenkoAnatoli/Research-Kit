@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   PATHS, HEADERS, resolve, relative, exists, isDirectory, readText, readJson,
-  writeText, appendLine, listFiles, sha256File, ageInDays, hostOf,
+  writeText, appendLine, listFiles, sha256File, ageInDays, hostOf, parseJson,
 } from './core.mjs';
 import { sketch } from './similarity.mjs';
 
@@ -331,7 +331,7 @@ export function readCorpus(root) {
   let plan = null;
   if (planText !== null) {
     try {
-      plan = JSON.parse(planText);
+      plan = parseJson(planText);
     } catch (err) {
       problems.push({ kind: 'plan-unparsed', artifact: PATHS.plan, detail: err.message });
     }
@@ -342,7 +342,7 @@ export function readCorpus(root) {
   // guarded and nothing said so (found 2026-09-27).
   const kitText = readText(at(PATHS.kit));
   if (kitText !== null) {
-    try { JSON.parse(kitText); } catch (err) {
+    try { parseJson(kitText); } catch (err) {
       problems.push({ kind: 'kit-unparsed', artifact: PATHS.kit, detail: `${err.message} - until it parses, the gate guards only the default code paths` });
     }
   }

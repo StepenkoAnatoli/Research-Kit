@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  exists, readText, writeText, ensureDir, readJson, today, sha256File,
+  exists, readText, writeText, ensureDir, readJson, today, sha256File, parseJson,
 } from './core.mjs';
 import {
   KIT_HOME, EDIT_GATE_HOOK, RETIRED_EDIT_GATE_HOOKS, RETIRED_KIT_FILES,
@@ -51,14 +51,14 @@ function readSettings(file) {
   if (!exists(file)) return { state: 'absent', settings: {}, text: '' };
   const text = readText(file, '');
   try {
-    const parsed = JSON.parse(text || '{}');
+    const parsed = parseJson(text || '{}');
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return { state: 'readable', settings: parsed, text };
     return { state: 'unfamiliar', settings: {}, text };
   } catch (err) {
     // One known corruption is repairable: a stray line of prose. Anything else is refused.
     const repaired = text.split(/\r?\n/).filter((line) => !/^[A-Za-z][^"{}[\]:,]*;?-?\s*$/.test(line.trim()) || !line.trim()).join('\n');
     try {
-      const parsed = JSON.parse(repaired || '{}');
+      const parsed = parseJson(repaired || '{}');
       return { state: 'repairable', settings: parsed, text, repaired, error: err.message };
     } catch {
       return { state: 'unfamiliar', settings: {}, text, error: err.message };

@@ -181,6 +181,17 @@ test('a kit.json that will not parse is reported, and blocks like a broken plan'
   assert.ok(verdict.failures.some((f) => f.rule === 'kit-unparsed'), JSON.stringify(verdict.failures.map((f) => f.rule)));
 });
 
+// Found 2026-09-27: a plan or kit.json saved by Windows Notepad starts with a byte-order mark,
+// and was reported as not parsing - with the mark, invisible, quoted as the bad token.
+test('a plan and a kit.json saved with a byte-order mark parse', () => {
+  const dir = makePassingProject();
+  writeText(resolve(dir, PATHS.plan), `\uFEFF${JSON.stringify({ topic: 'bom', queries: [{ q: 'a query' }] })}`);
+  writeText(resolve(dir, PATHS.kit), `\uFEFF${JSON.stringify({ architecture: { codePaths: ['engine'] } })}`);
+  const corpus = readCorpus(dir);
+  assert.deepEqual(corpus.problems.filter((p) => /unparsed/.test(p.kind)), []);
+  assert.equal(corpus.plan?.topic, 'bom');
+});
+
 test('sectionOf reads one heading\'s body and stops at the next heading of its level', () => {
   const text = '# Title\n\n## Build intent\n\nthe intent\n\n### deeper\n\nstill inside\n\n## Unknowns\n\nnot this\n';
   assert.match(sectionOf(text, 'Build intent'), /the intent/);

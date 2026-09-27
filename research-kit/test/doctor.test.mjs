@@ -267,6 +267,13 @@ test('uninstalling the edit gate leaves no empty hook containers, and no file it
     'everything the operator had is kept, and only the empty list the kit made is gone');
 });
 
+test('a settings file saved with a byte-order mark is read, not refused as unfamiliar', () => {
+  const { env, settingsFile } = machine({ settings: `\uFEFF${JSON.stringify({ model: 'x' })}` });
+  const result = installEditGate({ kitHome: KIT_ROOT, env });
+  assert.equal(result.ok, true, result.reason);
+  assert.equal(readJson(settingsFile).model, 'x', 'the operator\'s key was lost');
+});
+
 test('gateHealth reports the edit gate in three states', () => {
   assert.equal(editGateState(null), 'none');
   assert.equal(editGateState({}), 'none');
