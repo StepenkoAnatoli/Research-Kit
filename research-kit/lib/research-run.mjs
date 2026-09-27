@@ -220,8 +220,8 @@ export { urlKey };
  * page scored 0 as the best of them, and the kit spent a scrape on a page about nothing the
  * query asked.
  *
- * A result must carry at least HALF the query's distinctive terms (4+ characters, not a
- * stopword). An identifier is matched as a phrase with `_` and `-` read as spaces, so
+ * A result must carry at least TWO of the query's distinctive terms (4+ characters, not a
+ * stopword), or half of them when the query has only three (ADR-0068). An identifier is matched as a phrase with `_` and `-` read as spaces, so
  * `sync_replication_slots` matches "sync replication slots" in a title or a URL. A query with
  * fewer than two distinctive terms is not judged: overlap cannot tell its results apart.
  */
@@ -239,7 +239,10 @@ export function matchesQuery(row, query) {
   try { url = decodeURIComponent(url); } catch { /* a malformed escape is read as written */ }
   const text = ` ${plain(`${row?.title ?? ''} ${row?.description ?? ''} ${url}`)} `;
   const hits = terms.filter((term) => text.includes(term)).length;
-  return hits >= Math.ceil(terms.length / 2);
+  // Two terms, or half of a query shorter than four. "Half" alone asked a title for five of a
+  // ten-term topic sentence and rejected 36 of the 38 pages real searches had found here
+  // (ADR-0068); two still rejects a page that shares only the product's name with the query.
+  return hits >= Math.min(2, Math.ceil(terms.length / 2));
 }
 
 /** Is this URL on a domain the plan's `prefer` names? */
@@ -410,6 +413,23 @@ ${compatibility.remedy}`);
       log(`  would search "${text}" on ${searchers.length > 1 ? searchers.map((one) => one.name).join(' + ') : searchName}, keeping up to ${settings.perQuery} page(s)`);
       continue;
     }
+    // What a search came back with, reported the same way whichever path ran it: an empty
+    // search and one whose every result misses the query are both recorded, because each
+    // leaves the operator with nothing to read for this query (RR-8, RR-9). The merged path
+    // had reported neither (found 2026-09-27).
+    const noteOutcome = (results, provider) => {
+      if (!results.length) {
+        log(`  search found nothing: ${text} (${provider})`);
+        appendJsonLine(root, PATHS.failures, { at: new Date().toISOString(), op: 'search-empty', query: text, provider });
+        return;
+      }
+      if (!results.some((row) => matchesQuery(row, text) || isPreferred(row.url, prefer))) {
+        log(`  no result matched "${text}" - none of the ${results.length} carry two of its terms; nothing scraped for it`);
+        appendJsonLine(root, PATHS.failures, {
+          at: new Date().toISOString(), op: 'search-off-topic', query: text, provider, results: results.length,
+        });
+      }
+    };
     // MORE THAN ONE PROVIDER: ask each, interleave by rank, and attribute every row.
     // The meters are genuinely separate (ADR-0027), so this costs one search on each rather
     // than more of either. A provider that fails here does not stop the run - the others
@@ -438,6 +458,7 @@ ${compatibility.remedy}`);
       const merged = mergeByRank(lists);
       log(`  searched   ${lists.map((l) => `${l.provider} ${l.results.length}`).join(', ')} -> ${merged.length} distinct`);
       discovered.push({ query: text, results: merged, provider: lists.map((l) => l.provider).join('+'), searchId: null });
+      noteOutcome(merged, lists.map((l) => l.provider).join('+'));
       for (const candidate of selectCandidates(merged, { prefer, perQuery: settings.perQuery, seen, query: text })) {
         targets.push({
           url: candidate.url,
@@ -487,23 +508,10 @@ ${compatibility.remedy}`);
     // failed 0", with nothing to say a search had run (found 2026-09-27). An empty search is
     // recorded beside the failures, because it is the same question for the operator: this
     // query produced nothing to read.
-    if (!found.results.length) {
-      log(`  search found nothing: ${text} (${ranker})`);
-      appendJsonLine(root, PATHS.failures, {
-        at: new Date().toISOString(), op: 'search-empty', query: text, provider: ranker,
-      });
-    } else {
-      log(`  search     found ${found.results.length} for "${text}" (${ranker})`);
-    }
+    if (found.results.length) log(`  search     found ${found.results.length} for "${text}" (${ranker})`);
     discovered.push({ query: text, results: found.results, provider: ranker, searchId: found.searchId ?? null });
-    const picked = selectCandidates(found.results, { prefer, perQuery: settings.perQuery, seen, query: text });
-    if (found.results.length && !found.results.some((row) => matchesQuery(row, text) || isPreferred(row.url, prefer))) {
-      log(`  no result matched "${text}" - none of the ${found.results.length} carry half its terms; nothing scraped for it`);
-      appendJsonLine(root, PATHS.failures, {
-        at: new Date().toISOString(), op: 'search-off-topic', query: text, provider: ranker, results: found.results.length,
-      });
-    }
-    for (const candidate of picked) {
+    noteOutcome(found.results, ranker);
+    for (const candidate of selectCandidates(found.results, { prefer, perQuery: settings.perQuery, seen, query: text })) {
       targets.push({
         // Discovered by a search, not chosen by a person: context until an agent reads
         // the page and promotes it. Ranking preference is not source authority.

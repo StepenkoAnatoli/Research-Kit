@@ -14,7 +14,7 @@ import {
 import { readCorpus, cacheDecision, tableRow, appendJsonLine } from './corpus.mjs';
 import { seedRows, UNIVERSAL_DIMENSIONS } from './dimensions.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
-import { urlKey } from './research-run.mjs';
+import { urlKey, matchesQuery } from './research-run.mjs';
 import { KIT_ROOT, UNTITLED_TOPIC } from './scaffold.mjs';
 
 export const RECIPE_DIR = path.join(KIT_ROOT, 'recipes');
@@ -260,7 +260,6 @@ export function decompose(root, {
         found = adapter.search(query, { limit });
         if (Number.isFinite(found?.searchesUsed)) searchesUsed += found.searchesUsed;
         if (Number.isFinite(found?.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
-      if (Number.isFinite(found?.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
         ranker = adapter.name;
       }
       if (!found.ok) {
@@ -274,7 +273,7 @@ export function decompose(root, {
         // One page, one candidate - the identity runResearch uses (urlKey).
         if (seen.has(urlKey(row.url))) continue;
         seen.add(urlKey(row.url));
-        material.push({ ...row, rankedBy: ranker });
+        material.push({ ...row, rankedBy: ranker, foundBy: query });
       }
     }
     hosts = docsHosts(material);
@@ -283,6 +282,10 @@ export function decompose(root, {
     // second pass reaches further down the list instead of re-reading the same two.
     for (const row of material) {
       if (spent >= maxScrapes) break;
+      // The relevance floor research.mjs applies (ADR-0067, ADR-0068), for the query that
+      // found this page. It stays in the map's candidate list - that is for a person to read -
+      // but it is not worth a scrape (found 2026-09-27: this loop never applied the floor).
+      if (!matchesQuery(row, row.foundBy)) { log(`  skipped   ${row.url} - it does not carry "${row.foundBy}"`); continue; }
       const decision = cacheDecision(corpus.captures, row.url, { refreshDays, now });
       if (decision.hit) { cached += 1; log(`  cached    ${row.url}`); continue; }
       const outcome = collectOne(root, row.url, {

@@ -781,3 +781,14 @@ test('research --status shows Firecrawl search credits as an estimate', () => {
   assert.match(r.out, /searches \(this project\) 4 in the last hour/);
   assert.match(r.out, /≈8 credits/);
 });
+
+// Found 2026-09-27: the brief records "Gate: FAIL" in its text, and nothing compared that with
+// the verdict preflight had just printed.
+test('preflight says when the brief was drafted under the other verdict', () => {
+  const root = makePassingProject();
+  renderBrief(root, { verdict: { pass: false, counts: { fail: 9 } } });
+  const r = run('preflight.mjs', [], { root });
+  assert.equal(r.status, 0, r.all);
+  assert.match(r.out, /BRIEF\.md was drafted when the gate failed/, r.out);
+  assert.match(r.out, /brief\.mjs/);
+});

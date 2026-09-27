@@ -55,7 +55,7 @@ export function briefState(text) {
  * holds no judgement, so it is redrafted without --force. The second says whether the
  * corpus has moved on since, which `hygiene/brief-stale` reports (ADR-0055).
  */
-const DRAFT_STAMP = /\n?<!-- research-kit:brief-draft body=([0-9a-f]{16}) inputs=([0-9a-f]{16}) -->\s*$/;
+const DRAFT_STAMP = /\n?<!-- research-kit:brief-draft body=([0-9a-f]{16}) inputs=([0-9a-f]{16})(?: gate=(pass|fail|unknown))? -->\s*$/;
 
 const shortHash = (text) => sha256(String(text).replace(/\r\n/g, '\n')).slice(0, 16);
 
@@ -66,6 +66,12 @@ export function briefInputsHash(snapshot) {
     intent: snapshot.intent ?? '',
     unknowns: (snapshot.unknowns ?? []).map((u) => [u.id, u.text, u.status, u.evidence]),
     evidence: (snapshot.evidence ?? []).map((e) => [e.id, e.retrieved, e.type, e.url, e.finding, e.raw]),
+    // The map and the ledger decide the verdict too: a brief drafted while only the map was
+    // incomplete said "Gate: FAIL" after the map was statused, and nothing called it stale
+    // (found 2026-09-27).
+    map: (snapshot.subtopics ?? []).map((row) => [row.id, row.status, row.coveredBy]),
+    fetches: snapshot.ledger?.entries?.length ?? 0,
+    captures: snapshot.captures?.entries?.length ?? 0,
   }));
 }
 
@@ -74,7 +80,7 @@ export function draftStamp(text) {
   const body = String(text ?? '');
   const m = DRAFT_STAMP.exec(body);
   if (!m) return null;
-  return { edited: shortHash(body.slice(0, m.index)) !== m[1], inputs: m[2] };
+  return { edited: shortHash(body.slice(0, m.index)) !== m[1], inputs: m[2], gate: m[3] ?? 'unknown' };
 }
 
 export function briefSection(text, key) {
@@ -273,7 +279,8 @@ alone.
     for (let n = 2; exists(resolve(root, backup)); n += 1) backup = `${PATHS.brief}.bak-${date}-${n}`;
     writeText(resolve(root, backup), existing);
   }
-  const stamped = `${body}\n<!-- research-kit:brief-draft body=${shortHash(body)} inputs=${briefInputsHash(snapshot)} -->\n`;
+  const gate = gatePasses === null ? 'unknown' : (gatePasses ? 'pass' : 'fail');
+  const stamped = `${body}\n<!-- research-kit:brief-draft body=${shortHash(body)} inputs=${briefInputsHash(snapshot)} gate=${gate} -->\n`;
   writeText(file, stamped);
   return {
     written: true, state: briefState(stamped), file: PATHS.brief, reason: '',
