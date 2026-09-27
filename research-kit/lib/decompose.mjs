@@ -198,13 +198,20 @@ export function decompose(root, {
   let failedScrapes = 0;
   const failures = [];
 
+  const queries = uniq([
+    topic,
+    `${topic} documentation`,
+    `${topic} pricing limits`,
+    `${topic} terms of service`,
+  ]);
+  if (dryRun) {
+    // Named, as research's dry run names its queries: the dry run seeded the map and said
+    // nothing about the four searches a real run spends (found 2026-09-27).
+    const meter = searchAdapter?.name ?? adapter?.name ?? 'the search provider this machine selects';
+    for (const query of queries) log(`  would search "${query}" on ${meter}, keeping up to ${limit} result(s)`);
+    if (maxScrapes > 0) log(`  and scrape up to ${maxScrapes} of the pages found`);
+  }
   if (!dryRun && adapter) {
-    const queries = uniq([
-      topic,
-      `${topic} documentation`,
-      `${topic} pricing limits`,
-      `${topic} terms of service`,
-    ]);
     searches = queries.length;
     const seen = new Set();
     // The SEARCH side (ADR-0027). Absent means "the fetch adapter" - what this function

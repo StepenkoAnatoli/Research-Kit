@@ -65,6 +65,18 @@ if (spends && !policy.mayCollect) {
 
 let adapter = null;
 let searchAdapter = null;
+if (!spends) {
+  // A dry run names the provider its searches would spend on, when this machine can say;
+  // selecting one probes and spends nothing, and a machine that cannot select one still
+  // gets its dry run.
+  try {
+    const chosen = selectTransport({
+      explicit: typeof flags.transport === 'string' ? flags.transport : '',
+      explicitSearch: typeof flags['search-transport'] === 'string' ? flags['search-transport'] : '',
+    });
+    searchAdapter = chosen.search.adapter ?? chosen.adapter;
+  } catch { /* named generically below */ }
+}
 if (spends) {
   try {
     const chosen = selectTransport({
@@ -120,5 +132,6 @@ wrote ${result.file}: ${result.rows} rows (${result.universal} universal${result
 Next, and this part is yours: mark every row COVERED (cite the U-## rows that cover it),
 DISMISSED (reason required - dismissing is fine, omitting is not), or GAP, and add
 topic-specific subtopics where the checklist is not enough. Then write the unknowns into
-research/DISCOVERY.md, each tracing back to a subtopic.
+research/DISCOVERY.md, each tracing back to a subtopic, and the queries and pages that
+close them into research/plan.json - research.mjs collects from that plan.
 `);
