@@ -9,7 +9,7 @@ import { collectOne, writeRaw, captureName, bodyHashOf } from '../lib/collect.mj
 import { rateLimitWaitMs } from '../lib/firecrawl.mjs';
 import { topicMatch } from '../lib/research-run.mjs';
 import { verifyLedger } from '../lib/provenance.mjs';
-import { runResearch, readPlan, rankCandidate, selectCandidates, parsePreference, DEPTH_SCRAPES, usageSummary } from '../lib/research-run.mjs';
+import { runResearch, readPlan, rankCandidate, selectCandidates, parsePreference, urlKey, DEPTH_SCRAPES, usageSummary } from '../lib/research-run.mjs';
 
 describe('collect');
 
@@ -257,6 +257,63 @@ test('every place that explains `prefer` offers the path form', () => {
     assert.ok(text, `could not find the prefer description in ${where} - this test is vacuous`);
     assert.match(text, /github\.com\/[a-z-]+\/[a-z-]+/, `${where} does not show a path on a shared host`);
   }
+});
+
+// ---------------------------------------------------------------- one page, one fetch
+//
+// Found 2026-09-27, collect run 36283114657: the dispatched URL .../ui-and-api was fetched,
+// and then the search returned .../ui-and-api/ and it was fetched again - two credits, one
+// page. Plan URLs never entered the "seen" set before searching, and the set compared
+// exact strings.
+
+test('urlKey names one page one way', () => {
+  assert.equal(urlKey('HTTPS://WWW.Example.com/Path/?q=1#frag'), urlKey('https://example.com/Path?q=1'));
+  assert.equal(urlKey('http://example.com/a/'), urlKey('https://example.com/a'), 'http and https serve one page');
+  assert.notEqual(urlKey('https://example.com/a?page=2'), urlKey('https://example.com/a'), 'a query string can be a different page');
+  assert.notEqual(urlKey('https://example.com/A'), urlKey('https://example.com/a'), 'paths are case-sensitive');
+  assert.equal(urlKey('https://example.com/'), urlKey('https://example.com'), 'the root is one page');
+});
+
+test('a page given by URL is not fetched again when a search returns its other spelling', () => {
+  const dir = makeProject();
+  writeJson(resolve(dir, PATHS.plan), {
+    topic: 'Fixture', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 1, maxScrapes: 10,
+    prefer: ['x.example'],
+    urls: [{ url: 'https://x.example/page', why: 'U-1', type: 'S' }],
+    queries: [{ q: 'the page', why: 'U-1' }],
+  });
+  // The variant outranks the other result on its own (the prefer bonus), so only the
+  // dedupe can stop it being chosen.
+  const adapter = stubAdapter({ results: [{ url: 'https://x.example/page/' }, { url: 'https://y.example/other' }] });
+  const run = runResearch(dir, { adapter });
+  const urls = readCorpus(dir).evidence.map((row) => row.url);
+  assert.deepEqual(urls.sort(), ['https://x.example/page', 'https://y.example/other']);
+  assert.equal(run.spent, 2, 'one page was paid for twice');
+});
+
+test('two queries that find the same page each still contribute a page of their own', () => {
+  // The single-provider path queued its picks without recording them, so the second query
+  // took the same top result again - collected once, "cached" once - and its own next-best
+  // page was never fetched.
+  const dir = makeProject();
+  writeJson(resolve(dir, PATHS.plan), {
+    topic: 'Fixture', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 1, maxScrapes: 10, urls: [],
+    queries: [{ q: 'first', why: 'U-1' }, { q: 'second', why: 'U-2' }],
+  });
+  const adapter = stubAdapter({ results: [{ url: 'https://docs.example.com/shared' }, { url: 'https://docs.example.com/other' }] });
+  runResearch(dir, { adapter });
+  assert.deepEqual(readCorpus(dir).evidence.map((row) => row.url).sort(),
+    ['https://docs.example.com/other', 'https://docs.example.com/shared']);
+});
+
+test('a page already in the corpus is not re-offered in another spelling, nor twice in one list', () => {
+  const seen = new Set([urlKey('https://x.example/page')]);
+  const picked = selectCandidates([
+    { url: 'https://www.x.example/page/#top' },
+    { url: 'https://z.example/p' },
+    { url: 'https://z.example/p/' },
+  ], { perQuery: 3, seen });
+  assert.deepEqual(picked.map((c) => c.url), ['https://z.example/p']);
 });
 
 test('selectCandidates keeps the best per query and never re-offers what is collected', () => {

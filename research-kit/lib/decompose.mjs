@@ -14,6 +14,7 @@ import {
 import { readCorpus, cacheDecision, tableRow } from './corpus.mjs';
 import { seedRows, UNIVERSAL_DIMENSIONS } from './dimensions.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
+import { urlKey } from './research-run.mjs';
 import { KIT_ROOT } from './scaffold.mjs';
 
 export const RECIPE_DIR = path.join(KIT_ROOT, 'recipes');
@@ -225,8 +226,9 @@ export function decompose(root, {
         continue;
       }
       for (const row of found.results) {
-        if (seen.has(row.url)) continue;
-        seen.add(row.url);
+        // One page, one candidate - the identity runResearch uses (urlKey).
+        if (seen.has(urlKey(row.url))) continue;
+        seen.add(urlKey(row.url));
         material.push({ ...row, rankedBy: ranker });
       }
     }

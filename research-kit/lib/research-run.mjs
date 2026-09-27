@@ -169,11 +169,35 @@ export function mergeByRank(lists) {
   return merged;
 }
 
+/**
+ * One page, one name: the identity used to decide "we already have this page".
+ *
+ * Scheme, `www.`, host case, a trailing slash and the fragment are dropped; the path's case
+ * and the query string are kept, because either can name a different page. Found
+ * 2026-09-27: collect run 36283114657 fetched a dispatched .../ui-and-api, then fetched the
+ * search result .../ui-and-api/ as a second page - two credits for one. Identity only: the
+ * URL a capture records is still the one that was fetched.
+ */
+export function urlKey(url) {
+  try {
+    const parsed = new URL(String(url));
+    const host = parsed.host.toLowerCase().replace(/^www\./, '');
+    const path = parsed.pathname.replace(/\/+$/, '');
+    return `//${host}${path}${parsed.search}`;
+  } catch {
+    return String(url ?? '');
+  }
+}
+
 export function selectCandidates(results, { prefer = [], perQuery = 3, seen = new Set() } = {}) {
+  const taken = new Set();
   return results
     .map((row) => ({ ...row, score: rankCandidate(row.url, { prefer }) }))
-    .filter((row) => row.url && !seen.has(row.url))
+    // `seen` may hold keys (runResearch) or raw URLs (older callers); either excludes.
+    .filter((row) => row.url && !seen.has(row.url) && !seen.has(urlKey(row.url)))
     .sort((a, b) => b.score - a.score)
+    // Two spellings of one page in the same list are one candidate: the better-ranked.
+    .filter((row) => { const key = urlKey(row.url); if (taken.has(key)) return false; taken.add(key); return true; })
     .slice(0, perQuery);
 }
 
@@ -291,12 +315,15 @@ ${compatibility.remedy}`);
   const searcher = searchAdapter ?? searchers[0] ?? adapter;
   const searchName = searcher?.name ?? adapter?.name ?? '';
 
-  const seen = new Set(corpus.captures.entries.map((e) => e.url).filter(Boolean));
+  const seen = new Set(corpus.captures.entries.map((e) => e.url).filter(Boolean).map(urlKey));
   const targets = [];
 
   for (const entry of settings.urls) {
     const url = typeof entry === 'string' ? entry : entry.url;
     if (!url) continue;
+    // Seen before any search runs, so a search result that is this page - in any spelling -
+    // is not queued a second time.
+    seen.add(urlKey(url));
     targets.push({
       url,
       type: (typeof entry === 'object' && entry.type) || 'P',
@@ -350,7 +377,7 @@ ${compatibility.remedy}`);
           // All finders, not the first. A URL both returned is attributed to both.
           rankedBy: (candidate.providers ?? [candidate.provider]).filter(Boolean).join('+'),
         });
-        seen.add(candidate.url);
+        seen.add(urlKey(candidate.url));
       }
       continue;
     }
@@ -399,11 +426,14 @@ ${compatibility.remedy}`);
         from: `query: ${text} (via ${ranker})`,
         rankedBy: ranker,
       });
+      // Recorded as the merged path records it, so the next query cannot pick this page
+      // again and lose its own best result to a duplicate.
+      seen.add(urlKey(candidate.url));
     }
   }
 
   for (const target of targets) {
-    if (seen.has(target.url) === false) seen.add(target.url);
+    seen.add(urlKey(target.url));
     const decision = cacheDecision(corpus.captures, target.url, { refreshDays: freshness, force, now });
     // The budget binds in a DRY RUN too. A preview that ignores it answers a different
     // question from the one execution will answer - it shows work that would never

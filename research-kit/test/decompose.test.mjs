@@ -216,3 +216,14 @@ test('the CLI summary counts the searches that failed, and says when nothing was
   assert.match(both, /0 of 1 searches answered, 1 failed; 1 fell back/);
   assert.ok(!/FETCH credits/.test(both), 'a fallback that failed too is claimed to have spent');
 });
+
+test('phase 0 lists one page once, whatever its spelling', () => {
+  // The same identity runResearch uses (urlKey): a trailing slash or www. is not a second
+  // candidate, and with a scrape budget would not be a second fetch.
+  const dir = makeProject();
+  const out = decompose(dir, { topic: 'Example', adapter: stubAdapter([
+    { url: 'https://docs.example.com/a', title: 'A' },
+    { url: 'https://www.docs.example.com/a/', title: 'A again' },
+  ]) });
+  assert.equal(out.material, 1, 'two spellings of one page were listed as two candidates');
+});
