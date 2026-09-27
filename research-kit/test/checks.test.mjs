@@ -688,3 +688,21 @@ test('an evidence row naming a URL other than its capture\'s fails citations', (
   assert.equal(runCheck('citations', readCorpus(spelled)).some((f) => f.rule === 'url-mismatch'), false,
     'another spelling of the same page is the same page');
 });
+
+// Found 2026-09-27: a ledger whose last line was torn failed preflight with only the JSON error.
+// `doctor --fix-arity` repairs exactly that case, and nothing said so.
+test('a torn ledger tail names the repair; a broken line inside the chain does not', () => {
+  const dir = makePassingProject();
+  const ledger = resolve(dir, PATHS.ledger);
+  const whole = readText(ledger);
+  writeText(ledger, `${whole}{"seq":2,"at":"x","op":"scr`);
+  const tail = runCheck('provenance', snapshot(dir)).find((f) => f.rule === 'ledger-unparsed');
+  assert.ok(tail, 'no ledger-unparsed finding');
+  assert.match(tail.detail, /doctor\.mjs"? --fix-arity/, tail.detail);
+
+  writeText(ledger, `{"seq":0,"broken\n${whole}`);
+  const inside = runCheck('provenance', snapshot(dir)).find((f) => f.rule === 'ledger-unparsed');
+  assert.ok(inside, 'no ledger-unparsed finding for a broken first line');
+  assert.doesNotMatch(inside.detail, /--fix-arity/, 'fix-arity only drops a torn tail');
+  assert.match(inside.detail, /git/, inside.detail);
+});

@@ -7,7 +7,7 @@
 // A check emits findings. It never decides what a finding MEANS for the build - that is
 // the verdict's single judgement, in lib/preflight.mjs.
 
-import { hostOf, PATHS, resolve, exists, ageInDays, urlKey } from './core.mjs';
+import { hostOf, PATHS, resolve, exists, ageInDays, urlKey, readText, kitCommand } from './core.mjs';
 import { captureOf, traceOf, citedIds } from './corpus.mjs';
 import { documentGroups, closestPair } from './similarity.mjs';
 import { coverageOfUniversals } from './dimensions.mjs';
@@ -101,10 +101,18 @@ function provenance(corpus) {
     return [finding('fail', 'provenance', 'ledger-missing',
       `${PATHS.ledger} is absent - evidence must be fetched, not typed, and the ledger is what proves it`)];
   }
+  // Which repair applies to an unparsed line. `doctor --fix-arity` drops a torn LAST line - an
+  // interrupted append - and nothing else; a broken line inside the chain is restored from git.
+  // The finding named neither (found 2026-09-27).
+  const ledgerLines = String(readText(resolve(corpus.root, PATHS.ledger)) ?? '').split(/\r?\n/).filter((l) => l.trim()).length;
+  const repairOf = (problem) => (problem.rule !== 'ledger-unparsed' ? ''
+    : problem.line === ledgerLines
+      ? ` - the last line is torn (an interrupted append): ${kitCommand('doctor.mjs', '--fix-arity')} drops it`
+      : ' - a broken line inside the chain cannot be repaired here: restore research/raw/.fetches.jsonl from git');
   for (const problem of chain.problems) {
     const rule = problem.rule === 'body-unmodified' && problem.kind === 'line-endings' ? 'body-unmodified' : problem.rule;
     out.push(finding('fail', 'provenance', rule === 'seq' || rule === 'prev' || rule === 'entry-hash' ? 'chain-intact' : rule,
-      problem.detail + (problem.line ? ` (line ${problem.line})` : ''),
+      problem.detail + (problem.line ? ` (line ${problem.line})` : '') + repairOf(problem),
       { line: problem.line, file: problem.file, kind: problem.kind }));
   }
 
