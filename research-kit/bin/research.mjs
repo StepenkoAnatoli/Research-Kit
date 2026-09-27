@@ -73,7 +73,7 @@ evidence rows      ${usage.evidence}
 ledger entries     ${usage.ledgerEntries} (${usage.scrapes} scrape, ${usage.failures} failed)
 ${heading('plan')}
 topic              ${plan.topic || '(unset)'}
-depth              ${plan.depth} - up to ${DEPTH_SCRAPES[plan.depth]} scrapes
+depth              ${plan.depth} - up to ${Math.min(plan.maxScrapes, DEPTH_SCRAPES[plan.depth] ?? DEPTH_SCRAPES.quick)} scrapes a run${plan.maxScrapes < (DEPTH_SCRAPES[plan.depth] ?? DEPTH_SCRAPES.quick) ? ` (the plan's maxScrapes; this depth allows ${DEPTH_SCRAPES[plan.depth] ?? DEPTH_SCRAPES.quick})` : ''}
 queries / urls     ${plan.queries.length} / ${plan.urls.length}
 refresh-days       ${plan.refreshDays}
 ${heading('machine')}
@@ -152,7 +152,7 @@ collected  ${run.collected}
 cached     ${run.cached}
 failed     ${run.failed}
 spent      ${run.spent} (budget consumed: collected + failed)
-`);
+${run.overBudget ? `left       ${run.overBudget} over the budget - run again to fetch them; a page already fetched costs nothing\n` : ''}`);
 
 // The topic signal, printed at the one moment it helps: the pages are on disk and nobody
 // has read them yet. It decides nothing - see `topicMatch` for the two thresholds that were

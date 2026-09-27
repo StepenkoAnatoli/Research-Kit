@@ -131,6 +131,24 @@ test('FR-6: the flag outranks the environment, end to end through the CLI', () =
     `the flag lost to the environment:\n${r.out}`);
 });
 
+// Found 2026-09-27: a plan naming five pages with maxScrapes 2 printed two lines and "budget 2",
+// and said nothing about the other three - pages the operator wrote down, left unfetched without
+// a word. And --status said "up to 10 scrapes" for that plan: the depth's cap, not the run's.
+test('pages left out by the budget are named, and --status states the budget the run will use', () => {
+  const root = project('budget');
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({
+    topic: 'budget', depth: 'normal', maxScrapes: 2, refreshDays: 30, limit: 8, perQuery: 3, prefer: [], queries: [],
+    urls: [1, 2, 3, 4, 5].map((i) => ({ url: `https://x.invalid/page-${i}`, type: 'P', why: `page ${i}` })),
+  }));
+  const dry = run('research.mjs', ['--plan', 'research/plan.json', '--dry-run', '--transport', 'http-keyless'], { root });
+  for (const i of [3, 4, 5]) {
+    assert.match(dry.out, new RegExp(`page-${i}.*budget`), `page-${i} was left out without a word:\n${dry.out}`);
+  }
+  assert.match(dry.out, /left\s+3 over the budget/, `the summary does not count what was left out:\n${dry.out}`);
+  const status = run('research.mjs', ['--status', '--transport', 'http-keyless'], { root });
+  assert.match(status.out, /up to 2 scrapes/, `--status overstated the budget:\n${status.out}`);
+});
+
 test('RR-5: --status reports the search meter, with its caveat', () => {
   const r = run('research.mjs', ['--status'], { root: project() });
   assert.match(r.out, /searches \(this project\)/, 'the count is one project on this machine, not the box');

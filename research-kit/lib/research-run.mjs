@@ -304,6 +304,7 @@ ${compatibility.remedy}`);
   // The search side keeps its OWN counters, because it is a separate meter and a summary
   // that merged them would hide the whole point of the split.
   let searchesUsed = 0;
+  let overBudget = 0;
   let searchFailures = 0;
   // The same failures, by provider. `searchFailures` mixes providers, so it cannot say
   // whether the meter the summary reports on was the one that failed (RR-7).
@@ -439,7 +440,13 @@ ${compatibility.remedy}`);
     // question from the one execution will answer - it shows work that would never
     // happen, and hides the cap the operator is previewing against.
     if (!decision.hit && attempts >= budget) {
-      results.push({ ...target, status: 'skipped', reason: `budget exhausted (${budget} scrapes at depth ${tier})` });
+      const reason = `budget exhausted (${budget} scrapes at depth ${tier})`;
+      results.push({ ...target, status: 'skipped', reason });
+      // Said on the terminal, not only in the result. Found 2026-09-27: a plan naming five
+      // pages with a budget of 2 printed two lines, and the three pages the operator wrote
+      // down were left out without a word.
+      log(`  skipped   ${target.url} - ${reason}`);
+      overBudget += 1;
       continue;
     }
     if (!decision.hit) attempts += 1;
@@ -483,6 +490,8 @@ ${compatibility.remedy}`);
     transport: adapter.name,
     searchTransport: searchName,
     depth: tier, budget, attempts, spent, cached, failed,
+    // Pages the budget left out this run; the next run reaches them, a cached page being free.
+    overBudget,
     // What actually landed on disk, as distinct from what the run cost. `spent` is
     // collected + failed, because a failed fetch can still consume budget; reporting it as
     // "collected" told the operator they had pages they did not have.
