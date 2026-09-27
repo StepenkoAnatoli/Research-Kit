@@ -17,6 +17,7 @@ import { readCorpus, appendRow } from '../lib/corpus.mjs';
 import { writeRaw } from '../lib/collect.mjs';
 import { firstFinding } from '../lib/finding.mjs';
 import { collectedProject, approvedProject, IDENTITY } from './artifact-fixtures.mjs';
+import { reviewedBy } from '../lib/brief.mjs';
 
 describe('artifact-producer');
 
@@ -63,7 +64,7 @@ test('a reviewed corpus reaches APPROVED_BRIEF, and every dependent field agrees
   assert.equal(m.gate.verdict, 'PASS');
   assert.equal(m.gate.buildAuthorized, true);
   assert.deepEqual(m.gate.blockingFindings, []);
-  assert.deepEqual(m.review, { mapClassified: true, findingsReviewed: true, briefReviewed: true });
+  assert.deepEqual(m.review, { mapClassified: true, findingsReviewed: true, briefReviewed: true, by: 'undeclared' });
 });
 
 test('an unreviewed corpus does NOT, and says which step is outstanding', () => {
@@ -309,7 +310,9 @@ test('the producer does not modify the project it packages', () => {
 test('README-FIRST states the same thing the manifest does', () => {
   const collectedBuilt = build(collectedProject());
   const collectedReadme = collectedBuilt.entries.find((e) => e.name === 'README-FIRST.md').data.toString('utf8');
-  assert.ok(collectedReadme.includes('HUMAN REVIEW REQUIRED'));
+  assert.ok(collectedReadme.includes('REVIEW REQUIRED'));
+  assert.ok(!collectedReadme.includes('HUMAN REVIEW REQUIRED'),
+    'review is the reviewer\'s job, agent or person - the file must not say only a human may do it (ADR-0074)');
   assert.ok(collectedReadme.includes('not an approved research brief'));
   assert.equal(collectedBuilt.manifest.buildAuthorized, false);
 
@@ -319,6 +322,8 @@ test('README-FIRST states the same thing the manifest does', () => {
   assert.equal(approvedBuilt.manifest.buildAuthorized, true);
   assert.ok(!approvedReadme.includes('HUMAN REVIEW REQUIRED'),
     'the human file must not contradict the manifest it ships beside');
+  assert.ok(!approvedReadme.includes('a human reviewed it'),
+    'nothing verifies who reviewed, so the file must not claim a human did');
 });
 
 test('deriveState runs the gate rather than reading a cached verdict', () => {
@@ -338,4 +343,52 @@ test('deriveState runs the gate rather than reading a cached verdict', () => {
 test('the scratch directory is removed', () => {
   cleanup(scratch);
   assert.ok(!fs.existsSync(scratch));
+});
+
+// ---------------------------------------------------------------- who reviewed (ADR-0074)
+
+// The three review steps are checked by what they leave behind - a classified map,
+// rewritten findings, an authored brief - never by who did them. The package said "a human
+// reviewed it" regardless, which was false whenever an agent did the work. Who reviewed is
+// now the reviewer's own declaration in BRIEF.md, carried as `review.by`, and it is said to
+// be a declaration: nothing here can verify it, and approval does not depend on it.
+test('reviewedBy reads the brief\'s declaration, and only a real one', () => {
+  assert.equal(reviewedBy('# Brief\n\nReviewed by: agent\n'), 'agent');
+  assert.equal(reviewedBy('Reviewed by: **Human** - J. Doe, 2026-09-27'), 'human');
+  assert.equal(reviewedBy('reviewed by:   agent (claude)'), 'agent');
+  assert.equal(reviewedBy('Reviewed by: _agent or human - whoever did the review_'), 'undeclared',
+    'the drafted placeholder is not a declaration');
+  assert.equal(reviewedBy('Reviewed by: robot'), 'undeclared');
+  assert.equal(reviewedBy('No declaration here.'), 'undeclared');
+  assert.equal(reviewedBy(''), 'undeclared');
+});
+
+test('the drafted brief asks who reviewed it, and an answer reaches the manifest and both files', () => {
+  const undeclared = build(approvedProject());
+  assert.equal(undeclared.manifest.review.by, 'undeclared');
+  assert.equal(undeclared.manifest.buildAuthorized, true, 'approval does not depend on the declaration');
+  assert.equal(undeclared.manifest.formatVersion, '1.1.0');
+
+  const own = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-reviewed-by-'));
+  for (const who of ['agent', 'human']) {
+    const root = approvedProject();
+    const briefFile = resolve(root, 'research/BRIEF.md');
+    const brief = fs.readFileSync(briefFile, 'utf8');
+    assert.match(brief, /^Reviewed by: _agent or human/m, 'the drafted brief carries the placeholder');
+    fs.writeFileSync(briefFile, brief.replace(/^Reviewed by: .*$/m, `Reviewed by: ${who}`), 'utf8');
+    const built = build(root, { clientRef: `by-${who}` });
+    assert.equal(built.manifest.review.by, who);
+    assert.equal(built.manifest.buildAuthorized, true);
+    const readme = built.entries.find((e) => e.name === 'README-FIRST.md').data.toString('utf8');
+    assert.ok(readme.includes(who === 'agent' ? 'reviewed by an agent' : 'reviewed by a person'), readme.slice(0, 300));
+    const summary = built.entries.find((e) => e.name === 'reports/collection-summary.md').data.toString('utf8');
+    assert.match(summary, new RegExp(`reviewed by: \\*\\*${who}\\*\\*`));
+
+    const file = path.join(own, `by-${who}.zip`);
+    fs.writeFileSync(file, built.bytes);
+    const result = validateArtifact({ file, expectedClientRef: `by-${who}`, tempRoot: own });
+    assert.equal(result.status, 'PASS', result.errors.map((e) => `${e.code} ${e.message}`).join('; '));
+    assert.equal(result.reviewedBy, who);
+  }
+  cleanup(own);
 });

@@ -1,7 +1,7 @@
 # ADR-0032 — One artifact contract, and authorization is derived rather than asserted
 
 - **Date:** 2026-09-21
-- **Status:** accepted
+- **Status:** accepted; amended by ADR-0074 (who reviewed is declared, format 1.1.0)
 - **Area:** delivery, packaging, authorization, provenance
 - **Depends on:** ADR-0019 (one container format, written by hand), ADR-0031 (Actions-first delivery), ADR-0011 (the handoff is checked where the corpus arrives)
 - **Evidence basis:** `docs/decisions/2026-09-21-delivery-architecture/research/BRIEF.md`

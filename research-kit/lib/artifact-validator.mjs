@@ -383,6 +383,8 @@ export function validateArtifact({
       clientRef: manifest?.clientRef ?? null,
       workflowRunId: manifest?.source?.workflowRunId ?? null,
       state: manifest?.state ?? null,
+      // The reviewer's own declaration (format 1.1.0, ADR-0074); a 1.0.0 package has none.
+      reviewedBy: manifest?.review?.by ?? 'undeclared',
       errors,
       warnings,
     };
