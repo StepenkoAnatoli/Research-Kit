@@ -10,14 +10,45 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PATHS, resolve, exists, isDirectory, readJson } from './core.mjs';
-import { GATE_MARKERS } from './scaffold.mjs';
+import { PATHS, resolve, exists, isDirectory, readJson, readText } from './core.mjs';
+import { GATE_MARKERS, TEMPLATE_DIR } from './scaffold.mjs';
 import { runPreflight, verdictContext, readGateState, fixCommand } from './preflight.mjs';
 import { readCorpus } from './corpus.mjs';
 import { isGitRepo } from './machine.mjs';
 import { recordOverride } from './provenance.mjs';
 
 export const DEFAULT_CODE_PATHS = Object.freeze(['src', 'lib', 'bin', 'scripts', 'app']);
+
+/**
+ * The project's own scaffolding, which the commit gate lets through while the verdict fails
+ * (ADR-0048): how the corpus travels, and the rules that bind whoever opens it. None of it is
+ * product. Root paths only.
+ *
+ * Found 2026-09-27: after new-project, `git add -A && git commit` was refused because these
+ * files sit outside research/. So for the whole of phase 1 the corpus travelled without the
+ * .gitattributes that keeps its hashes valid on a Windows checkout (ADR-0020), and without
+ * the rules that bind an agent opening it mid-research.
+ */
+export const SCAFFOLDING = Object.freeze(['.gitattributes', '.gitignore', 'AGENTS.md', 'START_HERE.md']);
+
+/**
+ * The architecture map is a map of CODE, and in phase 1 there is none. The scaffold's empty
+ * map may travel with the corpus; a map with a design in it is phase 2 and stays gated. The
+ * template carries no token, so "empty" is "the template's bytes", line endings aside.
+ */
+export function isEmptyArchitectureMap(text) {
+  if (typeof text !== 'string') return false;
+  const template = readText(path.join(TEMPLATE_DIR, 'docs', 'ARCHITECTURE.md'));
+  if (template === null) return false;
+  const lf = (value) => value.replace(/\r\n/g, '\n');
+  return lf(text) === lf(template);
+}
+
+/** One staged file's text: the index's bytes, or, outside a repository, the working tree's. */
+export function readStagedText(root, rel, { run = gitCapture } = {}) {
+  if (!isGitRepo(root)) return readText(resolve(root, rel));
+  return run(['show', `:${rel}`], { cwd: root });
+}
 
 /** A project is gated when ANY of the four markers exists. */
 export function isGated(root) {
@@ -173,7 +204,9 @@ function gitCapture(args, { cwd }) {
 export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = null, env = process.env, record = true,
   // Injectable so the index-read FAILURE can be tested. A gate whose behaviour on a
   // broken git is untestable is a gate whose most dangerous path is unexercised.
-  materialize = materializeIndex } = {}) {
+  materialize = materializeIndex,
+  // Injectable for the same reason: the staged text of one path (the architecture map).
+  stagedText = (rel) => readStagedText(root, rel) } = {}) {
   const base = { gate, root, fix: fixCommand() };
 
   if (!isGated(root)) {
@@ -266,10 +299,6 @@ export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = n
   base.judged = judged;
   if (indexNote) base.indexNote = indexNote;
 
-  const outsideResearch = Array.isArray(stagedPaths)
-    ? stagedPaths.filter((p) => !String(p).split('\\').join('/').startsWith('research/'))
-    : null;
-
   if (preflight.pass) {
     const breach = gate === 'commit' ? architectureMapBreach(root, stagedPaths) : null;
     if (breach) {
@@ -281,10 +310,18 @@ export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = n
     return { ...base, verdict: 'pass', allow: true, preflight, reason: 'the gate passes', findings: [] };
   }
 
+  // What phase 1 may commit: the corpus, and the project's own scaffolding (ADR-0048).
+  const phaseOne = (p) => {
+    const rel = String(p).split('\\').join('/');
+    if (rel.startsWith('research/') || SCAFFOLDING.includes(rel)) return true;
+    return rel === PATHS.architecture && isEmptyArchitectureMap(stagedText(rel));
+  };
+  const outsideResearch = Array.isArray(stagedPaths) ? stagedPaths.filter((p) => !phaseOne(p)) : null;
+
   if (gate === 'commit' && Array.isArray(outsideResearch) && outsideResearch.length === 0) {
     return {
       ...base, verdict: 'pass', allow: true, preflight,
-      reason: 'the verdict fails, and this commit is confined to research/ - committing evidence is the workflow',
+      reason: 'the verdict fails, and this commit is confined to research/ and the project\'s own scaffolding - committing evidence is the workflow',
       findings: preflight.failures,
     };
   }
