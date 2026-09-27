@@ -6,7 +6,7 @@
 // that returns FAIL and a CLI that exits 0 anyway is a green suite and a broken gate.
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, fs, path, os, cleanup, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, fs, path, cleanup, KIT_ROOT } from './harness.mjs';
 import { sha256 } from '../lib/core.mjs';
 import { createArtifact } from '../lib/artifact.mjs';
 import { collectedProject, approvedProject, seal, basePackage, IDENTITY } from './artifact-fixtures.mjs';
@@ -15,7 +15,7 @@ import { openZip } from '../lib/artifact-zip.mjs';
 
 describe('artifact-cli');
 
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-cli-'));
+const scratch = tempDir('rk-cli-');
 const CLI = path.join(KIT_ROOT, 'bin', 'artifact.mjs');
 
 function run(args, options = {}) {

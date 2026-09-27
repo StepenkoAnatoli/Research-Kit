@@ -191,7 +191,14 @@ export function cleanup(dir) {
 // ---------------------------------------------------------------- fixtures
 
 export function tempDir(prefix = 'research-kit-') {
-  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  // TMPDIR is allowed to name a directory that does not exist yet - a container with a
+  // cleaned /tmp, a CI job that exports RUNNER_TEMP before creating it. `mkdtemp` then
+  // throws ENOENT, and where that call sits at module scope it aborts the RUNNER rather
+  // than failing a test: no result file, no count, just a stack trace. Creating the
+  // parent first costs one syscall and turns a suite-wide abort into nothing at all.
+  const base = os.tmpdir();
+  fs.mkdirSync(base, { recursive: true });
+  return fs.mkdtempSync(path.join(base, prefix));
 }
 
 /** The fixture and the scaffolder are the same call, which is what stops them drifting. */
