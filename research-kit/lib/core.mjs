@@ -334,10 +334,13 @@ export function kitCommand(script, args = '') {
  */
 export function documentCommand(script, args = '', { kit = fileURLToPath(new URL('..', import.meta.url)), home = os.homedir() } = {}) {
   const real = (p) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
-  if (real(kit) === real(path.join(home, '.agents', 'research-kit'))) {
-    return `node "$HOME/.agents/research-kit/bin/${script}"${args ? ` ${args}` : ''}`;
-  }
+  if (real(kit) === real(path.join(home, '.agents', 'research-kit'))) return homeCommand(script, args);
   return spellCommand(path.join(kit, 'bin', script), args);
+}
+
+/** `node "$HOME/.agents/research-kit/bin/<script>"`: the standard install, spelled for any reader's shell (ADR-0050). */
+export function homeCommand(script, args = '') {
+  return `node "$HOME/.agents/research-kit/bin/${script}"${args ? ` ${args}` : ''}`;
 }
 
 /**

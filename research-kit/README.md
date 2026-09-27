@@ -163,6 +163,11 @@ A package reading `{"state": "HUMAN_REVIEW_REQUIRED", "buildAuthorized": false}`
 *successful collection that still forbids building*. Do not describe it as an approved
 brief.
 
+**Getting from a collected package to an approved one.** The manifest is written once. After
+the review, run the `create` line the package's README-FIRST prints, from the package folder:
+it re-packages `project/` under the identity the package arrived with, into `reviewed.zip`,
+whose manifest is derived from the reviewed project (ADR-0052).
+
 **States, and what a UI should call them:**
 
 | `state` | Label for a person |
@@ -426,7 +431,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1015 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1016 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

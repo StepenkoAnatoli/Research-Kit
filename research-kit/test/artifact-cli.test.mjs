@@ -10,6 +10,8 @@ import { test, describe, assert, fs, path, os, cleanup, KIT_ROOT } from './harne
 import { sha256 } from '../lib/core.mjs';
 import { createArtifact } from '../lib/artifact.mjs';
 import { collectedProject, approvedProject, seal, basePackage, IDENTITY } from './artifact-fixtures.mjs';
+import { tempDir, requireCapability } from './harness.mjs';
+import { openZip } from '../lib/artifact-zip.mjs';
 
 describe('artifact-cli');
 
@@ -215,4 +217,56 @@ test('an unknown command exits 3 and prints help', () => {
 test('the scratch directory is removed', () => {
   cleanup(scratch);
   assert.ok(!fs.existsSync(scratch));
+});
+
+// ---------------------------------------------------------------- the reviewer's way back
+
+// A command line as the package's reader runs it: Windows PowerShell 5.1 on Windows, sh
+// elsewhere, from `cwd`, with the kit installed where the documents say it is.
+const SH = ['sh', '/bin/sh'].find((c) => spawnSync(c, ['-c', 'echo ok'], { encoding: 'utf8' }).stdout?.trim() === 'ok') ?? null;
+function asReader(line, { home, cwd }) {
+  const env = { ...process.env, HOME: home, USERPROFILE: home, PATH: `${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH ?? ''}` };
+  const result = process.platform === 'win32'
+    ? spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(line, 'utf16le').toString('base64')], { cwd, env, encoding: 'utf8', timeout: 60_000 })
+    : (requireCapability(SH, 'SHELL-NOT-FOUND', 'no POSIX sh on this host'), spawnSync(SH, ['-c', line], { cwd, env, encoding: 'utf8', timeout: 60_000 }));
+  return { code: result.status, out: `${result.stdout ?? ''}${result.stderr ?? ''}` };
+}
+
+// Found 2026-09-27 on the package collector run 36300088606 returned: README-FIRST said building
+// needs "state": "APPROVED_BRIEF" in manifest.json, and nothing in the package said how a reviewer
+// gets a manifest that says so. The only way was `artifact create` with five identity flags the
+// reader had to know about and copy out of the manifest by hand.
+test('README-FIRST gives the reviewer commands that take a reviewed package to APPROVED_BRIEF', () => {
+  const built = createArtifact({ root: collectedProject(), ...IDENTITY, clientRef: 'job-r' });
+  const pkg = path.join(tempDir('rk-received-'), 'the package');
+  for (const entry of built.entries) {
+    fs.mkdirSync(path.dirname(path.join(pkg, entry.name)), { recursive: true });
+    fs.writeFileSync(path.join(pkg, entry.name), entry.data);
+  }
+  // The review, done to the unpacked project: what approvedProject() does to a collected one.
+  fs.rmSync(path.join(pkg, 'project', 'research'), { recursive: true });
+  fs.cpSync(path.join(approvedProject(), 'research'), path.join(pkg, 'project', 'research'), { recursive: true });
+
+  const home = path.join(tempDir('rk-home-'), 'a home with space');
+  fs.mkdirSync(path.join(home, '.agents'), { recursive: true });
+  fs.symlinkSync(KIT_ROOT, path.join(home, '.agents', 'research-kit'), 'junction');
+
+  const readme = fs.readFileSync(path.join(pkg, 'README-FIRST.md'), 'utf8');
+  const commands = readme.split('\n').filter((line) => /^node "/.test(line));
+  const named = (script) => commands.find((line) => line.includes(`/bin/${script}"`));
+  for (const script of ['preflight.mjs', 'brief.mjs', 'artifact.mjs']) assert.ok(named(script), `README-FIRST gives no ${script} command:\n${readme}`);
+
+  const preflight = asReader(named('preflight.mjs'), { home, cwd: path.join(pkg, 'project') });
+  assert.equal(preflight.code, 0, `the preflight command README-FIRST gives failed on a reviewed project:\n${preflight.out}`);
+  const repackage = asReader(named('artifact.mjs'), { home, cwd: pkg });
+  assert.equal(repackage.code, 0, `the re-package command README-FIRST gives failed:\n${named('artifact.mjs')}\n${repackage.out}`);
+  const [, output] = named('artifact.mjs').match(/--output (\S+)/) ?? [];
+  const r = run(['validate', '--file', path.join(pkg, output)]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /build AUTHORIZED\s+state=APPROVED_BRIEF/, r.out);
+  const manifest = JSON.parse(openZip(fs.readFileSync(path.join(pkg, output))).read('manifest.json').toString('utf8'));
+  for (const key of ['repository', 'ref', 'commit', 'workflow', 'workflowRunId', 'runAttempt', 'apiVersion', 'runUrl', 'htmlUrl']) {
+    assert.equal(manifest.source[key], built.manifest.source[key], `the re-packaged ${key} differs from the received package`);
+  }
+  assert.equal(manifest.clientRef, 'job-r');
 });
