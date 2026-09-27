@@ -622,3 +622,16 @@ test('new-project over an existing project says it kept it, and that --topic was
   const same = run('new-project.mjs', [dir, '--topic', 'First topic'], { root: tempDir() });
   assert.doesNotMatch(same.all, /was not applied/, 'the same topic again is not a conflict');
 });
+
+// Found 2026-09-27: `audit --version v9` without --show rendered (or declined to render) a new
+// audit and never mentioned v9; `--topic` without --zip was dropped the same way. A flag that
+// only means something beside another is refused alone.
+test('audit refuses --version without --show, and --topic without --zip', () => {
+  const root = planned('audit flags');
+  const version = run('audit.mjs', ['--version', 'v9'], { root });
+  assert.equal(version.status, 2, version.all);
+  assert.match(version.err, /--version only works with --show <topic>/, version.all);
+  const topic = run('audit.mjs', ['--topic', 'x'], { root });
+  assert.equal(topic.status, 2, topic.all);
+  assert.match(topic.err, /--topic only works with --zip/, topic.all);
+});
