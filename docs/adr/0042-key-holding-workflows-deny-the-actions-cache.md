@@ -31,8 +31,14 @@ continues", and the job does not fail (E-06).
 
 **Execution protections are recommended to the operator, not encoded here**: a rule scoped to
 the two paid workflows, allowing the repository owner as actor and `workflow_dispatch` as
-event, in evaluate mode before enforcing. `collect-remote` dispatches as the operator through
-`workflow_dispatch`, so it passes.
+event, set under Settings > Actions > Policies by a repository administrator. `collect-remote`
+dispatches as the operator through `workflow_dispatch`, so it passes.
+
+_Corrected 2026-09-26:_ this paragraph first said "in evaluate mode before enforcing". Evaluate
+mode is GitHub Enterprise Cloud only (E-07 of the evidence project), so on this repository the
+rule is active as soon as it is saved. The recommendation is unchanged; only the way to apply it
+was wrong. It also cannot be applied from an agent session: the Actions policies API needs the
+Administration permission, and this environment's GitHub proxy refuses `/actions/policies`.
 
 ## Rejected alternatives
 

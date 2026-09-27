@@ -53,6 +53,13 @@ artifact"), because it announces a change and E-05 shows no sign of having been 
 documents nothing new. That is U-2, left KNOWN-UNKNOWN with a dated day-one check, and it does
 not matter to the kit's correctness either way (below).
 
+**The changelog and the how-to disagree about evaluate mode** (added 2026-09-26). E-03 says
+"Evaluate mode also carries over from the preview, so you can run rules in shadow mode", with
+no plan named. E-07, GitHub's how-to, qualifies it: "If you select **Evaluate** (GitHub
+Enterprise Cloud only)". Trusted: E-07, because it is the more specific statement and the
+reference a person follows to set the rule up. This corrected the first version of this brief,
+which advised evaluate mode first - a mode this repository cannot select.
+
 ## How the prior held
 
 Right on all four shapes, short on two details. U-1: listing only, never touched - as
@@ -86,7 +93,10 @@ EXPIRED - whichever way U-2 falls.
 
 **For the operator, not the code: a workflow execution protection rule** (U-3), scoped to
 `collect.yml` and `live-collection.yml`, allowing the repository owner as actor and
-`workflow_dispatch` as event - in evaluate mode first, then enforced. `collect-remote`
+`workflow_dispatch` as event: Settings > Actions > Policies, as a repository administrator
+(E-07). It is active as soon as it is saved - evaluate mode is GitHub Enterprise Cloud only,
+so this repository has no shadow run to try it in (corrected 2026-09-26; this paragraph first
+said "in evaluate mode first"). `collect-remote`
 dispatches as the operator through `workflow_dispatch`, so it passes. It is a repository
 setting, so it cannot live in this repository, and it complements ADR-0033 rather than
 replacing it: the rule limits who and what may START a run; the marker variable refuses a run

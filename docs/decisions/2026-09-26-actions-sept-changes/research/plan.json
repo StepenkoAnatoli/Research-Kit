@@ -41,6 +41,11 @@
       "url": "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax",
       "type": "P",
       "why": "U-4 - the exact cache-mode syntax and levels"
+    },
+    {
+      "url": "https://docs.github.com/en/actions/how-tos/administer/control-workflow-execution",
+      "type": "P",
+      "why": "U-3 - who configures execution protections on a repository, where, and whether evaluate mode is available on this plan"
     }
   ]
 }

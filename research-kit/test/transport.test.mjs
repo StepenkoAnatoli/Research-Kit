@@ -228,6 +228,36 @@ test('the keyless adapter never reads a key and charges no credit', () => {
   assert.doesNotMatch(source, /API_KEY/, 'the keyless adapter must not know about keys');
 });
 
+// Found 2026-09-26 in a cloud container whose only egress is an HTTPS proxy: the keyless
+// transport got HTTP 403 for a page curl fetched fine through the same proxy. The fetch runs
+// in a child on Node's built-in fetch, which ignores HTTPS_PROXY unless NODE_USE_ENV_PROXY=1,
+// so the transport went around the proxy it had been given - and said only "HTTP 403".
+
+const OK_JOB = JSON.stringify({ ok: true, url: 'https://x.invalid/p', statusCode: 200, body: '<html><body><p>ok</p></body></html>' });
+const childEnvOf = (env, call = (opts) => httpKeyless.scrape('https://x.invalid/p', opts)) => {
+  let seen = null;
+  call({ env, spawn: (file, args, opts) => { seen = opts; return { status: 0, stdout: OK_JOB, stderr: '' }; } });
+  assert.ok(seen, 'the rendezvous never spawned - this test is vacuous');
+  return seen.env ?? {};
+};
+
+test('behind a proxy, the keyless fetch is told to use it', () => {
+  for (const key of ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy']) {
+    const env = childEnvOf({ [key]: 'http://127.0.0.1:9', PATH: '/bin' });
+    assert.equal(env.NODE_USE_ENV_PROXY, '1', `${key} was set and the fetch child was not told to use it`);
+    assert.equal(env[key], 'http://127.0.0.1:9', 'the proxy itself must still reach the child');
+    assert.equal(env.PATH, '/bin', 'the rest of the environment must still reach the child');
+  }
+  const viaSearch = childEnvOf({ HTTPS_PROXY: 'http://127.0.0.1:9' }, (opts) => httpKeyless.search('q', opts));
+  assert.equal(viaSearch.NODE_USE_ENV_PROXY, '1', 'search goes through the same rendezvous and must get the same');
+});
+
+test('with no proxy, or with the operator\'s own setting, the environment is left alone', () => {
+  assert.equal(childEnvOf({ PATH: '/bin' }).NODE_USE_ENV_PROXY, undefined, 'no proxy, no flag');
+  assert.equal(childEnvOf({ HTTPS_PROXY: 'http://127.0.0.1:9', NODE_USE_ENV_PROXY: '0' }).NODE_USE_ENV_PROXY, '0',
+    'an operator who set the flag - even to 0 - decided; the transport does not overrule them');
+});
+
 test('the rendezvous returns a result object rather than throwing, when the job fails', () => {
   const result = httpKeyless.scrape('https://x.invalid/never', {
     spawn: () => ({ stdout: '', stderr: 'boom', status: 1 }),

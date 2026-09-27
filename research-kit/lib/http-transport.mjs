@@ -22,12 +22,32 @@ const USER_AGENT = 'research-kit/1.0 (+keyless transport; https://example.invali
 
 const SELF = fileURLToPath(import.meta.url);
 
-function runJob(job, { timeout = 60_000, spawn = spawnSync, nodePath = process.execPath } = {}) {
+const PROXY_VARIABLES = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'];
+
+/**
+ * The environment the fetch child runs in: the caller's, plus the one flag that makes
+ * Node's built-in fetch honour a configured proxy.
+ *
+ * `fetch` ignores HTTPS_PROXY unless NODE_USE_ENV_PROXY=1 (a Node version that predates the
+ * flag ignores it, so setting it costs nothing there). Without it, a machine whose egress
+ * is proxy-only got a bare "HTTP 403" for a page curl fetched through the same proxy: the
+ * transport had gone around the proxy it was given. Found 2026-09-26 in a cloud container,
+ * Node 22.22.2. An operator who set NODE_USE_ENV_PROXY themselves - even to 0 - decided,
+ * and is not overruled.
+ */
+export function fetchEnv(env = process.env) {
+  if (env.NODE_USE_ENV_PROXY !== undefined) return env;
+  if (!PROXY_VARIABLES.some((key) => env[key])) return env;
+  return { ...env, NODE_USE_ENV_PROXY: '1' };
+}
+
+function runJob(job, { timeout = 60_000, spawn = spawnSync, nodePath = process.execPath, env = process.env } = {}) {
   const result = spawn(nodePath, [SELF], {
     input: JSON.stringify(job),
     encoding: 'utf8',
     timeout,
     windowsHide: true,
+    env: fetchEnv(env),
   });
   if (result.error) return { ok: false, error: result.error.message };
   const text = String(result.stdout ?? '').trim();
