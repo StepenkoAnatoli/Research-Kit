@@ -249,3 +249,11 @@ test('every scaffolded .json file parses, whatever the topic', () => {
     assert.doesNotThrow(() => JSON.parse(text), `${rel} does not parse after scaffolding`);
   }
 });
+
+// Found 2026-09-27: a brand-new project reported "repaired 1" - creating research/raw/ for
+// the first time was counted as a repair, which reads as if something had been broken.
+test('a brand-new project repairs nothing; the same folder missing later is a repair', () => {
+  const fresh = scaffoldProject(path.join(tempDir(), 'p'), { topic: 'Fresh' });
+  assert.deepEqual(fresh.repaired, [], `a new project reported repairs: ${fresh.repaired.join(', ')}`);
+  assert.ok(fs.existsSync(resolve(fresh.dir, PATHS.raw)), 'the folder is still created');
+});

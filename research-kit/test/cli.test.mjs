@@ -741,3 +741,19 @@ test('preflight\'s closing line does not call every failure an unknown', () => {
   assert.equal(r.status, 1, r.all);
   assert.doesNotMatch(r.all, /names the unknown that is unproven/);
 });
+
+// Found 2026-09-27: five documented commands exited 2 on --help, and `artifact --bogus`
+// printed the help without naming the flag it did not know.
+test('every documented command exits 0 on --help and prints its usage to stdout', () => {
+  for (const bin of ['artifact.mjs', 'fi-sidecar-conformance.mjs', 'ledger-conformance.mjs', 'path-authority.mjs', 'researcher-release.mjs']) {
+    const r = run(bin, ['--help'], { root: project() });
+    assert.equal(r.status, 0, `${bin} --help exited ${r.status}`);
+    assert.match(r.out, /usage|node /i, `${bin} printed its help somewhere other than stdout`);
+  }
+});
+
+test('artifact with no subcommand names the flag it does not know', () => {
+  const r = run('artifact.mjs', ['--bogus-flag'], { root: project() });
+  assert.equal(r.status, 2);
+  assert.match(r.err, /unknown option --bogus-flag/);
+});

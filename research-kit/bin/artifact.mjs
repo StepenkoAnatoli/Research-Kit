@@ -56,7 +56,6 @@ A 0 does not authorize building - read buildAuthorized.
 const { flags, positional } = parseFlags(process.argv.slice(2));
 const command = positional[0] ?? '';
 
-if (flags.help || !command) { process.stdout.write(HELP); process.exit(command ? 0 : 2); }
 requireRuntime({ node: true });
 
 const EXIT = Object.freeze({ PASS: 0, FAIL: 1, INCOMPLETE: 2, BLOCKED: 3 });
@@ -90,6 +89,17 @@ const REFUSED_FOREVER = Object.freeze([
   'build-authorized', 'buildauthorized', 'authorize', 'authorized',
   'state', 'kind', 'gate-verdict', 'verdict', 'approved', 'force-approve',
 ]);
+
+// Help before any subcommand is chosen. With no subcommand, a flag no command knows is
+// named first: printing only the help left the reader to spot the typo themselves.
+if (flags.help || !command) {
+  if (!command) {
+    const known = new Set(['help', ...Object.values(KNOWN_FLAGS).flat()]);
+    for (const flag of Object.keys(flags).filter((f) => !known.has(f))) process.stderr.write(`unknown option --${flag}\n`);
+  }
+  process.stdout.write(HELP);
+  process.exit(flags.help ? 0 : 2);
+}
 
 function refuseUnknownFlags(name) {
   const known = new Set(KNOWN_FLAGS[name] ?? []);

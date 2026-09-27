@@ -96,11 +96,14 @@ export function scaffoldProject(dir, { topic = UNTITLED_TOPIC, kit = '$HOME/.age
   const written = [];
   const skipped = [];
   const repaired = [];
+  // A folder created in a brand-new project is part of scaffolding it, not a repair:
+  // "repaired 1" on a fresh project read as if something had been broken.
+  const existed = templateFiles(templateDir).some((rel) => exists(resolve(dir, rel)));
 
   for (const entry of LAYOUT) {
     const abs = resolve(dir, entry.path);
     if (entry.dir) {
-      if (!isDirectory(abs)) { ensureDir(abs); repaired.push(entry.path); }
+      if (!isDirectory(abs)) { ensureDir(abs); if (existed) repaired.push(entry.path); }
       const keep = path.join(abs, '.gitkeep');
       if (!exists(keep)) writeText(keep, '');
       continue;

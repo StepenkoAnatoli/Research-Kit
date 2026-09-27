@@ -35,6 +35,7 @@ function exitFor(status) {
 }
 
 export function main(argv = process.argv.slice(2)) {
+  if (argv.includes('--help') || argv.includes('-h')) { process.stdout.write(`${usage()}\n`); return 0; }
   const parsed = parse(argv);
   if (parsed.error) { console.error(`${parsed.error}\n${usage()}`); return 2; }
   const schemaPath = path.resolve(parsed.schema ?? SNAPSHOT_SCHEMA);

@@ -9,6 +9,8 @@ export function usage() { return 'Usage: node bin/fi-sidecar-conformance.mjs [--
 export function main(argv = process.argv.slice(2)) {
   let vectors = DEFAULT_VECTORS; let json = false;
   for (let index = 0; index < argv.length; index += 1) {
+    // --help as the Python twin and property-vector-conformance answer it: usage on stdout, exit 0.
+    if (argv[index] === '--help' || argv[index] === '-h') { process.stdout.write(`${usage()}\n`); return 0; }
     if (argv[index] === '--json') { json = true; continue; }
     if (argv[index] === '--vectors' && argv[index + 1]) { vectors = path.resolve(argv[++index]); continue; }
     console.error(usage()); return 2;
