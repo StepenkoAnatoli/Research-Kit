@@ -626,6 +626,17 @@ function hygiene(corpus) {
       `${row.id} has retrieval date "${row.retrieved}", which does not parse`, { row: row.id, line: row.line }));
   }
 
+  // No page was fetched in the future, and a future date hides the row's age from every
+  // freshness check: 2030-01-01 passed without a word (found 2026-09-27). A day of slack, so
+  // a date written in a time zone ahead of this machine's is not a failure.
+  for (const row of corpus.evidence) {
+    const age = row.retrieved ? ageInDays(row.retrieved) : null;
+    if (age === null || age >= -1) continue;
+    out.push(finding('fail', 'hygiene', 'future-date',
+      `${row.id} has retrieval date ${row.retrieved}, which is in the future - write the date the page was fetched (its capture records it)`,
+      { row: row.id, line: row.line }));
+  }
+
   if (!out.length) out.push(finding('pass', 'hygiene', 'hygiene', 'no duplicate rows, no uncited captures'));
   return out;
 }
