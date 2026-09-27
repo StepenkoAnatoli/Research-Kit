@@ -786,3 +786,23 @@ test('DR-1: decompose counts a fallback search\'s credits once', () => {
   assert.equal(usage.searchesUsed, 4, 'four fallback searches');
   assert.equal(usage.searchCreditsEstimate, 8, 'each fallback search is 2 credits, counted once');
 });
+
+// Found 2026-09-27 reviewing RR-8/RR-9: a MERGED search (two providers) was never recorded as
+// empty or off-topic - only the single-provider path reported them.
+test('RR-8/RR-9: a merged search that is empty, or off-topic, is recorded like a single one', () => {
+  const empty = project();
+  runResearch(empty, {
+    adapter: fetchStub(), searchAdapters: [searchStub({ name: 'one', results: [] }), searchStub({ name: 'two', results: [] })],
+    plan: plan({ queries: [{ q: 'postgres logical replication failover', why: 'U-1' }] }), log: () => {},
+  });
+  assert.ok(jsonLines(empty, '.failures.jsonl').some((f) => f.op === 'search-empty'), 'an empty merged search was not recorded');
+
+  const offTopic = project();
+  const fetcher = fetchStub();
+  runResearch(offTopic, {
+    adapter: fetcher, searchAdapters: [searchStub({ name: 'one', results: ['https://x.invalid/a'] }), searchStub({ name: 'two', results: ['https://y.invalid/b'] })],
+    plan: plan({ queries: [{ q: 'postgres logical replication failover', why: 'U-1' }] }), log: () => {},
+  });
+  assert.equal(fetcher.calls.scrape, 0);
+  assert.ok(jsonLines(offTopic, '.failures.jsonl').some((f) => f.op === 'search-off-topic'), 'an off-topic merged search was not recorded');
+});
