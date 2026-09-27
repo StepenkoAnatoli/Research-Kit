@@ -81,6 +81,6 @@ const summary = `${verdict.pass ? 'PASS' : 'FAIL'}  ${verdict.counts.fail} block
 process.stdout.write(`${heading('verdict')}\n${summary}\n`);
 
 if (!verdict.pass) {
-  process.stdout.write(`\nDo not start building. Each failing line names the unknown that is unproven.\nRe-run after collecting: ${fixCommand()}\n`);
+  process.stdout.write(`\nDo not start building. Each failing line names what is unproven and where.\nRe-run after collecting: ${fixCommand()}\n`);
 }
 process.exit(verdict.pass ? 0 : 1);

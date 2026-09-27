@@ -58,7 +58,7 @@ The project is the **current working directory**. The kit takes no project argum
 
 ```
 node "$HOME/.agents/research-kit/bin/new-project.mjs" . --topic "<topic>"                # the canonical shape
-node "$HOME/.agents/research-kit/bin/decompose.mjs" --topic "<topic>"                    # phase 0: the map, statuses blank
+node "$HOME/.agents/research-kit/bin/decompose.mjs"                                     # phase 0: the map of the project's topic, statuses blank
                                                              # then YOU mark COVERED/DISMISSED/GAP,
                                                              # write the unknowns into research/DISCOVERY.md
                                                              # and the queries/urls into research/plan.json
@@ -433,7 +433,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1060 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1063 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

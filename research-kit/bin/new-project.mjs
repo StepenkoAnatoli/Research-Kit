@@ -7,7 +7,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseFlags, kitCommand, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
-import { scaffoldProject, LAYOUT, GATE_MARKERS, validateProject } from '../lib/scaffold.mjs';
+import { scaffoldProject, LAYOUT, GATE_MARKERS, validateProject, UNTITLED_TOPIC } from '../lib/scaffold.mjs';
+import { resolveTopic } from '../lib/decompose.mjs';
 import { KIT_HOME } from '../lib/machine.mjs';
 
 const { flags, positional } = parseFlags(process.argv.slice(2));
@@ -55,7 +56,7 @@ const existingTopic = (() => {
   try { return (fs.readFileSync(path.join(dir, 'research', 'DISCOVERY.md'), 'utf8').match(/^# Discovery Contract - (.+)$/m)?.[1] ?? '').trim(); } catch { return ''; }
 })();
 const result = scaffoldProject(dir, {
-  topic: typeof flags.topic === 'string' ? flags.topic : 'Untitled topic',
+  topic: typeof flags.topic === 'string' ? flags.topic : UNTITLED_TOPIC,
   kit: typeof flags.kit === 'string' && flags.kit.trim() ? flags.kit.trim() : KIT_HOME,
   force: Boolean(flags.force),
 });
@@ -79,9 +80,11 @@ for (const finding of shape.findings) process.stdout.write(`  ${finding.severity
 // crashed with MODULE_NOT_FOUND (found 2026-09-27, following the README on a fresh machine).
 // Not the --kit spelling: that is for a project that travels; this is for the person at
 // this terminal, now.
+// decompose takes the project's own topic (ADR-0056), so the command asks for one only
+// while the project has none.
 process.stdout.write(`
 Next, from ${dir}:
-  1. ${kitCommand('decompose.mjs', '--topic "<topic>"')}   draft the map
+  1. ${resolveTopic(dir).error ? kitCommand('decompose.mjs', '--topic "<what is being researched>"') : kitCommand('decompose.mjs')}   draft the map
   2. fill research/DISCOVERY.md's unknowns FROM that map
   3. write the queries and urls that close them into research/plan.json
   4. ${kitCommand('research.mjs')}   collect

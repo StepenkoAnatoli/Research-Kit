@@ -702,3 +702,42 @@ test('a plan with values it cannot use is refused, naming each one', () => {
   assert.equal(str.status, 2, str.all);
   assert.match(str.err, /queries must be a list/, str.err);
 });
+
+// Found 2026-09-27, running the kit as a new user: new-project was given --topic and then
+// told the user to type it again ('decompose.mjs --topic "<topic>"'), which decompose now
+// takes from the project anyway (ADR-0056).
+test('new-project\'s first next step does not ask for the topic it was just given', () => {
+  const dir = path.join(tempDir('rk-np-next-'), 'p');
+  const r = run('new-project.mjs', [dir, '--topic', 'replication slots'], { root: tempDir('rk-np-cwd-') });
+  assert.equal(r.status, 0, r.all);
+  const step = r.out.split('\n').find((l) => /^\s*1\./.test(l)) ?? '';
+  assert.match(step, /decompose\.mjs/);
+  assert.doesNotMatch(step, /--topic|<topic>/, step);
+  const untitled = run('new-project.mjs', [path.join(tempDir('rk-np-next-'), 'p')], { root: tempDir('rk-np-cwd-') });
+  assert.match(untitled.out.split('\n').find((l) => /^\s*1\./.test(l)) ?? '', /--topic "</, 'an untitled project must be told to name one');
+});
+
+// Found 2026-09-27: on a collector that had collected nothing, handoff said "Something did
+// not travel. The remedy lives on the COLLECTOR machine" - which is the machine it ran on.
+test('handoff on a collector with nothing collected says so, and names the command that collects', () => {
+  const home = tempDir('rk-handoff-home-');
+  const config = path.join(home, 'c.json');
+  fs.writeFileSync(config, JSON.stringify({ role: 'collector' }));
+  const env = { HOME: home, USERPROFILE: home, RESEARCH_KIT_CONFIG: config };
+  const r = run('handoff.mjs', [], { root: project(), env });
+  assert.equal(r.status, 1, 'there is nothing to hand off');
+  assert.doesNotMatch(r.all, /did not travel/, r.all);
+  assert.match(r.all, /nothing has been collected/);
+  assert.match(r.all, /research\.mjs/);
+
+  fs.writeFileSync(config, JSON.stringify({ role: 'builder' }));
+  assert.match(run('handoff.mjs', [], { root: project(), env }).all, /did not travel/, 'a builder keeps the arrival remedy');
+});
+
+// Found 2026-09-27: every failing line was a map row (D-1..D-9), and preflight closed with
+// "Each failing line names the unknown that is unproven".
+test('preflight\'s closing line does not call every failure an unknown', () => {
+  const r = run('preflight.mjs', [], { root: project() });
+  assert.equal(r.status, 1, r.all);
+  assert.doesNotMatch(r.all, /names the unknown that is unproven/);
+});
