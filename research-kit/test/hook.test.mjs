@@ -221,3 +221,20 @@ test('the hook is watchdogged, and a watchdog kill is an internal error', () => 
   assert.match(text, /gtimeout/, 'macOS with coreutils gets a watchdog too');
   assert.match(text, /-eq 124/, 'a watchdog kill is decided by the posture, never a silent pass');
 });
+
+// Found 2026-09-27 (break-test): with HOME unset - a cron job, a systemd unit, some CI
+// agents - the hook's `set -u` stopped on `$HOME/.agents/...` with "HOME: parameter not
+// set" and exit 2, so EVERY commit was refused by a shell error instead of judged or let
+// through loudly. The hook now takes the home directory from node, as lib/machine.mjs does.
+test('a commit with HOME unset is judged, not refused by a shell error', () => {
+  requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
+  const dir = tempDir('rk-nohome-');
+  git(dir, ['init', '-q']);
+  const env = { ...process.env, RESEARCH_KIT_CONFIG: isolatedConfig(),
+    RESEARCH_KIT_INSTALL_STATE: path.join(tempDir('research-kit-hookstate-'), 'install.json') };
+  delete env.HOME;
+  delete env.RESEARCH_KIT_HOME;
+  const result = spawnSync(SH, [HOOK], { cwd: dir, encoding: 'utf8', timeout: 60_000, env });
+  assert.doesNotMatch(result.stderr, /parameter not set/, result.stderr);
+  assert.equal(result.status, 0, `an ungated repository was refused with HOME unset:\n${result.stdout}${result.stderr}`);
+});
