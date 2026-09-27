@@ -17,7 +17,7 @@ import { validateProject, hookExecutability, GATE_MARKERS, KIT_ROOT } from './sc
 import { settingsState, deployedDrift, driftNote } from './installer.mjs';
 import { recordOverride } from './provenance.mjs';
 import { probeFirecrawl, selectTransport } from './transport.mjs';
-import { nodeLine, nodeHonoursEnvProxy } from './runtime.mjs';
+import { nodeLine, nodeHonoursEnvProxy, proxyVariable } from './runtime.mjs';
 import { verifyBundle, bundleSummary } from './bundle.mjs';
 import {
   posture, machineRole, collectionPolicy, readMachineConfig, retiredEnvNotes,
@@ -68,12 +68,15 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
   // (docs/decisions/2026-09-27-node-support, ADR-0046).
   const line = nodeLine(nodeVersion);
   out.push(f(line.level, 'node', line.detail, line.fix));
-  const proxy = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].find((key) => env[key]);
+  // Every request the kit makes on Node's fetch depends on it: keyless pages, a keyed search
+  // provider's requests, and remote collection (dispatch, the MCP server, disclosure). The
+  // Firecrawl CLI has its own proxy handling. No vendor is named here (NFR-3).
+  const proxy = proxyVariable(env);
   if (proxy) {
     out.push(nodeHonoursEnvProxy(nodeVersion)
-      ? f('pass', 'keyless-proxy', `${proxy} is set, and node ${nodeVersion} routes the keyless transport through it`)
-      : f('warn', 'keyless-proxy',
-        `${proxy} is set, but node ${nodeVersion} cannot route fetch through it - the keyless transport goes around the proxy, and fails with an error that names no proxy`,
+      ? f('pass', 'proxy', `${proxy} is set, and node ${nodeVersion} sends the kit's requests through it`)
+      : f('warn', 'proxy',
+        `${proxy} is set, but node ${nodeVersion} cannot send requests through it - keyless pages, search requests and remote collection go around the proxy, and fail with an error that names no proxy`,
         'upgrade to Node 22.21 or later on the 22 line, or to 24 or 26'));
   }
 

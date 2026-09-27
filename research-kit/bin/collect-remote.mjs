@@ -24,7 +24,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseFlags, flagList, canonicalJson } from '../lib/core.mjs';
-import { requireRuntime } from '../lib/runtime.mjs';
+import { requireRuntime, honourEnvProxy } from '../lib/runtime.mjs';
 import {
   dispatchCollection, waitForRun, fetchCorpus, queriesInput,
   tokenFromEnv, redact, DispatchError, API_VERSION, TOKEN_VARS,
@@ -125,6 +125,9 @@ if (queriesValue.error) {
 
 const { token, from, detail } = tokenFromEnv();
 if (!token) die(EXIT.CANNOT_START, { error: detail, remedy: 'create a fine-grained token with Actions: read and write on this repository only' });
+
+// Before the first request: this process fetches, and Node's fetch ignores a proxy unless told.
+await honourEnvProxy();
 
 const repository = String(flags.repository);
 const workflow = String(flags.workflow ?? 'collect.yml');

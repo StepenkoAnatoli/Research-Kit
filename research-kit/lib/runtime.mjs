@@ -10,7 +10,8 @@
 // the corpus has no business refusing to run because a language it never calls is absent.
 // Each entrypoint asks for what it actually uses.
 
-import { spawnSync } from 'node:child_process';
+import http from 'node:http';
+import { spawn as spawnChild, spawnSync } from 'node:child_process';
 
 /** Node 22 is the floor: the kit uses `structuredClone` on arrays and modern ESM only. */
 export const REQUIRED_NODE_MAJOR = 22;
@@ -32,7 +33,7 @@ function nodeParts(version) {
 
 /**
  * Whether this Node's built-in fetch can route through HTTPS_PROXY via NODE_USE_ENV_PROXY,
- * which the keyless transport sets (fetchEnv). The flag exists from 22.21.0 on the 22 line
+ * which `fetchEnv` gives a fetching child and `honourEnvProxy` gives a command. The flag exists from 22.21.0 on the 22 line
  * and from 24.0.0 on the 24 line, and 23 never had it (docs/decisions/2026-09-27-node-support,
  * E-02, E-04). Below that the flag is ignored and the fetch goes around the proxy: measured
  * on 22.20.0, an HTTP 403 that named no proxy.
@@ -41,6 +42,112 @@ export function nodeHonoursEnvProxy(version = process.versions.node) {
   const { major, minor } = nodeParts(version);
   if (major === 22) return minor >= 21;
   return major >= 24;
+}
+
+// ---------------------------------------------------------------- a configured proxy
+//
+// Node's built-in fetch ignores HTTPS_PROXY unless told to use it, and it is told at startup
+// (NODE_USE_ENV_PROXY=1 or --use-env-proxy, E-02) or, from 24.14 and 25.4, in place with
+// http.setGlobalProxyFromEnv() (E-03). Every request the kit makes on Node's fetch goes
+// through here: a child that fetches is started with `fetchEnv`, and a command that fetches
+// in its own process calls `honourEnvProxy` before its first request.
+
+/** The variables Node's proxy support reads, both cases (E-03). */
+export const PROXY_VARIABLES = Object.freeze(['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy']);
+
+/** The first proxy variable set in `env`, or null. */
+export function proxyVariable(env = process.env) {
+  return PROXY_VARIABLES.find((key) => env[key]) ?? null;
+}
+
+/**
+ * The environment for a child process that fetches: `env`, plus the one flag that makes the
+ * child's built-in fetch use a configured proxy. A Node that predates the flag ignores it,
+ * so setting it costs nothing there.
+ *
+ * Found 2026-09-26 in a cloud container, Node 22.22.2: a GitHub API page that curl fetched
+ * through the proxy came back HTTP 403, GitHub's unauthenticated rate limit, because going
+ * around the proxy lost the authentication the proxy adds. On a network that allows traffic
+ * only through the proxy, the same bypass fails earlier, at the connection. Either way the
+ * error names no proxy. An operator who set NODE_USE_ENV_PROXY themselves - even to 0 -
+ * decided, and is not overruled.
+ */
+export function fetchEnv(env = process.env) {
+  if (env.NODE_USE_ENV_PROXY !== undefined) return env;
+  if (!proxyVariable(env)) return env;
+  return { ...env, NODE_USE_ENV_PROXY: '1' };
+}
+
+// Whoever started this process chose at startup: the variable (even set to 0) or the flag,
+// on the command line or in NODE_OPTIONS. The flag wins over the variable (E-02). Either
+// way the choice is theirs. Our own restart sets the variable, so it cannot loop.
+function proxyChosen(env, execArgv) {
+  const flag = /(^|\s)--(no-)?use-env-proxy(\s|=|$)/;
+  return env.NODE_USE_ENV_PROXY !== undefined
+    || execArgv.some((arg) => flag.test(arg))
+    || flag.test(env.NODE_OPTIONS ?? '');
+}
+
+/**
+ * How THIS process's own fetch reaches a configured proxy:
+ *   'none'         no proxy, or the choice was made at startup
+ *   'set'          Node 24.14+ and 25.4+: http.setGlobalProxyFromEnv() turns it on in place (E-03)
+ *   'reexec'       Node 22.21+ and 24.0-24.13: only the startup flag exists, so the command
+ *                  starts again with it
+ *   'unsupported'  older: nothing can; the command says so, and so does doctor
+ */
+export function envProxyPlan({
+  env = process.env,
+  version = process.versions.node,
+  execArgv = process.execArgv,
+  setGlobal = http.setGlobalProxyFromEnv,
+} = {}) {
+  if (!proxyVariable(env) || proxyChosen(env, execArgv)) return 'none';
+  if (typeof setGlobal === 'function') return 'set';
+  return nodeHonoursEnvProxy(version) ? 'reexec' : 'unsupported';
+}
+
+/**
+ * Make this process's own fetch use a configured proxy. Called by every command that fetches
+ * in its own process, before its first request: collect-remote, disclosure, mcp-server.
+ *
+ * Resolves with the plan it followed. For 'reexec' it never resolves: the command runs again
+ * as a child with the flag, on the same standard streams (an MCP client keeps talking to the
+ * same pipes), and this process forwards stop signals and leaves with the child's exit code.
+ */
+export function honourEnvProxy({
+  env = process.env,
+  version = process.versions.node,
+  execArgv = process.execArgv,
+  argv = process.argv,
+  execPath = process.execPath,
+  setGlobal = http.setGlobalProxyFromEnv,
+  spawn = spawnChild,
+  exit = (code) => process.exit(code),
+  stderr = process.stderr,
+  signals = process,
+} = {}) {
+  const plan = envProxyPlan({ env, version, execArgv, setGlobal });
+  if (plan === 'set') setGlobal(env);
+  if (plan === 'unsupported') {
+    stderr.write(`${proxyVariable(env)} is set, but node ${version} cannot send its requests through a proxy, `
+      + 'so they go direct. Upgrade to Node 22.21 or later on the 22 line, or to 24 or 26.\n');
+  }
+  if (plan !== 'reexec') return Promise.resolve(plan);
+
+  return new Promise(() => {
+    const child = spawn(execPath, [...execArgv, ...argv.slice(1)], {
+      stdio: 'inherit',
+      env: { ...env, NODE_USE_ENV_PROXY: '1' },
+      windowsHide: true,
+    });
+    for (const signal of ['SIGINT', 'SIGTERM']) signals.on(signal, () => child.kill(signal));
+    child.on('error', (error) => {
+      stderr.write(`could not start again with the proxy turned on: ${error.message}\n`);
+      exit(3);
+    });
+    child.on('exit', (code) => exit(code ?? 1));
+  });
 }
 
 /**

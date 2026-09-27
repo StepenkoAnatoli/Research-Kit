@@ -13,6 +13,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { fetchEnv } from './runtime.mjs';
 
 export const name = 'http-keyless';
 export const FULL_THRESHOLD = 1500;
@@ -22,29 +23,7 @@ const USER_AGENT = 'research-kit/1.0 (+keyless transport; https://example.invali
 
 const SELF = fileURLToPath(import.meta.url);
 
-const PROXY_VARIABLES = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'];
-
-/**
- * The environment the fetch child runs in: the caller's, plus the one flag that makes
- * Node's built-in fetch honour a configured proxy.
- *
- * `fetch` ignores HTTPS_PROXY unless NODE_USE_ENV_PROXY=1 (a Node version that predates the
- * flag ignores it, so setting it costs nothing there). Without it the fetch goes around
- * the proxy it was given. Found 2026-09-26 in a cloud container, Node 22.22.2: a GitHub API
- * page that curl fetched through the proxy came back HTTP 403 - GitHub's unauthenticated
- * rate limit, because going around the proxy lost the authentication the proxy adds. On a
- * network that allows traffic only through the proxy, the same bypass fails earlier, at the
- * connection. Either way the error names no proxy. (The first version of this comment said
- * "proxy-only egress"; docs/decisions/2026-09-27-node-support measured the real cause.)
- * The flag needs Node 22.21+ or 24+, and doctor warns on anything older. An operator who set NODE_USE_ENV_PROXY themselves - even to 0 - decided,
- * and is not overruled.
- */
-export function fetchEnv(env = process.env) {
-  if (env.NODE_USE_ENV_PROXY !== undefined) return env;
-  if (!PROXY_VARIABLES.some((key) => env[key])) return env;
-  return { ...env, NODE_USE_ENV_PROXY: '1' };
-}
-
+// The child's fetch uses a configured proxy only when told to: fetchEnv (runtime.mjs).
 function runJob(job, { timeout = 60_000, spawn = spawnSync, nodePath = process.execPath, env = process.env } = {}) {
   const result = spawn(nodePath, [SELF], {
     input: JSON.stringify(job),

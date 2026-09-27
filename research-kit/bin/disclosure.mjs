@@ -12,7 +12,7 @@
 //   3  could not measure
 
 import { parseFlags } from '../lib/core.mjs';
-import { requireRuntime } from '../lib/runtime.mjs';
+import { requireRuntime, honourEnvProxy } from '../lib/runtime.mjs';
 import { probeRun, render } from '../lib/disclosure.mjs';
 
 const HELP = `disclosure - what can a stranger see of a workflow run?
@@ -53,6 +53,9 @@ if (missing.length) {
   process.stdout.write(HELP);
   process.exit(3);
 }
+
+// Before the first request: this process fetches, and Node's fetch ignores a proxy unless told.
+await honourEnvProxy();
 
 let report;
 try {
