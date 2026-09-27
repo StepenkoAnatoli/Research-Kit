@@ -9,7 +9,7 @@
 
 import path from 'node:path';
 import {
-  PATHS, HEADERS, resolve, exists, readText, writeText, today, hostOf, uniq,
+  PATHS, HEADERS, resolve, exists, readText, writeText, today, hostOf, uniq, listFiles,
 } from './core.mjs';
 import { readCorpus, cacheDecision, tableRow, appendJsonLine } from './corpus.mjs';
 import { seedRows, UNIVERSAL_DIMENSIONS } from './dimensions.mjs';
@@ -46,7 +46,9 @@ export function loadRecipe(nameOrPath) {
   const direct = exists(nameOrPath) ? nameOrPath : path.join(RECIPE_DIR, `${nameOrPath}.md`);
   const text = readText(direct);
   if (text === null) {
-    const err = new Error(`no recipe "${nameOrPath}" - looked in ${RECIPE_DIR}`);
+    // Named, so a near miss ("api" for api-integration) is one glance away (found 2026-09-27).
+    const known = listFiles(RECIPE_DIR).filter((n) => n.endsWith('.md')).map((n) => n.replace(/\.md$/, ''));
+    const err = new Error(`no recipe "${nameOrPath}" - the recipes are: ${known.join(', ') || `none (looked in ${RECIPE_DIR})`}`);
     err.code = 'UNKNOWN_RECIPE';
     throw err;
   }

@@ -142,7 +142,9 @@ function knownUnknowns(corpus) {
     if (!secondhand.length) return none;
     return `${none} ${secondhand.join(', ')} ${secondhand.length === 1 ? 'rests' : 'rest'} on no primary (P) source; the Type column above shows what carries ${secondhand.length === 1 ? 'it' : 'them'}.`;
   }
-  return rows.map((u) => `- **${u.id}** - ${u.text}\n  - Day-one verification: ${u.evidence || '_not stated_'}`).join('\n');
+  // The cell is often written "Day one: ..." already; the label is added once.
+  const step = (cell) => String(cell ?? '').replace(/^\s*day[- ]one(?:\s+verification)?\s*[:-]\s*/i, '').trim();
+  return rows.map((u) => `- **${u.id}** - ${u.text}\n  - Day-one verification: ${step(u.evidence) || '_not stated_'}`).join('\n');
 }
 
 /**

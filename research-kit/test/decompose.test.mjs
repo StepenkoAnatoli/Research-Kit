@@ -260,3 +260,13 @@ test('a dry run names every search a real run would make, and on whose meter', (
     assert.ok(lines.some((l) => l.includes(`would search "${q}" on stub-search`)), `not named: ${q}\n${lines.join('\n')}`);
   }
 });
+
+// Found 2026-09-27: `--recipe api` answered 'no recipe "api" - looked in <dir>' without
+// naming the five that exist, one of them api-integration.
+test('an unknown recipe names the recipes that exist', () => {
+  assert.throws(() => loadRecipe('api'), (err) => {
+    assert.equal(err.code, 'UNKNOWN_RECIPE');
+    assert.match(err.message, /api-integration/);
+    return true;
+  });
+});
