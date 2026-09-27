@@ -270,3 +270,17 @@ test('README-FIRST gives the reviewer commands that take a reviewed package to A
   }
   assert.equal(manifest.clientRef, 'job-r');
 });
+
+// Found 2026-09-27: `create --commit abc` wrote the package, then said the package it had just
+// written did not validate, and left it on disk. A bad identity field is refused first.
+test('create refuses an identity the manifest schema would reject, and writes nothing', () => {
+  const out = path.join(scratch, 'bad-identity.zip');
+  for (const [flag, value, want] of [['--commit', 'abc', /commit/], ['--repository', 'not-a-repo', /repository/], ['--run-attempt', '0', /runAttempt|run-attempt/]]) {
+    const args = { '--repository': 'o/r', '--ref': 'main', '--commit': '0123456789abcdef0123456789abcdef01234567', '--workflow': 'collect.yml', '--run-id': '5' };
+    args[flag] = value;
+    const r = run(['create', '--root', approvedProject(), '--output', out, ...Object.entries(args).flat()]);
+    assert.equal(r.code, 3, `${flag} ${value}: exit ${r.code}\n${r.out}${r.err}`);
+    assert.match(r.err, want, r.err);
+    assert.equal(fs.existsSync(out), false, `${flag} ${value}: a package was written anyway`);
+  }
+});
