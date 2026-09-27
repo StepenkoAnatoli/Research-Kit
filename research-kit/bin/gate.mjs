@@ -111,10 +111,14 @@ research gate: BLOCKED - ${verdict.reason}
 for (const finding of verdict.findings.slice(0, 10)) {
   process.stderr.write(`  ${finding.severity}  ${finding.check}/${finding.rule}  ${finding.detail}\n`);
 }
+// A map-rule block happens only when the gate PASSES, so the phase-1 line would be false there.
+const why = verdict.breach
+  ? 'The research gate passes. This is the architecture-map rule: a commit touching a declared\ncode path (research/kit.json) stages docs/ARCHITECTURE.md with it. Overrides, all recorded:'
+  : 'Phase 1 is not done until preflight prints PASS. Overrides, all recorded:';
 process.stderr.write(`
 Fix: ${verdict.fix}
 
-Phase 1 is not done until preflight prints PASS. Overrides, all recorded:
+${why}
   git commit --no-verify        the native escape hatch
   research/GATE_OFF             turn the gate off for this repository, deliberately
 `);

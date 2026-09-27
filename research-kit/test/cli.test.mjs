@@ -25,6 +25,16 @@ function project(topic = 'cli probe') {
   return root;
 }
 
+/** A project whose plan names one page and one query, so a dry run has something to plan. */
+function planned(topic = 'cli probe') {
+  const root = project(topic);
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({
+    topic, depth: 'probe', maxScrapes: 2, refreshDays: 30, limit: 8, perQuery: 1, prefer: [],
+    queries: [{ q: 'a planned query', why: 'U-1' }], urls: [{ url: 'https://x.invalid/page', type: 'P', why: 'U-1' }],
+  }));
+  return root;
+}
+
 /**
  * Run a kit binary in a project and hand back what it said.
  *
@@ -150,6 +160,19 @@ test('pages left out by the budget are named, and --status states the budget the
   assert.match(status.out, /up to 2 scrapes/, `--status overstated the budget:\n${status.out}`);
 });
 
+// Found 2026-09-27 following new-project's next steps: step 3, research.mjs, ran on the scaffolded
+// plan - no queries, no urls - printed "collected 0" and exited 0. Nothing said the plan was empty,
+// so a run that did nothing read as a run that found nothing.
+test('research on an empty plan says so and exits 2, spending nothing', () => {
+  const root = project('empty plan');
+  for (const args of [['--dry-run', '--transport', 'http-keyless'], ['--transport', 'http-keyless']]) {
+    const r = run('research.mjs', args, { root });
+    assert.equal(r.status, 2, `exit ${r.status} on an empty plan (${args.join(' ')}):\n${r.out}${r.err}`);
+    assert.match(r.err, /research\/plan\.json has no queries and no urls/, r.err);
+    assert.doesNotMatch(r.out, /collected\s+0/, 'it still printed a run summary');
+  }
+});
+
 // Found 2026-09-27: the README offers --dry-run as "see what it would fetch, and the cost", and a
 // plan made of queries dry-ran to nothing - no query named, and "searches 0" at the end.
 test('a dry run names every query it would search, and on which provider', () => {
@@ -200,7 +223,7 @@ test('RR-5: a fresh project reports zero searches, not NaN or blank', () => {
 // ---------------------------------------------------------------- FR-8  --dry-run
 
 test('FR-8: --dry-run announces both providers and spends nothing', () => {
-  const root = project();
+  const root = planned();
   const r = run('research.mjs', ['--dry-run'], { root, env: { SERPAPI_API_KEY: FAKE_KEY } });
   assert.equal(r.status, 0, r.err);
   assert.match(r.out, /^transport:/m);
@@ -212,7 +235,8 @@ test('FR-8: --dry-run announces both providers and spends nothing', () => {
 });
 
 test('FR-5: --dry-run with NO key does not mention a second provider at all', () => {
-  const r = run('research.mjs', ['--dry-run'], { root: project() });
+  const r = run('research.mjs', ['--dry-run'], { root: planned() });
+  assert.equal(r.status, 0, r.err);
   assert.equal(/^search:/m.test(r.out), false,
     `a run with one provider announced two:\n${r.out}`);
 });
@@ -401,7 +425,7 @@ test('the run summary distinguishes what landed from what it cost', () => {
   // summary printed that number under the label "collected", so a run that fetched two
   // pages and lost six to a Firecrawl rate limit reported `collected 8` while its artifact
   // carried two captures. Found 2026-09-22 by comparing a run log against its own ZIP.
-  const r = run('research.mjs', ['--dry-run'], { root: project() });
+  const r = run('research.mjs', ['--dry-run'], { root: planned() });
   assert.equal(r.status, 0, r.err);
   assert.match(r.out, /^collected\s+\d+/m);
   assert.match(r.out, /^failed\s+\d+/m);
@@ -480,7 +504,7 @@ test('every command the kit tells you to run, runs from where you are', () => {
   // remedies printed by preflight, doctor and research named "node research-kit/bin/...",
   // which exists only at the repository root. Copy-pasting a fix produced MODULE_NOT_FOUND.
   // Every printed command now names the running kit by its full path (kitCommand).
-  const root = project();
+  const root = planned();
   const outputs = [
     run('preflight.mjs', [], { root }).all,
     run('doctor.mjs', [], { root }).all,

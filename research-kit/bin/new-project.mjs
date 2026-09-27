@@ -66,7 +66,8 @@ process.stdout.write(`
 Next, from ${dir}:
   1. ${kitCommand('decompose.mjs', '--topic "<topic>"')}   draft the map
   2. fill research/DISCOVERY.md's unknowns FROM that map
-  3. ${kitCommand('research.mjs')}   collect
-  4. ${kitCommand('preflight.mjs')}   do not build until PASS
+  3. write the queries and urls that close them into research/plan.json
+  4. ${kitCommand('research.mjs')}   collect
+  5. ${kitCommand('preflight.mjs')}   do not build until PASS
 `);
 process.exit(shape.ok ? 0 : 1);

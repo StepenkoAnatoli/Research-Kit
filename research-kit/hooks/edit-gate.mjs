@@ -12,7 +12,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { evaluate, isGated } from '../lib/gate.mjs';
+import { execFileSync } from 'node:child_process';
+import { evaluate, isGated, isPhaseOneEdit } from '../lib/gate.mjs';
 import { loadConfig } from '../lib/machine.mjs';
 
 function emit(decision, reason) {
@@ -35,10 +36,44 @@ try {
   emit('allow', 'the edit gate could not read this payload and did not judge it');
 }
 
-const cwd = payload.cwd || payload.project_dir || process.cwd();
-const root = path.resolve(cwd);
+const cwd = path.resolve(payload.cwd || payload.project_dir || process.cwd());
+
+// A cwd in a subfolder is judged by the repository it is in: that top level is where git runs
+// the commit gate. Looking only at the cwd found no markers in src/ and allowed every edit
+// there as "not a gated project" (found 2026-09-27). Not a search: git names the one
+// repository this directory belongs to, and outside a repository the cwd is all there is.
+function projectRoot(dir) {
+  if (isGated(dir)) return dir;
+  try {
+    const top = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }).trim();
+    // git names the top level by its real path (macOS: /private/tmp for /tmp; Windows: the
+    // long name where the cwd may carry an 8.3 one, C:\Users\RUNNER~1). Walk up from the cwd
+    // to the same directory instead, so the root keeps the spelling the targets use. The
+    // native realpath is the one that expands 8.3 names, and Windows compares without case.
+    const real = (p) => {
+      try { return fs.realpathSync.native(p); } catch { /* fall through */ }
+      try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+    };
+    const same = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
+    const target = real(top);
+    for (let d = dir; ; d = path.dirname(d)) {
+      if (same(real(d), target)) return isGated(d) ? d : dir;
+      if (path.dirname(d) === d) break;
+    }
+  } catch { /* not a repository, or no git: the cwd is all there is */ }
+  return dir;
+}
+const root = projectRoot(cwd);
 
 if (!isGated(root)) emit('allow', 'not a gated project');
+
+// The file this call edits. Every target must be phase-1 work to pass unjudged; a call that
+// names no file is judged as it always was.
+const input = payload.tool_input ?? {};
+const targets = [input.file_path, input.notebook_path].filter((t) => typeof t === 'string' && t);
+if (targets.length && targets.every((t) => isPhaseOneEdit(root, path.resolve(cwd, t)))) {
+  emit('allow', 'phase-1 work: research/ and the project\'s own scaffolding are what phase 1 edits');
+}
 
 let verdict;
 try {

@@ -1,7 +1,8 @@
 // The gate verdict, the diff-scope rule, the architecture-map rule, and the three
 // overrides. Plus the one that matters: it actually blocks.
 
-import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path } from './harness.mjs';
+import { spawnSync } from 'node:child_process';
+import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
 import { PATHS, resolve, writeText, readText, writeJson } from '../lib/core.mjs';
 import { evaluate, isGated, splitPathList, architectureMapBreach, loadGateConfig, DEFAULT_CODE_PATHS } from '../lib/gate.mjs';
 import { GATE_MARKERS, TEMPLATE_DIR } from '../lib/scaffold.mjs';
@@ -105,6 +106,66 @@ test('the architecture-map rule: a declared code path stages the map with it', (
   const verdict = evaluate(dir, { gate: 'commit', stagedPaths: ['research-kit/lib/gate.mjs'] });
   assert.equal(verdict.allow, false);
   assert.equal(verdict.breach.rule, 'architecture-map-same-commit');
+});
+
+// Found 2026-09-27 committing product code in a project whose preflight PASSes: the block said
+// "Phase 1 is not done until preflight prints PASS" - false, it passed - and its fix,
+// "git add docs/ARCHITECTURE.md", stages nothing while the map is unchanged, so following it
+// exactly left the commit blocked.
+test('a map-rule block on a passing gate says what is owed, and its fix works as written', () => {
+  const dir = makePassingProject();
+  const r = spawnSync(process.execPath, [path.join(KIT_ROOT, 'bin', 'gate.mjs'), '--staged', 'src/app.js'], { cwd: dir, encoding: 'utf8', env: { ...process.env, RESEARCH_KIT_GATE: '' } });
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.doesNotMatch(r.stderr, /Phase 1 is not done/, `the gate passes, and the block says it does not:\n${r.stderr}`);
+  assert.match(r.stderr, /research gate passes/i, r.stderr);
+  const [, fix] = r.stderr.match(/Fix: ([^\n]+)/) ?? [];
+  assert.match(fix ?? '', /update docs\/ARCHITECTURE\.md/i, `"git add" alone stages nothing while the map is unchanged: ${fix}`);
+});
+
+// The edit-time hook, fed the payload the runtime sends. Found 2026-09-27: while phase 1 was open
+// it asked "the build is not ready" before EVERY edit - research/MAP.md and DISCOVERY.md
+// included, which are the phase-1 work AGENTS.md tells the agent to do. The commit gate lets
+// research/ and the project's scaffolding through (ADR-0048); the edit gate did not look at the
+// path at all.
+function editGate(dir, toolInput, cwd = dir) {
+  const r = spawnSync(process.execPath, [path.join(KIT_ROOT, 'hooks', 'edit-gate.mjs')], {
+    input: JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Write', cwd, tool_input: toolInput }),
+    encoding: 'utf8', env: { ...process.env, RESEARCH_KIT_CONFIG: path.join(tempDir(), 'absent.json') },
+  });
+  return JSON.parse(r.stdout).hookSpecificOutput;
+}
+
+test('the edit gate lets phase-1 work through and still stops code', () => {
+  const dir = makeProject();
+  for (const rel of ['research/MAP.md', 'research/DISCOVERY.md', 'research/EVIDENCE.md', 'AGENTS.md']) {
+    const out = editGate(dir, { file_path: path.join(dir, rel), content: 'x' });
+    assert.equal(out.permissionDecision, 'allow', `${rel} is phase-1 work and the edit gate said ${out.permissionDecision}: ${out.permissionDecisionReason}`);
+  }
+  assert.equal(editGate(dir, { file_path: 'research/BRIEF.md' }).permissionDecision, 'allow', 'a path relative to cwd');
+  assert.equal(editGate(dir, { file_path: path.join(dir, 'src', 'app.js'), content: 'x' }).permissionDecision, 'ask', 'code is phase 2');
+  assert.equal(editGate(dir, { file_path: path.join(dir, 'research', '..', 'src', 'app.js') }).permissionDecision, 'ask', 'a path that only passes through research/');
+  assert.equal(editGate(dir, { notebook_path: path.join(dir, 'analysis.ipynb') }).permissionDecision, 'ask', 'a notebook outside research/');
+  assert.equal(editGate(dir, {}).permissionDecision, 'ask', 'a call naming no file is judged as before');
+});
+
+// Found 2026-09-27: with the session's cwd in a subfolder of a gated repository, the edit hook
+// looked for the gate markers in that subfolder, found none, and allowed every edit as "not a
+// gated project". The commit gate always judges from the repository's top level, where git
+// runs its hooks, so the two gates disagreed about the same file.
+test('the edit gate judges a subfolder cwd by the repository it is in', () => {
+  const dir = makeProject();
+  spawnSync('git', ['init', '-q'], { cwd: dir });
+  fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+  const out = editGate(dir, { file_path: 'app.js' }, path.join(dir, 'src'));
+  const top = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: path.join(dir, 'src'), encoding: 'utf8' });
+  assert.equal(out.permissionDecision, 'ask', `code edited from src/ was not judged: ${out.permissionDecisionReason}
+    project ${dir}
+    git top ${JSON.stringify(top.stdout)} (exit ${top.status}) ${top.stderr}
+    native  ${fs.realpathSync.native(dir)}`);
+  assert.equal(editGate(dir, { file_path: '../research/MAP.md' }, path.join(dir, 'src')).permissionDecision, 'allow',
+    'phase-1 work is still phase-1 work from a subfolder');
+  const loose = tempDir();
+  assert.equal(editGate(loose, { file_path: 'a.js' }).permissionDecision, 'allow', 'outside any gated project nothing is judged');
 });
 
 test('undeclared code paths fall back to the documented defaults', () => {

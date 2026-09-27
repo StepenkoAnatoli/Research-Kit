@@ -110,6 +110,21 @@ function vendorMeter(search) {
     + `                   from ${r.source} - the vendor's own count, free and not counted (E-26)\n`;
 }
 
+// An empty plan is refused before anything runs. The scaffold's plan has no queries and no
+// urls, and new-project's step 3 is "research.mjs": it printed "collected 0" and exited 0, so a
+// run that did nothing read as a run that found nothing (found 2026-09-27).
+{
+  const planPath = typeof flags.plan === 'string' ? flags.plan : 'research/plan.json';
+  const planned = readPlan(root, typeof flags.plan === 'string' ? flags.plan : '');
+  if (!planned.queries.length && !planned.urls.length) {
+    process.stderr.write(`${planPath} has no queries and no urls - nothing to collect.
+Add them from the unknowns in research/DISCOVERY.md: each query is { "q": "...", "why": "U-1", "prefer": ["official.domain"] },
+and each url is { "url": "https://...", "why": "U-1", "type": "P" }. Then run this again.
+`);
+    process.exit(2);
+  }
+}
+
 let chosen;
 try {
   chosen = selectTransport({
