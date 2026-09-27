@@ -1,0 +1,47 @@
+{
+  "topic": "Which MCP protocol revisions the kit's stdio server should serve on 2026-09-27: what changed between 2025-06-18 and 2025-11-25 for a tools-only server, and what version negotiation requires",
+  "notes": "Phase 0 search came back mostly third-party servers and blogs; the pages that own these facts are the specification and the published SDK package, so they are fetched directly.",
+  "depth": "normal",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 3,
+  "maxScrapes": 6,
+  "prefer": [
+    "modelcontextprotocol.io",
+    "cdn.jsdelivr.net/npm/@modelcontextprotocol",
+    "registry.npmjs.org"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://modelcontextprotocol.io/specification/2025-11-25/changelog",
+      "type": "P",
+      "why": "U-1 - what 2025-11-25 changed relative to 2025-06-18"
+    },
+    {
+      "url": "https://modelcontextprotocol.io/specification/2025-06-18/changelog",
+      "type": "P",
+      "why": "U-2 - what 2025-06-18 changed relative to 2025-03-26: structured output, resource links"
+    },
+    {
+      "url": "https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle",
+      "type": "P",
+      "why": "U-3 - version negotiation on initialize: echo, fallback, client disconnect"
+    },
+    {
+      "url": "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/sdk@1.24.0/dist/esm/types.js",
+      "type": "P",
+      "why": "U-4 - the last SDK release whose client requests 2025-06-18 and does not accept 2025-11-25"
+    },
+    {
+      "url": "https://cdn.jsdelivr.net/npm/@modelcontextprotocol/sdk@1.25.0/dist/esm/types.js",
+      "type": "P",
+      "why": "U-4 - the first SDK release whose client requests 2025-11-25"
+    },
+    {
+      "url": "https://registry.npmjs.org/@modelcontextprotocol/sdk",
+      "type": "P",
+      "why": "U-4 - the registry's own publish time for every SDK release"
+    }
+  ]
+}
