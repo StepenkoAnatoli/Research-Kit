@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // bin/install-hooks.mjs - install, repair, or remove the two gates; declare the role.
 
-import { parseFlags, refuseUnknownFlags } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
 import { installCommitGate, installEditGate, uninstall, settingsState, retiredRepairNote } from '../lib/installer.mjs';
 import { saveConfig, loadConfig, machineRole, ROLES, EDIT_GATE_MODES, posture } from '../lib/machine.mjs';
 
@@ -9,6 +9,7 @@ const { flags } = parseFlags(process.argv.slice(2));
 // An unknown flag is refused before anything runs: `install-hooks --unistall` installed the gates
 // and `new-project --topc` scaffolded an "Untitled topic" (found 2026-09-27).
 refuseUnknownFlags(flags, ['help', 'dry-run', 'git-only', 'edit-only', 'mode', 'role', 'fail-closed', 'fail-open', 'uninstall']);
+checkFlagValues(flags, { mode: { choices: EDIT_GATE_MODES }, role: { choices: ROLES } });
 
 if (flags.help) {
   process.stdout.write(`install-hooks - the commit gate, the edit-time gate, and this machine's role.

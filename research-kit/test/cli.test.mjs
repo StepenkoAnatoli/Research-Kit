@@ -575,3 +575,35 @@ test('every CLI refuses a flag it does not know, before it does anything', () =>
     assert.match(r.err, /unknown option --no-such-flag/, `${bin} did not name the flag:\n${r.all.slice(0, 400)}`);
   }
 });
+
+// Found 2026-09-27: a flag given a bad value, or none, was replaced by a default in silence.
+// `research --depth thorough` printed "depth thorough" and ran on quick's budget;
+// `--refresh-days abc` became NaN; `install-hooks --mode block` saved a mode the edit gate reads
+// as "ask"; `new-project --topic` (no value) scaffolded "Untitled topic"; `preflight --only x`
+// was accepted and never read. A value flag must carry a value, and a valid one.
+test('a flag given a bad value, or none, is refused before anything runs', () => {
+  const home = tempDir('rk-value-home-');
+  const cases = [
+    ['research.mjs', ['--dry-run', '--depth', 'thorough'], /--depth must be one of/],
+    ['research.mjs', ['--dry-run', '--refresh-days', 'abc'], /--refresh-days must be a whole number/],
+    ['research.mjs', ['--dry-run', '--plan'], /--plan needs a value/],
+    ['research.mjs', ['--dry-run', '--only'], /--only needs a value/],
+    ['install-hooks.mjs', ['--dry-run', '--mode', 'block'], /--mode must be one of/],
+    ['install-hooks.mjs', ['--dry-run', '--role'], /--role needs a value/],
+    ['new-project.mjs', [path.join(tempDir('rk-value-np-'), 'p'), '--topic'], /--topic needs a value/],
+    ['evidence-context.mjs', ['--all', '--limit', 'abc'], /--limit must be a whole number/],
+    ['evidence-context.mjs', ['--unknown'], /--unknown needs a value/],
+    ['decompose.mjs', ['--dry-run', '--topic'], /--topic needs a value/],
+    ['preflight.mjs', ['--check'], /--check needs a value/],
+    ['gate.mjs', ['--gate', 'push'], /--gate must be one of/],
+    ['prior.mjs', ['--file'], /--file needs a value/],
+    ['audit.mjs', ['--topic'], /--topic needs a value/],
+  ];
+  for (const [bin, args, want] of cases) {
+    const r = run(bin, args, { root: planned('values'), env: { HOME: home, USERPROFILE: home, RESEARCH_KIT_CONFIG: path.join(home, 'c.json') } });
+    assert.equal(r.status, 2, `${bin} ${args.join(' ')} exited ${r.status}:\n${r.all.slice(0, 400)}`);
+    assert.match(r.err, want, `${bin} ${args.join(' ')}:\n${r.all.slice(0, 400)}`);
+  }
+  const only = run('preflight.mjs', ['--only', 'citations'], { root: planned('values') });
+  assert.equal(only.status, 2, `preflight --only is accepted and never read:\n${only.all.slice(0, 300)}`);
+});
