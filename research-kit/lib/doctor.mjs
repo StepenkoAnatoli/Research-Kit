@@ -26,6 +26,7 @@ import {
   EDIT_GATE_HOOK, KIT_HOME, namesHook,
 } from './machine.mjs';
 
+import { kitCommand } from './core.mjs';
 function f(severity, name, detail, fix = '') {
   return { severity, name, detail, ...(fix ? { fix } : {}) };
 }
@@ -172,10 +173,10 @@ export function gateHealth(root, { env = process.env, gitPaths = {}, record = tr
 
   if (!global) {
     out.push(f('warn', 'gate-commit', 'no machine-wide core.hooksPath is set - the commit gate is not installed',
-      'node research-kit/bin/install-hooks.mjs'));
+      kitCommand('install-hooks.mjs')));
   } else {
     const state = commitGateState({ hooksPath: global, kitHome: readInstallState(env)?.kitHome ?? KIT_HOME });
-    const repair = 'node research-kit/bin/install-hooks.mjs';
+    const repair = kitCommand('install-hooks.mjs');
     if (state.state === 'current') {
       out.push(f('pass', 'gate-commit', `${global} (pre-commit ${state.mode.reason})`));
     } else if (state.state === 'foreign') {
@@ -209,7 +210,7 @@ export function gateHealth(root, { env = process.env, gitPaths = {}, record = tr
   } catch {
     registered = 'unparseable';
   }
-  const repair = 'node research-kit/bin/install-hooks.mjs --edit-only';
+  const repair = kitCommand('install-hooks.mjs', '--edit-only');
   if (registered === 'current') out.push(f('pass', 'gate-edit', `registered in ${runtime.settingsPath}, pointing at the deployed kit`));
   else if (registered === 'foreign') {
     out.push(f('fail', 'gate-edit',
@@ -342,7 +343,7 @@ export function runDoctor(root, { env = process.env, gitPaths = {}, probe = prob
     findings.push(verdict.pass
       ? f('pass', 'preflight', `PASS (${verdict.counts.warn} warning(s))`)
       : f('fail', 'preflight', `${verdict.counts.fail} blocking finding(s): ${verdict.failures.slice(0, 3).map((x) => `${x.check}/${x.rule}`).join(', ')}`,
-        'node research-kit/bin/preflight.mjs'));
+        kitCommand('preflight.mjs')));
 
     const chain = corpus.chain;
     if (!chain.present) {

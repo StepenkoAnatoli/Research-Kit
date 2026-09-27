@@ -9,6 +9,7 @@ import { readLedger } from '../lib/corpus.mjs';
 import { readPrior, registerPrior, MIN_PRIOR, PRIOR_PATH } from '../lib/prior.mjs';
 import { heading } from '../lib/render.mjs';
 
+import { kitCommand } from '../lib/core.mjs';
 const { flags, positional } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['file', 'help']);
 const root = process.cwd();
@@ -49,7 +50,7 @@ if (source === null) {
     process.stdout.write(`no prior is registered for this corpus.\n\n`
       + `That is allowed and it is silent at the gate. It also means nothing here can later\n`
       + `show what you expected before you knew - including to you.\n\n`
-      + `  node research-kit/bin/prior.mjs "..."\n`);
+      + `  ${kitCommand('prior.mjs', '"..."')}\n`);
     process.exit(0);
   }
   const scrapes = entries.filter((e) => e.op === 'scrape').length;

@@ -9,6 +9,7 @@ import { verifyLedger } from './provenance.mjs';
 import { runChecks, CHECK_NAMES } from './checks.mjs';
 import { evidencePolicy, loadConfig, localHooksPathOverride } from './machine.mjs';
 
+import { kitCommand } from './core.mjs';
 /**
  * Findings these checks raise are warnings under `pluralist`, failures under `strict`.
  *
@@ -87,7 +88,7 @@ export function runPreflight(root, { corpus = null, env = process.env, only = []
 
 /** The one line a failing verdict tells an operator to run. */
 export function fixCommand() {
-  return 'node research-kit/bin/preflight.mjs';
+  return kitCommand('preflight.mjs');
 }
 
 export { CHECK_NAMES };

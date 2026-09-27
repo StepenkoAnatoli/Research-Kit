@@ -406,3 +406,21 @@ test('new-project prints next steps that run from the project it just made', () 
   }
   assert.ok(r.out.includes(target), 'the next steps should say which folder to run them from');
 });
+
+test('every command the kit tells you to run, runs from where you are', () => {
+  // Found 2026-09-27 following the README on a fresh machine: from a project folder, the
+  // remedies printed by preflight, doctor and research named "node research-kit/bin/...",
+  // which exists only at the repository root. Copy-pasting a fix produced MODULE_NOT_FOUND.
+  // Every printed command now names the running kit by its full path (kitCommand).
+  const root = project();
+  const outputs = [
+    run('preflight.mjs', [], { root }).all,
+    run('doctor.mjs', [], { root }).all,
+    run('research.mjs', ['--dry-run'], { root }).all,
+  ].join('\n');
+  const commands = [...outputs.matchAll(/node ("[^"]+\.mjs"|\S+\.mjs)/g)].map((m) => m[1].replace(/^"|"$/g, ''));
+  assert.ok(commands.length >= 3, `expected the CLIs to print some next steps, found ${commands.length}`);
+  for (const file of commands) {
+    assert.ok(path.isAbsolute(file) && fs.existsSync(file), `a printed command names "${file}", which does not run from a project folder`);
+  }
+});

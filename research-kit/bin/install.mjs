@@ -8,6 +8,7 @@ import { machineRole, KIT_HOME } from '../lib/machine.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 import { heading } from '../lib/render.mjs';
 
+import { kitCommand } from '../lib/core.mjs';
 const { flags } = parseFlags(process.argv.slice(2));
 
 if (flags.help) {
@@ -42,16 +43,16 @@ if (result.bound) process.stdout.write(`bound into project -> ${result.bound}\n`
 const role = machineRole();
 process.stdout.write(`${heading(`next steps (role=${role})`)}\n`);
 if (role === 'builder') {
-  process.stdout.write(`  1. node research-kit/bin/handoff.mjs     did the corpus arrive whole?
+  process.stdout.write(`  1. ${kitCommand('handoff.mjs')}     did the corpus arrive whole?
   2. read research/BRIEF.md               phase 2 starts there
-  3. node research-kit/bin/preflight.mjs  confirm the gate still passes here
+  3. ${kitCommand('preflight.mjs')}  confirm the gate still passes here
 
 This machine does not collect. If a fact is missing, name it and let it be collected on
 the collector machine.
 `);
 } else {
-  process.stdout.write(`  1. node research-kit/bin/install-hooks.mjs   install the two gates
+  process.stdout.write(`  1. ${kitCommand('install-hooks.mjs')}   install the two gates
   2. firecrawl login                          or run with --transport http-keyless
-  3. node research-kit/bin/doctor.mjs          stop at READY
+  3. ${kitCommand('doctor.mjs')}          stop at READY
 `);
 }

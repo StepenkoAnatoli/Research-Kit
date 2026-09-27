@@ -42,6 +42,7 @@ import { resolve, exists, readText, writeText, sha256 } from './core.mjs';
 import { readLedger } from './corpus.mjs';
 import { appendFetch } from './provenance.mjs';
 
+import { kitCommand } from './core.mjs';
 /** The ledger op that marks a registered prior. */
 export const PRIOR_OP = 'prior';
 
@@ -91,7 +92,7 @@ export function priorRefusal(root, text, { entries = [] } = {}) {
   }
   if (priorOf(entries)) {
     return 'this corpus already has a registered prior, and a prior you can re-register is a prior you can '
-      + `retry until it is right. Read the one on record: node research-kit/bin/prior.mjs`;
+      + `retry until it is right. Read the one on record: ${kitCommand('prior.mjs')}`;
   }
   const scrapes = entries.filter((e) => e.op === 'scrape').length;
   if (scrapes) {

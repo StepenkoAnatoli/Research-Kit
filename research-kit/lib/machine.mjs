@@ -13,6 +13,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { exists, readText, writeText, ensureDir, readJson, nowIso } from './core.mjs';
 
+import { kitCommand } from './core.mjs';
 // ---------------------------------------------------------------- anchors (ADR-0012)
 
 /**
@@ -258,7 +259,7 @@ export function collectionPolicy(env = process.env) {
       role,
       mayCollect: false,
       reason: 'this machine is declared role=builder, which does not collect',
-      remedy: 'collect on the collector machine, or declare this one: node research-kit/bin/install-hooks.mjs --role collector',
+      remedy: `collect on the collector machine, or declare this one: ${kitCommand('install-hooks.mjs', '--role collector')}`,
     };
   }
   if (role === 'unknown') {
@@ -270,7 +271,7 @@ export function collectionPolicy(env = process.env) {
       reason: read.state === 'unreadable'
         ? `this machine's role cannot be established: ${read.source} does not parse (${read.error}) and there is no last-good snapshot`
         : `this machine's config names a role the kit does not know ("${readJson(read.source, {})?.role ?? 'unreadable value'}")`,
-      remedy: 'repair the config, or declare the role: node research-kit/bin/install-hooks.mjs --role collector|builder',
+      remedy: `repair the config, or declare the role: ${kitCommand('install-hooks.mjs', '--role collector|builder')}`,
     };
   }
   return { role, mayCollect: true, reason: '', remedy: '' };

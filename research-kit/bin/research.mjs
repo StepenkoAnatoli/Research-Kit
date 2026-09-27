@@ -15,6 +15,7 @@ import { parseCapture, readLedger } from '../lib/corpus.mjs';
 import { readPrior } from '../lib/prior.mjs';
 import { heading } from '../lib/render.mjs';
 
+import { kitCommand } from '../lib/core.mjs';
 const { flags } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['depth', 'dry-run', 'force', 'help', 'only', 'plan', 'refresh-days', 'search-transport', 'status', 'transport']);
 const root = process.cwd();
@@ -126,7 +127,7 @@ try {
 // - after the first page lands, `bin/prior.mjs` refuses, and rightly.
 if (spends && !readPrior(root, { entries: readLedger(root).entries }).present) {
   process.stdout.write('prior:     none registered. What do you expect to find? '
-    + 'node research-kit/bin/prior.mjs "..." - this is the last moment that answer counts\n');
+    + `${kitCommand('prior.mjs', '"..."')} - this is the last moment that answer counts\n`);
 }
 process.stdout.write(`transport: ${chosen.name} - ${chosen.why}\n`);
 if (!chosen.search.sameAsFetch) {
@@ -179,6 +180,6 @@ if (run.searchTransport !== run.transport) {
   }
 }
 if (run.spent) {
-  process.stdout.write('\nNext: rewrite each auto-extracted Finding cell into a real claim, then run\n  node research-kit/bin/preflight.mjs\n');
+  process.stdout.write(`\nNext: rewrite each auto-extracted Finding cell into a real claim, then run\n  ${kitCommand('preflight.mjs')}\n`);
 }
 process.exit(0);
