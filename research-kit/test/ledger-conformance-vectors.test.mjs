@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { test, describe, assert, assertEqual } from './harness.mjs';
+import { test, describe, assert, assertEqual, requirePython } from './harness.mjs';
 
 // Ported 2026-09-20 under ADR-0029.
 describe('ledger-conformance-vectors');
@@ -46,7 +46,7 @@ test('CLI conformance report is deterministic and byte-identical to the Node run
 });
 
 test('Python conformance runner agrees with Node on every vector', async () => {
-  const python = spawnSync('python', [
+  const python = spawnSync(requirePython('ledger Node/Python agreement'), [
     path.join(ROOT, 'bin', 'ledger_conformance.py'), '--vectors', VECTOR_FILE, '--json',
   ], { encoding: 'utf8' });
   assertEqual(python.status, 0, python.stderr || python.stdout);

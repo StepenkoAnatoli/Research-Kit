@@ -18,6 +18,7 @@ import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createEmptyProject, scaffoldProject, KIT_ROOT } from '../lib/scaffold.mjs';
 import { appendFetch } from '../lib/provenance.mjs';
@@ -77,6 +78,28 @@ export class Unsupported extends Error {
 export function requireCapability(value, code, reason) {
   if (value) return value;
   throw new Unsupported(code, reason);
+}
+
+let pythonProbe;
+/**
+ * The Python interpreter on this host - `python`, else `python3` - or null. Stock Ubuntu
+ * and macOS ship only `python3`, and three conformance tests that called `python` by name
+ * went red there although the kit was fine (break-test, 2026-09-27).
+ */
+export function findPython() {
+  if (pythonProbe === undefined) {
+    pythonProbe = null;
+    for (const exe of ['python', 'python3']) {
+      const probe = spawnSync(exe, ['--version'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
+      if (!probe.error && probe.status === 0) { pythonProbe = exe; break; }
+    }
+  }
+  return pythonProbe;
+}
+
+/** The interpreter to run, or UNSUPPORTED (it blocks) naming what could not be checked. */
+export function requirePython(what) {
+  return requireCapability(findPython(), 'PYTHON-NOT-FOUND', `no python or python3 on this host, so ${what} cannot be checked`);
 }
 
 export function test(name, fn) {
