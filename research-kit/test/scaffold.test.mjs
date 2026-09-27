@@ -304,3 +304,20 @@ test('a kit rule written with different spacing counts as present', () => {
   fs.writeFileSync(path.join(dir, '.gitattributes'), 'research/raw/*   text eol=lf\n*.jsonl\ttext eol=lf\nresearch/*.md    text eol=lf\n');
   assert.deepEqual(missingKitLines(dir, '.gitattributes'), [], 'aligned columns were read as missing rules');
 });
+
+// Found 2026-09-27: a folder holding only the operator's own .gitignore reported "repaired 1"
+// - the folder was never a kit project, so creating research/raw/ repaired nothing.
+test('a folder that was not yet a kit project repairs nothing', () => {
+  const dir = path.join(tempDir(), 'p');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n');
+  assert.deepEqual(scaffoldProject(dir, { topic: 'Theirs' }).repaired, []);
+});
+
+// Found 2026-09-27: the skill and the project's AGENTS.md told an agent to run
+// `decompose.mjs --topic "<topic>"`; since ADR-0056 a paraphrased topic is refused.
+test('the agent instructions run decompose on the project\'s own topic', () => {
+  for (const file of [path.join(KIT_ROOT, 'skill', 'SKILL.md'), path.join(TEMPLATE_DIR, 'AGENTS.md')]) {
+    assert.doesNotMatch(readText(file), /decompose\.mjs"? --topic "<topic>"/, `${file} still asks for the topic again`);
+  }
+});

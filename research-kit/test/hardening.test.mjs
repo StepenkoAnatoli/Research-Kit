@@ -2,7 +2,7 @@
 // each pinned here so it cannot return. One test per finding, named by its F-number, and
 // each one FAILS against the behaviour the review described.
 
-import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path } from './harness.mjs';
+import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, appendLine } from './harness.mjs';
 import { PATHS, HEADERS, resolve, readText, writeText, writeJson } from '../lib/core.mjs';
 import { readCorpus, appendRow, upsertRow, alignToHeader } from '../lib/corpus.mjs';
 import { writeAudit, zipAudit, readManifest, readManifestState, fingerprintOf } from '../lib/audit.mjs';
@@ -422,4 +422,17 @@ test('the timeline names a regenerate command that runs from the project folder'
   assert.ok(arg, 'the timeline names no command');
   const file = path.resolve(dir, arg.replace(/^"|"$/g, ''));
   assert.ok(fs.existsSync(file), `the timeline says "node ${arg}", and from the project folder that is ${file}, which does not exist`);
+});
+
+// Found 2026-09-27: TIMELINE.md's When column mixed "2026-09-27" (evidence) with
+// "2026-09-27T00:00:00.000Z" (fetches, stamped at day precision) in one table.
+test('the timeline writes each moment in one readable form', () => {
+  const dir = makePassingProject();
+  appendLine(resolve(dir, PATHS.overrides), '2026-09-27T14:05:09.123Z\tno-verify\tx');
+  renderTimeline(dir);
+  const text = readText(resolve(dir, PATHS.timeline));
+  const whens = text.split('\n').filter((l) => /^\| \d/.test(l)).map((l) => l.split('|')[1].trim());
+  assert.ok(whens.length >= 2, text);
+  for (const when of whens) assert.match(when, /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2} UTC)?$/, `mixed form: ${when}`);
+  assert.ok(whens.includes('2026-09-27 14:05 UTC'), `a real time was lost: ${whens}`);
 });

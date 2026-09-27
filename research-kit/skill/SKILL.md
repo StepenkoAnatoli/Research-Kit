@@ -36,7 +36,7 @@ On a builder, the first command is `node "$HOME/.agents/research-kit/bin/handoff
 decompose -> contract -> prior -> collect -> gate -> brief
 ```
 
-1. **Decompose.** `node "$HOME/.agents/research-kit/bin/decompose.mjs" --topic "<topic>"`
+1. **Decompose.** `node "$HOME/.agents/research-kit/bin/decompose.mjs"` (it maps the project's own topic; `--topic` only while the project is untitled)
    drafts `research/MAP.md`, seeded with nine universal dimensions: access model, auth,
    rate limits, ToS/legality, schema stability, freshness, cost at volume, runtime
    limits, and **output obtainability** - the load-bearing one. If the data your "done"
