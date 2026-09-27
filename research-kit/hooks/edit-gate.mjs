@@ -46,11 +46,18 @@ function projectRoot(dir) {
   if (isGated(dir)) return dir;
   try {
     const top = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }).trim();
-    // git names the top level by its real path (macOS: /private/tmp for /tmp). Walk up from
-    // the cwd to the same directory instead, so the root keeps the spelling the targets use.
-    const real = (p) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
+    // git names the top level by its real path (macOS: /private/tmp for /tmp; Windows: the
+    // long name where the cwd may carry an 8.3 one, C:\Users\RUNNER~1). Walk up from the cwd
+    // to the same directory instead, so the root keeps the spelling the targets use. The
+    // native realpath is the one that expands 8.3 names, and Windows compares without case.
+    const real = (p) => {
+      try { return fs.realpathSync.native(p); } catch { /* fall through */ }
+      try { return fs.realpathSync(p); } catch { return path.resolve(p); }
+    };
+    const same = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
+    const target = real(top);
     for (let d = dir; ; d = path.dirname(d)) {
-      if (real(d) === real(top)) return isGated(d) ? d : dir;
+      if (same(real(d), target)) return isGated(d) ? d : dir;
       if (path.dirname(d) === d) break;
     }
   } catch { /* not a repository, or no git: the cwd is all there is */ }

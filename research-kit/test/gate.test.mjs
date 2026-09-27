@@ -157,7 +157,11 @@ test('the edit gate judges a subfolder cwd by the repository it is in', () => {
   spawnSync('git', ['init', '-q'], { cwd: dir });
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
   const out = editGate(dir, { file_path: 'app.js' }, path.join(dir, 'src'));
-  assert.equal(out.permissionDecision, 'ask', `code edited from src/ was not judged: ${out.permissionDecisionReason}`);
+  const top = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: path.join(dir, 'src'), encoding: 'utf8' });
+  assert.equal(out.permissionDecision, 'ask', `code edited from src/ was not judged: ${out.permissionDecisionReason}
+    project ${dir}
+    git top ${JSON.stringify(top.stdout)} (exit ${top.status}) ${top.stderr}
+    native  ${fs.realpathSync.native(dir)}`);
   assert.equal(editGate(dir, { file_path: '../research/MAP.md' }, path.join(dir, 'src')).permissionDecision, 'allow',
     'phase-1 work is still phase-1 work from a subfolder');
   const loose = tempDir();
