@@ -2,7 +2,7 @@
 // bin/install.mjs - deploy the kit and the skill; role-aware next steps.
 
 import path from 'node:path';
-import { parseFlags, refuseUnknownFlags } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
 import { deploy } from '../lib/installer.mjs';
 import { machineRole, KIT_HOME } from '../lib/machine.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
@@ -11,6 +11,7 @@ import { heading } from '../lib/render.mjs';
 import { spellCommand } from '../lib/core.mjs';
 const { flags } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['help', 'dry-run', 'into']);
+checkFlagValues(flags, { into: 'value' });
 
 if (flags.help) {
   process.stdout.write(`install - copy the kit to ${KIT_HOME} and the skill to the personal skill root(s).

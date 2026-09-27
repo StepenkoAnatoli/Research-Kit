@@ -309,6 +309,33 @@ export function refuseUnknownFlags(flags, known, { help = '', exit = 2, note = n
 }
 
 /**
+ * Refuse a flag given a bad value, or none, instead of replacing it with a default.
+ *
+ * `specs` maps a flag name to `'value'` (it must carry one), `{ choices: [...] }` or
+ * `{ int: true, min }`. parseFlags reads a flag with no value as `true`, and each CLI
+ * then fell back to its default in silence: `research --depth thorough` ran on quick's
+ * budget, `install-hooks --mode block` saved a mode the edit gate reads as "ask", and
+ * `new-project --topic` scaffolded "Untitled topic" (found 2026-09-27).
+ */
+export function checkFlagValues(flags, specs, { exit = 2 } = {}) {
+  const problems = [];
+  for (const [name, spec] of Object.entries(specs)) {
+    if (!(name in flags)) continue;
+    for (const value of [].concat(flags[name])) {
+      if (value === true || value === '') { problems.push(`--${name} needs a value`); continue; }
+      if (spec?.choices && !spec.choices.includes(value)) {
+        problems.push(`--${name} must be one of ${spec.choices.join(', ')}, not "${value}"`);
+      } else if (spec?.int && !(/^-?\d+$/.test(String(value)) && Number(value) >= (spec.min ?? -Infinity))) {
+        problems.push(`--${name} must be a whole number${spec.min !== undefined ? ` of at least ${spec.min}` : ''}, not "${value}"`);
+      }
+    }
+  }
+  if (!problems.length) return;
+  for (const problem of problems) process.stderr.write(`${problem}\n`);
+  process.exit(exit);
+}
+
+/**
  * Block for `ms`. The fetch adapters are synchronous by contract - they reach the vendor
  * through `spawnSync` - so a rate-limit wait cannot be awaited without changing that
  * contract everywhere. `Atomics.wait` on a private buffer is the sanctioned way to do

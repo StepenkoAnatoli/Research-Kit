@@ -4,7 +4,7 @@
 // With no arguments it prints the prior on record, or says there is none. Registering is
 // the only thing it refuses to do twice, and the only thing it refuses to do late.
 
-import { parseFlags, refuseUnknownFlags, readText, resolve } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, checkFlagValues, readText, resolve } from '../lib/core.mjs';
 import { readLedger } from '../lib/corpus.mjs';
 import { readPrior, registerPrior, MIN_PRIOR, PRIOR_PATH } from '../lib/prior.mjs';
 import { heading } from '../lib/render.mjs';
@@ -12,6 +12,7 @@ import { heading } from '../lib/render.mjs';
 import { kitCommand } from '../lib/core.mjs';
 const { flags, positional } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['file', 'help']);
+checkFlagValues(flags, { file: 'value' });
 const root = process.cwd();
 
 if (flags.help) {

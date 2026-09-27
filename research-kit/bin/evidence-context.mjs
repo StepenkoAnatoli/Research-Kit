@@ -6,12 +6,13 @@
 // whether an unknown is closed, and it will not change a status. That judgement is the
 // protocol's, and it belongs to a person.
 
-import { parseFlags, refuseUnknownFlags } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { evidenceContext, renderContext } from '../lib/evidence-context.mjs';
 
 const { flags, positional } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['help', 'unknown', 'all', 'json', 'limit']);
+checkFlagValues(flags, { unknown: 'value', limit: { int: true, min: 1 } });
 const root = process.cwd();
 
 if (flags.help) {
