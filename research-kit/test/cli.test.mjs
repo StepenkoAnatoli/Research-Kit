@@ -13,6 +13,7 @@
 import { spawnSync } from 'node:child_process';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
+import { spellCommand } from '../lib/core.mjs';
 
 describe('cli');
 
@@ -423,6 +424,29 @@ test('new-project prints next steps that run from the project it just made', () 
     assert.ok(fs.existsSync(file), `"${file}" does not exist`);
   }
   assert.ok(r.out.includes(target), 'the next steps should say which folder to run them from');
+});
+
+// Found 2026-09-27. install.mjs printed next steps naming the kit it RAN FROM - a download the
+// operator may delete as soon as the install is done - not the copy it had just installed.
+test('install\'s next steps name the kit it installed, not the download it ran from', () => {
+  const home = tempDir('rk-install-home-');
+  const kit = path.join(home, '.agents', 'research-kit');
+  const r = run('install.mjs', [], { root: home, env: { HOME: home, USERPROFILE: home, RESEARCH_KIT_HOME: kit, RESEARCH_KIT_CONFIG: path.join(home, 'absent.json') } });
+  assert.equal(r.status, 0, r.all);
+  const commands = [...r.out.matchAll(/node ("[^"]+\.mjs"|\S+\.mjs)/g)].map((m) => m[1].replace(/^"|"$/g, ''));
+  assert.ok(commands.length >= 2, `no next steps printed:\n${r.out}`);
+  for (const file of commands) {
+    assert.ok(path.resolve(file).startsWith(path.resolve(kit)), `a next step names ${file}, outside the installed kit ${kit}`);
+    assert.ok(fs.existsSync(file), `${file} does not exist`);
+  }
+});
+
+// ADR-0050: a path with a space is double-quoted as it is, never JSON-escaped. JSON.stringify
+// doubled every backslash of a Windows path: "C:\\Users\\John Smith\\...".
+test('a printed command quotes a path with a space plainly, on Windows too', () => {
+  assert.equal(spellCommand('C:\\Users\\John Smith\\.agents\\research-kit\\bin\\doctor.mjs'),
+    'node "C:\\Users\\John Smith\\.agents\\research-kit\\bin\\doctor.mjs"');
+  assert.equal(spellCommand('/opt/kit/bin/doctor.mjs', '--help'), 'node /opt/kit/bin/doctor.mjs --help');
 });
 
 test('every command the kit tells you to run, runs from where you are', () => {

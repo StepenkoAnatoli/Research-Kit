@@ -318,7 +318,14 @@ export function sleepSync(ms) {
  * (the brief, the timeline) keeps a portable spelling instead: those files travel.
  */
 export function kitCommand(script, args = '') {
-  const file = fileURLToPath(new URL(`../bin/${script}`, import.meta.url));
-  const spelled = /\s/.test(file) ? JSON.stringify(file) : file;
+  return spellCommand(fileURLToPath(new URL(`../bin/${script}`, import.meta.url)), args);
+}
+
+/**
+ * `node <file> [args]`, the file double-quoted as it is when it holds a space (ADR-0050).
+ * It was JSON.stringify, which doubled every backslash of a Windows path.
+ */
+export function spellCommand(file, args = '') {
+  const spelled = /\s/.test(file) ? `"${file}"` : file;
   return `node ${spelled}${args ? ` ${args}` : ''}`;
 }
