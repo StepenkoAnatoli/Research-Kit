@@ -390,3 +390,19 @@ test('collect-remote documents --url', () => {
   const r = run('collect-remote.mjs', ['--help'], { root: project() });
   assert.match(r.out, /--url/);
 });
+
+test('new-project prints next steps that run from the project it just made', () => {
+  // Found 2026-09-27 by following the README on a fresh machine: from a project folder,
+  // the printed "node research-kit/bin/decompose.mjs" crashes with MODULE_NOT_FOUND - that
+  // path exists only at the repository root, which is the one place a project must not be.
+  const target = tempDir('rk-next-');
+  const r = run('new-project.mjs', [target, '--topic', 'a topic'], { root: project() });
+  assert.equal(r.status, 0, r.all);
+  const commands = [...r.out.matchAll(/node (\S+\.mjs)/g)].map((m) => m[1]);
+  assert.ok(commands.length >= 3, `expected the next steps to name commands: ${r.out}`);
+  for (const file of commands) {
+    assert.ok(path.isAbsolute(file), `"${file}" is relative, so it only runs from one directory`);
+    assert.ok(fs.existsSync(file), `"${file}" does not exist`);
+  }
+  assert.ok(r.out.includes(target), 'the next steps should say which folder to run them from');
+});

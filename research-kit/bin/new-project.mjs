@@ -8,6 +8,7 @@ import path from 'node:path';
 import { parseFlags } from '../lib/core.mjs';
 import { scaffoldProject, LAYOUT, GATE_MARKERS, validateProject } from '../lib/scaffold.mjs';
 import { KIT_HOME } from '../lib/machine.mjs';
+import { fileURLToPath } from 'node:url';
 
 const { flags, positional } = parseFlags(process.argv.slice(2));
 
@@ -55,11 +56,19 @@ process.stdout.write(`scaffolded ${result.dir}\n  wrote   ${result.written.lengt
 const shape = validateProject(dir);
 for (const finding of shape.findings) process.stdout.write(`  ${finding.severity}  ${finding.detail}\n`);
 
+// The next steps name THIS kit by its full path, and the folder to run them from. They
+// said "node research-kit/bin/decompose.mjs", which exists only at the repository root -
+// the one place a project must not be - so from a project folder the first command
+// crashed with MODULE_NOT_FOUND (found 2026-09-27, following the README on a fresh machine).
+// Not the --kit spelling: that is for a project that travels; this is for the person at
+// this terminal, now.
+const bin = path.join(path.dirname(fileURLToPath(import.meta.url)));
+const quote = (p) => (/\s/.test(p) ? JSON.stringify(p) : p);
 process.stdout.write(`
-Next:
-  1. node research-kit/bin/decompose.mjs --topic "<topic>"   draft the map
+Next, from ${dir}:
+  1. node ${quote(path.join(bin, 'decompose.mjs'))} --topic "<topic>"   draft the map
   2. fill research/DISCOVERY.md's unknowns FROM that map
-  3. node research-kit/bin/research.mjs                       collect
-  4. node research-kit/bin/preflight.mjs                      do not build until PASS
+  3. node ${quote(path.join(bin, 'research.mjs'))}   collect
+  4. node ${quote(path.join(bin, 'preflight.mjs'))}   do not build until PASS
 `);
 process.exit(shape.ok ? 0 : 1);

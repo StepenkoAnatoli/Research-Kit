@@ -188,6 +188,30 @@ test('the onboarding path names commands that exist', () => {
   assertEqual(missing.length, 0, `the onboarding path names commands that do not exist: ${missing.join(', ')}`);
 });
 
+test('the onboarding path installs the kit first, and runs project commands from the project', () => {
+  // Found 2026-09-27 by following this section on a fresh machine. Step 5 said to cd to the
+  // project and then ran "node research-kit/bin/new-project.mjs" - a path that exists only
+  // at the repository root - so it crashed with MODULE_NOT_FOUND. install.mjs, which puts
+  // the kit where a project can reach it, was not in the path at all. install-hooks.mjs was
+  // marked "only on a build machine", so a collector following it never got the commit gate.
+  const readme = fs.readFileSync(ROOT_README, 'utf8');
+  const section = readme.slice(readme.indexOf('## Your first 30 minutes'), readme.indexOf('## When something fails'));
+  const at = (needle) => section.indexOf(needle);
+  assert(at('bin/install.mjs') !== -1 && at('bin/install.mjs') < at('new-project.mjs'),
+    'the path never installs the kit before a project needs it');
+  assert(at('bin/install-hooks.mjs') !== -1 && at('bin/install-hooks.mjs') < at('new-project.mjs'),
+    'the path never installs the gates before a project needs them');
+  assert(!/only on a build machine/i.test(section), 'every machine needs the gates, not only a builder');
+
+  const projectCommands = section.split('\n').map((l) => l.trim())
+    .filter((l) => /^node \S*(new-project|decompose|research|preflight)\.mjs/.test(l));
+  assert(projectCommands.length >= 4, `expected the project steps to name their commands, found ${projectCommands.length}`);
+  for (const line of projectCommands) {
+    assert(/\.agents\/research-kit\/bin\//.test(line),
+      `"${line}" runs from the project folder, so it must name the installed kit, not a repository-relative path`);
+  }
+});
+
 test('every subcommand reports a usage error the same way', () => {
   // `fi-validate` returned 4 for a missing flag while `validate` and `conform` returned 2,
   // so the same mistake reported a different code depending on which subcommand you
