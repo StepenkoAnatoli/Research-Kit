@@ -320,6 +320,16 @@ export function readCorpus(root) {
     }
   }
 
+  // The gate's configuration (the declared code paths). The gate reads an unparseable one as
+  // absent and falls back to its defaults, so the operator's declared paths stopped being
+  // guarded and nothing said so (found 2026-09-27).
+  const kitText = readText(at(PATHS.kit));
+  if (kitText !== null) {
+    try { JSON.parse(kitText); } catch (err) {
+      problems.push({ kind: 'kit-unparsed', artifact: PATHS.kit, detail: `${err.message} - until it parses, the gate guards only the default code paths` });
+    }
+  }
+
   const captures = readCaptures(root);
   for (const p of captures.problems) problems.push({ ...p, artifact: PATHS.raw });
 

@@ -129,6 +129,19 @@ test('a plan that will not parse is reported, never absorbed', () => {
   assert.ok(corpus.problems.some((p) => p.kind === 'plan-unparsed'));
 });
 
+// Found 2026-09-27: a research/kit.json that did not parse raised nothing. The gate read it as
+// absent and fell back to the default code paths, so the paths the operator declared stopped
+// being guarded, silently.
+test('a kit.json that will not parse is reported, and blocks like a broken plan', async () => {
+  const dir = makePassingProject();
+  writeText(resolve(dir, PATHS.kit), '{ "architecture": { "codePaths": ["engine"] }, }');
+  assert.ok(readCorpus(dir).problems.some((p) => p.kind === 'kit-unparsed'), 'no problem recorded');
+  const { runPreflight } = await import('../lib/preflight.mjs');
+  const verdict = runPreflight(dir);
+  assert.equal(verdict.pass, false, 'preflight passed with the gate configuration unreadable');
+  assert.ok(verdict.failures.some((f) => f.rule === 'kit-unparsed'), JSON.stringify(verdict.failures.map((f) => f.rule)));
+});
+
 test('sectionOf reads one heading\'s body and stops at the next heading of its level', () => {
   const text = '# Title\n\n## Build intent\n\nthe intent\n\n### deeper\n\nstill inside\n\n## Unknowns\n\nnot this\n';
   assert.match(sectionOf(text, 'Build intent'), /the intent/);
