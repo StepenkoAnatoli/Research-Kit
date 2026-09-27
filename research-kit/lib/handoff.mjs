@@ -27,6 +27,9 @@ export const HANDOFF_REMEDY = [
   'drop dotfiles.',
 ].join('\n');
 
+/** The .gitattributes lines that pin the corpus to LF (ADR-0020). */
+export const PIN_LINES = Object.freeze(['research/raw/* text eol=lf', '*.jsonl text eol=lf']);
+
 /**
  * The remedy is scoped to the files that are actually affected, and it never reaches for
  * a recursive delete.
@@ -67,24 +70,38 @@ export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } =
     '',
     `Affected: ${named.join(', ')}${more}`,
     '',
-    'First, check nothing is about to be lost - uncommitted evidence is irreplaceable:',
+    // Every indented line is a plain git command: it runs as written in cmd, PowerShell and
+    // a POSIX shell alike. `printf` exists in none of the first two, and a trailing `# ...`
+    // is a comment only in PowerShell and sh - cmd hands it to git as file names (found
+    // 2026-09-27). This remedy is for a Windows checkout, so Windows shells are its readers.
+    'First, check nothing is about to be lost - uncommitted evidence is irreplaceable.',
+    'This should print nothing (no unstaged or untracked work under research/):',
     '',
-    '    git status --porcelain research/        # expect no unstaged or untracked work',
+    '    git status --porcelain research/',
     '',
-    ...(pinned
-      ? ['.gitattributes already pins the line endings. Rewrite ONLY the affected files through it:']
-      : ['Then pin the line endings, and rewrite ONLY the affected files through the pin:']),
-    '',
-    ...(pinned ? [] : [
-      '    printf "research/raw/* text eol=lf\\n*.jsonl text eol=lf\\n" >> .gitattributes',
+    ...(pinned ? ['.gitattributes already pins the line endings.'] : [
+      'Then pin the line endings: add these two lines to .gitattributes (create the file',
+      'if it is not there), in any editor:',
+      '',
+      ...PIN_LINES.map((line) => `      ${line}`),
+      '',
+      'and stage it:',
+      '',
       '    git add .gitattributes',
     ]),
+    '',
+    'Rewrite ONLY the affected files through the pin. `git rm --cached` removes the index',
+    'entry only - the file stays on disk - so the checkout has to write it again, as LF:',
+    '',
     ...named.flatMap((file) => [
-      `    git rm --cached --quiet -- ${file}   # the index entry only: the file stays on disk`,
+      `    git rm --cached --quiet -- ${file}`,
       `    git checkout HEAD -- ${file}`,
     ]),
     ...(files.length > named.length ? [
-      '    git rm -r --cached --quiet -- research/raw/   # the rest: index entries only',
+      '',
+      'and the rest of the captures the same way:',
+      '',
+      '    git rm -r --cached --quiet -- research/raw/',
       '    git checkout HEAD -- research/raw/',
     ] : []),
     '',

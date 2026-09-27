@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability } from './harness.mjs';
 import { PATHS, resolve, writeText } from '../lib/core.mjs';
-import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy } from '../lib/handoff.mjs';
+import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, PIN_LINES } from '../lib/handoff.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
 
@@ -164,11 +164,12 @@ test('the line-ending remedy, run as printed, makes a CRLF checkout pass', () =>
   assert.ok(before.lineEndings.length, 'the checkout did not produce CRLF captures');
 
   const remedy = handoffRemedy(before);
+  // The pin is given as lines to add to .gitattributes, in any editor; the test adds them.
+  const pins = remedy.split('\n').map((l) => l.trim()).filter((l) => PIN_LINES.includes(l));
+  if (pins.length) fs.appendFileSync(path.join(dir, '.gitattributes'), `${pins.join('\n')}\n`);
   for (const line of remedy.split('\n').map((l) => l.trim())) {
-    if (line.startsWith('printf ')) {
-      fs.appendFileSync(path.join(dir, '.gitattributes'), 'research/raw/* text eol=lf\n*.jsonl text eol=lf\n');
-    } else if (line.startsWith('git ') && !line.startsWith('git status')) {
-      const args = line.replace(/\s+#.*$/, '').split(/\s+/).slice(1);
+    if (line.startsWith('git ') && !line.startsWith('git status')) {
+      const args = line.split(/\s+/).slice(1);
       const r = git(dir, ...args);
       assert.equal(r.status, 0, `${line}\n${r.stderr}`);
     }
@@ -178,6 +179,21 @@ test('the line-ending remedy, run as printed, makes a CRLF checkout pass', () =>
 });
 
 test('the line-ending remedy does not append a pin that is already there', () => {
-  assert.doesNotMatch(lineEndingRemedy(['research/raw/a.md'], { pinned: true }), /printf/);
-  assert.match(lineEndingRemedy(['research/raw/a.md'], { pinned: false }), /printf/);
+  const pinLine = /^\s+research\/raw\/\* text eol=lf$/m;
+  assert.doesNotMatch(lineEndingRemedy(['research/raw/a.md'], { pinned: true }), pinLine);
+  assert.match(lineEndingRemedy(['research/raw/a.md'], { pinned: false }), pinLine);
+});
+
+// Found 2026-09-27: the remedy is for a Windows checkout, and it used printf (in neither cmd
+// nor PowerShell) and trailing "# ..." comments (file names to git, in cmd).
+test('every command the line-ending remedy prints is a plain git command a Windows shell runs', () => {
+  const files = ['research/raw/a.md', 'research/raw/b.md', 'research/raw/c.md', 'research/raw/d.md', 'research/raw/e.md', 'research/raw/f.md'];
+  const remedy = lineEndingRemedy(files, { pinned: false });
+  const commands = remedy.split('\n').filter((l) => /^ {4}\S/.test(l)).map((l) => l.trim());
+  assert.ok(commands.length >= 4, remedy);
+  for (const line of commands) {
+    assert.match(line, /^git /, `not a git command: ${line}`);
+    assert.doesNotMatch(line, /#/, `a trailing comment is a file name in cmd: ${line}`);
+  }
+  assert.doesNotMatch(remedy, /printf/);
 });
