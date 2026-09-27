@@ -182,10 +182,52 @@ export function command(argv) {
   return ['http-keyless', ...argv].map((p) => (/\s/.test(p) ? JSON.stringify(p) : p)).join(' ');
 }
 
+/**
+ * What a response's Content-Type says about how to keep it.
+ *
+ * `html` - a page: extract the main content, and grade by what extraction kept (the length
+ * bar and the dropped siblings). A response with no Content-Type is treated as html, which
+ * is what every response was before the type was read.
+ * `text` - JSON, XML, CSV, plain text, Markdown: kept verbatim, and graded on whether the
+ * body arrived at all. Nothing was extracted, so nothing can have been dropped. Found
+ * 2026-09-26: a complete 748-character GitHub API response was graded `partial` by the
+ * HTML length bar.
+ * `binary` - PDF, images, archives: `response.text()` is not a faithful copy of these, so
+ * the capture is never graded full, and the reason names the type.
+ */
+export function bodyKind(contentType) {
+  const type = String(contentType ?? '').split(';')[0].trim().toLowerCase();
+  if (!type || type === 'text/html' || type === 'application/xhtml+xml') return 'html';
+  if (type.startsWith('text/')) return 'text';
+  if (/^application\/([\w.+-]+\+)?(json|xml|yaml|x-yaml|x-ndjson|csv|javascript)$/.test(type)) return 'text';
+  return 'binary';
+}
+
+function verbatim(url, job, argv, kind) {
+  const body = job.body ?? '';
+  const type = String(job.contentType ?? '').split(';')[0].trim();
+  const reasons = [];
+  if (!body.length) reasons.push('the response body was empty');
+  if (kind === 'binary') reasons.push(`the response is ${type}, which is not text; this capture is not a faithful copy of it`);
+  return {
+    ok: true,
+    url: job.url ?? url,
+    title: '',
+    markdown: body,
+    statusCode: job.statusCode ?? '',
+    transport: name,
+    cmd: command(argv),
+    completeness: reasons.length ? 'partial' : 'full',
+    omitted: reasons.join('; '),
+  };
+}
+
 export function scrape(url, opts = {}) {
   const argv = ['scrape', String(url)];
   const job = runJob({ kind: 'fetch', url: String(url) }, opts);
   if (!job.ok) return { ok: false, url, error: job.error, cmd: command(argv), transport: name };
+  const kind = bodyKind(job.contentType);
+  if (kind !== 'html') return verbatim(url, job, argv, kind);
   const html = job.body ?? '';
   const extraction = mainContent(html);
   const markdown = htmlToMarkdown(extraction.html);
@@ -291,6 +333,7 @@ async function child() {
       ok: response.ok,
       url: response.url || job.url,
       statusCode: response.status,
+      contentType: response.headers.get('content-type') ?? '',
       body,
       error: response.ok ? '' : `HTTP ${response.status}`,
     }));

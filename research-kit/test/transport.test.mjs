@@ -258,6 +258,41 @@ test('with no proxy, or with the operator\'s own setting, the environment is lef
     'an operator who set the flag - even to 0 - decided; the transport does not overrule them');
 });
 
+// Found 2026-09-26: a complete GitHub API response (748 characters of JSON) was captured and
+// graded `partial` - "only 748 characters of main content were extracted". Nothing was
+// extracted and nothing was dropped: the grader was written for HTML pages and applied its
+// length bar to every body. A CLOSED unknown resting on it would be flagged for a gap that
+// does not exist.
+
+const scrapeServed = (contentType, body) => httpKeyless.scrape('https://x.invalid/api', {
+  spawn: () => ({ status: 0, stderr: '', stdout: JSON.stringify({ ok: true, url: 'https://x.invalid/api', statusCode: 200, contentType, body }) }),
+});
+
+test('a short JSON or text response captured whole is graded full, and kept verbatim', () => {
+  const json = '{"total_count":1,"artifacts":[{"id":10638148916,"expired":false}]}';
+  for (const type of ['application/json; charset=utf-8', 'application/vnd.github+json', 'text/plain', 'text/csv', 'application/xml']) {
+    const result = scrapeServed(type, json);
+    assert.equal(result.completeness, 'full', `${type}: a whole body was graded ${result.completeness} (${result.omitted})`);
+    assert.equal(result.omitted, '');
+    assert.equal(result.markdown, json, `${type}: the body was rewritten instead of kept as served`);
+  }
+});
+
+test('HTML is still graded by what extraction kept, and an unknown type is treated as HTML', () => {
+  assert.equal(scrapeServed('text/html; charset=utf-8', '<html><body><p>short</p></body></html>').completeness, 'partial');
+  assert.equal(scrapeServed(undefined, '<html><body><p>short</p></body></html>').completeness, 'partial',
+    'a response with no content type keeps the old behaviour');
+});
+
+test('an empty body or a binary type is never graded full', () => {
+  const empty = scrapeServed('application/json', '');
+  assert.equal(empty.completeness, 'partial');
+  assert.match(empty.omitted, /empty/);
+  const pdf = scrapeServed('application/pdf', '%PDF-1.7 binary junk');
+  assert.equal(pdf.completeness, 'partial', 'a PDF read as text is not a faithful copy');
+  assert.match(pdf.omitted, /application\/pdf/, 'the reason names the content type');
+});
+
 test('the rendezvous returns a result object rather than throwing, when the job fails', () => {
   const result = httpKeyless.scrape('https://x.invalid/never', {
     spawn: () => ({ stdout: '', stderr: 'boom', status: 1 }),
