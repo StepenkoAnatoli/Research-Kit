@@ -34,6 +34,21 @@ export const BRIEF_FILE_MARKER = '<!-- research-kit:brief=scaffold -->';
  * the marker shipped, which the text cannot tell from a brief someone wrote in -
  * refuses loudly rather than guessing.
  */
+/**
+ * Who reviewed this corpus, as its reviewer declared it in the brief (ADR-0074):
+ * `agent`, `human`, or `undeclared`.
+ *
+ * A DECLARATION, and read as one. The three review steps are checked by what they leave
+ * behind, never by who did them, so nothing can verify this line - and approval does not
+ * depend on it. It exists so a package stops saying "a human reviewed it" when an agent did,
+ * and so a consumer that requires a person can ask. The drafted placeholder
+ * (`_agent or human ..._`) is not a declaration.
+ */
+export function reviewedBy(text) {
+  const match = String(text ?? '').match(/^Reviewed by:[ \t]*\**[ \t]*(agent|human)\b/im);
+  return match ? match[1].toLowerCase() : 'undeclared';
+}
+
 export function briefState(text) {
   const body = String(text ?? '');
   if (!body.trim()) return 'template';
@@ -230,6 +245,8 @@ require human/agent judgement; everything else is assembled from evidence alread
 in \`research/\`. While a ${TODO_MARK} remains, this brief is **not reviewed** and the
 handoff is **not approved** - a structurally valid corpus, a reviewed one, and an
 approved handoff are three different states._
+
+Reviewed by: _agent or human - whoever classified the map, rewrote the findings and answered the ${TODO_MARK} sections; replace this line with \`Reviewed by: agent\` or \`Reviewed by: human\`_
 
 **This is the phase-1 to phase-2 handoff.** ${gateLine}
 

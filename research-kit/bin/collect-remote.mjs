@@ -17,7 +17,7 @@
 //   3  could not start, could not reach GitHub, or no token
 //   4  dispatched and still running when the wait ran out - the run id is on stdout
 //
-// 0 DOES NOT AUTHORIZE BUILDING. A collected corpus is evidence with three human review
+// 0 DOES NOT AUTHORIZE BUILDING. A collected corpus is evidence with three review
 // steps outstanding. Read `buildAuthorized`, which is false for everything this command
 // will ever return, because a freshly collected corpus has not been reviewed by anybody.
 
@@ -247,7 +247,7 @@ else {
   say(`\n${result.status}  build ${result.buildAuthorized ? 'AUTHORIZED' : 'NOT authorized'}  state=${result.state}`);
   if (result.status === 'PASS' && !result.buildAuthorized) {
     say('\nThis is a COLLECTED CORPUS, not an approved brief. It does not authorize building.');
-    say('Three human review steps remain; README-FIRST.md inside the package lists them.');
+    say('Three review steps remain, for an agent or a person; README-FIRST.md inside the package lists them.');
   }
 }
 

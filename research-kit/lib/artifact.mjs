@@ -35,7 +35,7 @@ import { buildZip } from './archive.mjs';
 import { readCorpus, parseCapture } from './corpus.mjs';
 import { verifyHandoff } from './handoff.mjs';
 import { runPreflight } from './preflight.mjs';
-import { briefState } from './brief.mjs';
+import { briefState, reviewedBy } from './brief.mjs';
 import { firstFinding } from './finding.mjs';
 import { validateArtifact, MANIFEST_PATH, MANIFEST_DIGEST_PATH, README_PATH } from './artifact-validator.mjs';
 
@@ -43,7 +43,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const KIT_ROOT = path.resolve(here, '..');
 
 const FORMAT = 'research-kit-artifact';
-const FORMAT_VERSION = '1.0.0';
+const FORMAT_VERSION = '1.1.0';
 /** The API version this format's `source.workflowRunId` is defined against. */
 export const GITHUB_API_VERSION = '2026-03-10';
 
@@ -181,6 +181,9 @@ export function deriveState(root, { corpus = null, env = {} } = {}) {
   const rows = snapshot.subtopics ?? [];
   const mapClassified = rows.length > 0 && rows.every((r) => ['COVERED', 'DISMISSED', 'GAP'].includes(r.status));
   const briefReviewed = briefState(snapshot.brief?.text ?? '') === 'authored';
+  // Who did it is the reviewer's declaration, not a fact the kit can check (ADR-0074), and
+  // it is not one of the approval conditions.
+  const by = reviewedBy(snapshot.brief?.text ?? '');
   const { reviewed: findingsReviewed, unrewritten } = findingsReviewState(root, snapshot);
 
   const collected = (snapshot.evidence ?? []).length;
@@ -197,7 +200,7 @@ export function deriveState(root, { corpus = null, env = {} } = {}) {
     state,
     kind: approved ? 'APPROVED_RESEARCH' : 'COLLECTED_CORPUS',
     buildAuthorized: approved,
-    review: { mapClassified, findingsReviewed, briefReviewed },
+    review: { mapClassified, findingsReviewed, briefReviewed, by },
     gate: {
       verdict: verdict === null ? 'NOT_RUN' : gatePass ? 'PASS' : blockingFindings.length ? 'FAIL' : 'INCOMPLETE',
       buildAuthorized: approved,
@@ -238,12 +241,20 @@ export function findingsReviewState(root, corpus) {
 
 // ---------------------------------------------------------------- the human file
 
+/** How README-FIRST names the reviewer. A declaration, so the undeclared case says so. */
+const REVIEWER_PROSE = Object.freeze({
+  agent: 'reviewed by an agent (as declared in the brief)',
+  human: 'reviewed by a person (as declared in the brief)',
+  undeclared: 'reviewed (the brief does not declare by whom)',
+});
+
 function renderReadme(derived, source) {
   const { state } = derived;
   if (state === 'APPROVED_BRIEF') {
     return `# APPROVED RESEARCH — BUILDING IS AUTHORIZED
 
-Research-Kit collected this evidence, a human reviewed it, and the gate passed.
+Research-Kit collected this evidence, it was ${REVIEWER_PROSE[derived.review.by]}, and the
+gate passed.
 
 \`manifest.json\` carries \`"state": "APPROVED_BRIEF"\`, \`"buildAuthorized": true\` and
 \`"gate": { "verdict": "PASS" }\`. Confirm all three before acting on this package —
@@ -267,7 +278,7 @@ See \`reports/problems.json\` for the full list.
 `;
   }
 
-  return `# COLLECTED CORPUS — HUMAN REVIEW REQUIRED
+  return `# COLLECTED CORPUS — REVIEW REQUIRED
 
 Research-Kit collected evidence successfully.
 
@@ -278,6 +289,9 @@ The commands below are written for PowerShell, bash and zsh. In cmd.exe, write
 \`%USERPROFILE%\` where a command says \`$HOME\`.
 
 ## Three required review steps
+
+An agent or a person may do them. Whoever does, declare it in the brief with a line
+\`Reviewed by: agent\` or \`Reviewed by: human\`; the manifest carries it as \`review.by\`.
 
 1. Review and classify every row in \`project/research/MAP.md\`.
 2. Review every finding in \`project/research/EVIDENCE.md\`.
@@ -351,6 +365,7 @@ function renderSummary(derived, manifestish) {
     `- map classified: **${derived.review.mapClassified}**`,
     `- findings reviewed: **${derived.review.findingsReviewed}**${derived.unrewritten.length ? ` — still carrying the extractor's own words: ${derived.unrewritten.join(', ')}` : ''}`,
     `- brief reviewed: **${derived.review.briefReviewed}**`,
+    `- reviewed by: **${derived.review.by}** (the reviewer's declaration in BRIEF.md; not verified)`,
     '',
   ];
   if (derived.gate.blockingFindings.length) {

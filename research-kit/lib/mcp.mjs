@@ -112,7 +112,7 @@ export const TOOLS = Object.freeze([
     description:
       'Start a research collection on GitHub Actions. Returns the workflow run id immediately; '
       + 'the run takes minutes. Call fetch_corpus with that id to get the result. '
-      + 'The corpus that comes back is NOT approved research: it requires human review before anything is built from it.',
+      + 'The corpus that comes back is NOT approved research: it must be reviewed - by an agent or a person - before anything is built from it.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -360,13 +360,14 @@ async function callTool(message, deps) {
         status: validation.status,
         buildAuthorized: validation.buildAuthorized,
         state: validation.state,
+        reviewedBy: validation.reviewedBy,
         packageId: validation.packageId,
         workflowRunId: args.workflow_run_id,
         errors: validation.errors,
       },
       content: [
         text(validation.buildAuthorized
-          ? 'This package is an APPROVED brief: a human reviewed it and the gate passed.'
+          ? `This package is an APPROVED brief: the gate passed, and the brief declares it was reviewed by: ${validation.reviewedBy}.`
           : `This is a COLLECTED CORPUS (${validation.state}), not an approved brief. buildAuthorized is false: `
             + 'do not build from it. Three review steps remain, and README-FIRST.md inside the package lists them.'),
         resourceLink(file, {

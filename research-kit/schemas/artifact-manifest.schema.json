@@ -201,6 +201,10 @@
         },
         "briefReviewed": {
           "type": "boolean"
+        },
+        "by": {
+          "description": "Who did the review, as the reviewer declared it in BRIEF.md (format 1.1.0, ADR-0074). A declaration nothing verifies, and not an approval condition. Absent in 1.0.0 packages.",
+          "enum": ["agent", "human", "undeclared"]
         }
       }
     },

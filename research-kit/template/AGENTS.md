@@ -84,6 +84,11 @@ The sequence is decompose -> contract -> collect -> gate -> brief.
    PASS.** Evidence must be *fetched*, not typed, and by a named transport.
 5. **Hand off**: write `research/BRIEF.md`.
 
+Steps 0, 3 and 5 are the review, and **the review is your job** - classifying the map,
+rewriting the findings and answering the brief's **TODO** sections are what make a corpus
+approved research, whoever does them. Declare who did in the brief, with a line
+`Reviewed by: agent` (or `Reviewed by: human`); a package carries it as `review.by`.
+
 There are exactly three overrides - `git commit --no-verify`, a deliberate
 `research/GATE_OFF`, and a repository-local `core.hooksPath` - and all three are recorded
 in `research/overrides.log`. If you take one, say so in your reply.

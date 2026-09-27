@@ -213,6 +213,12 @@ The sequence is decompose -> contract -> collect -> gate -> brief.
    is part of phase 1 and is not optional, because a passing gate with no handoff means
    the next agent re-researches everything you just verified.
 
+   **The review is your job, not a person's.** Classifying the map (step 0), rewriting
+   the findings (step 4) and answering the brief's **TODO** sections are the three review
+   steps: they are checked by what they leave behind, never by who did them. Declare who
+   did them in the brief with a line `Reviewed by: agent` (or `Reviewed by: human`); a
+   package carries it as `review.by`, and says it is a declaration (ADR-0074).
+
 ## Rule 2 - questions are for intent, never for facts
 
 - Ask at most **3** questions, once, up front, and only about things no document can answer: what the user actually wants, which accounts or budget they have, who the audience is, what "done" means.

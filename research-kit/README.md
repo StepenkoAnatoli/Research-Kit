@@ -165,6 +165,15 @@ A package reading `{"state": "HUMAN_REVIEW_REQUIRED", "buildAuthorized": false}`
 *successful collection that still forbids building*. Do not describe it as an approved
 brief.
 
+**Who does the review.** An agent or a person - the three steps are checked by what they
+leave behind (a classified map, rewritten findings, an authored brief), never by who did
+them. The reviewer declares it with a line `Reviewed by: agent` or `Reviewed by: human` in
+`BRIEF.md`; format 1.1.0 carries it as `review.by` (`agent`, `human` or `undeclared`), and
+`validate --json` reports it as `reviewedBy`. It is a declaration nothing verifies, and not
+an approval condition: a consumer that requires a person must check `review.by == "human"`
+itself (ADR-0074). The state name `HUMAN_REVIEW_REQUIRED` predates this and keeps its name,
+because consumers switch on it; it means "review required", by either.
+
 **Getting from a collected package to an approved one.** The manifest is written once. After
 the review, run the `create` line the package's README-FIRST prints, from the package folder:
 it re-packages `project/` under the identity the package arrived with, into `reviewed.zip`,
@@ -433,7 +442,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1104 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1106 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
