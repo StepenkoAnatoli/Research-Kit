@@ -531,7 +531,9 @@ test('new-project prints next steps that run from the project it just made', () 
   const target = tempDir('rk-next-');
   const r = run('new-project.mjs', [target, '--topic', 'a topic'], { root: project() });
   assert.equal(r.status, 0, r.all);
-  const commands = [...r.out.matchAll(/node (\S+\.mjs)/g)].map((m) => m[1]);
+  // A kit under a folder with a space prints its commands double-quoted (ADR-0050), and a
+  // checkout in "C:\Users\Jane Doe\..." is ordinary: an unquoted-only match made this red there.
+  const commands = [...r.out.matchAll(/node ("[^"]+\.mjs"|\S+\.mjs)/g)].map((m) => m[1].replace(/^"|"$/g, ''));
   assert.ok(commands.length >= 3, `expected the next steps to name commands: ${r.out}`);
   for (const file of commands) {
     assert.ok(path.isAbsolute(file), `"${file}" is relative, so it only runs from one directory`);
