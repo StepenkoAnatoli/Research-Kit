@@ -614,7 +614,7 @@ function hygiene(corpus) {
 function corpusShape(corpus) {
   const out = [];
   for (const problem of corpus.problems) {
-    const blocking = problem.kind === 'raw-dangling' || problem.kind === 'plan-unparsed';
+    const blocking = problem.kind === 'raw-dangling' || problem.kind === 'plan-unparsed' || problem.kind === 'kit-unparsed';
     out.push(finding(blocking ? 'fail' : 'warn', 'corpus-shape', problem.kind,
       `${problem.artifact ?? ''}${problem.line ? `:${problem.line}` : ''} ${problem.detail ?? problem.file ?? ''}`.trim(),
       { line: problem.line, file: problem.file }));

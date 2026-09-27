@@ -173,6 +173,31 @@ test('research on an empty plan says so and exits 2, spending nothing', () => {
   }
 });
 
+// Found 2026-09-27: a plan with a trailing comma was reported as "has no queries and no urls",
+// because the parse error was swallowed - the operator was sent to add queries that were there.
+test('a plan that does not parse is named as not parsing, not as empty', () => {
+  const root = project('broken plan');
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'), '{"topic":"x","queries":[{"q":"a query"}],}');
+  const r = run('research.mjs', ['--dry-run', '--transport', 'http-keyless'], { root });
+  assert.equal(r.status, 2, r.all);
+  assert.match(r.err, /research\/plan\.json does not parse as JSON/, r.err);
+  assert.doesNotMatch(r.err, /no queries and no urls/, 'it still said the plan was empty');
+  const missing = run('research.mjs', ['--dry-run', '--plan', 'research/nope.json', '--transport', 'http-keyless'], { root });
+  assert.equal(missing.status, 2, missing.all);
+  assert.match(missing.err, /research\/nope\.json does not exist/, missing.err);
+});
+
+// Found the same day: --only with text no query contains ran nothing, printed "collected 0" and
+// exited 0 - indistinguishable from a search that found nothing.
+test('--only that matches no query says so and exits 2', () => {
+  const root = planned('only');
+  const r = run('research.mjs', ['--dry-run', '--transport', 'http-keyless', '--only', 'nothing like it'], { root });
+  assert.equal(r.status, 2, r.all);
+  assert.match(r.err, /--only matched none of the plan's 1 quer/, r.err);
+  const ok = run('research.mjs', ['--dry-run', '--transport', 'http-keyless', '--only', 'PLANNED'], { root });
+  assert.equal(ok.status, 0, `a match, in any case, still runs: ${ok.all}`);
+});
+
 // Found 2026-09-27: the README offers --dry-run as "see what it would fetch, and the cost", and a
 // plan made of queries dry-ran to nothing - no query named, and "searches 0" at the end.
 test('a dry run names every query it would search, and on which provider', () => {
