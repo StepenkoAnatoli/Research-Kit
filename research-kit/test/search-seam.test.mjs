@@ -806,3 +806,19 @@ test('RR-8/RR-9: a merged search that is empty, or off-topic, is recorded like a
   assert.equal(fetcher.calls.scrape, 0);
   assert.ok(jsonLines(offTopic, '.failures.jsonl').some((f) => f.op === 'search-off-topic'), 'an off-topic merged search was not recorded');
 });
+
+// Found 2026-09-27 reviewing RR-9: `decompose --max-scrapes` scrapes search results through
+// its own loop, which never applied the relevance floor.
+test('RR-9: decompose scrapes only results that carry the query that found them', () => {
+  const root = project();
+  const adapter = fetchStub();
+  adapter.search = () => ({ ok: true, query: 'q', results: [
+    { url: 'https://www.postgresql.org/', title: 'PostgreSQL: The world\'s most advanced open source database' },
+    { url: 'https://www.postgresql.org/docs/current/logical-replication-failover.html', title: 'Logical Replication Failover' },
+  ] });
+  const scraped = [];
+  const base = adapter.runScrape.bind(adapter);
+  adapter.runScrape = (url) => { scraped.push(url); return base(url); };
+  decompose(root, { topic: 'postgres logical replication failover slots', adapter, searchAdapter: adapter, maxScrapes: 5, log: () => {} });
+  assert.deepEqual(scraped, ['https://www.postgresql.org/docs/current/logical-replication-failover.html'], `scraped: ${scraped.join(', ')}`);
+});
