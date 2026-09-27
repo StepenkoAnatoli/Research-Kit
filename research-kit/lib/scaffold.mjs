@@ -89,15 +89,21 @@ export function templateFiles(templateDir = TEMPLATE_DIR) {
 // ---------------------------------------------------------------- writing the shape
 
 /** Structure is always repaired; content is never clobbered without `force`. */
-export function scaffoldProject(dir, { topic = 'Untitled topic', kit = '$HOME/.agents/research-kit', force = false, templateDir = TEMPLATE_DIR, date = today() } = {}) {
+/** The topic a project gets when none is given: a placeholder, never a topic. */
+export const UNTITLED_TOPIC = 'Untitled topic';
+
+export function scaffoldProject(dir, { topic = UNTITLED_TOPIC, kit = '$HOME/.agents/research-kit', force = false, templateDir = TEMPLATE_DIR, date = today() } = {}) {
   const written = [];
   const skipped = [];
   const repaired = [];
+  // A folder created in a brand-new project is part of scaffolding it, not a repair:
+  // "repaired 1" on a fresh project read as if something had been broken.
+  const existed = templateFiles(templateDir).some((rel) => exists(resolve(dir, rel)));
 
   for (const entry of LAYOUT) {
     const abs = resolve(dir, entry.path);
     if (entry.dir) {
-      if (!isDirectory(abs)) { ensureDir(abs); repaired.push(entry.path); }
+      if (!isDirectory(abs)) { ensureDir(abs); if (existed) repaired.push(entry.path); }
       const keep = path.join(abs, '.gitkeep');
       if (!exists(keep)) writeText(keep, '');
       continue;

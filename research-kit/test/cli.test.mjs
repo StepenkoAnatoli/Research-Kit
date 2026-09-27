@@ -314,16 +314,47 @@ test('ADR-0028: bundle.mjs on a project with no manifest says so and exits 0', (
 
 test('FR-6: decompose --dry-run announces the providers and writes a map', () => {
   const root = project();
-  const r = run('decompose.mjs', ['--topic', 'a topic', '--dry-run'], { root });
+  const r = run('decompose.mjs', ['--topic', 'cli probe', '--dry-run'], { root });
   assert.equal(r.status, 0, r.err);
   assert.ok(fs.existsSync(path.join(root, 'research/MAP.md')), 'no map was written');
 });
 
 test('decompose refuses an unknown search provider before doing any work', () => {
   const root = project();
-  const r = run('decompose.mjs', ['--topic', 'a topic', '--search-transport', 'bing'], { root });
+  const r = run('decompose.mjs', ['--topic', 'cli probe', '--search-transport', 'bing'], { root });
   assert.equal(r.status, 2, r.all);
   assert.match(r.all, /unknown search provider/);
+});
+
+// Found 2026-09-27: `decompose --topic x` in a project scaffolded for another topic wrote
+// "x" into the map without a word, and the brief took its title from the map.
+test('decompose takes the project\'s topic when --topic is omitted', () => {
+  const root = project('replication slots under failover');
+  const r = run('decompose.mjs', ['--dry-run'], { root });
+  assert.equal(r.status, 0, r.all);
+  assert.match(fs.readFileSync(path.join(root, 'research/MAP.md'), 'utf8'), /## Topic\s+replication slots under failover/);
+});
+
+test('decompose refuses a --topic that is not the project\'s, naming both', () => {
+  const root = project('replication slots under failover');
+  const before = fs.readFileSync(path.join(root, 'research/MAP.md'), 'utf8');
+  const r = run('decompose.mjs', ['--topic', 'x', '--dry-run'], { root });
+  assert.equal(r.status, 2, r.all);
+  assert.match(r.all, /replication slots under failover/);
+  assert.match(r.all, /"x"/);
+  assert.equal(fs.readFileSync(path.join(root, 'research/MAP.md'), 'utf8'), before, 'the map was rewritten');
+  // Spacing and case are not a different topic.
+  assert.equal(run('decompose.mjs', ['--topic', '  Replication  slots under FAILOVER ', '--dry-run'], { root }).status, 0);
+});
+
+test('decompose accepts any --topic while the project is still "Untitled topic"', () => {
+  const root = tempDir('rk-cli-');
+  scaffoldProject(root);
+  const r = run('decompose.mjs', ['--topic', 'a first topic', '--dry-run'], { root });
+  assert.equal(r.status, 0, r.all);
+  const bare = run('decompose.mjs', ['--dry-run'], { root });
+  assert.equal(bare.status, 2, 'an untitled project has no topic to fall back on');
+  assert.match(bare.all, /--topic/);
 });
 
 // ---------------------------------------------------------------- --plan
@@ -670,4 +701,59 @@ test('a plan with values it cannot use is refused, naming each one', () => {
   const str = run('research.mjs', ['--dry-run', '--transport', 'http-keyless'], { root });
   assert.equal(str.status, 2, str.all);
   assert.match(str.err, /queries must be a list/, str.err);
+});
+
+// Found 2026-09-27, running the kit as a new user: new-project was given --topic and then
+// told the user to type it again ('decompose.mjs --topic "<topic>"'), which decompose now
+// takes from the project anyway (ADR-0056).
+test('new-project\'s first next step does not ask for the topic it was just given', () => {
+  const dir = path.join(tempDir('rk-np-next-'), 'p');
+  const r = run('new-project.mjs', [dir, '--topic', 'replication slots'], { root: tempDir('rk-np-cwd-') });
+  assert.equal(r.status, 0, r.all);
+  const step = r.out.split('\n').find((l) => /^\s*1\./.test(l)) ?? '';
+  assert.match(step, /decompose\.mjs/);
+  assert.doesNotMatch(step, /--topic|<topic>/, step);
+  const untitled = run('new-project.mjs', [path.join(tempDir('rk-np-next-'), 'p')], { root: tempDir('rk-np-cwd-') });
+  assert.match(untitled.out.split('\n').find((l) => /^\s*1\./.test(l)) ?? '', /--topic "</, 'an untitled project must be told to name one');
+});
+
+// Found 2026-09-27: on a collector that had collected nothing, handoff said "Something did
+// not travel. The remedy lives on the COLLECTOR machine" - which is the machine it ran on.
+test('handoff on a collector with nothing collected says so, and names the command that collects', () => {
+  const home = tempDir('rk-handoff-home-');
+  const config = path.join(home, 'c.json');
+  fs.writeFileSync(config, JSON.stringify({ role: 'collector' }));
+  const env = { HOME: home, USERPROFILE: home, RESEARCH_KIT_CONFIG: config };
+  const r = run('handoff.mjs', [], { root: project(), env });
+  assert.equal(r.status, 1, 'there is nothing to hand off');
+  assert.doesNotMatch(r.all, /did not travel/, r.all);
+  assert.match(r.all, /nothing has been collected/);
+  assert.match(r.all, /research\.mjs/);
+
+  fs.writeFileSync(config, JSON.stringify({ role: 'builder' }));
+  assert.match(run('handoff.mjs', [], { root: project(), env }).all, /did not travel/, 'a builder keeps the arrival remedy');
+});
+
+// Found 2026-09-27: every failing line was a map row (D-1..D-9), and preflight closed with
+// "Each failing line names the unknown that is unproven".
+test('preflight\'s closing line does not call every failure an unknown', () => {
+  const r = run('preflight.mjs', [], { root: project() });
+  assert.equal(r.status, 1, r.all);
+  assert.doesNotMatch(r.all, /names the unknown that is unproven/);
+});
+
+// Found 2026-09-27: five documented commands exited 2 on --help, and `artifact --bogus`
+// printed the help without naming the flag it did not know.
+test('every documented command exits 0 on --help and prints its usage to stdout', () => {
+  for (const bin of ['artifact.mjs', 'fi-sidecar-conformance.mjs', 'ledger-conformance.mjs', 'path-authority.mjs', 'researcher-release.mjs']) {
+    const r = run(bin, ['--help'], { root: project() });
+    assert.equal(r.status, 0, `${bin} --help exited ${r.status}`);
+    assert.match(r.out, /usage|node /i, `${bin} printed its help somewhere other than stdout`);
+  }
+});
+
+test('artifact with no subcommand names the flag it does not know', () => {
+  const r = run('artifact.mjs', ['--bogus-flag'], { root: project() });
+  assert.equal(r.status, 2);
+  assert.match(r.err, /unknown option --bogus-flag/);
 });

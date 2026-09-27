@@ -4,7 +4,7 @@
 // It asks the arrival question and names whatever is missing. It cannot repair anything:
 // the machine that asks cannot collect the missing bytes.
 
-import { parseFlags, refuseUnknownFlags } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, kitCommand } from '../lib/core.mjs';
 import { verifyHandoff, handoffRemedy } from '../lib/handoff.mjs';
 import { machineRole } from '../lib/machine.mjs';
 import { heading } from '../lib/render.mjs';
@@ -35,6 +35,14 @@ if (flags.json) {
 if (report.ok) {
   process.stdout.write(`handoff OK - ${report.entries} ledger entries, every cited capture on disk, chain verifies.  [role=${machineRole()}]\n`);
   process.exit(0);
+}
+
+// On a collector, an empty project is not a corpus that failed to arrive: it is one that
+// has not been collected yet, on this very machine (the doctor says the same).
+if (report.nothingCollected && machineRole() === 'collector') {
+  process.stdout.write(`handoff: nothing to hand off yet - nothing has been collected in this project.\n\n`
+    + `Collect it here, then commit research/ including research/raw/ and its dotfiles:\n  ${kitCommand('research.mjs')}\n`);
+  process.exit(1);
 }
 
 process.stdout.write(`${heading('handoff FAILED')}\n`);

@@ -142,6 +142,9 @@ export function verifyHandoff(root, { corpus = null } = {}) {
     // "Something did not travel" is anything that is not purely a line-ending rewrite.
     didNotTravel: travelled.length > 0,
     entries: snapshot.ledger.entries.length,
+    // No ledger entry, no evidence row, no capture: nothing was ever collected, so there is
+    // nothing that could have failed to travel. The CLI says so on a collector.
+    nothingCollected: !snapshot.ledger.entries.length && !snapshot.evidence.length && !snapshot.captures.entries.length,
   };
   const remedy = handoffRemedy(report);
   if (remedy) report.findings.push({ name: 'handoff-remedy', severity: 'info', detail: remedy });

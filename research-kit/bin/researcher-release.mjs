@@ -44,6 +44,7 @@ function exitFor(status) {
 }
 
 function main(argv = process.argv.slice(2)) {
+  if (argv.includes('--help') || argv.includes('-h')) { process.stdout.write(`${usage()}\n`); return 0; }
   const parsed = argsAfterCommand(argv);
   let result;
   if (parsed.command === 'validate') {

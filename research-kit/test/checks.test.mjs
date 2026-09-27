@@ -10,6 +10,7 @@ import { writeRaw } from '../lib/collect.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { CHECKS, CHECK_NAMES, runCheck, runChecks, supersededRows } from '../lib/checks.mjs';
 import { verifyLedger, rebuildLedger } from '../lib/provenance.mjs';
+import { renderBrief } from '../lib/brief.mjs';
 import { UNIVERSAL_DIMENSIONS, coverageOfUniversals } from '../lib/dimensions.mjs';
 
 describe('checks');
@@ -757,4 +758,19 @@ test('an ID used twice fails hygiene, and a finding is not printed twice', () =>
   assert.equal(dup.severity, 'fail', `a duplicate ID only ${dup.severity}s`);
   const details = runCheck('corroboration', corpus).map((f) => `${f.rule} ${f.detail}`);
   assert.equal(new Set(details).size, details.length, `printed twice: ${details.join(' / ')}`);
+});
+
+// Found 2026-09-27: the brief a builder reads first still said "Gate: FAIL" and lacked
+// the unknown closed since it was drafted, and preflight and handoff both passed.
+test('hygiene warns when the brief was drafted from a corpus that has since changed', () => {
+  const dir = makePassingProject();
+  const quiet = (corpus) => runCheck('hygiene', corpus).filter((f) => f.rule === 'brief-stale');
+  assert.equal(quiet(snapshot(dir)).length, 0, 'the scaffold is not a stale brief');
+  renderBrief(dir);
+  assert.equal(quiet(snapshot(dir)).length, 0, 'a brief drafted from this corpus is current');
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/(\| E-01 \|(?:[^|]*\|){3})[^|]*/, '$1 a finding rewritten after the draft '));
+  const stale = quiet(snapshot(dir));
+  assert.equal(stale.length, 1, 'a changed finding left the brief current');
+  assert.equal(stale[0].severity, 'warn');
+  assert.match(stale[0].detail, /brief\.mjs/);
 });

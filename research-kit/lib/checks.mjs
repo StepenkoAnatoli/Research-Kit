@@ -13,6 +13,7 @@ import { documentGroups, closestPair } from './similarity.mjs';
 import { coverageOfUniversals } from './dimensions.mjs';
 import { verifyLedger } from './provenance.mjs';
 import { readPrior, PRIOR_PATH } from './prior.mjs';
+import { draftStamp, briefInputsHash } from './brief.mjs';
 
 const VALID_STATUSES = ['CLOSED', 'KNOWN-UNKNOWN'];
 const MIN_CAPTURE_CHARS = 200;
@@ -619,6 +620,18 @@ function hygiene(corpus) {
         { row: row.id, line: row.line }));
     }
     ids.add(key);
+  }
+
+  // The brief is the one file phase 2 must read. A draft stamped with inputs that no longer
+  // match the corpus says whatever the corpus said then - a failing gate, a missing unknown.
+  const stamp = corpus.brief?.present ? draftStamp(corpus.brief.text) : null;
+  if (stamp && stamp.inputs !== briefInputsHash(corpus)) {
+    out.push(finding('warn', 'hygiene', 'brief-stale',
+      `${PATHS.brief} was drafted before the contract or evidence last changed - `
+      + (stamp.edited
+        ? `redraft with ${kitCommand('brief.mjs', '--force')} (the edited brief is kept as a backup) and carry your judgements over`
+        : `redraft with ${kitCommand('brief.mjs')}`),
+      { file: PATHS.brief }));
   }
 
   const cited = new Set(corpus.evidence.map((row) => row.raw || captureOf(corpus, row)?.file).filter(Boolean));
