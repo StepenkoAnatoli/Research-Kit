@@ -1,0 +1,15 @@
+# Evidence
+
+One row per fetched page. `Raw` points at the cached page text under `research/raw/`,
+which is what makes the claim checkable - a row without raw evidence fails preflight.
+
+The `Finding` cell arrives as an auto-extracted summary. Rewrite it into a real claim:
+what the page actually establishes, with the quote or number that proves it.
+
+| ID | Retrieved | Type | URL | Finding | Raw |
+|---|---|---|---|---|---|
+| E-01 | 2026-09-27 | P | https://nodejs.org/en/about/previous-releases | The releases page (nodejs.org) lists, on 2026-09-27: v26 "Current" (latest v26.10.0), v24 "Krypton" LTS (v24.21.0), v22 "Jod" LTS (v22.23.3), and v20, v21, v23, v25 "EOL". "Production applications should only use _Active LTS_ or _Maintenance LTS_ releases." A change ahead: "Starting with Node.js 27, the release cycle will be annual and every major version will move to _LTS_ status after its six-month _Current_ phase (and six additional months of _Alpha_ phase)" | research/raw/2026-09-27-node-js-node-js-releases-nodejs-08e2f312.md |
+| E-02 | 2026-09-27 | P | https://nodejs.org/api/cli.html | The CLI reference (served as v26.10.0 docs) for `NODE_USE_ENV_PROXY=1`: "Added in: v24.0.0, v22.21.0", Stability 1.1 - Active Development. "When enabled, Node.js parses the `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` environment variables during startup, and routes requests through the specified proxy." The same is enabled by `--use-env-proxy`; "When both are set, `--use-env-proxy` takes precedence" | research/raw/2026-09-27-command-line-api-node-js-v26-10-0-docume-nodejs-18d9bdb4.md |
+| E-03 | 2026-09-27 | P | https://nodejs.org/api/http.html | The HTTP reference, "Built-in Proxy Support": "Added in: v24.5.0, v22.21.0", Stability 1.1. With NODE_USE_ENV_PROXY=1 the global agent is built with `proxyEnv: process.env`. It reads "`HTTP_PROXY` or `http_proxy` ... If both are set, `http_proxy` takes precedence", the same for `HTTPS_PROXY`/`https_proxy` and `NO_PROXY`/`no_proxy` - both cases are read, and lowercase wins | research/raw/2026-09-27-http-node-js-v26-10-0-documentation-nodejs-db035b84.md |
+| E-04 | 2026-09-27 | P | https://nodejs.org/en/blog/release/v22.21.0 | The Node.js 22.21.0 (LTS) release notes list three SEMVER-MINOR commits together: "cli: add `--use-env-proxy`" (#59151), "http: support http proxy for fetch under `NODE_USE_ENV_PROXY`" (#57165), and "http,https: add built-in proxy support in `http`/`https.request` and `Agent`" (#58980). So on the 22 line, fetch honours the proxy from 22.21.0 - and not before | research/raw/2026-09-27-node-js-node-js-22-21-0-lts-nodejs-f37152b2.md |
+| E-05 | 2026-09-27 | P | https://raw.githubusercontent.com/nodejs/Release/main/schedule.json | The Release working group's schedule.json, as data: v20 end 2026-04-30; v22 lts 2024-10-29, maintenance 2025-10-21, end 2027-04-30; v24 lts 2025-10-28, maintenance 2026-10-20, end 2028-04-30; v25 end 2026-06-01; v26 start 2026-05-05, lts 2026-10-28, end 2029-04-30; v27 alpha 2026-10-28. So on 2026-09-27: 26 is Current, 24 Active LTS (Maintenance from 2026-10-20), 22 Maintenance LTS | research/raw/2026-09-27-schedule-json-githubusercontent-f59edee7.md |
