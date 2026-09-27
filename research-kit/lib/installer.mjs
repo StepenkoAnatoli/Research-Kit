@@ -97,6 +97,12 @@ export function installEditGate({ kitHome = KIT_HOME, env = process.env, dryRun 
     return { ok: false, reason: `${file} is in a state the installer does not recognise - refusing to rewrite it`, error: read.error };
   }
 
+  // The hook must exist before anything names it: a registration pointing at a missing
+  // file makes every Edit run a hook that crashes (found 2026-09-27, kit not deployed). The
+  // commit gate refused in that state; this half registered anyway.
+  const hook = path.join(kitHome, ...EDIT_GATE_HOOK.split('/'));
+  if (!dryRun && !exists(hook)) return { ok: false, reason: `${hook} is not deployed - run bin/install.mjs first` };
+
   const command = hookCommand(kitHome);
   const removed = [];
   const kept = [];

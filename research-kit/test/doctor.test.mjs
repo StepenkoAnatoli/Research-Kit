@@ -620,3 +620,14 @@ test('uninstall restores core.hooksPath only while it is still the kit\'s own', 
   assert.equal(spawnSync('git', ['config', '--global', '--get', 'core.hooksPath'], { env: paths2.env, encoding: 'utf8' }).stdout.trim(),
     '/opt/myhooks', 'a normal install and uninstall no longer restores the previous path');
 });
+
+// Found 2026-09-27: with the kit not deployed, install-hooks refused the commit gate but
+// registered the edit gate anyway, as `node <kit>/hooks/edit-gate.mjs` - a file that did not
+// exist - so every Edit would have run a hook that crashed with MODULE_NOT_FOUND.
+test('the edit gate is not registered when its hook is not deployed', () => {
+  const { env, settingsFile } = machine({ settings: { model: 'x' } });
+  const result = installEditGate({ kitHome: tempDir('research-kit-undeployed-'), env });
+  assert.equal(result.ok, false, 'a hook that does not exist was registered');
+  assert.match(result.reason, /install\.mjs/);
+  assert.deepEqual(readJson(settingsFile), { model: 'x' }, 'the settings file was changed');
+});
