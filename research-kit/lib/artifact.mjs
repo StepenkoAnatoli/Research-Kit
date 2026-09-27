@@ -422,6 +422,17 @@ export function createArtifact({
     throw new Error('workflowRunId is required and must be the integer the dispatch response returned (pin X-GitHub-Api-Version: 2026-03-10 and read workflow_run_id)');
   }
 
+  // The identity is checked against the manifest schema's own rules BEFORE anything is
+  // derived or written: `create --commit abc` wrote the package, then reported that the package
+  // it had just written did not validate, and left it on disk (found 2026-09-27).
+  const identityProblem = sourceProblem(kitRoot, {
+    repository, ref, commit, workflow, apiVersion, workflowRunId,
+    runUrl: runUrl ?? `https://api.github.com/repos/${repository}/actions/runs/${workflowRunId}`,
+    htmlUrl: htmlUrl ?? `https://github.com/${repository}/actions/runs/${workflowRunId}`,
+    runAttempt,
+  });
+  if (identityProblem) throw new Error(identityProblem);
+
   const derived = deriveState(root, { env });
   const corpus = derived.corpus;
 
@@ -515,6 +526,23 @@ export function createArtifact({
   const name = packageName({ clientRef: safeRef, workflowRunId });
 
   return { bytes, name, manifest: shell, entries, derived };
+}
+
+/** The first `source` field the manifest schema would reject, as a sentence - or null. */
+function sourceProblem(kitRoot, source) {
+  const schema = JSON.parse(fs.readFileSync(path.join(kitRoot, 'schemas', 'artifact-manifest.schema.json'), 'utf8'));
+  for (const [key, rule] of Object.entries(schema.properties.source.properties)) {
+    const value = source[key];
+    const r = rule.$ref ? { type: 'string', pattern: '^https://' } : rule;
+    if (r.type === 'integer' && !(Number.isInteger(value) && value >= (r.minimum ?? -Infinity))) {
+      return `source.${key} must be a whole number${r.minimum !== undefined ? ` of at least ${r.minimum}` : ''}, not ${JSON.stringify(value)}`;
+    }
+    if (r.type === 'string') {
+      if (typeof value !== 'string' || value.length < (r.minLength ?? 0)) return `source.${key} must be a non-empty string, not ${JSON.stringify(value)}`;
+      if (r.pattern && !new RegExp(r.pattern).test(value)) return `source.${key} must match ${r.pattern}, not ${JSON.stringify(value)}`;
+    }
+  }
+  return null;
 }
 
 function transportOf(corpus) {

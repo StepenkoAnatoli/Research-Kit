@@ -476,6 +476,17 @@ test('collect-remote refuses a --url that is not http(s), before it asks for a t
   assert.ok(!/token/i.test(r.err.split('\n')[0] ?? ''), 'the URL refusal must come first');
 });
 
+test('collect-remote refuses an --out it cannot write, before it asks for a token or dispatches', () => {
+  // Found only after the download, this cost a paid run and up to half an hour of waiting.
+  const root = project();
+  fs.writeFileSync(path.join(root, 'a-file'), 'x');
+  const r = run('collect-remote.mjs', ['--repository', 'o/r', '--topic', 't', '--out', path.join(root, 'a-file', 'sub')], { root });
+  assert.equal(r.status, 3, r.all);
+  assert.match(r.all, /OUT_DIR/);
+  assert.match(r.all, /writable folder/);
+  assert.ok(!/token/i.test(r.err.split('\n')[0] ?? ''), 'the folder refusal must come first');
+});
+
 test('collect-remote documents --url', () => {
   const r = run('collect-remote.mjs', ['--help'], { root: project() });
   assert.match(r.out, /--url/);
@@ -634,4 +645,29 @@ test('audit refuses --version without --show, and --topic without --zip', () => 
   const topic = run('audit.mjs', ['--topic', 'x'], { root });
   assert.equal(topic.status, 2, topic.all);
   assert.match(topic.err, /--topic only works with --zip/, topic.all);
+});
+
+// Found 2026-09-27: research.mjs read plan.json and replaced what it could not use with a
+// default, in silence: "depth": "thorough" ran as quick, "maxScrapes": "five" as 10; a query
+// written {"query": ...} was skipped and the run did nothing; "not a url" and ftp:// were
+// queued for fetching. Every problem is named before anything runs.
+test('a plan with values it cannot use is refused, naming each one', () => {
+  const root = project('bad plan');
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({
+    topic: 't', depth: 'thorough', maxScrapes: 'five', refreshDays: -1,
+    queries: [{ q: 'fine' }, { query: 'wrong key' }, ''],
+    urls: ['not a url', 'ftp://x/y', { url: 'https://ok.example/page' }, { href: 'https://x' }],
+  }));
+  const r = run('research.mjs', ['--dry-run', '--transport', 'http-keyless'], { root });
+  assert.equal(r.status, 2, r.all);
+  for (const want of [/depth must be one of/, /maxScrapes must be a whole number/, /refreshDays must be a whole number/,
+    /queries\[1\] has no "q"/, /queries\[2\] has no "q"/, /urls\[0\] is not an http\(s\) URL: not a url/,
+    /urls\[1\] is not an http\(s\) URL: ftp:\/\/x\/y/, /urls\[3\] has no "url"/]) {
+    assert.match(r.err, want, r.err);
+  }
+  assert.doesNotMatch(r.err, /queries\[0\]|urls\[2\]/, 'a valid entry was reported');
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({ topic: 't', queries: 'just a string' }));
+  const str = run('research.mjs', ['--dry-run', '--transport', 'http-keyless'], { root });
+  assert.equal(str.status, 2, str.all);
+  assert.match(str.err, /queries must be a list/, str.err);
 });

@@ -43,7 +43,7 @@
 // discipline as pinning `X-GitHub-Api-Version` on the GitHub side, for the same reason:
 // this protocol has already broken compatibility once.
 
-import { dispatchCollection, getRunSummary, fetchCorpus, tokenFromEnv, redact, DispatchError, queriesInput } from './dispatch.mjs';
+import { dispatchCollection, getRunSummary, fetchCorpus, tokenFromEnv, redact, DispatchError, queriesInput, usableOutDir } from './dispatch.mjs';
 
 /**
  * DUAL-ERA, and the reason is that the specification is ahead of every client.
@@ -335,7 +335,8 @@ async function callTool(message, deps) {
       });
     }
 
-    // fetch_corpus
+    // fetch_corpus - the folder first, so an unusable one costs no GitHub call
+    if (args.out_dir !== undefined) usableOutDir(args.out_dir);
     const state = await deps.summary({ repository: args.repository, runId: args.workflow_run_id, token });
     if (state.status !== 'completed') {
       return ok(message.id, {

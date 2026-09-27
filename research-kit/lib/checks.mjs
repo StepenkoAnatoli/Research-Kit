@@ -7,7 +7,7 @@
 // A check emits findings. It never decides what a finding MEANS for the build - that is
 // the verdict's single judgement, in lib/preflight.mjs.
 
-import { hostOf, PATHS, resolve, exists, ageInDays, urlKey } from './core.mjs';
+import { hostOf, PATHS, resolve, exists, ageInDays, urlKey, readText, kitCommand } from './core.mjs';
 import { captureOf, traceOf, citedIds } from './corpus.mjs';
 import { documentGroups, closestPair } from './similarity.mjs';
 import { coverageOfUniversals } from './dimensions.mjs';
@@ -30,8 +30,11 @@ function discoveryContract(corpus) {
       `${PATHS.discovery} is missing. A gated project without its contract fails harder, not open.`)];
   }
   if (!corpus.intent.trim()) {
-    out.push(finding('fail', 'discovery-contract', 'build-intent',
-      '## Build intent is empty - state what is being built, for whom, and what "done" means'));
+    // Missing and empty are different fixes: a renamed heading read as "is empty" while the
+    // intent sat under its new name (found 2026-09-27).
+    out.push(finding('fail', 'discovery-contract', 'build-intent', corpus.intentHeading === false
+      ? `${PATHS.discovery} has no "## Build intent" heading - the gate reads the intent from under that exact heading`
+      : '## Build intent is empty - state what is being built, for whom, and what "done" means'));
   }
   if (!corpus.unknowns.length) {
     out.push(finding('fail', 'discovery-contract', 'no-unknowns',
@@ -101,10 +104,18 @@ function provenance(corpus) {
     return [finding('fail', 'provenance', 'ledger-missing',
       `${PATHS.ledger} is absent - evidence must be fetched, not typed, and the ledger is what proves it`)];
   }
+  // Which repair applies to an unparsed line. `doctor --fix-arity` drops a torn LAST line - an
+  // interrupted append - and nothing else; a broken line inside the chain is restored from git.
+  // The finding named neither (found 2026-09-27).
+  const ledgerLines = String(readText(resolve(corpus.root, PATHS.ledger)) ?? '').split(/\r?\n/).filter((l) => l.trim()).length;
+  const repairOf = (problem) => (problem.rule !== 'ledger-unparsed' ? ''
+    : problem.line === ledgerLines
+      ? ` - the last line is torn (an interrupted append): ${kitCommand('doctor.mjs', '--fix-arity')} drops it`
+      : ' - a broken line inside the chain cannot be repaired here: restore research/raw/.fetches.jsonl from git');
   for (const problem of chain.problems) {
     const rule = problem.rule === 'body-unmodified' && problem.kind === 'line-endings' ? 'body-unmodified' : problem.rule;
     out.push(finding('fail', 'provenance', rule === 'seq' || rule === 'prev' || rule === 'entry-hash' ? 'chain-intact' : rule,
-      problem.detail + (problem.line ? ` (line ${problem.line})` : ''),
+      problem.detail + (problem.line ? ` (line ${problem.line})` : '') + repairOf(problem),
       { line: problem.line, file: problem.file, kind: problem.kind }));
   }
 
@@ -501,7 +512,11 @@ export function supersededRows(corpus) {
     if (rows.length < 2) continue;
     const ordered = [...rows].sort((a, b) => String(a.retrieved).localeCompare(String(b.retrieved)));
     const current = ordered[ordered.length - 1];
-    for (const row of ordered.slice(0, -1)) superseded.set(row.id.toUpperCase(), current);
+    // A row is never superseded by itself: a row pasted twice read "E-01 has been superseded
+    // by E-01" (found 2026-09-27). The duplicate ID is hygiene's to name.
+    for (const row of ordered.slice(0, -1)) {
+      if (row.id.toUpperCase() !== current.id.toUpperCase()) superseded.set(row.id.toUpperCase(), current);
+    }
   }
   return superseded;
 }
@@ -581,7 +596,8 @@ function hygiene(corpus) {
     const held = seenUrl.get(row.url);
     if (held) {
       const isRefresh = superseded.has(held.id.toUpperCase()) && held.retrieved !== row.retrieved;
-      if (!isRefresh) {
+      // The same ID twice is duplicate-id's to name, not a second row citing the same URL.
+      if (!isRefresh && held.id.toUpperCase() !== row.id.toUpperCase()) {
         out.push(finding('warn', 'hygiene', 'duplicate-url',
           `${row.id} cites the same URL as ${held.id} on the same day - one row per fetched page`,
           { row: row.id, line: row.line }));
@@ -594,8 +610,13 @@ function hygiene(corpus) {
   const ids = new Set();
   for (const row of [...corpus.evidence, ...corpus.unknowns, ...corpus.subtopics]) {
     const key = row.id.toUpperCase();
+    // A fail, not a warn: the ID is how a citation, a COVERED cell or the brief names a
+    // row, and with two rows under it every such reference resolves to one of them
+    // silently - lookups keep the last.
     if (ids.has(key)) {
-      out.push(finding('warn', 'hygiene', 'duplicate-id', `${row.id} is used twice`, { row: row.id, line: row.line }));
+      out.push(finding('fail', 'hygiene', 'duplicate-id',
+        `${row.id} is used twice - give the second row its own ID, or delete it if it is a copy`,
+        { row: row.id, line: row.line }));
     }
     ids.add(key);
   }
@@ -611,6 +632,17 @@ function hygiene(corpus) {
     if (!row.retrieved || ageInDays(row.retrieved) !== null) continue;
     out.push(finding('warn', 'hygiene', 'unparseable-date',
       `${row.id} has retrieval date "${row.retrieved}", which does not parse`, { row: row.id, line: row.line }));
+  }
+
+  // No page was fetched in the future, and a future date hides the row's age from every
+  // freshness check: 2030-01-01 passed without a word (found 2026-09-27). A day of slack, so
+  // a date written in a time zone ahead of this machine's is not a failure.
+  for (const row of corpus.evidence) {
+    const age = row.retrieved ? ageInDays(row.retrieved) : null;
+    if (age === null || age >= -1) continue;
+    out.push(finding('fail', 'hygiene', 'future-date',
+      `${row.id} has retrieval date ${row.retrieved}, which is in the future - write the date the page was fetched (its capture records it)`,
+      { row: row.id, line: row.line }));
   }
 
   if (!out.length) out.push(finding('pass', 'hygiene', 'hygiene', 'no duplicate rows, no uncited captures'));
@@ -692,10 +724,15 @@ function corroboration(corpus) {
   const out = [];
   const byId = new Map(corpus.evidence.map((row) => [row.id.toUpperCase(), row]));
 
+  const weighed = new Set();
   for (const unknown of corpus.unknowns) {
     // A KNOWN-UNKNOWN rests on nothing by definition, and unknown-closure already owns
     // the case of a CLOSED one citing no row at all.
     if (unknown.status !== 'CLOSED') continue;
+    // Once per ID: a second row under the same ID is hygiene's duplicate-id, and weighing
+    // it again printed the same finding twice.
+    if (weighed.has(unknown.id.toUpperCase())) continue;
+    weighed.add(unknown.id.toUpperCase());
 
     // DEDUPED BY ID, and that is load-bearing. `citedIds` returns every E-## mention in the
     // cell, so an unknown whose prose names E-10 twice - "E-10 says X … as E-10 also notes"

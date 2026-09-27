@@ -688,3 +688,73 @@ test('an evidence row naming a URL other than its capture\'s fails citations', (
   assert.equal(runCheck('citations', readCorpus(spelled)).some((f) => f.rule === 'url-mismatch'), false,
     'another spelling of the same page is the same page');
 });
+
+// Found 2026-09-27: a ledger whose last line was torn failed preflight with only the JSON error.
+// `doctor --fix-arity` repairs exactly that case, and nothing said so.
+test('a torn ledger tail names the repair; a broken line inside the chain does not', () => {
+  const dir = makePassingProject();
+  const ledger = resolve(dir, PATHS.ledger);
+  const whole = readText(ledger);
+  writeText(ledger, `${whole}{"seq":2,"at":"x","op":"scr`);
+  const tail = runCheck('provenance', snapshot(dir)).find((f) => f.rule === 'ledger-unparsed');
+  assert.ok(tail, 'no ledger-unparsed finding');
+  assert.match(tail.detail, /doctor\.mjs"? --fix-arity/, tail.detail);
+
+  writeText(ledger, `{"seq":0,"broken\n${whole}`);
+  const inside = runCheck('provenance', snapshot(dir)).find((f) => f.rule === 'ledger-unparsed');
+  assert.ok(inside, 'no ledger-unparsed finding for a broken first line');
+  assert.doesNotMatch(inside.detail, /--fix-arity/, 'fix-arity only drops a torn tail');
+  assert.match(inside.detail, /git/, inside.detail);
+});
+
+// Found 2026-09-27: an evidence row pasted twice failed with "U-1 rests on E-01, which has
+// been superseded by E-01". The duplicate ID is the problem, and hygiene names it; a row is
+// never superseded by itself.
+test('a duplicated evidence row is not reported as superseded by itself', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/^(\| E-01 \|.*)$/m, '$1\n$1'));
+  const corpus = snapshot(dir);
+  assert.equal(supersededRows(corpus).has('E-01'), false, 'E-01 was superseded by E-01');
+  const findings = runCheck('evidence-supersession', corpus);
+  assert.equal(findings.some((f) => /superseded by E-01/.test(f.detail)), false, JSON.stringify(findings));
+  const hygiene = runCheck('hygiene', corpus);
+  assert.ok(hygiene.some((f) => f.rule === 'duplicate-id'), 'the duplicate ID is not named');
+  assert.equal(hygiene.some((f) => /E-01 cites the same URL as E-01/.test(f.detail)), false, 'a row compared with itself');
+});
+
+// Found 2026-09-27: a Retrieved date of 2030-01-01 passed without a word. No page was fetched in
+// the future, and a future date also hides the row's age from every freshness check.
+test('a retrieval date in the future fails hygiene', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/^(\| E-01 \| )\d{4}-\d{2}-\d{2}/m, '$12030-01-01'));
+  const f = runCheck('hygiene', snapshot(dir)).find((x) => x.rule === 'future-date');
+  assert.ok(f, 'no finding for a date in the future');
+  assert.equal(f.severity, 'fail');
+  assert.match(f.detail, /E-01 has retrieval date 2030-01-01, which is in the future/);
+});
+
+// Found 2026-09-27: renaming "## Build intent" (to "## Intent") failed as "## Build intent is
+// empty", and the intent was right there under its new name. Missing and empty are told apart.
+test('a missing Build intent heading is named as missing, not empty', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace('## Build intent', '## Intent'));
+  const f = runCheck('discovery-contract', snapshot(dir)).find((x) => x.rule === 'build-intent');
+  assert.ok(f, 'no build-intent finding');
+  assert.match(f.detail, /has no "## Build intent" heading/, f.detail);
+  assert.doesNotMatch(f.detail, /is empty/, f.detail);
+});
+
+// Found 2026-09-27: a contract with two U-1 rows passed the gate. The ID is how everything
+// else refers to an unknown - the map's COVERED cells, the brief, a reviewer - so two rows
+// under one ID leave every such reference ambiguous, and the single-source warning for
+// U-1 printed twice, word for word.
+test('an ID used twice fails hygiene, and a finding is not printed twice', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace(/^(\| U-1 \|.*)$/m, '$1\n$1'));
+  const corpus = snapshot(dir);
+  const dup = runCheck('hygiene', corpus).find((f) => f.rule === 'duplicate-id');
+  assert.ok(dup, 'the duplicate ID is not named');
+  assert.equal(dup.severity, 'fail', `a duplicate ID only ${dup.severity}s`);
+  const details = runCheck('corroboration', corpus).map((f) => `${f.rule} ${f.detail}`);
+  assert.equal(new Set(details).size, details.length, `printed twice: ${details.join(' / ')}`);
+});

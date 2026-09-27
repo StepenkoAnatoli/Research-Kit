@@ -8,7 +8,7 @@
 // repository and can be re-read.
 
 import { PassThrough } from 'node:stream';
-import { test, describe, assert } from './harness.mjs';
+import { test, describe, assert, tempDir, cleanup, fs, path } from './harness.mjs';
 import {
   handle, versionProblem, validateArgs, resourceLink, createStdioLoop,
   TOOLS, ERRORS, SUPPORTED_VERSIONS, SERVER_INFO, MODERN_VERSION, LEGACY_VERSION,
@@ -289,6 +289,22 @@ test('a failed run is an error that names where to look', async () => {
   const r = await handle(call('fetch_corpus', { repository: 'o/r', workflow_run_id: 42 }), d);
   assert.equal(r.result.isError, true);
   assert.match(r.result.content[0].text, /first failing step/);
+});
+
+test('an out_dir it cannot write is refused before the run is even read', async () => {
+  // The run lookup is a GitHub call; answering it and then failing on the folder spent
+  // it for nothing, and surfaced a raw ENOTDIR under code UNKNOWN.
+  const dir = tempDir();
+  try {
+    fs.writeFileSync(path.join(dir, 'a-file'), 'x');
+    let asked = 0;
+    const d = deps({ summary: async () => { asked += 1; return { status: 'completed', conclusion: 'success', htmlUrl: 'h', runId: 42 }; } });
+    const r = await handle(call('fetch_corpus', { repository: 'o/r', workflow_run_id: 42, out_dir: path.join(dir, 'a-file', 'sub') }), d);
+    assert.equal(r.result.isError, true);
+    assert.equal(r.result.structuredContent.code, 'OUT_DIR');
+    assert.match(r.result.content[0].text, /writable folder/);
+    assert.equal(asked, 0, 'the run was read before the folder was checked');
+  } finally { cleanup(dir); }
 });
 
 // ---------------------------------------------------------------- the artifact
