@@ -4,6 +4,7 @@
 // Structure is always repaired; content is never clobbered without --force, because
 // evidence is irreplaceable.
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { parseFlags, kitCommand, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
 import { scaffoldProject, LAYOUT, GATE_MARKERS, validateProject } from '../lib/scaffold.mjs';
@@ -47,6 +48,12 @@ const dir = path.resolve(positional[0] ?? process.cwd());
 // lived, and that the recipient could only be confused by.
 //
 // Found by reading a real returned corpus, not by reasoning about the code.
+// The topic of a contract already here. Without --force the scaffold keeps every existing
+// file, so a different --topic is not applied - and it said only "wrote 0, kept 13", then a
+// fresh project's next steps (found 2026-09-27).
+const existingTopic = (() => {
+  try { return (fs.readFileSync(path.join(dir, 'research', 'DISCOVERY.md'), 'utf8').match(/^# Discovery Contract - (.+)$/m)?.[1] ?? '').trim(); } catch { return ''; }
+})();
 const result = scaffoldProject(dir, {
   topic: typeof flags.topic === 'string' ? flags.topic : 'Untitled topic',
   kit: typeof flags.kit === 'string' && flags.kit.trim() ? flags.kit.trim() : KIT_HOME,
@@ -54,6 +61,14 @@ const result = scaffoldProject(dir, {
 });
 
 process.stdout.write(`scaffolded ${result.dir}\n  wrote   ${result.written.length}\n  kept    ${result.skipped.length}\n  repaired ${result.repaired.length}\n`);
+
+if (existingTopic && !flags.force) {
+  process.stdout.write(`  already a project about "${existingTopic}" - existing files were kept\n`);
+  const asked = typeof flags.topic === 'string' ? flags.topic.trim() : '';
+  if (asked && asked !== existingTopic) {
+    process.stdout.write(`  --topic "${asked}" was not applied: a different topic is a different project (a new folder),\n  or re-run with --force to overwrite this one's files\n`);
+  }
+}
 
 const shape = validateProject(dir);
 for (const finding of shape.findings) process.stdout.write(`  ${finding.severity}  ${finding.detail}\n`);

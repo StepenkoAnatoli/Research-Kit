@@ -246,3 +246,17 @@ test('phase 0 lists one page once, whatever its spelling', () => {
   ]) });
   assert.equal(out.material, 1, 'two spellings of one page were listed as two candidates');
 });
+
+// Found 2026-09-27: a dry run seeded the map and said nothing about the searches a real run
+// would make - four on the search meter - so it previewed none of the cost it exists to show.
+test('a dry run names every search a real run would make, and on whose meter', () => {
+  const dir = makeProject();
+  const lines = [];
+  let searched = 0;
+  const adapter = { name: 'stub-fetch', search: () => { searched += 1; return { ok: true, results: [] }; } };
+  decompose(dir, { topic: 'Widget pricing', adapter, searchAdapter: { name: 'stub-search', search: adapter.search }, dryRun: true, log: (l) => lines.push(l) });
+  assert.equal(searched, 0, 'a dry run searched');
+  for (const q of ['Widget pricing', 'Widget pricing documentation', 'Widget pricing pricing limits', 'Widget pricing terms of service']) {
+    assert.ok(lines.some((l) => l.includes(`would search "${q}" on stub-search`)), `not named: ${q}\n${lines.join('\n')}`);
+  }
+});

@@ -156,7 +156,7 @@ The sequence is decompose -> contract -> collect -> gate -> brief.
 3. Collect primary evidence:
 
    ```
-   node research-kit/bin/research.mjs" --plan research/plan.json
+   node research-kit/bin/research.mjs --plan research/plan.json
    ```
 
    Prefer the page that *owns* the fact (official docs, repo, pricing page, statute) over any write-up about it. Raw page text is cached under `research/raw/`; rows are appended to `research/EVIDENCE.md`.
@@ -164,7 +164,7 @@ The sequence is decompose -> contract -> collect -> gate -> brief.
 5. Run the gate:
 
    ```
-   node research-kit/bin/preflight.mjs"
+   node research-kit/bin/preflight.mjs
    ```
 
    **Do not start building until it prints PASS.** A failed check names exactly which unknown is unproven.
@@ -184,7 +184,7 @@ The sequence is decompose -> contract -> collect -> gate -> brief.
    `pre-commit` all set a local hooksPath, and collide with the machine-wide
    gate for exactly that reason). All three are recorded in
    `research/overrides.log`, and
-   `node research-kit/bin/doctor.mjs"`
+   `node research-kit/bin/doctor.mjs`
    reports how many times each has been used. If you take an override, say so in
    your reply. Deleting `DISCOVERY.md` does not turn the gate off - a gated project
    missing its contract fails harder.
@@ -234,7 +234,7 @@ If a fact is genuinely unreachable (login-walled, private, paywalled), mark the 
 Every scrape spends Firecrawl credits (free tier is about 1,000). Plan the queries in `research/plan.json` before collecting, reuse the cache (`--refresh-days`), and check the budget with:
 
 ```
-node research-kit/bin/research.mjs" --status
+node research-kit/bin/research.mjs --status
 ```
 
 Write the one-page handoff for a builder in `research/BRIEF.md` when discovery is done -
