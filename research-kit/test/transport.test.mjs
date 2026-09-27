@@ -646,3 +646,17 @@ test('a Firecrawl search reports itself, and what it cost by the documented rule
   const failed = firecrawl.search('q', { execFn: () => ({ ok: false, status: 1, stdout: '', stderr: 'boom' }) });
   assert.equal(failed.searchesUsed, undefined, 'a failed call is not counted as spend');
 });
+
+// Found 2026-09-27: with the kit's user agent, DuckDuckGo served its bot check ("Unfortunately,
+// bots use DuckDuckGo too", an anomaly-modal and no result links). The adapter parsed zero
+// links and returned ok: true - so a refused search read as a search that found nothing.
+test('keyless search reports DuckDuckGo\'s bot check as a failed search, with the reason', () => {
+  const page = '<html><body><div class="anomaly-modal__box"><p>Unfortunately, bots use DuckDuckGo too.</p>'
+    + '<p>Please complete the following challenge to confirm this search was made by a human.</p></div></body></html>';
+  const r = httpKeyless.search('q', {
+    spawn: () => ({ status: 0, stderr: '', stdout: JSON.stringify({ ok: true, url: 'https://lite.duckduckgo.com/lite/?q=q', statusCode: 200, contentType: 'text/html', body: page }) }),
+  });
+  assert.equal(r.ok, false, 'a bot check was reported as a successful search');
+  assert.match(r.error, /bot check/i);
+  assert.deepEqual(r.results, []);
+});

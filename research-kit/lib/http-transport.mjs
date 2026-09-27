@@ -282,6 +282,17 @@ export function search(query, { limit = 8, ...opts } = {}) {
   const endpoint = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
   const job = runJob({ kind: 'fetch', url: endpoint }, opts);
   if (!job.ok) return { ok: false, query, error: job.error, cmd: command(argv), results: [] };
+  // DuckDuckGo answers an automated-looking request with a bot check, not an error: HTTP 200,
+  // an anomaly modal, no result links. Parsed as a page, that was "no results" and ok: true,
+  // so a refused search looked like a quiet topic (found 2026-09-27). It is a failed search,
+  // reported with its reason. The user agent stays honest: getting past the check is not
+  // this adapter's business.
+  if (/anomaly-modal|bots use DuckDuckGo too/i.test(String(job.body ?? '')) && !/class=["']result-link["']/i.test(String(job.body ?? ''))) {
+    return {
+      ok: false, query, cmd: command(argv), results: [],
+      error: 'DuckDuckGo served its bot check instead of results - the keyless search was refused from this network; retry later, or use a keyed search provider',
+    };
+  }
   const results = [];
   for (const m of String(job.body ?? '').matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*class=["']result-link["'][^>]*>([\s\S]*?)<\/a>/gi)) {
     results.push({ url: unwrapRedirect(m[1]), title: inline(m[2]), description: '' });

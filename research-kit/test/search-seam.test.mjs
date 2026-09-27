@@ -679,3 +679,18 @@ test('DR-1: decompose records its searches\' estimated credits too', () => {
   assert.equal(usage.searchesUsed, 4);
   assert.equal(usage.searchCreditsEstimate, 8);
 });
+
+// Found 2026-09-27: a keyless plan query came back with no results, and research.mjs printed
+// only "collected 0, failed 0" - nothing said a search had run, let alone found nothing.
+test('RR-8: each search says what it found, and one that found nothing is recorded', () => {
+  const root = project();
+  const lines = [];
+  runResearch(root, { adapter: fetchStub(), searchAdapter: searchStub({ results: [] }), plan: plan(), log: (l) => lines.push(l) });
+  assert.ok(lines.some((l) => /found nothing/.test(l) && /a query/.test(l)), `nothing said the search was empty:\n${lines.join('\n')}`);
+  const failures = jsonLines(root, '.failures.jsonl');
+  assert.ok(failures.some((f) => f.op === 'search-empty' && f.query === 'a query'), 'the empty search is not in the failure log');
+
+  const found = [];
+  runResearch(project(), { adapter: fetchStub(), searchAdapter: searchStub(), plan: plan(), log: (l) => found.push(l) });
+  assert.ok(found.some((l) => /found 1\b/.test(l)), `a search that found something is not reported:\n${found.join('\n')}`);
+});

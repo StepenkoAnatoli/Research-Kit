@@ -444,6 +444,18 @@ ${compatibility.remedy}`);
     }
     if (Number.isFinite(found.searchesUsed)) searchesUsed += found.searchesUsed;
     if (Number.isFinite(found.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
+    // Said per query: a run whose searches all came back empty printed only "collected 0,
+    // failed 0", with nothing to say a search had run (found 2026-09-27). An empty search is
+    // recorded beside the failures, because it is the same question for the operator: this
+    // query produced nothing to read.
+    if (!found.results.length) {
+      log(`  search found nothing: ${text} (${ranker})`);
+      appendJsonLine(root, PATHS.failures, {
+        at: new Date().toISOString(), op: 'search-empty', query: text, provider: ranker,
+      });
+    } else {
+      log(`  search     found ${found.results.length} for "${text}" (${ranker})`);
+    }
     discovered.push({ query: text, results: found.results, provider: ranker, searchId: found.searchId ?? null });
     for (const candidate of selectCandidates(found.results, { prefer, perQuery: settings.perQuery, seen })) {
       targets.push({
