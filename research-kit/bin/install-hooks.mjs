@@ -46,7 +46,11 @@ if (flags['fail-open']) { saveConfig({ failOpen: true }); process.stdout.write('
 
 if (flags.uninstall) {
   const result = uninstall();
-  process.stdout.write(`commit gate: restored core.hooksPath to ${result.commit.restored ?? '(unset)'}\n`);
+  if (result.commit.restored === undefined) {
+    process.stdout.write(`commit gate: core.hooksPath left as ${result.commit.left ?? '(unset)'} - the kit did not set it, or it was changed since\n`);
+  } else {
+    process.stdout.write(`commit gate: restored core.hooksPath to ${result.commit.restored ?? '(unset)'}\n`);
+  }
   process.stdout.write(`edit gate: removed ${result.edit.removed ?? 0} registration(s)${result.edit.ok ? '' : ` - ${result.edit.reason}`}\n`);
   process.exit(result.edit.ok ? 0 : 1);
 }

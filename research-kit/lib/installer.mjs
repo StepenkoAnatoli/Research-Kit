@@ -40,8 +40,17 @@ export function installCommitGate({ kitHome = KIT_HOME, env = process.env, dryRu
 export function removeCommitGate({ env = process.env, gitPaths = {} } = {}) {
   const state = readInstallState(env) ?? {};
   const previous = state.previousHooksPath ?? null;
+  // Restored only while core.hooksPath is still the kit's own folder. The kit may never
+  // have set it (an install refused for want of a deployed hook), or the operator may have
+  // changed it since - either way it is theirs, and "restoring" it deleted it
+  // (found 2026-09-27: a machine's /opt/myhooks was unset by an uninstall).
+  const current = hooksPath('global', gitPaths);
+  if (!state.hooksPath || current !== state.hooksPath) {
+    writeInstallState({ ...state, hooksPath: null, previousHooksPath: null }, env);
+    return { ok: true, restored: undefined, left: current ?? null };
+  }
   setHooksPath(previous ?? null, { scope: 'global', ...gitPaths });
-  writeInstallState({ ...state, hooksPath: null }, env);
+  writeInstallState({ ...state, hooksPath: null, previousHooksPath: null }, env);
   return { ok: true, restored: previous };
 }
 
