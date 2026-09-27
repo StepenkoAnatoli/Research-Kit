@@ -284,6 +284,47 @@ test('a run collects the plan\'s urls and stops at the budget', () => {
     'the third URL is named, not silently dropped');
 });
 
+// Found 2026-09-27 reading the merge in runResearch: a per-query `prefer` written as a
+// string was spread into single characters ("d", "o", "c", ...) and matched nothing, and a
+// top-level `prefer` written as a string was dropped by readPlan. Both silently: the run
+// looked like it had a preference and ranked as if it had none.
+
+const preferRun = (plan) => {
+  const dir = makeProject();
+  writeJson(resolve(dir, PATHS.plan), {
+    topic: 'Fixture', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 1, maxScrapes: 10, urls: [], ...plan,
+  });
+  // The competitor outranks the owner on its own (+8 for a docs/pricing path); only a
+  // preference that actually works (+10) puts the owner first. The first version used a
+  // blog as the competitor, which lost on its own penalty - and the test passed on the
+  // broken code.
+  const adapter = stubAdapter({
+    results: [
+      { url: 'https://other.com/docs/pricing', title: 'Other' },
+      { url: 'https://owner.example.com/facts', title: 'Facts' },
+    ],
+  });
+  runResearch(dir, { adapter });
+  return readCorpus(dir).evidence.map((row) => row.url);
+};
+
+test('the prefer fixture is not vacuous: with no preference, the competitor wins', () => {
+  assert.deepEqual(preferRun({ queries: [{ q: 'facts', why: 'U-1' }] }), ['https://other.com/docs/pricing']);
+});
+
+test('a per-query prefer written as a string is a preference, not a list of letters', () => {
+  assert.deepEqual(preferRun({ queries: [{ q: 'facts', why: 'U-1', prefer: 'owner.example.com' }] }),
+    ['https://owner.example.com/facts']);
+});
+
+test('a top-level prefer written as a string is kept, split the way the workflow input is', () => {
+  assert.deepEqual(preferRun({ prefer: 'owner.example.com', queries: [{ q: 'facts', why: 'U-1' }] }),
+    ['https://owner.example.com/facts']);
+  const dir = makeProject();
+  writeJson(resolve(dir, PATHS.plan), { prefer: 'docs.x.com, github.com/actions/upload-artifact  other.org' });
+  assert.deepEqual(readPlan(dir).prefer, ['docs.x.com', 'github.com/actions/upload-artifact', 'other.org']);
+});
+
 test('a run fans a query out through the adapter and collects what it selects', () => {
   const dir = makeProject();
   writeJson(resolve(dir, PATHS.plan), {

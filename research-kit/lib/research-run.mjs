@@ -30,6 +30,21 @@ export const DEPTHS = Object.freeze(Object.keys(DEPTH_SCRAPES));
  * had worked. A flag that silently ignores its argument is worse than an absent one: the
  * operator watches a run happen and believes it was theirs.
  */
+/**
+ * A `prefer` value as a list of entries, whether the plan wrote a list or a string.
+ *
+ * A string is split on commas and whitespace - the way collect.yml splits its `prefer`
+ * input - so "docs.x.com, github.com/actions/upload-artifact" is two entries. Until
+ * 2026-09-27 a string was silently lost: dropped at the top level by an Array.isArray
+ * guard, and spread into single characters per query, so a plan that plainly stated a
+ * preference ranked as if it had none.
+ */
+export function preferList(value) {
+  if (Array.isArray(value)) return value.map((entry) => String(entry ?? '').trim()).filter(Boolean);
+  if (typeof value === 'string') return value.split(/[\s,]+/).filter(Boolean);
+  return [];
+}
+
 export function readPlan(root, file = '') {
   const plan = readJson(resolve(root, file || PATHS.plan), null);
   if (!plan) return { topic: '', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 3, maxScrapes: 10, prefer: [], queries: [], urls: [] };
@@ -40,7 +55,7 @@ export function readPlan(root, file = '') {
     limit: Number.isFinite(plan.limit) ? plan.limit : 8,
     perQuery: Number.isFinite(plan.perQuery) ? plan.perQuery : 3,
     maxScrapes: Number.isFinite(plan.maxScrapes) ? plan.maxScrapes : 10,
-    prefer: Array.isArray(plan.prefer) ? plan.prefer : [],
+    prefer: preferList(plan.prefer),
     queries: Array.isArray(plan.queries) ? plan.queries : [],
     urls: Array.isArray(plan.urls) ? plan.urls : [],
   };
@@ -294,7 +309,7 @@ ${compatibility.remedy}`);
     const text = typeof query === 'string' ? query : query.q;
     if (!text) continue;
     if (only.length && !only.some((needle) => text.toLowerCase().includes(needle.toLowerCase()))) continue;
-    const prefer = uniq([...(settings.prefer ?? []), ...((typeof query === 'object' && query.prefer) || [])]);
+    const prefer = uniq([...preferList(settings.prefer), ...preferList(typeof query === 'object' ? query?.prefer : null)]);
     if (dryRun) {
       discovered.push({ query: text, results: [], note: 'search not run under --dry-run' });
       continue;
