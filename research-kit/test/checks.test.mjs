@@ -3,10 +3,10 @@
 // tests (ADR-0004).
 
 import path from 'node:path';
-import { test, describe, assert, makePassingProject, corrupt, fs } from './harness.mjs';
+import { test, describe, assert, makeProject, makePassingProject, corrupt, fs } from './harness.mjs';
 import { PATHS, resolve, writeText, readText } from '../lib/core.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
-import { writeRaw } from '../lib/collect.mjs';
+import { writeRaw, collectOne } from '../lib/collect.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { CHECKS, CHECK_NAMES, runCheck, runChecks, supersededRows } from '../lib/checks.mjs';
 import { verifyLedger, rebuildLedger } from '../lib/provenance.mjs';
@@ -773,4 +773,20 @@ test('hygiene warns when the brief was drafted from a corpus that has since chan
   assert.equal(stale.length, 1, 'a changed finding left the brief current');
   assert.equal(stale[0].severity, 'warn');
   assert.match(stale[0].detail, /brief\.mjs/);
+});
+
+// Found 2026-09-27: a `research.mjs --force` the same day was reported both as a refresh
+// (evidence-supersession: "superseded by E-02") and as a duplicate row ("the same URL on the
+// same day - one row per fetched page"). Two fetches recorded in the ledger are a refresh;
+// a pasted row has one fetch behind it, and that is still a duplicate.
+test('a same-day refresh with two fetches in the ledger is not a duplicate-url', () => {
+  const dir = makeProject();
+  const url = 'https://x.invalid/limits';
+  const scrape = (markdown) => (u) => ({ ok: true, url: u, title: 'Limits', markdown, statusCode: 200,
+    transport: 'stub-transport', completeness: 'full', omitted: '', cmd: `stub scrape ${u}` });
+  const body = `# Limits\n\n${'The free plan allows 10 requests per minute. '.repeat(20)}`;
+  collectOne(dir, url, { runScrape: scrape(body), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  collectOne(dir, url, { runScrape: scrape(body), corpus: readCorpus(dir), force: true, transportName: 'stub-transport' });
+  const dupes = runCheck('hygiene', snapshot(dir)).filter((f) => f.rule === 'duplicate-url');
+  assert.deepEqual(dupes.map((f) => f.detail), [], 'a same-day refresh was called a duplicate');
 });

@@ -34,6 +34,14 @@ if (flags.json) {
 
 if (report.ok) {
   process.stdout.write(`handoff OK - ${report.entries} ledger entries, every cited capture on disk, chain verifies.  [role=${machineRole()}]\n`);
+  // The corpus arrived whole; whether anyone reviewed the handoff is a separate fact, and
+  // phase 2 starts from the brief.
+  if (report.brief.state === 'draft') {
+    process.stdout.write(`\nnote: research/BRIEF.md is a draft - ${report.brief.todo.join(', ')} still TODO. It is not a reviewed\n`
+      + 'handoff: ask whoever ran phase 1 to answer those sections before building on it.\n');
+  } else if (report.brief.state === 'template') {
+    process.stdout.write('\nnote: research/BRIEF.md has not been drafted - there is no handoff to build from yet.\n');
+  }
   process.exit(0);
 }
 
