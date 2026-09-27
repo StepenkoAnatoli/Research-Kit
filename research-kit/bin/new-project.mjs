@@ -5,11 +5,12 @@
 // evidence is irreplaceable.
 
 import path from 'node:path';
-import { parseFlags, kitCommand } from '../lib/core.mjs';
+import { parseFlags, kitCommand, refuseUnknownFlags } from '../lib/core.mjs';
 import { scaffoldProject, LAYOUT, GATE_MARKERS, validateProject } from '../lib/scaffold.mjs';
 import { KIT_HOME } from '../lib/machine.mjs';
 
 const { flags, positional } = parseFlags(process.argv.slice(2));
+refuseUnknownFlags(flags, ['help', 'topic', 'force', 'kit', 'layout']);
 
 if (flags.help) {
   process.stdout.write(`new-project - write the canonical project shape into a directory.

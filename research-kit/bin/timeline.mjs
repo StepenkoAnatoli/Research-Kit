@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // bin/timeline.mjs - regenerate research/TIMELINE.md.
 
-import { parseFlags } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags } from '../lib/core.mjs';
 import { renderTimeline } from '../lib/timeline.mjs';
 
 const { flags } = parseFlags(process.argv.slice(2));
+refuseUnknownFlags(flags, ['help']);
 
 if (flags.help) {
   process.stdout.write(`timeline - regenerate the chronological review aid.

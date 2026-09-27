@@ -4,7 +4,7 @@
 // Gathers material with the transport, so a BUILDER machine refuses it (exit 2).
 // It writes a checklist with statuses BLANK: the tool contains no judgment.
 
-import { parseFlags } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal } from '../lib/machine.mjs';
 import { selectTransport, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES } from '../lib/transport.mjs';
 import { decompose, searchSummary, RECIPE_DIR } from '../lib/decompose.mjs';
@@ -12,6 +12,7 @@ import { UNIVERSAL_DIMENSIONS } from '../lib/dimensions.mjs';
 import { listFiles } from '../lib/core.mjs';
 
 const { flags } = parseFlags(process.argv.slice(2));
+refuseUnknownFlags(flags, ['help', 'topic', 'dry-run', 'force', 'limit', 'max-scrapes', 'recipe', 'recipes', 'transport', 'search-transport']);
 const root = process.cwd();
 
 if (flags.help || (!flags.topic && !flags.recipes)) {
