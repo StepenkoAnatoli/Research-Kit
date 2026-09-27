@@ -32,6 +32,45 @@ test('parseTable finds the table by its first header cell and reports arity prob
   assert.equal(table.problems[0].kind, 'table-arity');
 });
 
+// Found 2026-09-27: a Finding quoting code with an unescaped | (`a || b`) split its row. The
+// extra cells were folded into the LAST column, Raw, so the capture path became half a sentence
+// and preflight reported "no cached page behind it" - the real cause was a warning further down.
+test('a long evidence row folds its extra cells into Finding, and says why the row split', () => {
+  const text = `${tableRow(HEADERS.evidence)}\n|---|---|---|---|---|---|\n| E-01 | 2026-01-01 | P | https://x.invalid | runs \`a || b\` first | research/raw/a.md |\n`;
+  const table = parseTable(text, HEADERS.evidence);
+  assert.equal(table.rows[0].Raw, 'research/raw/a.md', 'the capture path was corrupted');
+  assert.match(table.rows[0].Finding, /runs `a \| {2}\| b` first|runs `a \|\s*\|\s*b` first/);
+  assert.match(table.problems[0].detail, /a \| inside a cell.*\\\|/, table.problems[0].detail);
+});
+
+// The same day, in DISCOVERY: an unknown reading "Node 22 | 24" moved its prose into Status, and
+// preflight reported 'U-1 has status "THE MATRIX MUST DROP..."'. Every table folds a long row into
+// its prose column, so the structured columns to its right stay where they are.
+test('a long row in any table keeps its structured columns in place', () => {
+  const unknowns = parseTable(`${tableRow(HEADERS.unknowns)}\n|---|---|---|---|---|\n| U-1 | Node 22 | 24 end dates | the matrix drops them | CLOSED | E-01 |\n`, HEADERS.unknowns);
+  assert.equal(unknowns.rows[0].Status, 'CLOSED');
+  assert.equal(unknowns.rows[0].Evidence, 'E-01');
+  const map = parseTable(`${tableRow(HEADERS.subtopics)}\n|---|---|---|---|---|\n| D-1 | Access | public | or not | COVERED | U-1 |\n`, HEADERS.subtopics);
+  assert.equal(map.rows[0].Status, 'COVERED');
+  assert.equal(map.rows[0]['Covered by'], 'U-1');
+  const sources = parseTable(`${tableRow(HEADERS.sources)}\n|---|---|---|---|---|\n| https://x.invalid | P | A | B title | 2026-01-01 | U-1 |\n`, HEADERS.sources);
+  assert.equal(sources.rows[0].Retrieved, '2026-01-01');
+  assert.equal(sources.rows[0]['Used for'], 'U-1');
+});
+
+// Found 2026-09-27: a Raw cell written with Windows separators (research\\raw\\x.md) was
+// normalised by splitting on path.sep - which is \\ only on Windows. The same corpus passed there
+// and failed on a Linux builder with "no cached page behind it". A capture path never holds a
+// literal backslash, so every platform reads one as a separator.
+test('a Raw cell with backslashes reads the same on every platform', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/research\/raw\/([^ |]+)/, (m, name) => `research\\raw\\${name}`));
+  assert.match(readText(resolve(dir, PATHS.evidence)), /research\\raw\\/, 'the fixture did not write a backslash path');
+  const corpus = readCorpus(dir);
+  assert.match(corpus.evidence[0].raw, /^research\/raw\/[^\\]+$/, corpus.evidence[0].raw);
+  assert.equal(corpus.problems.some((p) => p.kind === 'raw-dangling'), false, 'the capture was reported missing');
+});
+
 test('parseTable stops at the end of the table, not the end of the file', () => {
   const text = `${tableRow(HEADERS.sources)}\n|---|---|---|---|---|\n| https://x.invalid | P | T | 2026-01-01 | U-1 |\n\n## Another section\n\n| not | a | row |\n`;
   assert.equal(parseTable(text, HEADERS.sources).rows.length, 1);

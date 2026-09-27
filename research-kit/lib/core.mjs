@@ -351,3 +351,19 @@ export function spellCommand(file, args = '') {
   const spelled = /\s/.test(file) ? `"${file}"` : file;
   return `node ${spelled}${args ? ` ${args}` : ''}`;
 }
+
+/**
+ * One page's identity across its spellings: host without www., path without a trailing
+ * slash, query kept. Lives here so the checks can compare a row's URL with its capture's
+ * without loading the collector (research-run re-exports it).
+ */
+export function urlKey(url) {
+  try {
+    const parsed = new URL(String(url));
+    const host = parsed.host.toLowerCase().replace(/^www\./, '');
+    const path = parsed.pathname.replace(/\/+$/, '');
+    return `//${host}${path}${parsed.search}`;
+  } catch {
+    return String(url ?? '');
+  }
+}

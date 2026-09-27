@@ -6,7 +6,7 @@
 // Every scrape spends a credit, so the budget is a first-class input: a tier caps the
 // run, a cache hit is never an attempt, and `--dry-run` spends nothing.
 
-import { PATHS, resolve, readJson, readText, today, hostOf, uniq, sleepSync } from './core.mjs';
+import { PATHS, resolve, readJson, readText, today, hostOf, uniq, sleepSync, urlKey } from './core.mjs';
 import * as firecrawl from './firecrawl.mjs';
 import { readCorpus, cacheDecision, appendJsonLine } from './corpus.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
@@ -178,16 +178,7 @@ export function mergeByRank(lists) {
  * search result .../ui-and-api/ as a second page - two credits for one. Identity only: the
  * URL a capture records is still the one that was fetched.
  */
-export function urlKey(url) {
-  try {
-    const parsed = new URL(String(url));
-    const host = parsed.host.toLowerCase().replace(/^www\./, '');
-    const path = parsed.pathname.replace(/\/+$/, '');
-    return `//${host}${path}${parsed.search}`;
-  } catch {
-    return String(url ?? '');
-  }
-}
+export { urlKey };
 
 export function selectCandidates(results, { prefer = [], perQuery = 3, seen = new Set() } = {}) {
   const taken = new Set();
