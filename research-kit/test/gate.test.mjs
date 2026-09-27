@@ -148,6 +148,22 @@ test('the edit gate lets phase-1 work through and still stops code', () => {
   assert.equal(editGate(dir, {}).permissionDecision, 'ask', 'a call naming no file is judged as before');
 });
 
+// Found 2026-09-27: with the session's cwd in a subfolder of a gated repository, the edit hook
+// looked for the gate markers in that subfolder, found none, and allowed every edit as "not a
+// gated project". The commit gate always judges from the repository's top level, where git
+// runs its hooks, so the two gates disagreed about the same file.
+test('the edit gate judges a subfolder cwd by the repository it is in', () => {
+  const dir = makeProject();
+  spawnSync('git', ['init', '-q'], { cwd: dir });
+  fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+  const out = editGate(dir, { file_path: 'app.js' }, path.join(dir, 'src'));
+  assert.equal(out.permissionDecision, 'ask', `code edited from src/ was not judged: ${out.permissionDecisionReason}`);
+  assert.equal(editGate(dir, { file_path: '../research/MAP.md' }, path.join(dir, 'src')).permissionDecision, 'allow',
+    'phase-1 work is still phase-1 work from a subfolder');
+  const loose = tempDir();
+  assert.equal(editGate(loose, { file_path: 'a.js' }).permissionDecision, 'allow', 'outside any gated project nothing is judged');
+});
+
 test('undeclared code paths fall back to the documented defaults', () => {
   const dir = makeProject();
   assert.deepEqual(loadGateConfig(dir).codePaths, [...DEFAULT_CODE_PATHS]);
