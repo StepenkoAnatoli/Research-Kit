@@ -115,7 +115,26 @@ function vendorMeter(search) {
 // run that did nothing read as a run that found nothing (found 2026-09-27).
 {
   const planPath = typeof flags.plan === 'string' ? flags.plan : 'research/plan.json';
+  // Named before "empty": readPlan reads an unparseable or missing file as the defaults, so a
+  // trailing comma was reported as "no queries and no urls" (found 2026-09-27).
+  const planText = readText(resolve(root, planPath));
+  if (planText === null) {
+    process.stderr.write(`${planPath} does not exist - nothing to collect. new-project writes research/plan.json.\n`);
+    process.exit(2);
+  }
+  try { JSON.parse(planText); } catch (err) {
+    process.stderr.write(`${planPath} does not parse as JSON (${err.message}) - fix it, then run this again.\n`);
+    process.exit(2);
+  }
   const planned = readPlan(root, typeof flags.plan === 'string' ? flags.plan : '');
+  // --only filters queries. Matching none ran nothing and read as a search that found nothing.
+  const only = flagList(flags.only);
+  const queryText = (q) => String(typeof q === 'string' ? q : q?.q ?? '').toLowerCase();
+  if (only.length && !planned.queries.some((q) => only.some((needle) => queryText(q).includes(needle.toLowerCase())))) {
+    process.stderr.write(`--only matched none of the plan's ${planned.queries.length} quer${planned.queries.length === 1 ? 'y' : 'ies'}: `
+      + `${only.map((n) => JSON.stringify(n)).join(', ')}. It matches text inside a query's "q", ignoring case.\n`);
+    process.exit(2);
+  }
   if (!planned.queries.length && !planned.urls.length) {
     process.stderr.write(`${planPath} has no queries and no urls - nothing to collect.
 Add them from the unknowns in research/DISCOVERY.md: each query is { "q": "...", "why": "U-1", "prefer": ["official.domain"] },
