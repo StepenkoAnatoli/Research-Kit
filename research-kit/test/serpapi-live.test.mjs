@@ -234,6 +234,10 @@ test('LIVE: a server that never answers is bounded by the timeout', async () => 
 
     assert.equal(r.ok, false);
     assert.ok(elapsed < 20_000, `the call took ${elapsed}ms - nothing bounded it`);
+    // Found 2026-09-27 on a real run: the failure read "spawnSync /opt/node22/bin/node ETIMEDOUT",
+    // which names a node binary and not the vendor that did not answer.
+    assert.match(r.error, /SerpAPI did not answer within 1\.2s/, r.error);
+    assert.doesNotMatch(r.error, /spawnSync/);
   } finally {
     vendor.close();
   }

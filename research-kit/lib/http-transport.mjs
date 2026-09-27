@@ -32,6 +32,8 @@ function runJob(job, { timeout = 60_000, spawn = spawnSync, nodePath = process.e
     windowsHide: true,
     env: fetchEnv(env),
   });
+  // The page did not answer in time; say that, not "spawnSync ETIMEDOUT" (found 2026-09-27).
+  if (result.error?.code === 'ETIMEDOUT') return { ok: false, error: `no answer within ${timeout / 1000}s - the request was abandoned; a retry may succeed` };
   if (result.error) return { ok: false, error: result.error.message };
   const text = String(result.stdout ?? '').trim();
   if (!text) return { ok: false, error: String(result.stderr || 'keyless transport produced no output').trim() };
