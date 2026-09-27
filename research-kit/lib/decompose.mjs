@@ -15,7 +15,7 @@ import { readCorpus, cacheDecision, tableRow, appendJsonLine } from './corpus.mj
 import { seedRows, UNIVERSAL_DIMENSIONS } from './dimensions.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
 import { urlKey } from './research-run.mjs';
-import { KIT_ROOT } from './scaffold.mjs';
+import { KIT_ROOT, UNTITLED_TOPIC } from './scaffold.mjs';
 
 export const RECIPE_DIR = path.join(KIT_ROOT, 'recipes');
 
@@ -81,6 +81,33 @@ function scrubError(text) {
     .replace(/[A-Za-z0-9_-]{32,}/g, '<redacted>')
     .trim();
   return clean.length > 160 ? `${clean.slice(0, 157)}...` : clean;
+}
+
+/**
+ * `resolveTopic(root, asked)` -> `{ topic }` to decompose, or `{ error }`.
+ *
+ * The project's topic is `research/plan.json`'s, which new-project writes. With no
+ * `--topic` it is the one decomposed; a different `--topic` is refused, because a map of
+ * another topic is another project, and the brief takes its title from the map. Spacing
+ * and case are not a difference. A project still called "Untitled topic" has none, so
+ * any `--topic` is accepted there.
+ */
+export function resolveTopic(root, asked) {
+  const plan = readCorpus(root).plan;
+  const own = typeof plan?.topic === 'string' && plan.topic.trim() && plan.topic.trim() !== UNTITLED_TOPIC
+    ? plan.topic.trim() : '';
+  const given = typeof asked === 'string' ? asked.trim() : '';
+  const same = (a, b) => a.replace(/\s+/g, ' ').toLowerCase() === b.replace(/\s+/g, ' ').toLowerCase();
+  if (!given && !own) return { error: 'this project has no topic yet - pass --topic "<what is being researched>"' };
+  if (!given) return { topic: own };
+  if (own && !same(own, given)) {
+    return {
+      error: `research/plan.json names this project's topic as "${own}", and --topic says "${given}".\n`
+        + '  Omit --topic to map this project\'s topic. A different topic is a different project:\n'
+        + '  scaffold it in its own folder with new-project.mjs.',
+    };
+  }
+  return { topic: own || given };
 }
 
 function mapBody({ topic, rows, hosts, material, date, recipe, failures = [], dryRun = false }) {

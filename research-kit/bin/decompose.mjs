@@ -7,7 +7,7 @@
 import { parseFlags, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal } from '../lib/machine.mjs';
 import { selectTransport, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES } from '../lib/transport.mjs';
-import { decompose, searchSummary, RECIPE_DIR } from '../lib/decompose.mjs';
+import { decompose, searchSummary, resolveTopic, RECIPE_DIR } from '../lib/decompose.mjs';
 import { UNIVERSAL_DIMENSIONS } from '../lib/dimensions.mjs';
 import { listFiles } from '../lib/core.mjs';
 
@@ -16,12 +16,19 @@ refuseUnknownFlags(flags, ['help', 'topic', 'dry-run', 'force', 'limit', 'max-sc
 checkFlagValues(flags, { topic: 'value', recipe: 'value', transport: 'value', 'search-transport': 'value' });
 const root = process.cwd();
 
-if (flags.help || (!flags.topic && !flags.recipes)) {
+// The topic is the project's (plan.json) unless --topic names it; a different one is refused.
+const resolved = flags.help || flags.recipes ? null : resolveTopic(root, flags.topic);
+if (resolved?.error) process.stderr.write(`${resolved.error}\n\n`);
+// A mismatch is not a usage question: the help would only bury the one line that matters.
+if (resolved?.error && flags.topic) process.exit(2);
+
+if (flags.help || resolved?.error) {
   process.stdout.write(`decompose - phase 0: draft research/MAP.md, seeded with the universal checklist.
 
-  node research-kit/bin/decompose.mjs --topic "<what is being researched>" [options]
+  node research-kit/bin/decompose.mjs [--topic "<what is being researched>"] [options]
 
-  --topic <text>     required - the topic to decompose
+  --topic <text>     the topic to decompose. Default: research/plan.json's topic;
+                     a different one is refused (a different topic is a new project)
   --recipe <name>    ADD domain dimensions on top of the universal set
   --recipes          list the recipes this kit ships
   --max-scrapes <n>  gather up to n pages while mapping (default 0 - search only)
@@ -98,7 +105,7 @@ if (spends) {
 let result;
 try {
   result = decompose(root, {
-    topic: String(flags.topic),
+    topic: resolved.topic,
     adapter,
     searchAdapter,
     recipe: typeof flags.recipe === 'string' ? flags.recipe : '',

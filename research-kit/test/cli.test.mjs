@@ -314,16 +314,47 @@ test('ADR-0028: bundle.mjs on a project with no manifest says so and exits 0', (
 
 test('FR-6: decompose --dry-run announces the providers and writes a map', () => {
   const root = project();
-  const r = run('decompose.mjs', ['--topic', 'a topic', '--dry-run'], { root });
+  const r = run('decompose.mjs', ['--topic', 'cli probe', '--dry-run'], { root });
   assert.equal(r.status, 0, r.err);
   assert.ok(fs.existsSync(path.join(root, 'research/MAP.md')), 'no map was written');
 });
 
 test('decompose refuses an unknown search provider before doing any work', () => {
   const root = project();
-  const r = run('decompose.mjs', ['--topic', 'a topic', '--search-transport', 'bing'], { root });
+  const r = run('decompose.mjs', ['--topic', 'cli probe', '--search-transport', 'bing'], { root });
   assert.equal(r.status, 2, r.all);
   assert.match(r.all, /unknown search provider/);
+});
+
+// Found 2026-09-27: `decompose --topic x` in a project scaffolded for another topic wrote
+// "x" into the map without a word, and the brief took its title from the map.
+test('decompose takes the project\'s topic when --topic is omitted', () => {
+  const root = project('replication slots under failover');
+  const r = run('decompose.mjs', ['--dry-run'], { root });
+  assert.equal(r.status, 0, r.all);
+  assert.match(fs.readFileSync(path.join(root, 'research/MAP.md'), 'utf8'), /## Topic\s+replication slots under failover/);
+});
+
+test('decompose refuses a --topic that is not the project\'s, naming both', () => {
+  const root = project('replication slots under failover');
+  const before = fs.readFileSync(path.join(root, 'research/MAP.md'), 'utf8');
+  const r = run('decompose.mjs', ['--topic', 'x', '--dry-run'], { root });
+  assert.equal(r.status, 2, r.all);
+  assert.match(r.all, /replication slots under failover/);
+  assert.match(r.all, /"x"/);
+  assert.equal(fs.readFileSync(path.join(root, 'research/MAP.md'), 'utf8'), before, 'the map was rewritten');
+  // Spacing and case are not a different topic.
+  assert.equal(run('decompose.mjs', ['--topic', '  Replication  slots under FAILOVER ', '--dry-run'], { root }).status, 0);
+});
+
+test('decompose accepts any --topic while the project is still "Untitled topic"', () => {
+  const root = tempDir('rk-cli-');
+  scaffoldProject(root);
+  const r = run('decompose.mjs', ['--topic', 'a first topic', '--dry-run'], { root });
+  assert.equal(r.status, 0, r.all);
+  const bare = run('decompose.mjs', ['--dry-run'], { root });
+  assert.equal(bare.status, 2, 'an untitled project has no topic to fall back on');
+  assert.match(bare.all, /--topic/);
 });
 
 // ---------------------------------------------------------------- --plan

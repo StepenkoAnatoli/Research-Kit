@@ -89,7 +89,10 @@ export function templateFiles(templateDir = TEMPLATE_DIR) {
 // ---------------------------------------------------------------- writing the shape
 
 /** Structure is always repaired; content is never clobbered without `force`. */
-export function scaffoldProject(dir, { topic = 'Untitled topic', kit = '$HOME/.agents/research-kit', force = false, templateDir = TEMPLATE_DIR, date = today() } = {}) {
+/** The topic a project gets when none is given: a placeholder, never a topic. */
+export const UNTITLED_TOPIC = 'Untitled topic';
+
+export function scaffoldProject(dir, { topic = UNTITLED_TOPIC, kit = '$HOME/.agents/research-kit', force = false, templateDir = TEMPLATE_DIR, date = today() } = {}) {
   const written = [];
   const skipped = [];
   const repaired = [];
