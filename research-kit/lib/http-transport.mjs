@@ -29,10 +29,14 @@ const PROXY_VARIABLES = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy
  * Node's built-in fetch honour a configured proxy.
  *
  * `fetch` ignores HTTPS_PROXY unless NODE_USE_ENV_PROXY=1 (a Node version that predates the
- * flag ignores it, so setting it costs nothing there). Without it, a machine whose egress
- * is proxy-only got a bare "HTTP 403" for a page curl fetched through the same proxy: the
- * transport had gone around the proxy it was given. Found 2026-09-26 in a cloud container,
- * Node 22.22.2. An operator who set NODE_USE_ENV_PROXY themselves - even to 0 - decided,
+ * flag ignores it, so setting it costs nothing there). Without it the fetch goes around
+ * the proxy it was given. Found 2026-09-26 in a cloud container, Node 22.22.2: a GitHub API
+ * page that curl fetched through the proxy came back HTTP 403 - GitHub's unauthenticated
+ * rate limit, because going around the proxy lost the authentication the proxy adds. On a
+ * network that allows traffic only through the proxy, the same bypass fails earlier, at the
+ * connection. Either way the error names no proxy. (The first version of this comment said
+ * "proxy-only egress"; docs/decisions/2026-09-27-node-support measured the real cause.)
+ * The flag needs Node 22.21+ or 24+, and doctor warns on anything older. An operator who set NODE_USE_ENV_PROXY themselves - even to 0 - decided,
  * and is not overruled.
  */
 export function fetchEnv(env = process.env) {

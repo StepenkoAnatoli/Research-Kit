@@ -218,7 +218,8 @@ there saying so.
 **Requirements:** Node 22+ and Git. Python 3.12+ is needed for the cross-language
 conformance runners; without it those tests report `UNSUP` and **block** rather than
 silently passing. Node 22, 24 and 26 are each tested on every commit - the three lines Node
-supports (as of 2026-09).
+supports (as of 2026-09). Behind an HTTPS proxy, the keyless transport needs Node 22.21+ or
+24+ to use it; `doctor` says so when yours cannot.
 
 ## Bring your own keys
 

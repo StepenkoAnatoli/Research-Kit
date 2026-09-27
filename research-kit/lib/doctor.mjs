@@ -17,6 +17,7 @@ import { validateProject, hookExecutability, GATE_MARKERS, KIT_ROOT } from './sc
 import { settingsState, deployedDrift, driftNote } from './installer.mjs';
 import { recordOverride } from './provenance.mjs';
 import { probeFirecrawl, selectTransport } from './transport.mjs';
+import { nodeLine, nodeHonoursEnvProxy } from './runtime.mjs';
 import { verifyBundle, bundleSummary } from './bundle.mjs';
 import {
   posture, machineRole, collectionPolicy, readMachineConfig, retiredEnvNotes,
@@ -31,7 +32,7 @@ function f(severity, name, detail, fix = '') {
 
 // ---------------------------------------------------------------- machine
 
-export function machineHealth({ env = process.env, gitPaths = {}, probe = probeFirecrawl } = {}) {
+export function machineHealth({ env = process.env, gitPaths = {}, probe = probeFirecrawl, nodeVersion = process.versions.node } = {}) {
   const out = [];
   const read = readMachineConfig(env);
   const post = posture(env);
@@ -60,6 +61,19 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
       `unknown - ${policy.reason}. Metered collection is refused until this is resolved.`, policy.remedy));
   } else {
     out.push(f('pass', 'machine-role', `${role}${policy.mayCollect ? ' - this machine may collect' : ' - this machine must NOT collect'}`));
+  }
+
+  // The Node line, and whether it can use this machine's proxy
+  // (docs/decisions/2026-09-27-node-support, ADR-0046).
+  const line = nodeLine(nodeVersion);
+  out.push(f(line.level, 'node', line.detail, line.fix));
+  const proxy = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].find((key) => env[key]);
+  if (proxy) {
+    out.push(nodeHonoursEnvProxy(nodeVersion)
+      ? f('pass', 'keyless-proxy', `${proxy} is set, and node ${nodeVersion} routes the keyless transport through it`)
+      : f('warn', 'keyless-proxy',
+        `${proxy} is set, but node ${nodeVersion} cannot route fetch through it - the keyless transport goes around the proxy, and fails with an error that names no proxy`,
+        'upgrade to Node 22.21 or later on the 22 line, or to 24 or 26'));
   }
 
   const version = gitVersion(gitPaths);

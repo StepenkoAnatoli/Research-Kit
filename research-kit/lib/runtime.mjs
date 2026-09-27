@@ -25,6 +25,46 @@ export function checkNode(version = process.versions.node) {
     : { ok: false, detail: `node ${version}; this kit needs ${REQUIRED_NODE_MAJOR} or newer`, fix: 'install Node 22+ from nodejs.org, then reopen the terminal' };
 }
 
+function nodeParts(version) {
+  const [major, minor] = String(version).split('.').map(Number);
+  return { major, minor: Number.isFinite(minor) ? minor : 0 };
+}
+
+/**
+ * Whether this Node's built-in fetch can route through HTTPS_PROXY via NODE_USE_ENV_PROXY,
+ * which the keyless transport sets (fetchEnv). The flag exists from 22.21.0 on the 22 line
+ * and from 24.0.0 on the 24 line, and 23 never had it (docs/decisions/2026-09-27-node-support,
+ * E-02, E-04). Below that the flag is ignored and the fetch goes around the proxy: measured
+ * on 22.20.0, an HTTP 403 that named no proxy.
+ */
+export function nodeHonoursEnvProxy(version = process.versions.node) {
+  const { major, minor } = nodeParts(version);
+  if (major === 22) return minor >= 21;
+  return major >= 24;
+}
+
+/**
+ * The Node line as doctor reports it: `pass`, `warn` or `fail`, with the reason.
+ * Below the floor the kit does not run. An odd line below 27 is never LTS and ends six
+ * months after it starts (E-01) - 23 and 25 are already end-of-life. From 27 every line
+ * goes LTS, so the rule stops there.
+ */
+export function nodeLine(version = process.versions.node) {
+  const { major } = nodeParts(version);
+  if (!Number.isFinite(major)) return { level: 'fail', detail: `could not read a Node version from ${JSON.stringify(version)}`, fix: '' };
+  if (major < REQUIRED_NODE_MAJOR) {
+    return { level: 'fail', detail: `node ${version}; this kit needs ${REQUIRED_NODE_MAJOR} or newer`, fix: 'install Node 24 (Active LTS) from nodejs.org' };
+  }
+  if (major % 2 === 1 && major < 27) {
+    return {
+      level: 'warn',
+      detail: `node ${version} is an odd-numbered line: never LTS, and end-of-life six months after release`,
+      fix: 'move to Node 24 (Active LTS) or 26',
+    };
+  }
+  return { level: 'pass', detail: `node ${version}`, fix: '' };
+}
+
 /** `{ ok, detail }` - ok when git is on PATH and answers. Only for commands that use it. */
 export function checkGit({ run = spawnSync } = {}) {
   const probe = run('git', ['--version'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
