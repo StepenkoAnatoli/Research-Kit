@@ -133,7 +133,7 @@ test('FR-6: the flag outranks the environment, end to end through the CLI', () =
 
 test('RR-5: --status reports the search meter, with its caveat', () => {
   const r = run('research.mjs', ['--status'], { root: project() });
-  assert.match(r.out, /searches \(this box\)/);
+  assert.match(r.out, /searches \(this project\)/, 'the count is one project on this machine, not the box');
   assert.match(r.out, /in the last hour/);
   assert.match(r.out, /50\/hour and 250\/month/, 'the free-tier caps are not stated');
   assert.match(r.out, /not billed/, 'the over-count caveat is missing from the display');
@@ -162,7 +162,7 @@ test('ADR-0040 / FR-5: with no key, --status makes no vendor-meter call and prin
 
 test('RR-5: a fresh project reports zero searches, not NaN or blank', () => {
   const r = run('research.mjs', ['--status'], { root: project() });
-  assert.match(r.out, /searches \(this box\) 0 in the last hour, 0 this month/);
+  assert.match(r.out, /searches \(this project\) 0 in the last hour, 0 this month/);
 });
 
 // ---------------------------------------------------------------- FR-8  --dry-run

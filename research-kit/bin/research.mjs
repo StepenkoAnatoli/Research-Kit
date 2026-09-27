@@ -80,7 +80,7 @@ ${heading('machine')}
 role               ${policy.role}${policy.mayCollect ? '' : ' - this machine must NOT collect'}
 transport          ${transport.name} (${transport.why})
 search transport   ${transport.search.name}${transport.search.sameAsFetch ? ' - same meter as fetch' : ` (${transport.search.why})`}
-searches (this box) ${usage.search.lastHour} in the last hour, ${usage.search.thisMonth} this month${usage.search.providers.length ? ` (${usage.search.providers.join(', ')})` : ''}
+searches (this project) ${usage.search.lastHour} in the last hour, ${usage.search.thisMonth} this month${usage.search.providers.length ? ` (${usage.search.providers.join(', ')})` : ''}
                    free-tier caps are ${usage.search.perHourCap}/hour and ${usage.search.perMonthCap}/month; ${usage.search.caveat}
 ${(transport.search.adapter?.METER_NOTES ?? [])
   // The selected search adapter says what the numbers mean for its vendor (U-9, U-10). A

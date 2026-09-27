@@ -575,7 +575,8 @@ export function searchUsage(root, { now = new Date(), provider = '' } = {}) {
     perHourCap: FREE_TIER_PER_HOUR,
     perMonthCap: FREE_TIER_PER_MONTH,
     // Named so nobody reads these numbers as the vendor's.
-    caveat: 'counted from this machine\'s own runs; a repeat served from the provider\'s free cache is counted here but not billed',
+    // Per project: the usage file lives in research/raw/ (Found 2026-09-27: this said "this box").
+    caveat: 'counted from this project\'s own runs on this machine; a repeat served from the provider\'s free cache is counted here but not billed',
   };
 }
 
