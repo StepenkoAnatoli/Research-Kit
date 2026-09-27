@@ -223,6 +223,7 @@ export function decompose(root, {
   let spent = 0;
   let searches = 0;
   let searchesUsed = 0;
+  let searchCreditsEstimate = 0;
   let cached = 0;
   let failedScrapes = 0;
   const failures = [];
@@ -249,6 +250,7 @@ export function decompose(root, {
     for (const query of queries) {
       let found = searcher.search(query, { limit });
       if (Number.isFinite(found?.searchesUsed)) searchesUsed += found.searchesUsed;
+      if (Number.isFinite(found?.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
       let ranker = searcher.name;
       // One bounded fallback, reported rather than absorbed (RR-1, RR-2).
       if (!found.ok && searcher !== adapter) {
@@ -257,6 +259,8 @@ export function decompose(root, {
         log(`  degrading to ${adapter.name} for this query - this spends fetch credits`);
         found = adapter.search(query, { limit });
         if (Number.isFinite(found?.searchesUsed)) searchesUsed += found.searchesUsed;
+        if (Number.isFinite(found?.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
+      if (Number.isFinite(found?.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
         ranker = adapter.name;
       }
       if (!found.ok) {
@@ -310,6 +314,7 @@ export function decompose(root, {
         transport: adapter.name,
         searchTransport: searcher.name,
         searchesUsed,
+        ...(searchCreditsEstimate ? { searchCreditsEstimate } : {}),
         searchFailures: failures.filter((x) => !x.degraded).length,
         degraded: failures.filter((x) => x.degraded).length,
       });

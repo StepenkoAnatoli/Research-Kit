@@ -628,3 +628,21 @@ test('an explicitly pinned provider stays a single provider', () => {
   assert.equal(search.adapters, undefined, 'a pinned choice offers no second provider');
   assert.equal(search.name, 'serpapi');
 });
+
+// Found 2026-09-27: four decompose searches cost about 7 credits and one plan query about 2,
+// measured on the account's own balance - and the kit recorded `searchesUsed: 0`, because only
+// the SerpAPI adapter reported a count. The estimate follows the documented rule (E-03, E-14):
+// 2 credits per 10 results, rounded up; a search is counted at 2 at least, because the rule
+// does not say what an empty result costs and an under-count is the failure being fixed.
+test('a Firecrawl search reports itself, and what it cost by the documented rule', () => {
+  const rows = (n) => JSON.stringify({ data: { web: Array.from({ length: n }, (_, i) => ({ url: `https://x.invalid/${i}`, title: 't' })) } });
+  const five = firecrawl.search('q', { execFn: () => ({ ok: true, status: 0, stdout: rows(5), stderr: '' }) });
+  assert.equal(five.searchesUsed, 1);
+  assert.equal(five.creditsEstimate, 2);
+  const eleven = firecrawl.search('q', { limit: 20, execFn: () => ({ ok: true, status: 0, stdout: rows(11), stderr: '' }) });
+  assert.equal(eleven.creditsEstimate, 4, '11 results is 4 credits (E-03)');
+  const none = firecrawl.search('q', { execFn: () => ({ ok: true, status: 0, stdout: rows(0), stderr: '' }) });
+  assert.equal(none.creditsEstimate, 2, 'an empty search is not assumed free');
+  const failed = firecrawl.search('q', { execFn: () => ({ ok: false, status: 1, stdout: '', stderr: 'boom' }) });
+  assert.equal(failed.searchesUsed, undefined, 'a failed call is not counted as spend');
+});

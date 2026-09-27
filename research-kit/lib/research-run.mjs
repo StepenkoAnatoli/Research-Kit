@@ -328,6 +328,7 @@ ${compatibility.remedy}`);
   // The search side keeps its OWN counters, because it is a separate meter and a summary
   // that merged them would hide the whole point of the split.
   let searchesUsed = 0;
+  let searchCreditsEstimate = 0;
   let overBudget = 0;
   let searchFailures = 0;
   // The same failures, by provider. `searchFailures` mixes providers, so it cannot say
@@ -379,6 +380,7 @@ ${compatibility.remedy}`);
       for (const one of searchers) {
         const r = ask(one, text);
         if (Number.isFinite(r.searchesUsed)) searchesUsed += r.searchesUsed;
+        if (Number.isFinite(r.creditsEstimate)) searchCreditsEstimate += r.creditsEstimate;
         if (!r.ok) {
           searchFailures += 1;
           failedOn(one.name);
@@ -441,6 +443,7 @@ ${compatibility.remedy}`);
       continue;
     }
     if (Number.isFinite(found.searchesUsed)) searchesUsed += found.searchesUsed;
+    if (Number.isFinite(found.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
     discovered.push({ query: text, results: found.results, provider: ranker, searchId: found.searchId ?? null });
     for (const candidate of selectCandidates(found.results, { prefer, perQuery: settings.perQuery, seen })) {
       targets.push({
@@ -509,6 +512,7 @@ ${compatibility.remedy}`);
       transport: adapter.name,
       searchTransport: searchName,
       searchesUsed,
+      ...(searchCreditsEstimate ? { searchCreditsEstimate } : {}),
       searchFailures,
       degraded,
     });
@@ -524,7 +528,7 @@ ${compatibility.remedy}`);
     // collected + failed, because a failed fetch can still consume budget; reporting it as
     // "collected" told the operator they had pages they did not have.
     collected: spent - failed,
-    searchesUsed, searchFailures, searchFailuresOn, degraded,
+    searchesUsed, searchCreditsEstimate, searchFailures, searchFailuresOn, degraded,
     results, discovered,
   };
 }
@@ -539,7 +543,9 @@ ${compatibility.remedy}`);
  */
 export function searchSummaryLine(run) {
   const name = run.searchTransport;
-  const line = `searches   ${run.searchesUsed} on ${name}`;
+  // An estimate is labelled as one: the account balance (doctor) is the vendor's own number.
+  const credits = run.searchCreditsEstimate ? ` (≈${run.searchCreditsEstimate} credits, estimated by the documented 2 per 10 results)` : '';
+  const line = `searches   ${run.searchesUsed} on ${name}${credits}`;
   const failed = Number(run.searchFailuresOn?.[name] ?? 0);
   if (!failed) return line;
   return `${line} - ${failed} attempt${failed === 1 ? '' : 's'} failed, reasons in ${PATHS.failures}`;
@@ -592,6 +598,7 @@ export function searchUsage(root, { now = new Date(), provider = '' } = {}) {
   const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
   let lastHour = 0;
   let thisMonth = 0;
+  let creditsEstimate = 0;
   const providers = new Set();
 
   for (const row of rows) {
@@ -603,12 +610,15 @@ export function searchUsage(root, { now = new Date(), provider = '' } = {}) {
     if (row.searchTransport) providers.add(row.searchTransport);
     if (at >= hourAgo) lastHour += used;
     if (at >= monthStart) thisMonth += used;
+    if (at >= monthStart && Number.isFinite(Number(row.searchCreditsEstimate))) creditsEstimate += Number(row.searchCreditsEstimate);
   }
 
   return {
     lastHour,
     thisMonth,
     providers: [...providers],
+    // Search credits this month as the adapters ESTIMATED them - never a vendor's count.
+    creditsEstimate,
     perHourCap: FREE_TIER_PER_HOUR,
     perMonthCap: FREE_TIER_PER_MONTH,
     // Named so nobody reads these numbers as the vendor's.

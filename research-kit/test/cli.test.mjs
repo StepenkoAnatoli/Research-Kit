@@ -770,3 +770,14 @@ test('handoff OK names a brief that is still a draft, without failing', () => {
   assert.match(r.out, /contradictions/);
   assert.match(r.out, /decision/);
 });
+
+// Found 2026-09-27: `research --status` printed 0 searches beside a balance that had fallen by 9.
+test('research --status shows Firecrawl search credits as an estimate', () => {
+  const root = planned('status probe');
+  fs.writeFileSync(path.join(root, 'research', 'raw', '.usage.jsonl'),
+    `${JSON.stringify({ at: new Date().toISOString(), spent: 1, transport: 'firecrawl-cli', searchTransport: 'firecrawl-cli', searchesUsed: 4, searchCreditsEstimate: 8 })}\n`);
+  const r = run('research.mjs', ['--status', '--transport', 'http-keyless'], { root });
+  assert.equal(r.status, 0, r.all);
+  assert.match(r.out, /searches \(this project\) 4 in the last hour/);
+  assert.match(r.out, /≈8 credits/);
+});

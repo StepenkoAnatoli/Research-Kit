@@ -654,3 +654,28 @@ test('CONCURRENCY: both runs are recorded in the usage log, one line each', () =
   assert.equal(rows.length, 2, 'a run was swallowed by the other');
   assert.deepEqual(rows.map((r) => r.searchTransport), ['search-a', 'search-b']);
 });
+
+// Found 2026-09-27: Firecrawl search credits never reached the usage log or --status.
+test('DR-1: a search\'s estimated credits reach the run, the usage log and the summary', () => {
+  const root = project();
+  const searcher = searchStub();
+  const base = searcher.search;
+  searcher.search = (...args) => ({ ...base(...args), creditsEstimate: 2 });
+  const run = runResearch(root, { adapter: fetchStub(), searchAdapter: searcher, plan: plan() });
+  assert.equal(run.searchCreditsEstimate, 2);
+  const [usage] = jsonLines(root, '.usage.jsonl');
+  assert.equal(usage.searchCreditsEstimate, 2, 'the usage row lost the estimate');
+  assert.match(searchSummaryLine(run), /≈2 credits/);
+  assert.equal(searchUsage(root).creditsEstimate, 2, '--status cannot see it');
+});
+
+test('DR-1: decompose records its searches\' estimated credits too', () => {
+  const root = project();
+  const adapter = fetchStub();
+  adapter.search = () => ({ ok: true, query: 'q', searchesUsed: 1, creditsEstimate: 2, results: [] });
+  decompose(root, { topic: 'seam probe', adapter, searchAdapter: adapter, maxScrapes: 0, log: () => {} });
+  const [usage] = jsonLines(root, '.usage.jsonl');
+  assert.ok(usage, 'decompose wrote no usage row');
+  assert.equal(usage.searchesUsed, 4);
+  assert.equal(usage.searchCreditsEstimate, 8);
+});

@@ -307,7 +307,16 @@ export function search(query, { limit = 8, execFn = exec, ...opts } = {}) {
   const argv = ['search', String(query), '--limit', String(limit), '--json'];
   const result = execFn(argv, opts);
   if (!result.ok) return { ok: false, query, error: result.stderr || `firecrawl exited ${result.status}`, cmd: command(argv), results: [] };
-  return { ok: true, query, cmd: command(argv), results: normalizeSearch(result.stdout) };
+  const results = normalizeSearch(result.stdout);
+  // Counted, as the SerpAPI adapter counts its own (found 2026-09-27: Firecrawl searches cost
+  // about 2 credits each and the kit recorded none). The cost is an ESTIMATE by the documented
+  // rule, 2 credits per 10 results rounded up (E-03, E-14); an empty result is counted at 2,
+  // because the rule does not price it and an under-count is the defect this fixes.
+  return {
+    ok: true, query, cmd: command(argv), results,
+    searchesUsed: 1,
+    creditsEstimate: 2 * Math.max(1, Math.ceil(results.length / 10)),
+  };
 }
 
 export function map(url, { limit = 50, execFn = exec, ...opts } = {}) {
