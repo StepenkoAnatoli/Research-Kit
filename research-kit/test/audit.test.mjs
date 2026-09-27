@@ -210,14 +210,14 @@ test('a manifest naming a file that is not on disk is REFUSED, not bundled short
   const bundle = zipAudit(dir);
   assert.equal(bundle.ok, false);
   assert.match(bundle.reason, /refusing to bundle short/);
-  assert.match(bundle.fix, /bin\/audit\.mjs/);
+  assert.match(bundle.fix, /bin[\\/]audit\.mjs/, 'the command that makes one, in this platform path spelling');
 });
 
 test('no audits at all: refused, with the command that makes one', () => {
   const bundle = zipAudit(makePassingProject());
   assert.equal(bundle.ok, false);
   assert.equal(bundle.exit, 1);
-  assert.match(bundle.fix, /bin\/audit\.mjs/);
+  assert.match(bundle.fix, /bin[\\/]audit\.mjs/, 'the command that makes one, in this platform path spelling');
 });
 
 test('several topics and none named: refused, every topic listed, --topic offered', () => {
