@@ -21,7 +21,8 @@ if (flags.help) {
   --force    overwrite existing content (structure is always repaired anyway)
   --kit <p>  how the project should SPELL the kit's location, for a project that will
              be read somewhere else. Default: this machine's deployed kit. Pass
-             ~/.agents/research-kit when the project will travel.
+             '$HOME/.agents/research-kit' when the project will travel - single-quoted, so
+             the shell you type it in leaves it for the reader's shell to expand.
 
 The four gate markers: ${GATE_MARKERS.join(', ')}
 `);

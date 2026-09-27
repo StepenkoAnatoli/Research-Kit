@@ -319,8 +319,8 @@ PowerShell.
 
 ```bash
 mkdir "$HOME/my-research" && cd "$HOME/my-research"
-node $HOME/.agents/research-kit/bin/new-project.mjs . --topic "<your topic>"
-node $HOME/.agents/research-kit/bin/decompose.mjs --topic "<your topic>"
+node "$HOME/.agents/research-kit/bin/new-project.mjs" . --topic "<your topic>"
+node "$HOME/.agents/research-kit/bin/decompose.mjs" --topic "<your topic>"
 ```
 
 Then open `research/MAP.md` and mark each row `COVERED`, `DISMISSED` or `GAP`. **This step
@@ -330,14 +330,14 @@ rest of the kit protects.
 **6. Collect.** The only step that spends credits:
 
 ```bash
-node $HOME/.agents/research-kit/bin/research.mjs --dry-run   # see what it would fetch, and the cost
-node $HOME/.agents/research-kit/bin/research.mjs
+node "$HOME/.agents/research-kit/bin/research.mjs" --dry-run   # see what it would fetch, and the cost
+node "$HOME/.agents/research-kit/bin/research.mjs"
 ```
 
 **7. Ask whether you may build yet.**
 
 ```bash
-node $HOME/.agents/research-kit/bin/preflight.mjs
+node "$HOME/.agents/research-kit/bin/preflight.mjs"
 ```
 
 `PASS` means the twelve corpus checks agree the evidence supports starting. Anything else
@@ -380,7 +380,7 @@ into the project first, then run the kit from wherever it is installed:
 
 ```
 cd ~/projects/my-thing
-node ~/.agents/research-kit/bin/preflight.mjs
+node "$HOME/.agents/research-kit/bin/preflight.mjs"
 ```
 
 From any other directory it reports on the directory it is standing in.

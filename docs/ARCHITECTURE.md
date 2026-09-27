@@ -232,8 +232,13 @@ so `ok` means the assertions settled; ADR-0021).
   where things are, the three lines of starting research, the four-command resume
   block, one line on credits. Table-first, no protocol vocabulary, scaffolded into
   every project and deployed with the kit (ADR-0018). The two copies differ only in
-  how the kit path is spelled (`~/.agents/research-kit` vs `{{KIT}}`). Not a
-  `LAYOUT` entry: no rule needs it, so a project without it reports nothing.
+  how the kit path is spelled (`$HOME/.agents/research-kit` vs `{{KIT}}`). Every command in
+  them, and in every template file and the skill, double-quotes its path, and a project that
+  travels spells the kit `$HOME/.agents/research-kit` (ADR-0050): that reaches node whole in
+  every PowerShell, bash and zsh, with a space in the home folder, where the bare `~` it
+  replaced reached node literally in Windows PowerShell 5.1, 7.4 and 7.5. START_HERE says what
+  cmd needs (`%USERPROFILE%`). Not a `LAYOUT` entry: no rule needs it, so a project without it
+  reports nothing.
 - `docs/ARCHITECTURE.md` (this file) and `research/kit.json` — the map of the code and the
   declaration of what code it guards. Both travel with the scaffold (ADR-0008); both are
   LAYOUT entries, neither is a gate marker.

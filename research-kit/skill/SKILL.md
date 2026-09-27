@@ -21,14 +21,14 @@ Signals that you are in the wrong place: no `AGENTS.md`, no `research/` director
 ## Which machine is this?
 
 ```
-node ~/.agents/research-kit/bin/doctor.mjs
+node "$HOME/.agents/research-kit/bin/doctor.mjs"
 ```
 
 A **collector** holds the key and produces the corpus. A **builder** consumes one and
 must not collect: `research.mjs` and `decompose.mjs` refuse there (exit 2) rather than
 fall back on another transport. A page fetched by hand is not evidence in this kit.
 
-On a builder, the first command is `node ~/.agents/research-kit/bin/handoff.mjs`.
+On a builder, the first command is `node "$HOME/.agents/research-kit/bin/handoff.mjs"`.
 
 ## The sequence
 
@@ -36,7 +36,7 @@ On a builder, the first command is `node ~/.agents/research-kit/bin/handoff.mjs`
 decompose -> contract -> prior -> collect -> gate -> brief
 ```
 
-1. **Decompose.** `node ~/.agents/research-kit/bin/decompose.mjs --topic "<topic>"`
+1. **Decompose.** `node "$HOME/.agents/research-kit/bin/decompose.mjs" --topic "<topic>"`
    drafts `research/MAP.md`, seeded with nine universal dimensions: access model, auth,
    rate limits, ToS/legality, schema stability, freshness, cost at volume, runtime
    limits, and **output obtainability** - the load-bearing one. If the data your "done"
@@ -49,7 +49,7 @@ decompose -> contract -> prior -> collect -> gate -> brief
    blocking unknowns FROM the map. A fact blocks the build when a wrong guess changes the
    design.
 
-3. **Register your prior.** `node ~/.agents/research-kit/bin/prior.mjs "<what you expect>"`.
+3. **Register your prior.** `node "$HOME/.agents/research-kit/bin/prior.mjs" "<what you expect>"`.
    Write two things: what you expect the evidence to say, and what you know you cannot know
    yet. Optional - and **this is the only moment it is possible**, because it is chained
    into the ledger ahead of the first page and refused afterwards.
@@ -59,7 +59,7 @@ decompose -> contract -> prior -> collect -> gate -> brief
    which is exactly why the order is fixed by a hash rather than by memory. Nothing grades
    it (ADR-0039).
 
-4. **Collect.** `node ~/.agents/research-kit/bin/research.mjs`. Prefer the page that
+4. **Collect.** `node "$HOME/.agents/research-kit/bin/research.mjs"`. Prefer the page that
    *owns* the fact - official docs, the repo, the pricing page, the statute - over any
    write-up about it. Every scrape spends a credit; plan the queries first.
 
@@ -67,10 +67,10 @@ decompose -> contract -> prior -> collect -> gate -> brief
    real claim with the number or quote that proves it, and keep `Raw` pointing at the
    cached page.
 
-6. **Gate.** `node ~/.agents/research-kit/bin/preflight.mjs`. **Do not build until it
+6. **Gate.** `node "$HOME/.agents/research-kit/bin/preflight.mjs"`. **Do not build until it
    prints PASS.**
 
-7. **Brief.** `node ~/.agents/research-kit/bin/brief.mjs` drafts the phase-1 -> phase-2
+7. **Brief.** `node "$HOME/.agents/research-kit/bin/brief.mjs"` drafts the phase-1 -> phase-2
    handoff. Answer the two sections the corpus cannot fill.
 
 ## The question budget
