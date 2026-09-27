@@ -5,7 +5,8 @@
 // never will: the gate resolves one project from where it stands, and a second root is
 // a second thing to be wrong about.
 
-import { parseFlags, flagList, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
+import { parseFlags, flagList, refuseUnknownFlags, checkFlagValues, readText, resolve, PATHS, kitCommand } from '../lib/core.mjs';
+import { draftStamp } from '../lib/brief.mjs';
 import { runPreflight, fixCommand } from '../lib/preflight.mjs';
 import { CHECKS, CHECK_NAMES } from '../lib/checks.mjs';
 import { isGated } from '../lib/gate.mjs';
@@ -79,6 +80,14 @@ const policyLabel = flags.strict
   : `evidencePolicy=${verdict.evidencePolicy}`;
 const summary = `${verdict.pass ? 'PASS' : 'FAIL'}  ${verdict.counts.fail} blocking, ${verdict.counts.warn} warning(s), ${verdict.counts.pass} passing  [${policyLabel}]`;
 process.stdout.write(`${heading('verdict')}\n${summary}\n`);
+
+// The brief says in prose which verdict it was drafted under, and the builder reads it first.
+// When that is no longer this verdict, say so here, where the verdict is.
+const stamp = draftStamp(readText(resolve(root, PATHS.brief)));
+if (stamp && stamp.gate !== 'unknown' && (stamp.gate === 'pass') !== verdict.pass) {
+  process.stdout.write(`\nnote: ${PATHS.brief} was drafted when the gate ${stamp.gate === 'pass' ? 'passed' : 'failed'}, and it ${verdict.pass ? 'passes' : 'fails'} now - `
+    + `redraft it: ${stamp.edited ? kitCommand('brief.mjs', '--force') : kitCommand('brief.mjs')}\n`);
+}
 
 if (!verdict.pass) {
   process.stdout.write(`\nDo not start building. Each failing line names what is unproven and where.\nRe-run after collecting: ${fixCommand()}\n`);

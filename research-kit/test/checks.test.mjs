@@ -790,3 +790,14 @@ test('a same-day refresh with two fetches in the ledger is not a duplicate-url',
   const dupes = runCheck('hygiene', snapshot(dir)).filter((f) => f.rule === 'duplicate-url');
   assert.deepEqual(dupes.map((f) => f.detail), [], 'a same-day refresh was called a duplicate');
 });
+
+// Found 2026-09-27 reviewing ADR-0055's fix: a brief drafted while only the map was
+// incomplete kept "Gate: FAIL (9 blocking)" after the map rows were statused and the gate
+// passed - the inputs hash covered the contract and the evidence, not the map.
+test('hygiene calls the brief stale when only the map has changed', () => {
+  const dir = makePassingProject();
+  renderBrief(dir);
+  corrupt(dir, PATHS.map, (text) => text.replace(/\| (COVERED|DISMISSED) \|/, '| GAP |'));
+  const stale = runCheck('hygiene', snapshot(dir)).filter((f) => f.rule === 'brief-stale');
+  assert.equal(stale.length, 1, 'a map change left the brief current');
+});
