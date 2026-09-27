@@ -42,7 +42,39 @@ export function excerptFor(body, finding, { limit = 420 } = {}) {
 
   const best = blocks.map((b) => [score(b), b]).sort((a, b) => b[0] - a[0])[0];
   const chosen = best && best[0] > 0 ? best[1] : (blocks[0] ?? text.trim());
-  return chosen.length <= limit ? chosen : `${chosen.slice(0, limit).trimEnd()}…`;
+  if (chosen.length <= limit) return chosen;
+  const start = focusOf(chosen, finding, limit);
+  const lead = start > 0 ? '…' : '';
+  const window = chosen.slice(start, start + limit - lead.length);
+  return `${lead}${window.trimEnd()}${start + limit - lead.length < chosen.length ? '…' : ''}`;
+}
+
+/**
+ * Where in a block longer than the limit the window should start: where the most distinct
+ * tokens of the finding fall within one window.
+ *
+ * It started at 0. A page with no blank line - a JSON capture - is one block, so the excerpt
+ * was its first characters whatever the finding quoted (found 2026-09-27: Node v0.8 and v0.10,
+ * for a finding about v22 and v24). The count is of DISTINCT tokens, so a word the page
+ * repeats everywhere cannot outvote the one passage that carries them together.
+ */
+function focusOf(block, finding, limit) {
+  const lower = block.toLowerCase();
+  const tokens = [...new Set(String(finding ?? '').toLowerCase().match(/[a-z0-9][a-z0-9.-]*[a-z0-9]/g) ?? [])]
+    .filter((t) => t.length >= 3);
+  const hits = [];
+  for (const [index, token] of tokens.entries()) {
+    for (let at = lower.indexOf(token), n = 0; at !== -1 && n < 200; at = lower.indexOf(token, at + 1), n += 1) hits.push([at, index]);
+  }
+  if (!hits.length) return 0;
+  hits.sort((a, b) => a[0] - b[0]);
+  const half = Math.floor(limit / 2);
+  let best = { score: 0, at: 0 };
+  for (const [at] of hits) {
+    const seen = new Set(hits.filter(([p]) => p >= at - half && p < at + half).map(([, i]) => i));
+    if (seen.size > best.score) best = { score: seen.size, at };
+  }
+  return Math.max(0, Math.min(best.at - half, block.length - limit));
 }
 
 /**

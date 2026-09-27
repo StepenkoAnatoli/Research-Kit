@@ -181,7 +181,9 @@ export function honourEnvProxy({
   if (plan !== 'reexec') return Promise.resolve(plan);
 
   return new Promise(() => {
-    const child = spawn(execPath, [...execArgv, ...argv.slice(1)], {
+    // Node 22 prints "EnvHttpProxyAgent is experimental" on every run once the flag is on.
+    // True, and noise on every command the operator reads; only that code is silenced.
+    const child = spawn(execPath, ['--disable-warning=UNDICI-EHPA', ...execArgv, ...argv.slice(1)], {
       stdio: 'inherit',
       env: { ...env, NODE_USE_ENV_PROXY: '1' },
       windowsHide: true,

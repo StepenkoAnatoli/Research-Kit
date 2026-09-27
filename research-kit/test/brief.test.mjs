@@ -1,7 +1,7 @@
 // The brief's shape has one owner (ADR-0014): the renderer writes its headings FROM the
 // definition, and the audit reads the judged sections THROUGH it.
 
-import { test, describe, assert, makePassingProject, corrupt, fs } from './harness.mjs';
+import { test, describe, assert, makePassingProject, corrupt, fs, path } from './harness.mjs';
 import { PATHS, resolve, readText, writeText } from '../lib/core.mjs';
 import {
   BRIEF_SECTIONS, JUDGED_SECTIONS, BRIEF_FILE_MARKER, TODO_MARK,
@@ -116,6 +116,34 @@ test('known unknowns are listed with their day-one steps, or the section says no
   const unknowns = briefSection(readText(resolve(dir, PATHS.brief)), 'unknowns');
   assert.match(unknowns, /U-1/);
   assert.match(unknowns, /Day-one verification: day one: log in/);
+});
+
+// Found 2026-09-27 reviewing a package the collector returned: from the project folder, the
+// brief's "Run node research-kit/bin/preflight.mjs" and "node bin/brief.mjs" named files that
+// exist only at the kit repository's root, so each crashed with MODULE_NOT_FOUND.
+test('every command the brief prints runs from the project folder', () => {
+  const dir = makePassingProject();
+  const commands = [];
+  for (const verdict of [{ pass: true }, { pass: false, counts: { fail: 1 } }]) {
+    renderBrief(dir, { force: true, verdict });
+    for (const [, arg] of readText(resolve(dir, PATHS.brief)).matchAll(/\bnode\s+("[^"]+"|\S+?\.mjs)/g)) commands.push(arg);
+  }
+  assert.ok(commands.length >= 2, `only ${commands.length} commands found: ${commands.join(', ')}`);
+  for (const arg of commands) {
+    const file = path.resolve(dir, arg.replace(/^"|"$/g, ''));
+    assert.ok(fs.existsSync(file), `the brief says "node ${arg}", and from the project folder that is ${file}, which does not exist`);
+  }
+});
+
+// Found the same day: a corpus whose one source was typed S drafted "Every blocking unknown was
+// closed with primary-source evidence".
+test('a closure resting on no primary source is not called primary', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/\| P \|/, '| S |'));
+  renderBrief(dir, { force: true });
+  const unknowns = briefSection(readText(resolve(dir, PATHS.brief)), 'unknowns');
+  assert.doesNotMatch(unknowns, /primary-source evidence/, 'the only source is secondary');
+  assert.match(unknowns, /U-1 rests on no primary \(P\) source/);
 });
 
 test('judgedSection is the reader the audit consumes instead of a regex of its own', () => {

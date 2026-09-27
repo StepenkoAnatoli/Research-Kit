@@ -4,7 +4,7 @@
 // FROM this definition and lib/audit.mjs reads the judged sections through it, so the
 // writer and its readers cannot drift.
 
-import { PATHS, resolve, readText, writeText, today } from './core.mjs';
+import { PATHS, resolve, readText, writeText, today, documentCommand } from './core.mjs';
 import { readCorpus, sectionOf, claimOf, captureOf } from './corpus.mjs';
 import { readPrior } from './prior.mjs';
 
@@ -103,7 +103,17 @@ function hostOfUrl(url) {
 
 function knownUnknowns(corpus) {
   const rows = corpus.unknowns.filter((u) => u.status === 'KNOWN-UNKNOWN');
-  if (!rows.length) return 'None. Every blocking unknown was closed with primary-source evidence.';
+  if (!rows.length) {
+    // Said "closed with primary-source evidence" whatever the Type column held, so a corpus
+    // resting on one secondary source told its builder the opposite (found 2026-09-27).
+    const typeOf = (id) => corpus.evidence.find((e) => e.id.toUpperCase() === id.toUpperCase())?.type ?? '';
+    const secondhand = corpus.unknowns
+      .filter((u) => u.status === 'CLOSED' && !u.cites.some((id) => /^E-\d+$/i.test(id) && typeOf(id) === 'P'))
+      .map((u) => u.id);
+    const none = 'None. Every blocking unknown was closed with cited evidence.';
+    if (!secondhand.length) return none;
+    return `${none} ${secondhand.join(', ')} ${secondhand.length === 1 ? 'rests' : 'rest'} on no primary (P) source; the Type column above shows what carries ${secondhand.length === 1 ? 'it' : 'them'}.`;
+  }
   return rows.map((u) => `- **${u.id}** - ${u.text}\n  - Day-one verification: ${u.evidence || '_not stated_'}`).join('\n');
 }
 
@@ -173,7 +183,7 @@ export function renderBrief(root, { force = false, date = today(), corpus = null
 traces to a cached page in \`${PATHS.raw}/\`.`
       : `**Gate: FAIL (${verdict.counts.fail} blocking finding${verdict.counts.fail === 1 ? '' : 's'}).** This brief is a
 draft of an incomplete research pass: phase 2 does not start until \`${PATHS.discovery}\`
-passes. Run \`node research-kit/bin/preflight.mjs\` to see what is unproven.`);
+passes. Run \`${documentCommand('preflight.mjs')}\` to see what is unproven.`);
 
   const body = `# Brief - ${topic}
 
@@ -218,7 +228,7 @@ alone.
 ## ${BRIEF_SECTIONS[5].heading}
 
 1. Review the ${TODO_MARK} sections above (${BRIEF_SECTIONS.filter((s) => s.judged).map((s) => s.heading.split(' ')[0]).join(', ')}) before handing off.
-2. Hand this file to the builder (phase 2). Re-running \`node bin/brief.mjs\`
+2. Hand this file to the builder (phase 2). Re-running \`${documentCommand('brief.mjs')}\`
    after edits will refuse without \`--force\` so your judgements are preserved.
 `;
 

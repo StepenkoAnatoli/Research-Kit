@@ -7,6 +7,7 @@ import { PATHS, HEADERS, resolve, readText, writeText, writeJson } from '../lib/
 import { readCorpus, appendRow, upsertRow, alignToHeader } from '../lib/corpus.mjs';
 import { writeAudit, zipAudit, readManifest, readManifestState, fingerprintOf } from '../lib/audit.mjs';
 import { renderBrief } from '../lib/brief.mjs';
+import { renderTimeline } from '../lib/timeline.mjs';
 import { runResearch } from '../lib/research-run.mjs';
 import { decompose } from '../lib/decompose.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from '../lib/collect.mjs';
@@ -407,4 +408,15 @@ test('F21: the stale warning names the fresher capture when one already exists',
   const findings = runCheck('unknown-closure', readCorpus(dir), { maxAgeDays: 180 });
   const stale = findings.find((f) => f.rule === 'stale-evidence');
   assert.match(stale.detail, /E-02 is already a fresher capture/, '"go and collect" and "go and read" are different instructions');
+});
+
+// Found 2026-09-27: the regenerated timeline told its reader "node research-kit/bin/timeline.mjs",
+// which exists only at the kit repository's root - not in the project folder it is read in.
+test('the timeline names a regenerate command that runs from the project folder', () => {
+  const dir = makePassingProject();
+  renderTimeline(dir);
+  const [, arg] = readText(resolve(dir, PATHS.timeline)).match(/\bnode\s+("[^"]+"|\S+?\.mjs)/) ?? [];
+  assert.ok(arg, 'the timeline names no command');
+  const file = path.resolve(dir, arg.replace(/^"|"$/g, ''));
+  assert.ok(fs.existsSync(file), `the timeline says "node ${arg}", and from the project folder that is ${file}, which does not exist`);
 });

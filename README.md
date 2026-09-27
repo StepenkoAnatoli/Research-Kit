@@ -232,7 +232,7 @@ the keys are yours to supply.
 You can run the whole kit with **no key at all**:
 
 ```
-node research-kit/bin/research.mjs --transport http-keyless
+node "$HOME/.agents/research-kit/bin/research.mjs" --transport http-keyless
 ```
 
 That route has no vendor, no credential and no metering. It is slower and its captures
@@ -243,7 +243,7 @@ environment, or the machine config at `~/.agents/research-kit.config.json`:
 
 | Provider | Used for | How to supply it |
 |---|---|---|
-| Firecrawl | fetching pages, and searching by default | `firecrawl login` — the CLI stores it. **Never run `firecrawl env` inside a repository**: it writes the key into `.env`. |
+| Firecrawl | fetching pages, and searching by default | `npm install -g firecrawl-cli@1.24.6` (the package is `firecrawl-cli`; `firecrawl` is a different one), then `firecrawl login` — the CLI stores it. **Never run `firecrawl env` inside a repository**: it writes the key into `.env`. |
 | SerpAPI | searching only, entirely optional | `SERPAPI_API_KEY`, or `serpapiKey` in the machine config |
 
 Both have free tiers, and the kit is designed around them: Firecrawl gives 1,000 credits

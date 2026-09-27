@@ -296,7 +296,9 @@ test('reexec: the command starts again with the flag, on the same streams, and l
   });
   assert.ok(seen, 'the command never started again');
   assert.equal(seen.file, '/opt/node');
-  assert.deepEqual(seen.args, ['--no-warnings', '/kit/bin/collect-remote.mjs', '--topic', 'x']);
+  // The restart silences exactly one warning: Node 22's "EnvHttpProxyAgent is experimental",
+  // printed on every run of a command the operator reads. Every other warning still shows.
+  assert.deepEqual(seen.args, ['--disable-warning=UNDICI-EHPA', '--no-warnings', '/kit/bin/collect-remote.mjs', '--topic', 'x']);
   assert.equal(seen.opts.env.NODE_USE_ENV_PROXY, '1');
   assert.equal(seen.opts.env.HTTPS_PROXY, PROXIED.HTTPS_PROXY);
   assert.equal(seen.opts.env.PATH, '/bin', 'the rest of the environment must still reach the command');

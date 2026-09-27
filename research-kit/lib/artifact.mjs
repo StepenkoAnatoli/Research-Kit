@@ -29,7 +29,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  PATHS, resolve, exists, isDirectory, readText, sha256, canonicalJson, nowIso, listFiles,
+  PATHS, resolve, exists, isDirectory, readText, sha256, canonicalJson, nowIso, listFiles, homeCommand,
 } from './core.mjs';
 import { buildZip } from './archive.mjs';
 import { readCorpus, parseCapture } from './corpus.mjs';
@@ -238,7 +238,7 @@ export function findingsReviewState(root, corpus) {
 
 // ---------------------------------------------------------------- the human file
 
-function renderReadme(derived) {
+function renderReadme(derived, source) {
   const { state } = derived;
   if (state === 'APPROVED_BRIEF') {
     return `# APPROVED RESEARCH — BUILDING IS AUTHORIZED
@@ -274,13 +274,31 @@ Research-Kit collected evidence successfully.
 This package is **not an approved research brief** and does not authorize
 an AI or person to begin building.
 
+The commands below are written for PowerShell, bash and zsh. In cmd.exe, write
+\`%USERPROFILE%\` where a command says \`$HOME\`.
+
 ## Three required review steps
 
 1. Review and classify every row in \`project/research/MAP.md\`.
 2. Review every finding in \`project/research/EVIDENCE.md\`.
-3. Run preflight and review \`project/research/BRIEF.md\`.
+3. From the \`project\` folder, run preflight until it prints PASS, then draft the
+   brief and answer its two **TODO** sections in \`project/research/BRIEF.md\`:
 
-Building is permitted only when all of these are true:
+\`\`\`
+${homeCommand('preflight.mjs')}
+${homeCommand('brief.mjs')}
+\`\`\`
+
+## Then package the reviewed project
+
+From this folder, the one holding this file:
+
+\`\`\`
+${homeCommand('artifact.mjs', repackageArgs(source))}
+\`\`\`
+
+It writes \`reviewed.zip\` with the identity of this package and a manifest derived from
+the project as it now stands. Building is permitted only when that manifest says all of:
 
 - \`manifest.json\` contains \`"state": "APPROVED_BRIEF"\`
 - \`manifest.json\` contains \`"buildAuthorized": true\`
@@ -290,6 +308,25 @@ Start by opening:
 
 \`project/START_HERE.md\`
 `;
+}
+
+/**
+ * The \`create\` arguments that re-package a reviewed project under the identity it arrived
+ * with. The package said building needs APPROVED_BRIEF, and nothing in it said how a reviewer
+ * gets a manifest that says so (found 2026-09-27 on collector run 36300088606). Identity only:
+ * the new manifest's state is derived from the project, as every manifest's is.
+ */
+function repackageArgs({ clientRef, repository, ref, commit, workflow, workflowRunId, runAttempt, apiVersion, runUrl, htmlUrl }) {
+  const bare = (value) => (/^[A-Za-z0-9._\/:@+-]+$/.test(String(value)) ? String(value) : `'${String(value)}'`);
+  const [owner, name] = String(repository).split('/');
+  const args = ['create', '--root project', '--output reviewed.zip',
+    `--repository ${bare(repository)}`, `--ref ${bare(ref)}`, `--commit ${bare(commit)}`,
+    `--workflow ${bare(workflow)}`, `--run-id ${workflowRunId}`, `--run-attempt ${runAttempt}`];
+  if (clientRef) args.push(`--client-ref ${bare(clientRef)}`);
+  if (apiVersion !== GITHUB_API_VERSION) args.push(`--api-version ${bare(apiVersion)}`);
+  if (runUrl !== `https://api.github.com/repos/${owner}/${name}/actions/runs/${workflowRunId}`) args.push(`--run-url ${bare(runUrl)}`);
+  if (htmlUrl !== `https://github.com/${owner}/${name}/actions/runs/${workflowRunId}`) args.push(`--html-url ${bare(htmlUrl)}`);
+  return args.join(' ');
 }
 
 function renderSummary(derived, manifestish) {
@@ -454,7 +491,7 @@ export function createArtifact({
     files: [],
   };
 
-  add(README_PATH, renderReadme(derived));
+  add(README_PATH, renderReadme(derived, { ...shell.source, clientRef: safeRef }));
   add('reports/collection-summary.md', renderSummary(derived, { ...shell, collection }));
   add('reports/problems.json', renderProblems(derived));
   add('schemas/artifact-manifest.schema.json', fs.readFileSync(path.join(kitRoot, 'schemas', 'artifact-manifest.schema.json')));

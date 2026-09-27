@@ -5,10 +5,9 @@
 // evidence is irreplaceable.
 
 import path from 'node:path';
-import { parseFlags } from '../lib/core.mjs';
+import { parseFlags, kitCommand } from '../lib/core.mjs';
 import { scaffoldProject, LAYOUT, GATE_MARKERS, validateProject } from '../lib/scaffold.mjs';
 import { KIT_HOME } from '../lib/machine.mjs';
-import { fileURLToPath } from 'node:url';
 
 const { flags, positional } = parseFlags(process.argv.slice(2));
 
@@ -63,13 +62,11 @@ for (const finding of shape.findings) process.stdout.write(`  ${finding.severity
 // crashed with MODULE_NOT_FOUND (found 2026-09-27, following the README on a fresh machine).
 // Not the --kit spelling: that is for a project that travels; this is for the person at
 // this terminal, now.
-const bin = path.join(path.dirname(fileURLToPath(import.meta.url)));
-const quote = (p) => (/\s/.test(p) ? JSON.stringify(p) : p);
 process.stdout.write(`
 Next, from ${dir}:
-  1. node ${quote(path.join(bin, 'decompose.mjs'))} --topic "<topic>"   draft the map
+  1. ${kitCommand('decompose.mjs', '--topic "<topic>"')}   draft the map
   2. fill research/DISCOVERY.md's unknowns FROM that map
-  3. node ${quote(path.join(bin, 'research.mjs'))}   collect
-  4. node ${quote(path.join(bin, 'preflight.mjs'))}   do not build until PASS
+  3. ${kitCommand('research.mjs')}   collect
+  4. ${kitCommand('preflight.mjs')}   do not build until PASS
 `);
 process.exit(shape.ok ? 0 : 1);

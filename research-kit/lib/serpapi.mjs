@@ -109,6 +109,9 @@ export function runJob(job, { timeout = DEFAULT_TIMEOUT, spawn = spawnSync, node
     windowsHide: true,
     env: fetchEnv(env),
   });
+  // A child that outlived its timeout is the vendor not answering; say that, not "spawnSync ETIMEDOUT"
+  // (found 2026-09-27 on a real run, where it named a node binary instead of SerpAPI).
+  if (result.error?.code === 'ETIMEDOUT') return { ok: false, error: `SerpAPI did not answer within ${timeout / 1000}s - the request was abandoned; a retry may succeed` };
   if (result.error) return { ok: false, error: result.error.message };
   const text = String(result.stdout ?? '').trim();
   if (!text) return { ok: false, error: String(result.stderr || 'serpapi transport produced no output').trim() };

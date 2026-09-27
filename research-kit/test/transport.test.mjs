@@ -288,6 +288,14 @@ const childEnvOf = (env, call = (opts) => httpKeyless.scrape('https://x.invalid/
   return seen.env ?? {};
 };
 
+test('a keyless fetch that times out says so, not "spawnSync ETIMEDOUT"', () => {
+  const err = Object.assign(new Error('spawnSync /usr/bin/node ETIMEDOUT'), { code: 'ETIMEDOUT' });
+  const r = httpKeyless.scrape('https://x.invalid/p', { spawn: () => ({ error: err, stdout: '', stderr: '' }) });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /no answer within \d+s/);
+  assert.doesNotMatch(r.error, /spawnSync/);
+});
+
 test('behind a proxy, the keyless fetch is told to use it', () => {
   for (const key of ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy']) {
     const env = childEnvOf({ [key]: 'http://127.0.0.1:9', PATH: '/bin' });
