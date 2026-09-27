@@ -35,6 +35,21 @@ export function buildTimeline(root, { corpus = null } = {}) {
   return events;
 }
 
+/**
+ * One readable form per moment. The collector stamps fetches at day precision
+ * (`T00:00:00.000Z`), evidence rows carry a date, and overrides and diagnostics carry a real
+ * time - the column mixed all three (found 2026-09-27). A day is written as a date, a real
+ * time as `YYYY-MM-DD HH:MM UTC`. Sorting still uses the raw value.
+ */
+function when(at) {
+  const text = String(at ?? '');
+  if (!text) return '-';
+  const m = /^(\d{4}-\d{2}-\d{2})(?:T(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?Z)?$/.exec(text);
+  if (!m) return text;
+  if (!m[2] || (m[2] === '00' && m[3] === '00' && /T00:00:00(\.0+)?Z$/.test(text))) return m[1];
+  return `${m[1]} ${m[2]}:${m[3]} UTC`;
+}
+
 export function renderTimeline(root, { corpus = null } = {}) {
   const snapshot = corpus ?? readCorpus(root);
   const events = buildTimeline(root, { corpus: snapshot });
@@ -46,7 +61,7 @@ export function renderTimeline(root, { corpus = null } = {}) {
     '',
     '| When | What | Detail |',
     '|---|---|---|',
-    ...events.map((e) => `| ${e.at || '-'} | ${e.kind} | ${String(e.detail).replace(/\|/g, '\\|')} |`),
+    ...events.map((e) => `| ${when(e.at)} | ${e.kind} | ${String(e.detail).replace(/\|/g, '\\|')} |`),
     '',
   ];
   writeText(resolve(root, PATHS.timeline), `${lines.join('\n')}\n`);

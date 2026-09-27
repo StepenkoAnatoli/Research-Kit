@@ -654,3 +654,83 @@ test('CONCURRENCY: both runs are recorded in the usage log, one line each', () =
   assert.equal(rows.length, 2, 'a run was swallowed by the other');
   assert.deepEqual(rows.map((r) => r.searchTransport), ['search-a', 'search-b']);
 });
+
+// Found 2026-09-27: Firecrawl search credits never reached the usage log or --status.
+test('DR-1: a search\'s estimated credits reach the run, the usage log and the summary', () => {
+  const root = project();
+  const searcher = searchStub();
+  const base = searcher.search;
+  searcher.search = (...args) => ({ ...base(...args), creditsEstimate: 2 });
+  const run = runResearch(root, { adapter: fetchStub(), searchAdapter: searcher, plan: plan() });
+  assert.equal(run.searchCreditsEstimate, 2);
+  const [usage] = jsonLines(root, '.usage.jsonl');
+  assert.equal(usage.searchCreditsEstimate, 2, 'the usage row lost the estimate');
+  assert.match(searchSummaryLine(run), /≈2 credits/);
+  assert.equal(searchUsage(root).creditsEstimate, 2, '--status cannot see it');
+});
+
+test('DR-1: decompose records its searches\' estimated credits too', () => {
+  const root = project();
+  const adapter = fetchStub();
+  adapter.search = () => ({ ok: true, query: 'q', searchesUsed: 1, creditsEstimate: 2, results: [] });
+  decompose(root, { topic: 'seam probe', adapter, searchAdapter: adapter, maxScrapes: 0, log: () => {} });
+  const [usage] = jsonLines(root, '.usage.jsonl');
+  assert.ok(usage, 'decompose wrote no usage row');
+  assert.equal(usage.searchesUsed, 4);
+  assert.equal(usage.searchCreditsEstimate, 8);
+});
+
+// Found 2026-09-27: a keyless plan query came back with no results, and research.mjs printed
+// only "collected 0, failed 0" - nothing said a search had run, let alone found nothing.
+test('RR-8: each search says what it found, and one that found nothing is recorded', () => {
+  const root = project();
+  const lines = [];
+  runResearch(root, { adapter: fetchStub(), searchAdapter: searchStub({ results: [] }), plan: plan(), log: (l) => lines.push(l) });
+  assert.ok(lines.some((l) => /found nothing/.test(l) && /a query/.test(l)), `nothing said the search was empty:\n${lines.join('\n')}`);
+  const failures = jsonLines(root, '.failures.jsonl');
+  assert.ok(failures.some((f) => f.op === 'search-empty' && f.query === 'a query'), 'the empty search is not in the failure log');
+
+  const found = [];
+  runResearch(project(), { adapter: fetchStub(), searchAdapter: searchStub(), plan: plan(), log: (l) => found.push(l) });
+  assert.ok(found.some((l) => /found 1\b/.test(l)), `a search that found something is not reported:\n${found.join('\n')}`);
+});
+
+// Found 2026-09-27: SerpAPI returned only generic "postgres" pages (home page, Reddit,
+// Wikipedia, forums) for "postgres pg_sync_replication_slots function", and the kit scraped
+// the home page - a page about nothing the query asked - because ranking read only URLs.
+test('RR-9: a search whose results all miss the query spends no scrape, and says so', () => {
+  const root = project();
+  const offTopic = searchStub({ results: ['https://www.postgresql.org/', 'https://www.reddit.com/r/x/postgres_scale', 'https://en.wikipedia.org/wiki/PostgreSQL'] });
+  const base = offTopic.search;
+  offTopic.search = (...a) => { const r = base(...a); r.results = r.results.map((row, i) => ({ ...row, title: ['PostgreSQL: The world\'s most advanced open source database', 'At what scale does just use postgres stop being enough?', 'PostgreSQL - Wikipedia'][i] })); return r; };
+  const fetcher = fetchStub();
+  const lines = [];
+  const run = runResearch(root, {
+    adapter: fetcher, searchAdapter: offTopic, log: (l) => lines.push(l),
+    plan: plan({ queries: [{ q: 'postgres pg_sync_replication_slots function', why: 'U-1' }] }),
+  });
+  assert.equal(fetcher.calls.scrape, 0, 'a page that matched nothing in the query was scraped');
+  assert.equal(run.spent, 0);
+  assert.ok(lines.some((l) => /no result matched/.test(l)), `the skip was silent:\n${lines.join('\n')}`);
+  assert.ok(jsonLines(root, '.failures.jsonl').some((f) => f.op === 'search-off-topic'), 'the skip is not in the failure log');
+});
+
+test('RR-9: a result that carries the query\'s terms is still selected', () => {
+  const root = project();
+  const good = searchStub({ results: ['https://www.postgresql.org/docs/current/logical-replication-failover.html'] });
+  const base = good.search;
+  good.search = (...a) => { const r = base(...a); r.results[0].title = 'PostgreSQL: Documentation: 18: 29.3. Logical Replication Failover'; return r; };
+  const fetcher = fetchStub();
+  runResearch(root, { adapter: fetcher, searchAdapter: good, plan: plan({ queries: [{ q: 'postgres logical replication failover slots', why: 'U-1' }] }) });
+  assert.equal(fetcher.calls.scrape, 1, 'an on-topic result was rejected');
+});
+
+test('RR-9: a result on a domain the plan prefers is kept even when its title is terse', () => {
+  const root = project();
+  const terse = searchStub({ results: ['https://docs.example.com/pricing'] });
+  const base = terse.search;
+  terse.search = (...a) => { const r = base(...a); r.results[0].title = 'Pricing'; return r; };
+  const fetcher = fetchStub();
+  runResearch(root, { adapter: fetcher, searchAdapter: terse, plan: plan({ prefer: ['docs.example.com'], queries: [{ q: 'example rate limits', why: 'U-1' }] }) });
+  assert.equal(fetcher.calls.scrape, 1, 'the operator\'s own preferred domain was overruled');
+});

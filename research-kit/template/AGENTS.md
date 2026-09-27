@@ -70,7 +70,7 @@ spent credits are not spent again.
 
 The sequence is decompose -> contract -> collect -> gate -> brief.
 
-0. **Decompose** (collector machine): `node "{{KIT}}/bin/decompose.mjs" --topic "<topic>"`
+0. **Decompose** (collector machine): `node "{{KIT}}/bin/decompose.mjs"` - it maps the project's own topic from `research/plan.json`; pass `--topic "<topic>"` only while the project is untitled, since a different topic is refused -
    drafts `research/MAP.md` seeded with the universal checklist. The tool contains no
    judgment. Mark every row COVERED (citing U-## rows), DISMISSED (reason required), or
    GAP.

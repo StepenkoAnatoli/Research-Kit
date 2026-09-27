@@ -213,9 +213,48 @@ export function mergeByRank(lists) {
  */
 export { urlKey };
 
-export function selectCandidates(results, { prefer = [], perQuery = 3, seen = new Set() } = {}) {
+/**
+ * Does a search result carry the query it answers? Title, snippet and URL are read, because
+ * ranking reads only the URL - and on 2026-09-27 a query for "postgres
+ * pg_sync_replication_slots function" came back with only generic "postgres" pages, the home
+ * page scored 0 as the best of them, and the kit spent a scrape on a page about nothing the
+ * query asked.
+ *
+ * A result must carry at least HALF the query's distinctive terms (4+ characters, not a
+ * stopword). An identifier is matched as a phrase with `_` and `-` read as spaces, so
+ * `sync_replication_slots` matches "sync replication slots" in a title or a URL. A query with
+ * fewer than two distinctive terms is not judged: overlap cannot tell its results apart.
+ */
+const RELEVANCE_STOPWORDS = new Set(['with', 'what', 'when', 'which', 'does', 'from', 'that', 'this', 'into', 'about', 'your', 'have', 'will', 'there', 'their', 'than', 'then', 'them', 'they', 'how', 'the', 'and', 'for']);
+const plain = (text) => String(text ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+export function queryTerms(query) {
+  return [...new Set(String(query ?? '').toLowerCase().split(/\s+/)
+    .map((word) => plain(word))
+    .filter((term) => term.replace(/ /g, '').length >= 4 && !RELEVANCE_STOPWORDS.has(term)))];
+}
+export function matchesQuery(row, query) {
+  const terms = queryTerms(query);
+  if (terms.length < 2) return true;
+  let url = String(row?.url ?? '');
+  try { url = decodeURIComponent(url); } catch { /* a malformed escape is read as written */ }
+  const text = ` ${plain(`${row?.title ?? ''} ${row?.description ?? ''} ${url}`)} `;
+  const hits = terms.filter((term) => text.includes(term)).length;
+  return hits >= Math.ceil(terms.length / 2);
+}
+
+/** Is this URL on a domain the plan's `prefer` names? */
+export function isPreferred(url, prefer = []) {
+  return prefer.map(parsePreference).filter(Boolean).some((preference) => matchesPreference(url, preference));
+}
+
+export function selectCandidates(results, { prefer = [], perQuery = 3, seen = new Set(), query = '' } = {}) {
   const taken = new Set();
   return results
+    // Only a result that carries the query is worth a scrape (RR-9). `query` is optional so
+    // a caller ranking a list it built itself is not judged.
+    // A domain the operator named in `prefer` is taken on their word: they said it carries the
+    // fact, and a page there titled "Pricing" can hold the limits the query asks about.
+    .filter((row) => !query || matchesQuery(row, query) || isPreferred(row.url, prefer))
     .map((row) => ({ ...row, score: rankCandidate(row.url, { prefer }) }))
     // `seen` may hold keys (runResearch) or raw URLs (older callers); either excludes.
     .filter((row) => row.url && !seen.has(row.url) && !seen.has(urlKey(row.url)))
@@ -328,6 +367,7 @@ ${compatibility.remedy}`);
   // The search side keeps its OWN counters, because it is a separate meter and a summary
   // that merged them would hide the whole point of the split.
   let searchesUsed = 0;
+  let searchCreditsEstimate = 0;
   let overBudget = 0;
   let searchFailures = 0;
   // The same failures, by provider. `searchFailures` mixes providers, so it cannot say
@@ -379,6 +419,7 @@ ${compatibility.remedy}`);
       for (const one of searchers) {
         const r = ask(one, text);
         if (Number.isFinite(r.searchesUsed)) searchesUsed += r.searchesUsed;
+        if (Number.isFinite(r.creditsEstimate)) searchCreditsEstimate += r.creditsEstimate;
         if (!r.ok) {
           searchFailures += 1;
           failedOn(one.name);
@@ -397,7 +438,7 @@ ${compatibility.remedy}`);
       const merged = mergeByRank(lists);
       log(`  searched   ${lists.map((l) => `${l.provider} ${l.results.length}`).join(', ')} -> ${merged.length} distinct`);
       discovered.push({ query: text, results: merged, provider: lists.map((l) => l.provider).join('+'), searchId: null });
-      for (const candidate of selectCandidates(merged, { prefer, perQuery: settings.perQuery, seen })) {
+      for (const candidate of selectCandidates(merged, { prefer, perQuery: settings.perQuery, seen, query: text })) {
         targets.push({
           url: candidate.url,
           type: DEFAULT_SOURCE_TYPE,
@@ -441,8 +482,28 @@ ${compatibility.remedy}`);
       continue;
     }
     if (Number.isFinite(found.searchesUsed)) searchesUsed += found.searchesUsed;
+    if (Number.isFinite(found.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
+    // Said per query: a run whose searches all came back empty printed only "collected 0,
+    // failed 0", with nothing to say a search had run (found 2026-09-27). An empty search is
+    // recorded beside the failures, because it is the same question for the operator: this
+    // query produced nothing to read.
+    if (!found.results.length) {
+      log(`  search found nothing: ${text} (${ranker})`);
+      appendJsonLine(root, PATHS.failures, {
+        at: new Date().toISOString(), op: 'search-empty', query: text, provider: ranker,
+      });
+    } else {
+      log(`  search     found ${found.results.length} for "${text}" (${ranker})`);
+    }
     discovered.push({ query: text, results: found.results, provider: ranker, searchId: found.searchId ?? null });
-    for (const candidate of selectCandidates(found.results, { prefer, perQuery: settings.perQuery, seen })) {
+    const picked = selectCandidates(found.results, { prefer, perQuery: settings.perQuery, seen, query: text });
+    if (found.results.length && !found.results.some((row) => matchesQuery(row, text) || isPreferred(row.url, prefer))) {
+      log(`  no result matched "${text}" - none of the ${found.results.length} carry half its terms; nothing scraped for it`);
+      appendJsonLine(root, PATHS.failures, {
+        at: new Date().toISOString(), op: 'search-off-topic', query: text, provider: ranker, results: found.results.length,
+      });
+    }
+    for (const candidate of picked) {
       targets.push({
         // Discovered by a search, not chosen by a person: context until an agent reads
         // the page and promotes it. Ranking preference is not source authority.
@@ -509,6 +570,7 @@ ${compatibility.remedy}`);
       transport: adapter.name,
       searchTransport: searchName,
       searchesUsed,
+      ...(searchCreditsEstimate ? { searchCreditsEstimate } : {}),
       searchFailures,
       degraded,
     });
@@ -524,7 +586,7 @@ ${compatibility.remedy}`);
     // collected + failed, because a failed fetch can still consume budget; reporting it as
     // "collected" told the operator they had pages they did not have.
     collected: spent - failed,
-    searchesUsed, searchFailures, searchFailuresOn, degraded,
+    searchesUsed, searchCreditsEstimate, searchFailures, searchFailuresOn, degraded,
     results, discovered,
   };
 }
@@ -539,7 +601,9 @@ ${compatibility.remedy}`);
  */
 export function searchSummaryLine(run) {
   const name = run.searchTransport;
-  const line = `searches   ${run.searchesUsed} on ${name}`;
+  // An estimate is labelled as one: the account balance (doctor) is the vendor's own number.
+  const credits = run.searchCreditsEstimate ? ` (≈${run.searchCreditsEstimate} credits, estimated by the documented 2 per 10 results)` : '';
+  const line = `searches   ${run.searchesUsed} on ${name}${credits}`;
   const failed = Number(run.searchFailuresOn?.[name] ?? 0);
   if (!failed) return line;
   return `${line} - ${failed} attempt${failed === 1 ? '' : 's'} failed, reasons in ${PATHS.failures}`;
@@ -592,6 +656,7 @@ export function searchUsage(root, { now = new Date(), provider = '' } = {}) {
   const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
   let lastHour = 0;
   let thisMonth = 0;
+  let creditsEstimate = 0;
   const providers = new Set();
 
   for (const row of rows) {
@@ -603,12 +668,15 @@ export function searchUsage(root, { now = new Date(), provider = '' } = {}) {
     if (row.searchTransport) providers.add(row.searchTransport);
     if (at >= hourAgo) lastHour += used;
     if (at >= monthStart) thisMonth += used;
+    if (at >= monthStart && Number.isFinite(Number(row.searchCreditsEstimate))) creditsEstimate += Number(row.searchCreditsEstimate);
   }
 
   return {
     lastHour,
     thisMonth,
     providers: [...providers],
+    // Search credits this month as the adapters ESTIMATED them - never a vendor's count.
+    creditsEstimate,
     perHourCap: FREE_TIER_PER_HOUR,
     perMonthCap: FREE_TIER_PER_MONTH,
     // Named so nobody reads these numbers as the vendor's.

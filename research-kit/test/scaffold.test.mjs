@@ -7,7 +7,7 @@ import { test, describe, assert, makeProject, tempDir, fs, path, KIT_ROOT, requi
 import { PATHS, resolve, readText, writeText } from '../lib/core.mjs';
 import {
   LAYOUT, GATE_MARKERS, HOOK_MODE, hookExecutability, scaffoldProject, createEmptyProject,
-  validateProject, renderTemplate, unresolvedPlaceholders, templateFiles, TEMPLATE_DIR,
+  validateProject, renderTemplate, unresolvedPlaceholders, templateFiles, TEMPLATE_DIR, missingKitLines,
 } from '../lib/scaffold.mjs';
 import { isGated } from '../lib/gate.mjs';
 
@@ -256,4 +256,68 @@ test('a brand-new project repairs nothing; the same folder missing later is a re
   const fresh = scaffoldProject(path.join(tempDir(), 'p'), { topic: 'Fresh' });
   assert.deepEqual(fresh.repaired, [], `a new project reported repairs: ${fresh.repaired.join(', ')}`);
   assert.ok(fs.existsSync(resolve(fresh.dir, PATHS.raw)), 'the folder is still created');
+});
+
+// Found 2026-09-27: scaffolding into a folder with its own .gitignore kept it and added none
+// of the kit's rules, so `git add -A` staged a .env (AGENTS.md Rule 6), and the ledger lost
+// its explicit keep. An existing AGENTS.md was kept silently too, and an agent there never
+// saw the research-first rules. The output said only "kept 1".
+test('scaffolding into a folder with its own .gitignore adds the kit\'s missing rules, once', () => {
+  const dir = path.join(tempDir(), 'p');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n');
+  fs.writeFileSync(path.join(dir, '.gitattributes'), '*.png binary\n');
+  const first = scaffoldProject(dir, { topic: 'Merge' });
+  const ignore = readText(path.join(dir, '.gitignore'));
+  assert.match(ignore, /^node_modules\//, 'the operator\'s own lines stay first');
+  assert.match(ignore, /^\.env$/m);
+  assert.match(ignore, /^!research\/raw\/\.fetches\.jsonl$/m);
+  assert.match(readText(path.join(dir, '.gitattributes')), /^research\/raw\/\* text eol=lf$/m);
+  assert.ok(first.merged.includes('.gitignore') && first.merged.includes('.gitattributes'), `merged: ${first.merged}`);
+  scaffoldProject(dir, { topic: 'Merge' });
+  assert.equal(readText(path.join(dir, '.gitignore')), ignore, 'a second run changed the file again');
+  assert.deepEqual(validateProject(dir).findings.filter((f) => f.rule === 'kit-rules-missing'), []);
+});
+
+test('a kept AGENTS.md without the research-first rules is named, not silent', () => {
+  const dir = path.join(tempDir(), 'p');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'AGENTS.md'), '# Our rules: use tabs.\n');
+  scaffoldProject(dir, { topic: 'Kept' });
+  assert.equal(readText(path.join(dir, 'AGENTS.md')), '# Our rules: use tabs.\n', 'the operator\'s file was changed');
+  const finding = validateProject(dir).findings.find((f) => f.rule === 'agents-md-foreign');
+  assert.ok(finding, 'the missing rules were not reported');
+  assert.equal(finding.severity, 'warn');
+});
+
+test('validateProject names a .gitignore that does not keep .env out', () => {
+  const dir = scaffoldProject(path.join(tempDir(), 'p'), { topic: 'Old' }).dir;
+  fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n');
+  const finding = validateProject(dir).findings.find((f) => f.rule === 'kit-rules-missing');
+  assert.ok(finding, 'a .gitignore without .env passed');
+  assert.match(finding.detail, /\.env/);
+  assert.match(finding.detail, /new-project/);
+});
+
+test('a kit rule written with different spacing counts as present', () => {
+  const dir = scaffoldProject(path.join(tempDir(), 'p'), { topic: 'Spaced' }).dir;
+  fs.writeFileSync(path.join(dir, '.gitattributes'), 'research/raw/*   text eol=lf\n*.jsonl\ttext eol=lf\nresearch/*.md    text eol=lf\n');
+  assert.deepEqual(missingKitLines(dir, '.gitattributes'), [], 'aligned columns were read as missing rules');
+});
+
+// Found 2026-09-27: a folder holding only the operator's own .gitignore reported "repaired 1"
+// - the folder was never a kit project, so creating research/raw/ repaired nothing.
+test('a folder that was not yet a kit project repairs nothing', () => {
+  const dir = path.join(tempDir(), 'p');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, '.gitignore'), 'node_modules/\n');
+  assert.deepEqual(scaffoldProject(dir, { topic: 'Theirs' }).repaired, []);
+});
+
+// Found 2026-09-27: the skill and the project's AGENTS.md told an agent to run
+// `decompose.mjs --topic "<topic>"`; since ADR-0056 a paraphrased topic is refused.
+test('the agent instructions run decompose on the project\'s own topic', () => {
+  for (const file of [path.join(KIT_ROOT, 'skill', 'SKILL.md'), path.join(TEMPLATE_DIR, 'AGENTS.md')]) {
+    assert.doesNotMatch(readText(file), /decompose\.mjs"? --topic "<topic>"/, `${file} still asks for the topic again`);
+  }
 });

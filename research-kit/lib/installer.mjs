@@ -40,8 +40,17 @@ export function installCommitGate({ kitHome = KIT_HOME, env = process.env, dryRu
 export function removeCommitGate({ env = process.env, gitPaths = {} } = {}) {
   const state = readInstallState(env) ?? {};
   const previous = state.previousHooksPath ?? null;
+  // Restored only while core.hooksPath is still the kit's own folder. The kit may never
+  // have set it (an install refused for want of a deployed hook), or the operator may have
+  // changed it since - either way it is theirs, and "restoring" it deleted it
+  // (found 2026-09-27: a machine's /opt/myhooks was unset by an uninstall).
+  const current = hooksPath('global', gitPaths);
+  if (!state.hooksPath || current !== state.hooksPath) {
+    writeInstallState({ ...state, hooksPath: null, previousHooksPath: null }, env);
+    return { ok: true, restored: undefined, left: current ?? null };
+  }
   setHooksPath(previous ?? null, { scope: 'global', ...gitPaths });
-  writeInstallState({ ...state, hooksPath: null }, env);
+  writeInstallState({ ...state, hooksPath: null, previousHooksPath: null }, env);
   return { ok: true, restored: previous };
 }
 
@@ -87,6 +96,12 @@ export function installEditGate({ kitHome = KIT_HOME, env = process.env, dryRun 
   if (read.state === 'unfamiliar') {
     return { ok: false, reason: `${file} is in a state the installer does not recognise - refusing to rewrite it`, error: read.error };
   }
+
+  // The hook must exist before anything names it: a registration pointing at a missing
+  // file makes every Edit run a hook that crashes (found 2026-09-27, kit not deployed). The
+  // commit gate refused in that state; this half registered anyway.
+  const hook = path.join(kitHome, ...EDIT_GATE_HOOK.split('/'));
+  if (!dryRun && !exists(hook)) return { ok: false, reason: `${hook} is not deployed - run bin/install.mjs first` };
 
   const command = hookCommand(kitHome);
   const removed = [];

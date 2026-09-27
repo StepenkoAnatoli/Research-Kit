@@ -1,11 +1,12 @@
 // Diagnostics and install/repair. Both run against disposable fixtures: explicit
 // config and settings paths, an injected probe, and no host state consulted.
 
-import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
+import { spawnSync } from 'node:child_process';
+import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, KIT_ROOT, requireCapability } from './harness.mjs';
 import { TESTED_CLI_VERSION } from '../lib/firecrawl.mjs';
 import { PATHS, resolve, readText, writeText, readJson } from '../lib/core.mjs';
 import { runDoctor, machineHealth, gateHealth, editGateState } from '../lib/doctor.mjs';
-import { installEditGate, removeEditGate, settingsState, retiredRepairNote, MATCHER } from '../lib/installer.mjs';
+import { installEditGate, removeEditGate, installCommitGate, removeCommitGate, settingsState, retiredRepairNote, MATCHER } from '../lib/installer.mjs';
 import { EDIT_GATE_HOOK, RETIRED_EDIT_GATE_HOOKS } from '../lib/machine.mjs';
 
 describe('doctor');
@@ -588,4 +589,45 @@ test('doctor reports the Node line: supported, odd and short-lived, or below the
   assert.match(`${odd.detail} ${odd.fix}`, /24|26/);
   assert.equal(find(nodeFindings('27.0.0'), 'node').severity, 'pass', 'from 27 every line goes LTS');
   assert.equal(find(nodeFindings('21.7.3'), 'node').severity, 'fail', 'below the floor the kit does not run');
+});
+
+// Found 2026-09-27: a machine had core.hooksPath=/opt/myhooks. install-hooks refused the
+// commit gate (kit not deployed) and left it alone; --uninstall then "restored" it to unset,
+// deleting a setting the kit had never changed.
+test('uninstall restores core.hooksPath only while it is still the kit\'s own', () => {
+  const { dir, env } = machine();
+  const gitConfig = path.join(dir, 'gitconfig');
+  const gitPaths = { env: { ...process.env, GIT_CONFIG_GLOBAL: gitConfig, GIT_CONFIG_NOSYSTEM: '1' } };
+  const get = () => spawnSync('git', ['config', '--global', '--get', 'core.hooksPath'], { env: gitPaths.env, encoding: 'utf8' }).stdout.trim();
+  const set = (value) => spawnSync('git', ['config', '--global', 'core.hooksPath', value], { env: gitPaths.env });
+  requireCapability(spawnSync('git', ['--version']).status === 0, 'no-git', 'git is not installed');
+
+  set('/opt/myhooks');
+  removeCommitGate({ env, gitPaths });
+  assert.equal(get(), '/opt/myhooks', 'uninstall removed a hooks path the kit never set');
+
+  assert.equal(installCommitGate({ kitHome: KIT_ROOT, env, gitPaths }).ok, true);
+  set('/opt/changed-since');
+  removeCommitGate({ env, gitPaths });
+  assert.equal(get(), '/opt/changed-since', 'uninstall overwrote a hooks path the operator changed after install');
+
+  const again = machine();
+  const cfg2 = path.join(again.dir, 'gitconfig');
+  const paths2 = { env: { ...process.env, GIT_CONFIG_GLOBAL: cfg2, GIT_CONFIG_NOSYSTEM: '1' } };
+  spawnSync('git', ['config', '--global', 'core.hooksPath', '/opt/myhooks'], { env: paths2.env });
+  installCommitGate({ kitHome: KIT_ROOT, env: again.env, gitPaths: paths2 });
+  removeCommitGate({ env: again.env, gitPaths: paths2 });
+  assert.equal(spawnSync('git', ['config', '--global', '--get', 'core.hooksPath'], { env: paths2.env, encoding: 'utf8' }).stdout.trim(),
+    '/opt/myhooks', 'a normal install and uninstall no longer restores the previous path');
+});
+
+// Found 2026-09-27: with the kit not deployed, install-hooks refused the commit gate but
+// registered the edit gate anyway, as `node <kit>/hooks/edit-gate.mjs` - a file that did not
+// exist - so every Edit would have run a hook that crashed with MODULE_NOT_FOUND.
+test('the edit gate is not registered when its hook is not deployed', () => {
+  const { env, settingsFile } = machine({ settings: { model: 'x' } });
+  const result = installEditGate({ kitHome: tempDir('research-kit-undeployed-'), env });
+  assert.equal(result.ok, false, 'a hook that does not exist was registered');
+  assert.match(result.reason, /install\.mjs/);
+  assert.deepEqual(readJson(settingsFile), { model: 'x' }, 'the settings file was changed');
 });

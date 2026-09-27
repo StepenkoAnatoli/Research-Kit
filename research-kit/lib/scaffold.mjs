@@ -88,6 +88,30 @@ export function templateFiles(templateDir = TEMPLATE_DIR) {
 
 // ---------------------------------------------------------------- writing the shape
 
+/**
+ * Files whose kit lines are merged into an operator's own copy instead of being skipped.
+ * `.gitignore` keeps credentials out and the ledger in; `.gitattributes` keeps the corpus
+ * LF. Skipping them because a file of that name existed lost both (found 2026-09-27: a
+ * .env was staged by `git add -A`).
+ */
+export const MERGED_FILES = Object.freeze(['.gitignore', '.gitattributes']);
+const MERGE_MARK = '# research-kit: the kit\'s rules, added because this file already existed';
+
+/** The template's rule lines this file lacks - comments and blank lines aside. */
+export function missingKitLines(root, rel, templateDir = TEMPLATE_DIR) {
+  const own = readText(resolve(root, rel));
+  if (own === null) return [];
+  // Compared with whitespace collapsed: aligned columns are the same rule.
+  const norm = (line) => line.trim().replace(/\s+/g, ' ');
+  const have = new Set(own.split(/\r?\n/).map(norm));
+  const kit = readText(path.join(templateDir, ...rel.split('/')), '');
+  return kit.split(/\r?\n/).map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#') && !have.has(norm(line)));
+}
+
+/** The first line of the kit's AGENTS.md: a file without it is somebody else's. */
+const AGENTS_MARK = '# Research-first project bootstrap';
+
 /** Structure is always repaired; content is never clobbered without `force`. */
 /** The topic a project gets when none is given: a placeholder, never a topic. */
 export const UNTITLED_TOPIC = 'Untitled topic';
@@ -95,10 +119,13 @@ export const UNTITLED_TOPIC = 'Untitled topic';
 export function scaffoldProject(dir, { topic = UNTITLED_TOPIC, kit = '$HOME/.agents/research-kit', force = false, templateDir = TEMPLATE_DIR, date = today() } = {}) {
   const written = [];
   const skipped = [];
+  const merged = [];
   const repaired = [];
   // A folder created in a brand-new project is part of scaffolding it, not a repair:
-  // "repaired 1" on a fresh project read as if something had been broken.
-  const existed = templateFiles(templateDir).some((rel) => exists(resolve(dir, rel)));
+  // "repaired 1" on a fresh project read as if something had been broken. "Existed" means
+  // it was already a kit project - its research/ folder - not that the operator had a
+  // .gitignore of their own there (found 2026-09-27).
+  const existed = isDirectory(resolve(dir, 'research'));
 
   for (const entry of LAYOUT) {
     const abs = resolve(dir, entry.path);
@@ -130,6 +157,16 @@ export function scaffoldProject(dir, { topic = UNTITLED_TOPIC, kit = '$HOME/.age
 
   for (const rel of templateFiles(templateDir)) {
     const target = resolve(dir, rel);
+    if (exists(target) && !force && MERGED_FILES.includes(rel)) {
+      // Appended, so the operator's lines keep their order and the kit's negations
+      // (`!research/raw/.fetches.jsonl`) come after any broader rule of theirs.
+      const missing = missingKitLines(dir, rel, templateDir);
+      if (!missing.length) { skipped.push(rel); continue; }
+      const own = readText(target, '');
+      writeText(target, `${own.replace(/\s*$/, '')}\n\n${MERGE_MARK}\n${missing.join('\n')}\n`);
+      merged.push(rel);
+      continue;
+    }
     if (exists(target) && !force) { skipped.push(rel); continue; }
     const source = readText(path.join(templateDir, ...rel.split('/')), '');
     const body = renderTemplate(source, rel.endsWith('.json') ? jsonTokens : tokens);
@@ -137,7 +174,7 @@ export function scaffoldProject(dir, { topic = UNTITLED_TOPIC, kit = '$HOME/.age
     written.push(rel);
   }
 
-  return { dir, written, skipped, repaired };
+  return { dir, written, skipped, merged, repaired };
 }
 
 /** Shape with no content - the test fixture and the scaffolder are the same call. */
@@ -180,6 +217,25 @@ export function validateProject(root) {
       rule: 'unresolved-placeholder',
       path: entry.path,
       detail: `${entry.path} still holds ${tokens.map((t) => `{{${t}}}`).join(', ')}`,
+    });
+  }
+  for (const rel of MERGED_FILES) {
+    const missing = missingKitLines(root, rel);
+    if (!missing.length) continue;
+    findings.push({
+      severity: 'warn',
+      rule: 'kit-rules-missing',
+      path: rel,
+      detail: `${rel} lacks the kit's rules (${missing.slice(0, 4).join(', ')}${missing.length > 4 ? `, +${missing.length - 4} more` : ''}) - re-run new-project here to add them`,
+    });
+  }
+  const agents = readText(resolve(root, 'AGENTS.md'));
+  if (agents !== null && !agents.includes(AGENTS_MARK)) {
+    findings.push({
+      severity: 'warn',
+      rule: 'agents-md-foreign',
+      path: 'AGENTS.md',
+      detail: `AGENTS.md is this folder's own and carries none of the research-first rules, so an agent here will not see them - add the kit's version (${path.join(TEMPLATE_DIR, 'AGENTS.md')}) to it by hand`,
     });
   }
   return { ok: !findings.some((f) => f.severity === 'fail'), findings };
