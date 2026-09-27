@@ -3,7 +3,7 @@
 // `research/TIMELINE.md` is deliberately OUTSIDE the chain and never part of a gate
 // decision: it exists so a person can read what happened in order.
 
-import { PATHS, resolve, writeText, nowIso, appendLine } from './core.mjs';
+import { PATHS, resolve, writeText, nowIso, appendLine, documentCommand } from './core.mjs';
 import { readCorpus } from './corpus.mjs';
 
 /** The gate records through here, so nothing else has to know where the log lives. */
@@ -42,7 +42,7 @@ export function renderTimeline(root, { corpus = null } = {}) {
     '# Timeline',
     '',
     'Derived, chronological, and deliberately outside the chain: a review aid, never part',
-    'of a gate decision. Regenerate with `node research-kit/bin/timeline.mjs`.',
+    `of a gate decision. Regenerate with \`${documentCommand('timeline.mjs')}\`.`,
     '',
     '| When | What | Detail |',
     '|---|---|---|',

@@ -7,6 +7,7 @@
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import crypto from 'node:crypto';
 
 // ---------------------------------------------------------------- paths
@@ -315,10 +316,28 @@ export function sleepSync(ms) {
  * "node research-kit/bin/...", which exists only at the repository root - so from a project
  * folder, the very place the kit is used, copying a fix produced MODULE_NOT_FOUND (found
  * 2026-09-27 following the README on a fresh machine). Text written INTO a project's files
- * (the brief, the timeline) keeps a portable spelling instead: those files travel.
+ * (the brief, the timeline) is spelled by `documentCommand` instead: those files travel.
  */
 export function kitCommand(script, args = '') {
   return spellCommand(fileURLToPath(new URL(`../bin/${script}`, import.meta.url)), args);
+}
+
+/**
+ * A command written INTO a project file that travels - the brief, the timeline.
+ *
+ * Those files said "node research-kit/bin/...", which runs only at the kit repository's root,
+ * and an absolute path runs only on the machine that wrote it. When the running kit is the
+ * standard install it is spelled `"$HOME/.agents/research-kit/..."`, which ADR-0050 showed
+ * reaches node whole in PowerShell, bash and zsh on any machine with that install. A kit
+ * anywhere else - a repository checkout - has only its real path. Compared by real path,
+ * because node runs a symlinked kit from its target.
+ */
+export function documentCommand(script, args = '', { kit = fileURLToPath(new URL('..', import.meta.url)), home = os.homedir() } = {}) {
+  const real = (p) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
+  if (real(kit) === real(path.join(home, '.agents', 'research-kit'))) {
+    return `node "$HOME/.agents/research-kit/bin/${script}"${args ? ` ${args}` : ''}`;
+  }
+  return spellCommand(path.join(kit, 'bin', script), args);
 }
 
 /**

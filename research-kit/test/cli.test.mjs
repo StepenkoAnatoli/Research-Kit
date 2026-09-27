@@ -13,7 +13,7 @@
 import { spawnSync } from 'node:child_process';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
-import { spellCommand } from '../lib/core.mjs';
+import { spellCommand, documentCommand } from '../lib/core.mjs';
 
 describe('cli');
 
@@ -460,6 +460,19 @@ test('a printed command quotes a path with a space plainly, on Windows too', () 
   assert.equal(spellCommand('C:\\Users\\John Smith\\.agents\\research-kit\\bin\\doctor.mjs'),
     'node "C:\\Users\\John Smith\\.agents\\research-kit\\bin\\doctor.mjs"');
   assert.equal(spellCommand('/opt/kit/bin/doctor.mjs', '--help'), 'node /opt/kit/bin/doctor.mjs --help');
+});
+
+// A file written into a project travels, so it cannot name this machine's absolute path. When
+// the running kit is the standard install it is spelled as ADR-0050 spells a travelling project,
+// and anywhere else (a repository checkout) by its real path, which is all this machine has.
+test('a command written into a project file spells the standard install from $HOME', () => {
+  const home = path.join(tempDir('rk-home-'), 'a home with space');
+  fs.mkdirSync(path.join(home, '.agents'), { recursive: true });
+  fs.symlinkSync(KIT_ROOT, path.join(home, '.agents', 'research-kit'), 'junction');
+  assert.equal(documentCommand('brief.mjs', '--force', { kit: path.join(home, '.agents', 'research-kit'), home }),
+    'node "$HOME/.agents/research-kit/bin/brief.mjs" --force');
+  assert.equal(documentCommand('brief.mjs', '', { kit: KIT_ROOT, home: tempDir('rk-home-') }), spellCommand(path.join(KIT_ROOT, 'bin', 'brief.mjs')),
+    'a kit outside the standard install has only its real path');
 });
 
 test('every command the kit tells you to run, runs from where you are', () => {

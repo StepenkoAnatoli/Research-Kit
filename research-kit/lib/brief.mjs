@@ -4,7 +4,7 @@
 // FROM this definition and lib/audit.mjs reads the judged sections through it, so the
 // writer and its readers cannot drift.
 
-import { PATHS, resolve, readText, writeText, today } from './core.mjs';
+import { PATHS, resolve, readText, writeText, today, documentCommand } from './core.mjs';
 import { readCorpus, sectionOf, claimOf, captureOf } from './corpus.mjs';
 import { readPrior } from './prior.mjs';
 
@@ -173,7 +173,7 @@ export function renderBrief(root, { force = false, date = today(), corpus = null
 traces to a cached page in \`${PATHS.raw}/\`.`
       : `**Gate: FAIL (${verdict.counts.fail} blocking finding${verdict.counts.fail === 1 ? '' : 's'}).** This brief is a
 draft of an incomplete research pass: phase 2 does not start until \`${PATHS.discovery}\`
-passes. Run \`node research-kit/bin/preflight.mjs\` to see what is unproven.`);
+passes. Run \`${documentCommand('preflight.mjs')}\` to see what is unproven.`);
 
   const body = `# Brief - ${topic}
 
@@ -218,7 +218,7 @@ alone.
 ## ${BRIEF_SECTIONS[5].heading}
 
 1. Review the ${TODO_MARK} sections above (${BRIEF_SECTIONS.filter((s) => s.judged).map((s) => s.heading.split(' ')[0]).join(', ')}) before handing off.
-2. Hand this file to the builder (phase 2). Re-running \`node bin/brief.mjs\`
+2. Hand this file to the builder (phase 2). Re-running \`${documentCommand('brief.mjs')}\`
    after edits will refuse without \`--force\` so your judgements are preserved.
 `;
 
