@@ -607,3 +607,18 @@ test('a flag given a bad value, or none, is refused before anything runs', () =>
   const only = run('preflight.mjs', ['--only', 'citations'], { root: planned('values') });
   assert.equal(only.status, 2, `preflight --only is accepted and never read:\n${only.all.slice(0, 300)}`);
 });
+
+// Found 2026-09-27: new-project over an existing project with a different --topic reported
+// "wrote 0, kept 13" and printed a fresh project's next steps. The topic asked for was not
+// applied, and nothing said so.
+test('new-project over an existing project says it kept it, and that --topic was not applied', () => {
+  const dir = path.join(tempDir('rk-np-again-'), 'p');
+  assert.equal(run('new-project.mjs', [dir, '--topic', 'First topic'], { root: tempDir() }).status, 0);
+  const again = run('new-project.mjs', [dir, '--topic', 'Second topic'], { root: tempDir() });
+  assert.equal(again.status, 0, again.all);
+  assert.match(again.all, /already a project about "First topic"/, again.all);
+  assert.match(again.all, /--topic "Second topic" was not applied/, again.all);
+  assert.match(again.all, /--force/, 'the way to replace it is not named');
+  const same = run('new-project.mjs', [dir, '--topic', 'First topic'], { root: tempDir() });
+  assert.doesNotMatch(same.all, /was not applied/, 'the same topic again is not a conflict');
+});
