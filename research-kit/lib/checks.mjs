@@ -610,8 +610,13 @@ function hygiene(corpus) {
   const ids = new Set();
   for (const row of [...corpus.evidence, ...corpus.unknowns, ...corpus.subtopics]) {
     const key = row.id.toUpperCase();
+    // A fail, not a warn: the ID is how a citation, a COVERED cell or the brief names a
+    // row, and with two rows under it every such reference resolves to one of them
+    // silently - lookups keep the last.
     if (ids.has(key)) {
-      out.push(finding('warn', 'hygiene', 'duplicate-id', `${row.id} is used twice`, { row: row.id, line: row.line }));
+      out.push(finding('fail', 'hygiene', 'duplicate-id',
+        `${row.id} is used twice - give the second row its own ID, or delete it if it is a copy`,
+        { row: row.id, line: row.line }));
     }
     ids.add(key);
   }
@@ -719,10 +724,15 @@ function corroboration(corpus) {
   const out = [];
   const byId = new Map(corpus.evidence.map((row) => [row.id.toUpperCase(), row]));
 
+  const weighed = new Set();
   for (const unknown of corpus.unknowns) {
     // A KNOWN-UNKNOWN rests on nothing by definition, and unknown-closure already owns
     // the case of a CLOSED one citing no row at all.
     if (unknown.status !== 'CLOSED') continue;
+    // Once per ID: a second row under the same ID is hygiene's duplicate-id, and weighing
+    // it again printed the same finding twice.
+    if (weighed.has(unknown.id.toUpperCase())) continue;
+    weighed.add(unknown.id.toUpperCase());
 
     // DEDUPED BY ID, and that is load-bearing. `citedIds` returns every E-## mention in the
     // cell, so an unknown whose prose names E-10 twice - "E-10 says X … as E-10 also notes"

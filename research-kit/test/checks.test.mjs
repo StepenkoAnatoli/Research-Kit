@@ -743,3 +743,18 @@ test('a missing Build intent heading is named as missing, not empty', () => {
   assert.match(f.detail, /has no "## Build intent" heading/, f.detail);
   assert.doesNotMatch(f.detail, /is empty/, f.detail);
 });
+
+// Found 2026-09-27: a contract with two U-1 rows passed the gate. The ID is how everything
+// else refers to an unknown - the map's COVERED cells, the brief, a reviewer - so two rows
+// under one ID leave every such reference ambiguous, and the single-source warning for
+// U-1 printed twice, word for word.
+test('an ID used twice fails hygiene, and a finding is not printed twice', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace(/^(\| U-1 \|.*)$/m, '$1\n$1'));
+  const corpus = snapshot(dir);
+  const dup = runCheck('hygiene', corpus).find((f) => f.rule === 'duplicate-id');
+  assert.ok(dup, 'the duplicate ID is not named');
+  assert.equal(dup.severity, 'fail', `a duplicate ID only ${dup.severity}s`);
+  const details = runCheck('corroboration', corpus).map((f) => `${f.rule} ${f.detail}`);
+  assert.equal(new Set(details).size, details.length, `printed twice: ${details.join(' / ')}`);
+});
