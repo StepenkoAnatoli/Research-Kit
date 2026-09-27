@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
-import { runResearch, searchUsage, searchSummaryLine, FREE_TIER_PER_HOUR, FREE_TIER_PER_MONTH } from '../lib/research-run.mjs';
+import { runResearch, searchUsage, searchSummaryLine, matchesQuery, isPreferred, FREE_TIER_PER_HOUR, FREE_TIER_PER_MONTH } from '../lib/research-run.mjs';
 import { decompose } from '../lib/decompose.mjs';
 import * as serpapi from '../lib/serpapi.mjs';
 import { readLedger, readCorpus } from '../lib/corpus.mjs';
@@ -733,4 +733,43 @@ test('RR-9: a result on a domain the plan prefers is kept even when its title is
   const fetcher = fetchStub();
   runResearch(root, { adapter: fetcher, searchAdapter: terse, plan: plan({ prefer: ['docs.example.com'], queries: [{ q: 'example rate limits', why: 'U-1' }] }) });
   assert.equal(fetcher.calls.scrape, 1, 'the operator\'s own preferred domain was overruled');
+});
+
+// Found 2026-09-27, the day the floor shipped: "half the terms" kept 2 of the 38 pages real
+// searches had found across this repository's corpora. A long query - the CI collector's
+// default is the whole topic sentence - asks a title for more words than a title has. The
+// EUDR run's decisive page carried 3 of its topic's ~10 terms and would have been rejected.
+test('RR-9: a long query does not reject the page that answers it', () => {
+  const query = 'EU Deforestation Regulation 2023/1115 application date large operators SMEs current after delay';
+  assert.equal(matchesQuery({ url: 'https://example.invalid/eudr', title: 'EU Deforestation Regulation application postponed to 30 December 2026' }, query), true);
+  assert.equal(matchesQuery({ url: 'https://www.postgresql.org/', title: 'PostgreSQL: The world\'s most advanced open source database' }, 'postgres pg_sync_replication_slots function'), false,
+    'the case the floor exists for must still be caught');
+});
+
+test('RR-9: every cited page a search found in this repository\'s corpora passes the floor', () => {
+  const repo = path.resolve(KIT_ROOT, '..');
+  const decisions = path.join(repo, 'docs', 'decisions');
+  const roots = [repo, ...(fs.existsSync(decisions) ? fs.readdirSync(decisions).map((d) => path.join(decisions, d)) : [])];
+  let judged = 0;
+  const rejected = [];
+  for (const root of roots) {
+    const raw = path.join(root, 'research', 'raw');
+    if (!fs.existsSync(path.join(raw, '.fetches.jsonl'))) continue;
+    const corpus = readCorpus(root);
+    const plan = corpus.plan ?? {};
+    const queries = (plan.queries ?? []).map((q) => (typeof q === 'string' ? { q } : q)).filter((q) => q?.q);
+    const asked = queries.length ? queries : [{ q: plan.topic ?? '' }];
+    const found = new Set(corpus.ledger.entries.filter((e) => e.discoveredBy).map((e) => e.raw));
+    const cited = new Set(corpus.unknowns.flatMap((u) => u.cites.map((id) => id.toUpperCase())));
+    for (const row of corpus.evidence) {
+      if (!found.has(row.raw) || !cited.has(row.id.toUpperCase())) continue;
+      const title = (readText(path.join(root, row.raw), '').match(/^title: (.*)$/m) ?? [])[1] ?? '';
+      judged += 1;
+      const kept = asked.some((q) => matchesQuery({ url: row.url, title }, q.q)
+        || isPreferred(row.url, [...(plan.prefer ?? []), ...(Array.isArray(q.prefer) ? q.prefer : [])]));
+      if (!kept) rejected.push(`${path.relative(repo, root) || '.'} ${row.id} ${title || row.url}`);
+    }
+  }
+  assert.ok(judged > 0, 'no corpus was judged - the test is not looking where the corpora are');
+  assert.deepEqual(rejected, [], 'the floor rejects evidence a real research pass relied on');
 });

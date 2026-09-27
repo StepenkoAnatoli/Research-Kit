@@ -220,8 +220,8 @@ export { urlKey };
  * page scored 0 as the best of them, and the kit spent a scrape on a page about nothing the
  * query asked.
  *
- * A result must carry at least HALF the query's distinctive terms (4+ characters, not a
- * stopword). An identifier is matched as a phrase with `_` and `-` read as spaces, so
+ * A result must carry at least TWO of the query's distinctive terms (4+ characters, not a
+ * stopword), or half of them when the query has only three (ADR-0068). An identifier is matched as a phrase with `_` and `-` read as spaces, so
  * `sync_replication_slots` matches "sync replication slots" in a title or a URL. A query with
  * fewer than two distinctive terms is not judged: overlap cannot tell its results apart.
  */
@@ -239,7 +239,10 @@ export function matchesQuery(row, query) {
   try { url = decodeURIComponent(url); } catch { /* a malformed escape is read as written */ }
   const text = ` ${plain(`${row?.title ?? ''} ${row?.description ?? ''} ${url}`)} `;
   const hits = terms.filter((term) => text.includes(term)).length;
-  return hits >= Math.ceil(terms.length / 2);
+  // Two terms, or half of a query shorter than four. "Half" alone asked a title for five of a
+  // ten-term topic sentence and rejected 36 of the 38 pages real searches had found here
+  // (ADR-0068); two still rejects a page that shares only the product's name with the query.
+  return hits >= Math.min(2, Math.ceil(terms.length / 2));
 }
 
 /** Is this URL on a domain the plan's `prefer` names? */
@@ -498,7 +501,7 @@ ${compatibility.remedy}`);
     discovered.push({ query: text, results: found.results, provider: ranker, searchId: found.searchId ?? null });
     const picked = selectCandidates(found.results, { prefer, perQuery: settings.perQuery, seen, query: text });
     if (found.results.length && !found.results.some((row) => matchesQuery(row, text) || isPreferred(row.url, prefer))) {
-      log(`  no result matched "${text}" - none of the ${found.results.length} carry half its terms; nothing scraped for it`);
+      log(`  no result matched "${text}" - none of the ${found.results.length} carry two of its terms; nothing scraped for it`);
       appendJsonLine(root, PATHS.failures, {
         at: new Date().toISOString(), op: 'search-off-topic', query: text, provider: ranker, results: found.results.length,
       });

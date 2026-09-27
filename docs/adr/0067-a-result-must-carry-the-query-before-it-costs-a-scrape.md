@@ -1,7 +1,7 @@
 # ADR-0067 — A search result must carry the query before it costs a scrape
 
 - **Date:** 2026-09-27
-- **Status:** accepted
+- **Status:** superseded in part by ADR-0068 (the threshold: two terms, not half)
 - **Area:** `lib/research-run.mjs` (`selectCandidates`, `matchesQuery`, `queryTerms`, `isPreferred`)
 
 ## Context
