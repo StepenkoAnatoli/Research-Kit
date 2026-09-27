@@ -62,6 +62,9 @@ const result = scaffoldProject(dir, {
 });
 
 process.stdout.write(`scaffolded ${result.dir}\n  wrote   ${result.written.length}\n  kept    ${result.skipped.length}\n  repaired ${result.repaired.length}\n`);
+// Named, not counted: "kept 1" hid that the kept file was the .gitignore that keeps .env out.
+if (result.merged.length) process.stdout.write(`  merged  ${result.merged.join(', ')} - the kit's missing rules were appended to your own file\n`);
+if (result.skipped.length && result.skipped.length <= 5) process.stdout.write(`  (kept as they were: ${result.skipped.join(', ')})\n`);
 
 if (existingTopic && !flags.force) {
   process.stdout.write(`  already a project about "${existingTopic}" - existing files were kept\n`);
