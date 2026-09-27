@@ -103,6 +103,20 @@ test('initialize echoes the version asked for when it is serveable', async () =>
   }
 });
 
+// docs/decisions/2026-09-27-mcp-protocol-versions. A client on the official SDK up to 1.24.0
+// (published 2025-12-02) asks for 2025-06-18 and does not accept 2025-11-25 (E-04, E-06). On
+// 2026-09-27 this server answered such a client 2025-11-25, and it disconnects (E-03). Nothing
+// 2025-11-25 changed touches what this server does (E-01), so it serves 2025-06-18, and the
+// specification then requires the echo. 2025-03-26 predates structuredContent and resource_link,
+// which this server's results carry (E-02), so it is not offered.
+test('a 2025-06-18 client is answered 2025-06-18; a 2025-03-26 client is not', async () => {
+  const ask = async (asked) => (await handle({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: asked } },
+    { ...deps(), session: { version: null } })).result.protocolVersion;
+  assert.equal(await ask('2025-06-18'), '2025-06-18', 'a client that does not list 2025-11-25 disconnects on any other answer');
+  assert.equal(await ask('2025-03-26'), LEGACY_VERSION, 'this server\'s results use features 2025-03-26 does not have');
+  assert.equal(SUPPORTED_VERSIONS.includes('2025-03-26'), false);
+});
+
 test('an unknown requested version falls back to LEGACY, not to this server preference', async () => {
   // Answering a client we cannot place with `2026-07-28` would be a correct statement of
   // preference and a guaranteed disconnection: no shipped client lists it. The legacy

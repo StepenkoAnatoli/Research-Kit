@@ -70,8 +70,17 @@ export const LEGACY_VERSION = '2025-11-25';
 /** The revision this server prefers when nobody says otherwise. */
 export const PROTOCOL_VERSION = MODERN_VERSION;
 
-/** Every revision this server will serve, newest first. */
-export const SUPPORTED_VERSIONS = Object.freeze([MODERN_VERSION, LEGACY_VERSION]);
+/**
+ * Every revision this server will serve, newest first.
+ *
+ * 2025-06-18 since 2026-09-27 (docs/decisions/2026-09-27-mcp-protocol-versions, ADR-0049):
+ * nothing 2025-11-25 changed touches what this server does (E-01), and a client on the official
+ * SDK up to 1.24.0 asks for 2025-06-18 and refuses 2025-11-25 (E-04). Answering it anything
+ * else disconnected it; the specification requires the echo from a server that supports the
+ * version (E-03). 2025-03-26 is not served: these results carry structuredContent and
+ * resource_link, both new in 2025-06-18 (E-02).
+ */
+export const SUPPORTED_VERSIONS = Object.freeze([MODERN_VERSION, LEGACY_VERSION, '2025-06-18']);
 
 /** JSON-RPC error codes. -32022 is MCP's, the rest are JSON-RPC's own. */
 export const ERRORS = Object.freeze({
