@@ -159,7 +159,7 @@ on:
         required: false
         default: ''
       queries:
-        description: 'The actual search queries, one per line. Optional: without them the topic is used verbatim, which is how three corpora here came back mostly noise. A topic is a description; a query is a question.'
+        description: 'The actual search queries, one per line. Optional: without them the topic is used verbatim, which is how three corpora here came back mostly noise. A topic is a description; a query is a question. A line that is an https:// URL is fetched directly instead of searched - the way to capture a page you already know. Each page counts against max_pages.'
         required: false
         default: ''
       prior:
@@ -493,13 +493,29 @@ jobs:
             // the search matched the words rather than the subject. Nothing guesses how to
             // split a topic - four heuristics have been measured and rejected in this
             // repository already. The caller knows the question; it can say it.
-            const supplied = (process.env.QUERIES || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+            //
+            // A line that is an http(s) URL is a PAGE TO FETCH, not a search (2026-09-27): the
+            // caller already knows the page that owns the fact - an API response, a changelog
+            // post - and a search may not surface it. Only http and https count; any other
+            // line stays text to search, so nothing here can reach a file or another scheme.
+            // Such a page is typed S like any discovered page: the reviewer promotes it.
+            const isUrl = (line) => {
+              if (!/^https?:\/\//i.test(line)) return false;
+              try { new URL(line); return true; } catch { return false; }
+            };
+            const lines = (process.env.QUERIES || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+            const urls = lines.filter(isUrl);
+            const supplied = lines.filter((line) => !isUrl(line));
+            // With URLs and no queries, nothing is searched: falling back to the topic
+            // would spend searches and budget on noise the caller did not ask for.
             plan.queries = supplied.length
               ? supplied.map((q) => ({ q, why: "dispatched", prefer: [] }))
-              : [{ q: topic, why: "the dispatched topic", prefer: [] }];
-            plan.urls = [];
+              : urls.length ? [] : [{ q: topic, why: "the dispatched topic", prefer: [] }];
+            plan.urls = urls.map((url) => ({ url, why: "dispatched url", type: "S" }));
             fs.writeFileSync("research/plan.json", `${JSON.stringify(plan, null, 2)}\n`, "utf8");
-            console.log(`plan written: ${plan.queries.length} quer${plan.queries.length === 1 ? "y" : "ies"}, maxScrapes ${plan.maxScrapes}, perQuery ${plan.perQuery}, limit ${plan.limit}, prefer [${plan.prefer.join(", ")}]`);
+            // Counts only: this log is readable by any signed-in user, and a URL can name
+            // the subject - or carry a signed query string.
+            console.log(`plan written: ${plan.queries.length} quer${plan.queries.length === 1 ? "y" : "ies"}, ${plan.urls.length} url${plan.urls.length === 1 ? "" : "s"}, maxScrapes ${plan.maxScrapes}, perQuery ${plan.perQuery}, limit ${plan.limit}, prefer [${plan.prefer.join(", ")}]`);
           '
 
       - name: seed the map, spending nothing

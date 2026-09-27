@@ -7,7 +7,7 @@
 
 import { test, describe, assert } from './harness.mjs';
 import {
-  dispatchCollection, waitForRun, listArtifacts, downloadArtifact, unwrapArtifact,
+  dispatchCollection, waitForRun, listArtifacts, downloadArtifact, unwrapArtifact, queriesInput,
   tokenFromEnv, redact, DispatchError, API_VERSION, TOKEN_VARS,
 } from '../lib/dispatch.mjs';
 import { rawZip } from './artifact-fixtures.mjs';
@@ -273,4 +273,21 @@ test('unwrapping a hostile outer archive does not throw', () => {
   const out = unwrapArtifact(hostile);
   assert.equal(out.unwrapped, false);
   assert.equal(unwrapArtifact(Buffer.from('not a zip at all')).unwrapped, false);
+});
+
+// ---------------------------------------------------------------- pages fetched by URL
+
+test('queries and URLs travel as one input, one per line, and nothing is sent when both are empty', () => {
+  assert.deepEqual(queriesInput({ queries: ['q one', ' q two '], urls: ['https://a.example/x'] }),
+    { value: 'q one\nq two\nhttps://a.example/x', error: '' });
+  assert.deepEqual(queriesInput({}), { value: undefined, error: '' },
+    'a dispatch without either must look exactly like one before these options existed');
+});
+
+test('a URL that is not http(s) is refused before dispatch, not searched on the runner', () => {
+  for (const bad of ['ftp://a.example/x', 'file:///etc/passwd', 'https://', 'not a url']) {
+    const r = queriesInput({ urls: [bad] });
+    assert.equal(r.value, undefined, `${bad} was accepted`);
+    assert.match(r.error, /http\(s\)/, `${bad}: the refusal should say what is expected`);
+  }
 });

@@ -59,6 +59,28 @@ export function redact(text) {
     .replace(/(authorization|bearer|token)(["'\s:=]+)[A-Za-z0-9._~+/-]{12,}/gi, '$1$2<redacted>');
 }
 
+/**
+ * The `queries` workflow input: search queries and pages to fetch, one per line.
+ *
+ * collect.yml reads a line that is an http(s) URL as a page to fetch and any other line as a
+ * search (2026-09-27). Both travel in this one input because collect.yml already uses 9 of
+ * the 10 inputs GitHub allows. A URL that is not http(s), or does not parse, is refused here
+ * instead of being dispatched: on the runner it would quietly become a search for its own
+ * text. `value` is undefined when there is nothing to send, so a dispatch without either
+ * looks exactly like one from before these options existed.
+ */
+export function queriesInput({ queries = [], urls = [] } = {}) {
+  const clean = (list) => (Array.isArray(list) ? list : [list]).map((item) => String(item ?? '').trim()).filter(Boolean);
+  const pages = clean(urls);
+  const bad = pages.filter((page) => {
+    if (!/^https?:\/\/./i.test(page)) return true;
+    try { new URL(page); return false; } catch { return true; }
+  });
+  if (bad.length) return { value: undefined, error: `not an http(s) URL: ${bad.join(', ')}` };
+  const lines = [...clean(queries), ...pages];
+  return { value: lines.length ? lines.join('\n') : undefined, error: '' };
+}
+
 /** The token, from the environment only. Never an argument, never a file. */
 export function tokenFromEnv(env = process.env) {
   for (const name of TOKEN_VARS) {

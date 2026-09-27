@@ -376,3 +376,17 @@ test('the run summary distinguishes what landed from what it cost', () => {
   assert.match(r.out, /^spent\s+\d+ \(budget consumed: collected \+ failed\)/m,
     'the cost must be reported separately from what arrived');
 });
+
+test('collect-remote refuses a --url that is not http(s), before it asks for a token', () => {
+  // Fail fast on the caller's typo: without this, the missing-token refusal would hide it,
+  // and with a token the bad line would have been searched as text on the runner.
+  const r = run('collect-remote.mjs', ['--repository', 'o/r', '--topic', 't', '--url', 'ftp://x.example/a'], { root: project() });
+  assert.equal(r.status, 3, r.all);
+  assert.match(r.all, /not an http\(s\) URL/);
+  assert.ok(!/token/i.test(r.err.split('\n')[0] ?? ''), 'the URL refusal must come first');
+});
+
+test('collect-remote documents --url', () => {
+  const r = run('collect-remote.mjs', ['--help'], { root: project() });
+  assert.match(r.out, /--url/);
+});

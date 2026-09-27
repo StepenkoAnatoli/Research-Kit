@@ -43,7 +43,7 @@
 // discipline as pinning `X-GitHub-Api-Version` on the GitHub side, for the same reason:
 // this protocol has already broken compatibility once.
 
-import { dispatchCollection, getRunSummary, fetchCorpus, tokenFromEnv, redact, DispatchError } from './dispatch.mjs';
+import { dispatchCollection, getRunSummary, fetchCorpus, tokenFromEnv, redact, DispatchError, queriesInput } from './dispatch.mjs';
 
 /**
  * DUAL-ERA, and the reason is that the specification is ahead of every client.
@@ -113,6 +113,7 @@ export const TOOLS = Object.freeze([
         topic: { type: 'string', description: 'What to research. Visible to anyone who can read that repository.' },
         prefer: { type: 'string', description: 'Optional, comma-separated. Domains that OWN the fact - e.g. "tavily.com". On a shared host name the path - "github.com/actions/upload-artifact", not "github.com". Ranked above pages merely about it.' },
         queries: { type: 'array', items: { type: 'string' }, description: 'Optional. The actual search queries. Without them the topic is used verbatim, which matches the words rather than the subject when the topic is made of common ones.' },
+        urls: { type: 'array', items: { type: 'string' }, description: 'Optional. Pages you already know (http or https), fetched directly instead of searched - an API response, a changelog post. Each counts against max_pages. With urls and no queries, nothing is searched.' },
         prior: { type: 'string', description: 'Optional. What you EXPECT the evidence to say, and what you know you cannot know yet. Registered on the runner and chained ahead of the first page, so it can only be supplied now. Nothing grades it - being wrong is the point (ADR-0039).' },
         max_pages: { type: 'integer', minimum: 1, maximum: 25, description: 'Pages to collect. Each costs at least one credit. Default 8.' },
         depth: { type: 'string', enum: ['probe', 'quick', 'normal'], description: 'Collection tier. Default quick.' },
@@ -296,6 +297,8 @@ async function callTool(message, deps) {
 
   try {
     if (name === 'collect') {
+      const queries = queriesInput({ queries: args.queries ?? [], urls: args.urls ?? [] });
+      if (queries.error) return ok(message.id, { isError: true, content: [text(`${queries.error}. urls takes page addresses starting with https://`)] });
       const started = await deps.dispatch({
         repository: args.repository,
         inputs: {
@@ -306,7 +309,7 @@ async function callTool(message, deps) {
           client_ref: args.client_ref ?? '',
           prior: args.prior ?? '',
           prefer: args.prefer ?? '',
-          queries: Array.isArray(args.queries) ? args.queries.join(String.fromCharCode(10)) : '',
+          queries: queries.value ?? '',
         },
         token,
       });

@@ -208,6 +208,16 @@ test('an unknown or mistyped argument is refused, not ignored', () => {
 
 // ---------------------------------------------------------------- collecting
 
+test('collect takes pages to fetch by URL, in the same input as the queries', async () => {
+  const d = deps();
+  await handle(call('collect', { repository: 'o/r', topic: 'x', queries: ['q'], urls: ['https://a.example/x'] }), d);
+  assert.equal(d.seen.dispatch.inputs.queries, 'q\nhttps://a.example/x');
+  const bad = deps();
+  const r = await handle(call('collect', { repository: 'o/r', topic: 'x', urls: ['file:///etc/passwd'] }), bad);
+  assert.equal(r.result.isError, true, 'a non-http URL must be refused, not dispatched');
+  assert.equal(bad.seen.dispatch, undefined, 'nothing was dispatched');
+});
+
 test('collect returns the run id immediately and says the work is not finished', async () => {
   const d = deps();
   const r = await handle(call('collect', { repository: 'o/r', topic: 'x' }), d);

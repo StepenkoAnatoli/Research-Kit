@@ -15,6 +15,8 @@
 // guard in this repository first fooled itself.
 
 import { test, describe, assert, fs, path, KIT_ROOT } from './harness.mjs';
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
 
 describe('collector-workflow');
 
@@ -501,4 +503,62 @@ test('the workflows that hold a key deny every job all cache access', () => {
     const override = text.split('\n').find((line) => /^\s+cache-mode:/.test(line) && !/cache-mode:\s*none\s*$/.test(line));
     assert.ok(override === undefined, `${name} re-opens the cache for one job: ${override && override.trim()}`);
   }
+});
+
+// ---------------------------------------------------------------- pages fetched by URL
+//
+// Added 2026-09-27. The dispatcher could only SEARCH: a page it already knew - an API
+// response, a changelog post - had to be found by a search that might not surface it,
+// or collected by a local run instead. A line of `queries` that is an http(s) URL is now
+// a page to fetch. These tests RUN the plan-writing script the way the shell hands it to
+// node, because its behaviour - not its text - is the property.
+
+function planScript() {
+  const lines = yaml.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!/node\s+-e\s+'\s*$/.test(lines[i])) continue;
+    const end = lines.findIndex((line, j) => j > i && (line.trim() === "'" || /^\s*'\s*\S/.test(line)));
+    const body = lines.slice(i + 1, end).join('\n');
+    if (body.includes('plan written:')) return body;
+  }
+  return null;
+}
+
+function runPlan(queries, { topic = 'a topic', maxPages = '3', prefer = '' } = {}) {
+  const script = planScript();
+  assert.ok(script, 'the plan-writing script was not found in collect.yml - these tests are vacuous');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'collect-plan-'));
+  fs.mkdirSync(path.join(dir, 'research'));
+  fs.writeFileSync(path.join(dir, 'research', 'plan.json'), JSON.stringify({ depth: 'quick', queries: [], urls: [] }));
+  const run = spawnSync(process.execPath, ['-e', script], {
+    cwd: dir, encoding: 'utf8',
+    env: { PATH: process.env.PATH, TOPIC: topic, MAX_PAGES: maxPages, PREFER: prefer, QUERIES: queries },
+  });
+  assert.equal(run.status, 0, `the plan script failed: ${run.stderr}`);
+  return { plan: JSON.parse(fs.readFileSync(path.join(dir, 'research', 'plan.json'), 'utf8')), log: run.stdout };
+}
+
+test('a dispatched line that is a URL is fetched, not searched', () => {
+  const url = 'https://api.github.com/repos/o/r/actions/runs/1/artifacts';
+  const { plan } = runPlan(`upload-artifact v7 release notes\n${url}`);
+  assert.deepEqual(plan.queries.map((q) => q.q), ['upload-artifact v7 release notes']);
+  assert.deepEqual(plan.urls.map((u) => u.url), [url]);
+  assert.equal(plan.urls[0].type, 'S', 'the collector may not claim a page is primary; the reviewer promotes it');
+});
+
+test('URLs alone do not fall back to searching the topic, and nothing at all still does', () => {
+  const { plan } = runPlan('https://a.example/one\nhttps://b.example/two');
+  assert.deepEqual(plan.queries, [], 'with only URLs, a topic search spends budget on noise');
+  assert.equal(plan.urls.length, 2);
+  const empty = runPlan('');
+  assert.deepEqual(empty.plan.queries.map((q) => q.q), ['a topic'], 'old dispatches keep working');
+  assert.deepEqual(empty.plan.urls, []);
+});
+
+test('only http(s) is a URL, and the public log names no URL', () => {
+  const { plan, log } = runPlan('file:///etc/passwd\nhttps://secret.example/path?token=x');
+  assert.deepEqual(plan.urls.map((u) => u.url), ['https://secret.example/path?token=x']);
+  assert.deepEqual(plan.queries.map((q) => q.q), ['file:///etc/passwd'], 'anything else is text to search, never a fetch');
+  assert.ok(!log.includes('secret.example'), `the run log is readable by any signed-in user and printed a URL: ${log}`);
+  assert.match(log, /1 url/, 'the log should still say how many pages were asked for');
 });

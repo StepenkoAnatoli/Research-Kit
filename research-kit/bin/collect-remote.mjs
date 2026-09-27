@@ -26,7 +26,7 @@ import path from 'node:path';
 import { parseFlags, flagList, canonicalJson } from '../lib/core.mjs';
 import { requireRuntime } from '../lib/runtime.mjs';
 import {
-  dispatchCollection, waitForRun, fetchCorpus,
+  dispatchCollection, waitForRun, fetchCorpus, queriesInput,
   tokenFromEnv, redact, DispatchError, API_VERSION, TOKEN_VARS,
 } from '../lib/dispatch.mjs';
 
@@ -42,6 +42,9 @@ const HELP = `collect-remote - run the collector on GitHub Actions and bring the
   --query "<text>"          optional, repeatable. The real search queries. Without one the
                             topic is used verbatim, which returns the words and not the
                             subject when the topic is made of common ones.
+  --url "<https://...>"     optional, repeatable. A page you already know, fetched directly
+                            instead of searched. Each counts against --max-pages. With only
+                            --url and no --query, nothing is searched.
   --prior "<text>"          optional. What you EXPECT to find, chained ahead of the first
                             page. Only possible now; refused once collection starts.
   --max-pages <1-25>        default 8. Each page costs at least one credit.
@@ -73,7 +76,7 @@ requireRuntime({ node: true });
 
 const KNOWN = new Set([
   'repository', 'topic', 'max-pages', 'depth', 'client-ref', 'runner', 'workflow', 'ref',
-  'search-transport', 'prior', 'prefer', 'query',
+  'search-transport', 'prior', 'prefer', 'query', 'url',
   'out', 'timeout', 'no-wait', 'json', 'help',
 ]);
 const unknown = Object.keys(flags).filter((f) => !KNOWN.has(f));
@@ -110,6 +113,14 @@ if (missing.length) {
   process.exit(EXIT.CANNOT_START);
 }
 
+// The caller's own typo is refused before anything else is asked of them - a missing
+// token would otherwise hide it, and a dispatched bad URL would be searched as text.
+const queriesValue = queriesInput({ queries: flagList(flags.query), urls: flagList(flags.url) });
+if (queriesValue.error) {
+  process.stderr.write(`${queriesValue.error}\n  fix: --url takes a page address starting with https://\n`);
+  process.exit(EXIT.CANNOT_START);
+}
+
 const { token, from, detail } = tokenFromEnv();
 if (!token) die(EXIT.CANNOT_START, { error: detail, remedy: 'create a fine-grained token with Actions: read and write on this repository only' });
 
@@ -136,8 +147,7 @@ if (flags.prior !== undefined && flags.prior !== true) inputs.prior = String(fla
 // exactly like every dispatch before these flags existed. `--query` is repeatable and
 // arrives as one newline-separated input, because a workflow_dispatch input is a string.
 if (flags.prefer !== undefined && flags.prefer !== true) inputs.prefer = String(flags.prefer);
-const queries = flagList(flags.query);
-if (queries.length) inputs.queries = queries.join('\n');
+if (queriesValue.value) inputs.queries = queriesValue.value;
 
 // ---------------------------------------------------------------- dispatch
 
