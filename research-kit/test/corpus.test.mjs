@@ -32,6 +32,17 @@ test('parseTable finds the table by its first header cell and reports arity prob
   assert.equal(table.problems[0].kind, 'table-arity');
 });
 
+// Found 2026-09-27: a Finding quoting code with an unescaped | (`a || b`) split its row. The
+// extra cells were folded into the LAST column, Raw, so the capture path became half a sentence
+// and preflight reported "no cached page behind it" - the real cause was a warning further down.
+test('a long evidence row folds its extra cells into Finding, and says why the row split', () => {
+  const text = `${tableRow(HEADERS.evidence)}\n|---|---|---|---|---|---|\n| E-01 | 2026-01-01 | P | https://x.invalid | runs \`a || b\` first | research/raw/a.md |\n`;
+  const table = parseTable(text, HEADERS.evidence);
+  assert.equal(table.rows[0].Raw, 'research/raw/a.md', 'the capture path was corrupted');
+  assert.match(table.rows[0].Finding, /runs `a \| {2}\| b` first|runs `a \|\s*\|\s*b` first/);
+  assert.match(table.problems[0].detail, /a \| inside a cell.*\\\|/, table.problems[0].detail);
+});
+
 test('parseTable stops at the end of the table, not the end of the file', () => {
   const text = `${tableRow(HEADERS.sources)}\n|---|---|---|---|---|\n| https://x.invalid | P | T | 2026-01-01 | U-1 |\n\n## Another section\n\n| not | a | row |\n`;
   assert.equal(parseTable(text, HEADERS.sources).rows.length, 1);

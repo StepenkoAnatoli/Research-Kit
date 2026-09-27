@@ -57,15 +57,23 @@ function isSeparator(line) {
  * cell - both are reported. Repairing silently would hide the defect; refusing outright
  * would lose the rest of a corpus over one bad line.
  */
-export function repairRowArity(cells, width) {
+export function repairRowArity(cells, width, free = width - 1) {
   if (cells.length === width) return { cells, repaired: false };
   if (cells.length < width) {
     return { cells: [...cells, ...Array(width - cells.length).fill('')], repaired: true };
   }
-  const head = cells.slice(0, width - 1);
-  const tail = cells.slice(width - 1).join(' | ');
-  return { cells: [...head, tail], repaired: true };
+  // The extra cells fold into the table's free-text column. They were always folded into the
+  // last, and in EVIDENCE the last is Raw: a Finding quoting `a || b` turned the capture path
+  // into half a sentence, and preflight reported the page missing (found 2026-09-27).
+  const extra = cells.length - width;
+  return {
+    cells: [...cells.slice(0, free), cells.slice(free, free + extra + 1).join(' | '), ...cells.slice(free + extra + 1)],
+    repaired: true,
+  };
 }
+
+/** The column a split row's extra cells belong to: the free-text one, where a stray | lands. */
+const FREE_TEXT_COLUMNS = ['finding'];
 
 /**
  * Parse the first markdown table whose header starts with `header[0]`.
@@ -101,12 +109,16 @@ export function parseTable(text, header) {
     if (!line.trim().startsWith('|')) break;
     if (isSeparator(line)) continue;
     const raw = splitRow(line);
-    const { cells, repaired } = repairRowArity(raw, out.header.length);
+    const freeAt = out.header.findIndex((name) => FREE_TEXT_COLUMNS.includes(name.trim().toLowerCase()));
+    const free = freeAt >= 0 ? freeAt : out.header.length - 1;
+    const { cells, repaired } = repairRowArity(raw, out.header.length, free);
     if (repaired) {
       out.problems.push({
         kind: 'table-arity',
         line: i + 1,
-        detail: `row has ${raw.length} cells, header has ${out.header.length}`,
+        detail: raw.length > out.header.length
+          ? `row has ${raw.length} cells, header has ${out.header.length} - a | inside a cell splits it; write it as \\| (the extra cells were read as part of ${out.header[free]})`
+          : `row has ${raw.length} cells, header has ${out.header.length}`,
         text: line.trim(),
       });
     }
