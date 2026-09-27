@@ -127,3 +127,32 @@ test('the ledger is still not swept up by the broader rules', () => {
     assert.equal(git(['check-ignore', '-q', ledger]), null, `${ledger} is matched by an ignore rule; it is evidence and must travel`);
   }
 });
+
+test('every shipped git hook is tracked executable', () => {
+  // ADR-0001's defect, asserted where a contributor meets it rather than only in CI.
+  //
+  // `githooks/pre-commit` shipped as mode 100644. git SILENTLY SKIPS a hook without the
+  // executable bit - no warning, no non-zero exit - so the gate that is supposed to
+  // refuse a bad commit reports a clean one instead. The mode is a property of git's
+  // INDEX, not of the working tree, so a `chmod +x` on disk does not fix it and nothing
+  // in the kit's own code can observe it.
+  //
+  // The offline suite checks this on Linux runners, which is a real guard but a late one:
+  // the author's machine, and Windows, cannot see the regression before it is pushed.
+  // Here it fails in `selftest`, which is the command the contributing docs name.
+  if (!inGitRepo) return;      // a scaffolded copy has no index to read modes from
+
+  const hooks = (git(['ls-files', '-s', '--', 'research-kit/githooks']) ?? '')
+    .split('\n').map((l) => l.trim()).filter(Boolean)
+    .map((line) => {
+      const [meta, file] = line.split('\t');
+      return { mode: meta.split(/\s+/)[0], file };
+    });
+
+  assert.ok(hooks.length >= 1, 'no git hook is tracked; this test would pass vacuously');
+
+  const notExecutable = hooks.filter((h) => h.mode !== '100755').map((h) => `${h.file} is mode ${h.mode}`);
+  assert.deepEqual(notExecutable, [],
+    'git SKIPS a non-executable hook without saying so, which reports a bad commit as clean.\n'
+    + '  fix: git update-index --chmod=+x <path>\n  ' + notExecutable.join('\n  '));
+});
