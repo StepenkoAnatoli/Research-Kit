@@ -97,6 +97,16 @@ export function findPython() {
   return pythonProbe;
 }
 
+let gitProbe;
+/** Is git on this host? Probed once. A test that needs a repository requires it. */
+export function requireGit(what) {
+  if (gitProbe === undefined) {
+    const probe = spawnSync('git', ['--version'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
+    gitProbe = !probe.error && probe.status === 0;
+  }
+  return requireCapability(gitProbe, 'GIT-NOT-FOUND', `git is not on PATH, so ${what} cannot be checked`);
+}
+
 /** The interpreter to run, or UNSUPPORTED (it blocks) naming what could not be checked. */
 export function requirePython(what) {
   return requireCapability(findPython(), 'PYTHON-NOT-FOUND', `no python or python3 on this host, so ${what} cannot be checked`);

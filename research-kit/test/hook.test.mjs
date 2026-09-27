@@ -5,7 +5,7 @@
 // with a real staged file, and assert the process exit status.
 
 import { spawnSync, execFileSync } from 'node:child_process';
-import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, KIT_ROOT, requireCapability } from './harness.mjs';
+import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, KIT_ROOT, requireCapability, requireGit } from './harness.mjs';
 import { PATHS, resolve, writeText, readText } from '../lib/core.mjs';
 import { posture } from '../lib/machine.mjs';
 import { hookExecutability, scaffoldProject } from '../lib/scaffold.mjs';
@@ -27,6 +27,7 @@ function findSh() {
 }
 
 function git(dir, args) {
+  requireGit('the commit gate over a staged index');
   return execFileSync('git', args, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
 

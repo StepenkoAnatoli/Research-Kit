@@ -2,7 +2,7 @@
 // overrides. Plus the one that matters: it actually blocks.
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, KIT_ROOT, requireGit } from './harness.mjs';
 import { PATHS, resolve, writeText, readText, writeJson } from '../lib/core.mjs';
 import { evaluate, isGated, splitPathList, architectureMapBreach, loadGateConfig, DEFAULT_CODE_PATHS } from '../lib/gate.mjs';
 import { GATE_MARKERS, TEMPLATE_DIR } from '../lib/scaffold.mjs';
@@ -153,6 +153,7 @@ test('the edit gate lets phase-1 work through and still stops code', () => {
 // gated project". The commit gate always judges from the repository's top level, where git
 // runs its hooks, so the two gates disagreed about the same file.
 test('the edit gate judges a subfolder cwd by the repository it is in', () => {
+  requireGit('finding the repository a subfolder is in');
   const dir = makeProject();
   spawnSync('git', ['init', '-q'], { cwd: dir });
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
