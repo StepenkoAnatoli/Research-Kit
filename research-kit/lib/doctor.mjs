@@ -17,6 +17,7 @@ import { validateProject, hookExecutability, GATE_MARKERS, KIT_ROOT } from './sc
 import { settingsState, deployedDrift, driftNote } from './installer.mjs';
 import { recordOverride } from './provenance.mjs';
 import { probeFirecrawl, selectTransport } from './transport.mjs';
+import { cliInstallSpec } from './firecrawl.mjs';
 import { nodeLine, nodeHonoursEnvProxy, proxyVariable, unusableProxy, proxySpelling } from './runtime.mjs';
 import { verifyBundle, bundleSummary } from './bundle.mjs';
 import {
@@ -97,7 +98,7 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
       role === 'builder'
         ? 'the Firecrawl CLI is absent, which is expected on a builder - this machine does not collect'
         : 'the Firecrawl CLI is not on PATH',
-      role === 'builder' ? '' : 'install the Firecrawl CLI, or run with --transport http-keyless'));
+      role === 'builder' ? '' : `npm install -g ${cliInstallSpec()}   (or run with --transport http-keyless)`));
   } else {
     out.push(f('pass', 'firecrawl-cli', `${state.version}`));
     if (!state.authenticated) {

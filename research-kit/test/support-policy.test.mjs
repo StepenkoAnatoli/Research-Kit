@@ -252,3 +252,13 @@ test('the documented exit codes are the ones the release CLI returns', () => {
     assert(new RegExp(`\`${status}\``).test(readme), `the README's verdict table no longer lists ${status}`);
   }
 });
+
+// The README names the Firecrawl CLI install command (added 2026-09-27, when nothing said how).
+// A pinned version in prose drifts the day the tested version moves; this holds them together.
+test('the README installs the Firecrawl CLI version the adapter was tested against', async () => {
+  const { TESTED_CLI_VERSION } = await import('../lib/firecrawl.mjs');
+  const readme = fs.readFileSync(path.join(KIT_ROOT, '..', 'README.md'), 'utf8');
+  const named = [...readme.matchAll(/firecrawl-cli@([0-9.]+)/g)].map((m) => m[1]);
+  assert.ok(named.length > 0, 'the README no longer says how to install the Firecrawl CLI');
+  for (const version of named) assert.equal(version, TESTED_CLI_VERSION, `README installs firecrawl-cli@${version}`);
+});

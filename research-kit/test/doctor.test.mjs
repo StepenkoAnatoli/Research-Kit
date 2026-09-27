@@ -2,6 +2,7 @@
 // config and settings paths, an injected probe, and no host state consulted.
 
 import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
+import { TESTED_CLI_VERSION } from '../lib/firecrawl.mjs';
 import { PATHS, resolve, readText, writeText, readJson } from '../lib/core.mjs';
 import { runDoctor, machineHealth, gateHealth, editGateState } from '../lib/doctor.mjs';
 import { installEditGate, removeEditGate, settingsState, retiredRepairNote, MATCHER } from '../lib/installer.mjs';
@@ -37,6 +38,18 @@ test('a collector without a key is a FAIL - a collector that cannot collect is b
   const findings = machineHealth({ env, probe: KEYLESS });
   assert.equal(find(findings, 'firecrawl-auth').severity, 'fail');
   assert.match(find(findings, 'firecrawl-auth').fix, /firecrawl login/);
+});
+
+// Found 2026-09-27: without the CLI, doctor said "install the Firecrawl CLI" and nothing said how
+// - not doctor, not the README - and the package name is the trap the collector workflow once
+// fell into (an npm package named `firecrawl` installs no `firecrawl` binary). The exact
+// command is the one the workflows use.
+test('a collector without the Firecrawl CLI is told the exact install command', () => {
+  const { env } = machine({ config: { role: 'collector' } });
+  const cli = find(machineHealth({ env, probe: ABSENT }), 'firecrawl-cli');
+  assert.equal(cli.severity, 'fail');
+  assert.match(cli.fix, new RegExp(`npm install -g firecrawl-cli@${TESTED_CLI_VERSION.replace(/\./g, '\\.')}`), cli.fix);
+  assert.match(cli.fix, /http-keyless/, 'the keyless route must still be offered');
 });
 
 test('on a BUILDER the same state is informational - a gate that is always red is one nobody reads', () => {
