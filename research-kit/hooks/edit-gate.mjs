@@ -43,10 +43,24 @@ const cwd = path.resolve(payload.cwd || payload.project_dir || process.cwd());
 // the commit gate. Looking only at the cwd found no markers in src/ and allowed every edit
 // there as "not a gated project" (found 2026-09-27). Not a search: git names the one
 // repository this directory belongs to, and outside a repository the cwd is all there is.
+//
+// The question is about THIS directory, so git answers it from the directory alone. GIT_DIR,
+// GIT_WORK_TREE and their kin override the cwd in every git child, and an editor process can
+// carry them from wherever it was started: git then named another repository, whose top level
+// is no ancestor of the cwd, and the hook allowed code as "not a gated project" - the gate
+// failing open (found 2026-09-28, Arena break test 6). GIT_CEILING_DIRECTORIES is kept: it is
+// the operator's own limit on discovery, not another repository's name.
+const REPOSITORY_LOCATION = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
+  'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_PREFIX'];
+function discoveryEnv() {
+  const env = { ...process.env };
+  for (const name of REPOSITORY_LOCATION) delete env[name];
+  return env;
+}
 function projectRoot(dir) {
   if (isGated(dir)) return dir;
   try {
-    const top = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }).trim();
+    const top = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, env: discoveryEnv(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 5000 }).trim();
     // git names the top level by its real path (macOS: /private/tmp for /tmp; Windows: the
     // long name where the cwd may carry an 8.3 one, C:\Users\RUNNER~1). Walk up from the cwd
     // to the same directory instead, so the root keeps the spelling the targets use. The

@@ -127,10 +127,10 @@ test('a map-rule block on a passing gate says what is owed, and its fix works as
 // included, which are the phase-1 work AGENTS.md tells the agent to do. The commit gate lets
 // research/ and the project's scaffolding through (ADR-0048); the edit gate did not look at the
 // path at all.
-function editGate(dir, toolInput, cwd = dir, config = path.join(tempDir(), 'absent.json')) {
+function editGate(dir, toolInput, cwd = dir, config = path.join(tempDir(), 'absent.json'), extraEnv = {}) {
   const r = spawnSync(process.execPath, [path.join(KIT_ROOT, 'hooks', 'edit-gate.mjs')], {
     input: JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Write', cwd, tool_input: toolInput }),
-    encoding: 'utf8', env: { ...process.env, RESEARCH_KIT_CONFIG: config },
+    encoding: 'utf8', env: { ...process.env, RESEARCH_KIT_CONFIG: config, ...extraEnv },
   });
   return JSON.parse(r.stdout).hookSpecificOutput;
 }
@@ -167,6 +167,22 @@ test('the edit gate judges a subfolder cwd by the repository it is in', () => {
     'phase-1 work is still phase-1 work from a subfolder');
   const loose = tempDir();
   assert.equal(editGate(loose, { file_path: 'a.js' }).permissionDecision, 'allow', 'outside any gated project nothing is judged');
+});
+
+// Found 2026-09-28 (Arena break test 6, remaining risk 1): an editor process carrying an
+// exported GIT_DIR/GIT_WORK_TREE made the subfolder discovery above ask git about THAT
+// repository. Its top level is not an ancestor of the cwd, so the hook fell back to src/,
+// found no markers and allowed code as "not a gated project" - the gate failing open.
+test('a leaked GIT_DIR does not make the edit gate judge another repository', () => {
+  requireGit('finding the repository a subfolder is in, under a leaked GIT_DIR');
+  const dir = makeProject();
+  spawnSync('git', ['init', '-q'], { cwd: dir });
+  fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+  const other = tempDir('rk-other-repo-');
+  spawnSync('git', ['init', '-q'], { cwd: other });
+  const leaked = { GIT_DIR: path.join(other, '.git'), GIT_WORK_TREE: other };
+  const out = editGate(dir, { file_path: 'app.js' }, path.join(dir, 'src'), undefined, leaked);
+  assert.equal(out.permissionDecision, 'ask', `code edited from src/ was not judged: ${out.permissionDecisionReason}`);
 });
 
 test('undeclared code paths fall back to the documented defaults', () => {
