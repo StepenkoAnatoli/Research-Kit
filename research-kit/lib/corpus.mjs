@@ -200,6 +200,13 @@ export function countRenderFailures(body) {
  * The capture index: every file under `research/raw/`, plus `byUrl` where the newest
  * retrieval wins. Dotfiles are the kit's own logs and are not captures.
  */
+/**
+ * The largest capture the corpus will read. The biggest real one in this repository is
+ * 465 KB; a 100 MB file crashed every reader in the similarity sketch, and a 600 MB one
+ * could not be read as a string and was skipped in silence (found 2026-09-28).
+ */
+export const CAPTURE_MAX_BYTES = 10 * 1024 * 1024;
+
 export function readCaptures(root) {
   const dir = resolve(root, PATHS.raw);
   const entries = [];
@@ -217,8 +224,19 @@ export function readCaptures(root) {
       continue;
     }
     if (isDirectory(abs)) continue;
+    // Checked BEFORE reading: every file here is either read or named, never dropped.
+    let size = 0;
+    try { size = fs.statSync(abs).size; } catch { /* unreadable - named below */ }
+    if (size > CAPTURE_MAX_BYTES) {
+      problems.push({ kind: 'capture-too-large', file: rel,
+        detail: `${rel} is ${(size / 1024 / 1024).toFixed(0)} MB, over the ${CAPTURE_MAX_BYTES / 1024 / 1024} MB a capture may be - not read. A page the collector fetched is never this size; remove it` });
+      continue;
+    }
     const text = readText(abs);
-    if (text === null) continue;
+    if (text === null) {
+      problems.push({ kind: 'capture-unreadable', file: rel, detail: `${rel} could not be read - check its permissions` });
+      continue;
+    }
     const { front, body } = parseCapture(text);
     if (!front.url) {
       problems.push({ kind: 'capture-no-url', file: rel, detail: 'capture has no url in its front-matter' });

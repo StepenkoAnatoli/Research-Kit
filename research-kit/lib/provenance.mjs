@@ -377,7 +377,16 @@ export function verifyLedger(root, { corpus = null } = {}) {
       continue;
     }
     if (!entry.bodySha256) continue;
-    const bytes = fs.readFileSync(abs);
+    // A capture that cannot be read (permissions, a directory in its place) is a named
+    // failure, not a crash: it threw out of preflight with a raw stack trace (2026-09-28).
+    let bytes;
+    try {
+      bytes = fs.readFileSync(abs);
+    } catch (err) {
+      problems.push({ rule: 'raw-unreadable', line: entry.line, file: entry.raw,
+        detail: `${entry.raw}, named by seq ${entry.seq}, could not be read (${err.code ?? err.message}) - check its permissions` });
+      continue;
+    }
     if (sha256(bytes) === entry.bodySha256) continue;
     const rewrite = isLineEndingRewrite(bytes, entry.bodySha256);
     if (rewrite) lineEndings.push({ file: entry.raw, seq: entry.seq });

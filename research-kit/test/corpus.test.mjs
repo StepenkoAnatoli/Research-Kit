@@ -7,6 +7,7 @@ import {
   repairRowArity, captureEntry, rememberCapture, cacheDecision, traceOf, captureOf,
   claimOf, sectionOf, appendRow, upsertRow, nextId, citedIds, stripReviewNotes,
 } from '../lib/corpus.mjs';
+import { runPreflight } from '../lib/preflight.mjs';
 
 describe('corpus');
 
@@ -231,4 +232,40 @@ test('stripReviewNotes removes the note and nothing else', () => {
   assert.equal(citedIds(stripReviewNotes('E-01 [single-witness: see E-02]')).join(), 'E-01');
   assert.equal(citedIds(stripReviewNotes('E-01 and E-02')).join(), 'E-01,E-02');
   assert.equal(stripReviewNotes('a [markdown](http://x) link'), 'a [markdown](http://x) link');
+});
+
+// Found 2026-09-28 (checking an outside break-test, F-07): a large file in research/raw/
+// crashed every corpus reader with a raw "RangeError: Set maximum size exceeded" from the
+// similarity sketch after a minute (100 MB), or was skipped in silence because it could not
+// be read as a string at all (600 MB) - and the gate passed. A capture over the limit is now
+// named, blocking, and never read.
+test('a capture over the size limit is named and blocks, without being read', () => {
+  const root = makePassingProject();
+  const big = resolve(root, `${PATHS.raw}/huge.md`);
+  fs.writeFileSync(big, Buffer.alloc(11 * 1024 * 1024, 'a'));
+  const started = Date.now();
+  const corpus = readCorpus(root);
+  assert.ok(Date.now() - started < 5000, 'the oversized capture was read');
+  const problem = corpus.problems.find((p) => p.kind === 'capture-too-large');
+  assert.ok(problem, `no capture-too-large problem: ${JSON.stringify(corpus.problems)}`);
+  assert.equal(problem.file, `${PATHS.raw}/huge.md`);
+  assert.equal(corpus.captures.entries.some((e) => e.file.endsWith('huge.md')), false);
+  const verdict = runPreflight(root);
+  assert.ok(verdict.findings.some((f) => f.severity === 'fail' && f.rule === 'capture-too-large'), 'the gate did not block on it');
+});
+
+// Found 2026-09-28 while verifying the capture-unreadable case as uid nobody: a capture the
+// ledger names but that cannot be read (permissions; here a directory in its place, which
+// fails the same way for root) crashed preflight with a raw stack trace in verifyLedger.
+test('a ledger-named capture that cannot be read is a named failure, not a crash', () => {
+  const root = makePassingProject();
+  const capture = fs.readdirSync(resolve(root, PATHS.raw)).find((n) => n.endsWith('.md'));
+  const abs = resolve(root, `${PATHS.raw}/${capture}`);
+  fs.rmSync(abs);
+  fs.mkdirSync(abs);
+  let verdict;
+  assert.doesNotThrow(() => { verdict = runPreflight(root); }, 'preflight crashed on an unreadable capture');
+  assert.equal(verdict.pass, false);
+  assert.ok(verdict.findings.some((f) => f.severity === 'fail' && /could not be read/.test(f.detail ?? '')),
+    `no finding names the unreadable capture:\n${verdict.findings.filter((f) => f.severity === 'fail').map((f) => `${f.rule}: ${f.detail}`).join('\n')}`);
 });
