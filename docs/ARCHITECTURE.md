@@ -189,7 +189,9 @@ a flag-driven failure with the policy name told a reader the policy had failed t
 binding, role-aware next steps), `install-hooks.mjs` (`--fail-closed`, `--role`),
 `new-project.mjs` (its first next step omits `--topic` once the project has one, ADR-0056), `decompose.mjs` (phase 0 CLI, refused on a builder by role),
 `timeline.mjs`, `audit.mjs` (lists and resolves versions through the manifest's
-reader), `brief.mjs` (drafts the handoff and reports the brief's state),
+reader), `brief.mjs` (drafts the handoff and reports the brief's state; it and
+`timeline.mjs` refuse with exit 2, writing nothing, in a folder holding none of the gate
+markers - they wrote `research/` into any folder until 2026-09-28),
 `path-authority.mjs` (offline Git-origin/path-authority snapshot validation and
 schema conformance),
 `researcher-release.mjs` (ported 2026-09-20, ADR-0029 — three subcommands over the two
@@ -204,7 +206,7 @@ only when asked: `fi-validate --report <file>`),
 `selftest.mjs` (the whole suite, queued by the harness — which **awaits** every test,
 so `ok` means the assertions settled; ADR-0021. It runs from the repository root whatever
 the caller's cwd, resolving a relative `RESEARCH_KIT_RESULT_FILE` against the caller's
-folder first; started anywhere else, it crashed at import before any test ran - ADR-0071).
+folder first; started anywhere else, it crashed at import before any test ran - ADR-0071); a test file that throws while it is imported is reported as a named FAIL by `importTestFiles` in the harness, and the rest of the suite still runs and counts - one such file used to abort the whole run with no count); it tries the temp folder once before the run and, if it cannot be used, names it and the TMPDIR fix at the top and under a red summary - an unwritable one gave 541 EACCES failures and no cause).
 
 ### Not lib, not bin — but load-bearing
 

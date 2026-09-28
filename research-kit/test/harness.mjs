@@ -19,7 +19,7 @@ import os from 'node:os';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createEmptyProject, scaffoldProject, KIT_ROOT } from '../lib/scaffold.mjs';
 import { appendFetch } from '../lib/provenance.mjs';
 import { writeRaw } from '../lib/collect.mjs';
@@ -110,6 +110,27 @@ export function requireGit(what) {
 /** The interpreter to run, or UNSUPPORTED (it blocks) naming what could not be checked. */
 export function requirePython(what) {
   return requireCapability(findPython(), 'PYTHON-NOT-FOUND', `no python or python3 on this host, so ${what} cannot be checked`);
+}
+
+/**
+ * Import each test file, and RETURN the ones that throw while loading.
+ *
+ * An import-time throw - an unwritable TMPDIR under a module-scope tempDir(), a missing
+ * fixture, a read at module scope - used to abort the RUNNER: no test ran, no count was
+ * printed, and CI reported "crashed before reporting" for one file's problem (found
+ * 2026-09-28). The runner reports each broken file as a named failure instead, and runs
+ * everything that did load.
+ */
+export async function importTestFiles(dir, files) {
+  const broken = [];
+  for (const file of files) {
+    try {
+      await import(pathToFileURL(path.join(dir, file)).href);
+    } catch (error) {
+      broken.push({ file, error });
+    }
+  }
+  return broken;
 }
 
 export function test(name, fn) {
