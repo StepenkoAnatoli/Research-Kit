@@ -1,8 +1,8 @@
 // Synthetic completed FI bundle builder for offline end-to-end validator tests only.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
+import { tempDir } from './harness.mjs';
 import { buildZip } from '../lib/archive.mjs';
 
 const FI_IDS = Array.from({ length: 30 }, (_, index) => `FI-${String(index + 1).padStart(2, '0')}`);
@@ -63,7 +63,7 @@ export function syntheticFiWorkbookProjection(statuses = {}) {
 }
 
 export function createSyntheticFiEvidenceBundle({ workbookMode = 'xlsx', statuses = {}, tamperEvidenceId = null } = {}) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'research-kit-fi-e2e-'));
+  const root = tempDir('research-kit-fi-e2e-');
   const recordsDir = path.join(root, 'records'); const evidenceDir = path.join(root, 'evidence');
   fs.mkdirSync(recordsDir); fs.mkdirSync(evidenceDir);
   const workbook = path.join(root, 'completed.xlsx'); const bytes = workbookMode === 'opaque' ? Buffer.from('synthetic-workbook') : workbookBytes(statuses); fs.writeFileSync(workbook, bytes);

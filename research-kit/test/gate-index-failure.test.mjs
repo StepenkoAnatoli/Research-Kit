@@ -102,11 +102,18 @@ test('index materialisation does not put every tracked path in one argv', () => 
     // isGitRepo reads the filesystem, so give it a .git to find.
     fs.mkdirSync(path.join(root, '.git'), { recursive: true });
     const result = materializeIndex(root, { run });
-    assertEqual(result.ok, true, JSON.stringify(result));
-    assertEqual(result.files, many.length);
-    assert(batches.length > 1, `900 paths went to git in ${batches.length} call(s); that is one argv again`);
-    assert(Math.max(...batches) <= 500,
-      `the largest batch was ${Math.max(...batches)} paths, which is heading back toward the limit`);
-    assertEqual(batches.reduce((a, b) => a + b, 0), many.length, 'chunking lost or duplicated paths');
+    try {
+      assertEqual(result.ok, true, JSON.stringify(result));
+      assertEqual(result.files, many.length);
+      assert(batches.length > 1, `900 paths went to git in ${batches.length} call(s); that is one argv again`);
+      assert(Math.max(...batches) <= 500,
+        `the largest batch was ${Math.max(...batches)} paths, which is heading back toward the limit`);
+      assertEqual(batches.reduce((a, b) => a + b, 0), many.length, 'chunking lost or duplicated paths');
+    } finally {
+      // materializeIndex made a real scratch dir before the injected run answered; the
+      // finally below removes the project, and this one the scratch (found 2026-09-28,
+      // break-test: one research-kit-index-* directory leaked per run from here).
+      if (result && result.dir) { try { fs.rmSync(result.dir, { recursive: true, force: true }); } catch { /* best effort */ } }
+    }
   } finally { cleanup(root); }
 });

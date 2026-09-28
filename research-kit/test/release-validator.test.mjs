@@ -2,10 +2,9 @@
 // live below disposable roots; no benchmark fixture, network, or paid transport
 // is involved.
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, assertEqual, cleanup } from './harness.mjs';
+import { test, describe, assert, assertEqual, cleanup, tempDir } from './harness.mjs';
 
 // Ported 2026-09-20 under ADR-0029. The source tree's runner labelled by file
 // automatically; this one is told, so a failure names release-validator rather than
@@ -29,7 +28,7 @@ async function sha256(value) {
 }
 
 function tempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'research-kit-release-validator-'));
+  return tempDir('research-kit-release-validator-');
 }
 
 function writeJson(file, value) {

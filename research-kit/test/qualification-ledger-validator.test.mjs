@@ -3,9 +3,8 @@
 // network/paid transport are involved.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { test, describe, assert, assertEqual } from './harness.mjs';
+import { test, describe, assert, assertEqual, tempDir } from './harness.mjs';
 
 // Ported 2026-09-20 under ADR-0029.
 describe('qualification-ledger-validator');
@@ -142,7 +141,7 @@ test('qlog-path verification is read-only and preserves the authenticated bytes'
   const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
   const promotion = ledgerRecord({ physicalSequence: 1, payload: { package: 'R28', targetArtifactId: 'R28-04', targetHash: 'c'.repeat(64), predecessorClosureHash: 'd'.repeat(64) } });
   const pointer = signPointer(signedPointer({ promotionCommitHash: promotion.chainHash }), privateKey);
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qualification-ledger-qlog-'));
+  const root = tempDir('qualification-ledger-qlog-');
   const file = path.join(root, '00000001.qlog');
   try {
     fs.writeFileSync(file, `${JSON.stringify(promotion)}\n`, 'utf8');

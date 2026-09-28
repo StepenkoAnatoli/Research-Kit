@@ -267,7 +267,7 @@ test('the recorded status is labelled as a recording, and comes after the eviden
 // still read as present. It is now a blocking raw-outside problem and is never read.
 test('a Raw cell that lands outside the project is never read, and blocks as raw-outside', () => {
   const root = makePassingProject();
-  const secret = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rk-outside-')), 'secret.md');
+  const secret = path.join(tempDir('rk-outside-'), 'secret.md');
   fs.writeFileSync(secret, '---\nurl: https://example.com/x\n---\nTOP SECRET OUTSIDE THE PROJECT\n');
   const evidence = resolve(root, PATHS.evidence);
   const text = fs.readFileSync(evidence, 'utf8');
