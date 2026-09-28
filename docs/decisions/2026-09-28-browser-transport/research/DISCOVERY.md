@@ -6,8 +6,11 @@ below is either `CLOSED` with evidence or `KNOWN-UNKNOWN` with a verification st
 
 ## Build intent
 
-_What is being built, for whom, and what "done" means. One paragraph, concrete enough
-that a builder who has never seen this project can tell whether the thing works._
+A free transport that renders pages with a locally installed Chromium, for pages the
+keyless transport cannot read (JavaScript-built pages, sites that refuse non-browser
+clients) and as a better credits-exhausted fallback. The kit has no dependencies, so it
+must drive Chromium from the command line, not through a driver library. Done means the
+command, the proxy route, the sandbox constraint and the failure modes are known.
 
 ## Unknowns
 
@@ -23,6 +26,9 @@ Anything else (`OPEN`, blank, "in progress") fails the gate.
 
 | ID | Unknown | Why it blocks the build | Status | Evidence |
 |---|---|---|---|---|
+| U-01 | Can the rendered page be taken from the command line, with no driver library? | The kit is dependency-free. | CLOSED | E-01, E-02: `--headless --dump-dom <url>` prints the rendered DOM to stdout. |
+| U-02 | How is a proxy given to Chromium? | Collection runs behind proxies (this environment, corporate networks). | CLOSED | E-03: `--proxy-server=<uri>`. |
+| U-03 | When must the sandbox be turned off? | Chromium refuses to start as root with its sandbox on. | KNOWN-UNKNOWN | The owning Chromium page answered 503 (E-04). ArchiveBox passes `--no-sandbox` in containers (E-05, secondary). Day one: pass `--no-sandbox` only when running as root, and confirm on the first non-root Windows run that Chromium starts without it. |
 
 ## Questions for the human (maximum 3)
 
@@ -33,3 +39,6 @@ task, not a question.
 ## Already decided
 
 Locked decisions for this project. Do not revisit these without the human.
+
+- No npm dependency: the kit stays zero-dependency, so no Puppeteer or Playwright library.
+- Never weaken TLS: no `--ignore-certificate-errors`. A proxy that intercepts TLS is trusted by adding its CA to the browser's store, as the environment provides it.
