@@ -90,6 +90,16 @@ function citations(corpus) {
       out.push(finding('warn', 'citations', 'raw-thin',
         `${row.id}'s capture is ${capture.bytes} bytes - too thin to carry a claim`, { row: row.id, line: row.line }));
     }
+    // A capture of an error page, from a corpus collected before collectOne refused them
+    // (2026-09-28). A warning, not a block: some corpora cite a 404 on purpose, as the record
+    // of a lookup that was attempted - and a row that names the status itself has said so,
+    // so it is not flagged (a string check, like a quote anchor: the row says "404").
+    const status = Number(capture.statusCode);
+    if (Number.isInteger(status) && status >= 400 && !new RegExp(`\\b${status}\\b`).test(row.finding)) {
+      out.push(finding('warn', 'citations', 'raw-error-status',
+        `${row.id}'s capture ${capture.file} is an HTTP ${status} page - it records that the page failed, not what the page says`,
+        { row: row.id, line: row.line }));
+    }
     // Quote anchors (ADR-0087): `[quote: ...]` in the Finding must occur in this row's
     // capture. A quote the capture refutes is a claim about the evidence that the evidence
     // denies - the same class as an edited capture - so it blocks under every policy.

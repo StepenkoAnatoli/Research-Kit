@@ -700,3 +700,23 @@ test('an exhausted search falls back too, and no fallback is taken on any other 
   assert.equal(r3.fellBack, null);
   assert.equal(r3.failed, 1);
 });
+
+// Found 2026-09-28 collecting the browser-transport research: Firecrawl returned Google's
+// "Error 503 (Service Unavailable)" page for a Chromium doc, with statusCode 503 in its
+// metadata, and the kit counted it "collected" and wrote an EVIDENCE row for it. The status
+// was recorded and never read. An error page is a failed fetch, not a capture.
+test('a page that answers an HTTP error status is a failed fetch, not evidence', () => {
+  const dir = makeProject();
+  const errorPage = {
+    name: 'stub-transport',
+    runScrape: (url) => ({ ok: true, url, title: 'Error 503 (Service Unavailable)!!1', markdown: '**503.** That’s an error.',
+      statusCode: 503, transport: 'stub-transport', completeness: 'partial', omitted: 'thin', cmd: `stub scrape ${url}` }),
+  };
+  const outcome = collectOne(dir, 'https://x.invalid/doc', { runScrape: errorPage.runScrape, corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.equal(outcome.status, 'failed', JSON.stringify(outcome));
+  assert.match(outcome.reason, /HTTP 503/);
+  const corpus = readCorpus(dir);
+  assert.equal(corpus.evidence.length, 0, 'no evidence row for an error page');
+  assert.equal(corpus.captures.entries.length, 0, 'no capture written');
+  assert.deepEqual(corpus.ledger.entries.map((e) => e.op), ['fail'], 'the attempt is still on record');
+});

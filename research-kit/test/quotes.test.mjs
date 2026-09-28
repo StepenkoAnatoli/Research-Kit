@@ -46,3 +46,20 @@ test('a quote found in its capture passes; a fabricated one blocks; a short one 
   const short = quoted('Free tier limits. [quote: free plan]');
   assert.equal(short.find((f) => f.rule === 'quote-too-short')?.severity, 'warn', JSON.stringify(short));
 });
+
+// The same finding, for a corpus collected before error pages were refused: a row that
+// cites one is flagged, not blocked - some corpora cite a 404 on purpose, as the record of
+// an attempted lookup.
+test('a row citing an error-status capture is flagged', async () => {
+  const dir = makePassingProject();
+  corrupt(dir, (await import('../lib/corpus.mjs')).readCorpus(dir).captures.entries[0].file, (t) => t.replace('statusCode: 200', 'statusCode: 404'));
+  const { rebuildLedger } = await import('../lib/provenance.mjs');
+  rebuildLedger?.(dir);
+  const findings = runCheck('citations', readCorpus(dir));
+  assert.equal(findings.find((f) => f.rule === 'raw-error-status')?.severity, 'warn', JSON.stringify(findings));
+
+  // A row that says the page failed, naming the status, has acknowledged it: this
+  // repository's E-15 keeps a 404 on purpose as the record of a failed guess.
+  corrupt(dir, PATHS.evidence, (t) => t.replace('| The free plan allows', '| The guessed URL answered HTTP 404; kept as the record of a failed lookup. The free plan allows'));
+  assert.equal(runCheck('citations', readCorpus(dir)).find((f) => f.rule === 'raw-error-status'), undefined);
+});
