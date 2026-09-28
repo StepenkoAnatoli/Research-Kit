@@ -1,0 +1,10 @@
+{
+  "topic": "Measuring the research kit: citation accuracy metrics from deep research benchmarks",
+  "notes": "Phase 0 dry-run only (credits); owning pages named directly.",
+  "depth": "normal", "refreshDays": 30, "limit": 5, "perQuery": 2, "maxScrapes": 4, "prefer": [], "queries": [],
+  "urls": [
+    {"url": "https://github.com/Ayanami0730/deep_research_bench", "type": "P", "why": "U-01: FACT - citation accuracy and effective citations"},
+    {"url": "https://arxiv.org/html/2506.11763", "type": "P", "why": "U-01: how FACT extracts and judges claim-URL pairs"},
+    {"url": "https://arxiv.org/html/2605.06635v1", "type": "P", "why": "U-02: link works, relevant content, fact check"}
+  ]
+}

@@ -1,0 +1,1 @@
+I expect DeepResearch Bench's FACT to score citation accuracy as supported claim-URL pairs over all pairs, judged by an LLM, plus effective citations per task; and the attribution paper to separate link works, relevance and fact check. I expect the kit to score near 100% on link works by construction, and not to be measurable on fact check without a judge.
