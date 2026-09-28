@@ -16,8 +16,8 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {
-  PATHS, GENESIS, resolve, exists, readText, ensureDir, appendLine, canonicalJson,
-  sha256, nowIso, writeText,
+  PATHS, GENESIS, resolve, exists, isRegularFile, readText, ensureDir, appendLine,
+  canonicalJson, sha256, nowIso, writeText,
 } from './core.mjs';
 import { readCorpus, readLedger } from './corpus.mjs';
 
@@ -386,6 +386,17 @@ export function verifyLedger(root, { corpus = null } = {}) {
       continue;
     }
     if (!entry.bodySha256) continue;
+    // A capture that is not a regular file is refused BY NAME before it is opened: a fifo
+    // here blocks in open() until another process writes to it, and /dev/zero allocates
+    // until libstdc++ kills the process with std::bad_alloc (found 2026-09-28,
+    // break-test). Both ended the run of every entrypoint that verifies a corpus,
+    // including the commit gate, with no diagnostic at all.
+    if (!isRegularFile(abs)) {
+      problems.push({ rule: 'raw-unreadable', line: entry.line, file: entry.raw,
+        detail: `${entry.raw}, named by seq ${entry.seq}, could not be read (it is not a regular file, `
+          + 'so it has no end to read to) - check what it is' });
+      continue;
+    }
     // A capture that cannot be read (permissions, a directory in its place) is a named
     // failure, not a crash: it threw out of preflight with a raw stack trace (2026-09-28).
     let bytes;
