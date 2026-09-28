@@ -89,6 +89,7 @@ node "$HOME/.agents/research-kit/bin/handoff.mjs"     # did the corpus arrive wh
 | `brief.mjs` | draft the handoff (`--state`, `--force`) |
 | `audit.mjs` | render, `--list`, `--show`, `--zip` |
 | `timeline.mjs` | regenerate the chronological review aid |
+| `measure.mjs` | how this project's citations hold up, without a judge (`--json`); a report, never a gate |
 | `new-project.mjs` | scaffold the shape (`--layout`, `--force`) |
 | `install.mjs` | deploy (`--dry-run`, `--into <project>`) |
 | `install-hooks.mjs` | the two gates and the machine's role and posture |
@@ -448,7 +449,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1215 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1218 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
