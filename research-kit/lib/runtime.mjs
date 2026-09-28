@@ -103,6 +103,28 @@ export function proxySpelling(value) {
   return /^[\w.-]+:\d+$/.test(bare) ? `http://${bare}` : 'http://host:port';
 }
 
+const MiB = 1024 * 1024;
+
+/**
+ * The largest page a transport keeps (ADR-0082). A body past it is refused by name, never
+ * kept cut short: a truncated HTML document is not the page, and its hash proves nothing.
+ */
+export const MAX_PAGE_BYTES = 16 * MiB;
+
+/**
+ * The most any vendor child may print. spawnSync's default is 1 MiB, so a page a little
+ * over that failed with "spawnSync ... ENOBUFS" - and a Firecrawl scrape that large was paid
+ * for and lost. JSON escaping can grow a body up to sixfold, so this leaves the page
+ * limit room while still bounding what the parent holds.
+ */
+export const CHILD_OUTPUT_LIMIT = 8 * MAX_PAGE_BYTES;
+
+/** A sentence naming a child's output overflow, or null when that is not what happened. */
+export function outputOverflow(result, who) {
+  if (result?.error?.code !== 'ENOBUFS') return null;
+  return `${who} printed more than ${CHILD_OUTPUT_LIMIT / MiB} MiB - the answer was abandoned rather than kept in part (ADR-0082)`;
+}
+
 /**
  * The environment for a child process that fetches: `env`, plus the one flag that makes the
  * child's built-in fetch use a configured proxy. A Node that predates the flag ignores it,

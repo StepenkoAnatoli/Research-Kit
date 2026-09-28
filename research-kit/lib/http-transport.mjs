@@ -13,7 +13,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { fetchEnv } from './runtime.mjs';
+import { fetchEnv, CHILD_OUTPUT_LIMIT, MAX_PAGE_BYTES, outputOverflow } from './runtime.mjs';
 
 export const name = 'http-keyless';
 export const FULL_THRESHOLD = 1500;
@@ -31,9 +31,12 @@ function runJob(job, { timeout = 60_000, spawn = spawnSync, nodePath = process.e
     timeout,
     windowsHide: true,
     env: fetchEnv(env),
+    maxBuffer: CHILD_OUTPUT_LIMIT,
   });
   // The page did not answer in time; say that, not "spawnSync ETIMEDOUT" (found 2026-09-27).
   if (result.error?.code === 'ETIMEDOUT') return { ok: false, error: `no answer within ${timeout / 1000}s - the request was abandoned; a retry may succeed` };
+  const overflow = outputOverflow(result, 'the keyless fetch');
+  if (overflow) return { ok: false, error: overflow };
   if (result.error) return { ok: false, error: result.error.message };
   const text = String(result.stdout ?? '').trim();
   if (!text) return { ok: false, error: String(result.stderr || 'keyless transport produced no output').trim() };
@@ -48,11 +51,21 @@ function runJob(job, { timeout = 60_000, spawn = spawnSync, nodePath = process.e
 
 const BLOCK_DROP = /<(script|style|noscript|svg|iframe|form|template)\b[\s\S]*?<\/\1>/gi;
 
+/**
+ * One numeric character reference. HTML reads 0, a surrogate, and anything past U+10FFFF
+ * as U+FFFD: String.fromCodePoint THROWS on the last, so one malformed entity crashed the
+ * whole scrape (Arena break test 8, 2026-09-28).
+ */
+function codePoint(n) {
+  return Number.isSafeInteger(n) && n > 0 && n <= 0x10FFFF && (n < 0xD800 || n > 0xDFFF)
+    ? String.fromCodePoint(n) : '\uFFFD';
+}
+
 export function decodeEntities(text) {
   const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', mdash: '—', ndash: '–', hellip: '…', rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”' };
   return String(text)
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => codePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => codePoint(Number(dec)))
     .replace(/&([a-z]+);/gi, (all, key) => named[key.toLowerCase()] ?? all);
 }
 
@@ -295,11 +308,11 @@ export function search(query, { limit = 8, ...opts } = {}) {
   }
   const results = [];
   for (const m of String(job.body ?? '').matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*class=["']result-link["'][^>]*>([\s\S]*?)<\/a>/gi)) {
-    results.push({ url: unwrapRedirect(m[1]), title: inline(m[2]), description: '' });
+    results.push({ url: unwrapRedirect(hrefOf(m[1])), title: inline(m[2]), description: '' });
   }
   if (!results.length) {
     for (const m of String(job.body ?? '').matchAll(/<a\b[^>]*href=["'](https?:\/\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
-      const href = unwrapRedirect(m[1]);
+      const href = unwrapRedirect(hrefOf(m[1]));
       if (/duckduckgo\.com/.test(href)) continue;
       results.push({ url: href, title: inline(m[2]), description: '' });
     }
@@ -307,6 +320,15 @@ export function search(query, { limit = 8, ...opts } = {}) {
   const seen = new Set();
   const unique = results.filter((r) => r.url && !seen.has(r.url) && seen.add(r.url));
   return { ok: true, query, cmd: command(argv), results: unique.slice(0, limit) };
+}
+
+/**
+ * An href attribute is HTML, so its value is decoded before it is a URL: `?a=1&amp;b=2`
+ * means `b=2`. Taken raw, search and map returned URLs whose second parameter was
+ * "amp;b" (Arena break test 8, 2026-09-28).
+ */
+function hrefOf(attribute) {
+  return decodeEntities(attribute).trim();
 }
 
 function unwrapRedirect(href) {
@@ -323,9 +345,15 @@ export function map(url, { limit = 50, ...opts } = {}) {
   let origin;
   try { origin = new URL(job.url ?? url); } catch { return { ok: false, url, error: 'unparseable url', cmd: command(argv), links: [] }; }
   const links = new Set();
-  for (const m of String(job.body ?? '').matchAll(/href=["']([^"'#]+)["']/gi)) {
+  // The whole attribute, then decoded: the old pattern refused any href holding a '#', so
+  // `&#38;` and every link to a section of another page were dropped. A link to a section
+  // of THIS page names no new page; any other fragment is dropped from the page it names.
+  for (const m of String(job.body ?? '').matchAll(/href=["']([^"']*)["']/gi)) {
+    const href = hrefOf(m[1]);
+    if (!href || href.startsWith('#')) continue;
     try {
-      const resolved = new URL(m[1], origin);
+      const resolved = new URL(href, origin);
+      resolved.hash = '';
       if (resolved.host !== origin.host) continue;
       if (!/^https?:$/.test(resolved.protocol)) continue;
       links.add(resolved.toString());
@@ -351,6 +379,27 @@ export default { name, scrape, search, map, command, status, runScrape };
  * When this file is the process entry point it IS the job runner: read one JSON job on
  * stdin, do the async work, print one JSON line.
  */
+/**
+ * The body as text, refused once it passes MAX_PAGE_BYTES (ADR-0082): declared too large by
+ * Content-Length, or found so while reading - a chunked answer declares nothing. It was
+ * `response.text()`, which held any body whole, however large.
+ */
+async function boundedText(response) {
+  const tooLarge = () => new Error(`the page is larger than ${MAX_PAGE_BYTES / (1024 * 1024)} MiB - not captured (ADR-0082)`);
+  if (Number(response.headers.get('content-length')) > MAX_PAGE_BYTES) {
+    await response.body?.cancel();
+    throw tooLarge();
+  }
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of response.body ?? []) {
+    size += chunk.byteLength;
+    if (size > MAX_PAGE_BYTES) throw tooLarge();
+    chunks.push(chunk);
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks));
+}
+
 async function child() {
   const chunks = [];
   for await (const chunk of process.stdin) chunks.push(chunk);
@@ -371,7 +420,7 @@ async function child() {
       headers: { 'user-agent': USER_AGENT, accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8' },
       signal: AbortSignal.timeout(job.timeout ?? 45_000),
     });
-    const body = await response.text();
+    const body = await boundedText(response);
     process.stdout.write(JSON.stringify({
       ok: response.ok,
       url: response.url || job.url,

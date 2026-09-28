@@ -28,7 +28,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from './machine.mjs';
-import { fetchEnv } from './runtime.mjs';
+import { fetchEnv, CHILD_OUTPUT_LIMIT, outputOverflow } from './runtime.mjs';
 
 export const name = 'serpapi';
 
@@ -108,10 +108,13 @@ export function runJob(job, { timeout = DEFAULT_TIMEOUT, spawn = spawnSync, node
     timeout,
     windowsHide: true,
     env: fetchEnv(env),
+    maxBuffer: CHILD_OUTPUT_LIMIT,
   });
   // A child that outlived its timeout is the vendor not answering; say that, not "spawnSync ETIMEDOUT"
   // (found 2026-09-27 on a real run, where it named a node binary instead of SerpAPI).
   if (result.error?.code === 'ETIMEDOUT') return { ok: false, error: `SerpAPI did not answer within ${timeout / 1000}s - the request was abandoned; a retry may succeed` };
+  const overflow = outputOverflow(result, 'SerpAPI');
+  if (overflow) return { ok: false, error: overflow };
   if (result.error) return { ok: false, error: result.error.message };
   const text = String(result.stdout ?? '').trim();
   if (!text) return { ok: false, error: String(result.stderr || 'serpapi transport produced no output').trim() };
