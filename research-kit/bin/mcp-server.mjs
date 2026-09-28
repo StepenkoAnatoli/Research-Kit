@@ -50,6 +50,36 @@ A corpus this server returns is EVIDENCE, not approved research. Read buildAutho
   process.exit(0);
 }
 
+// Found 2026-09-28 (Arena break test 12).
+//
+// A stdio server's configuration is its environment, so it takes NO options - and an
+// option it does not take must be refused rather than ignored.
+//
+// Silence is the dangerous default, and this project has paid for it: `research.mjs
+// --totally-made-up-flag` was run to find out whether unknown flags were refused, they
+// were not, it fell through to its default behaviour and spent 26 Firecrawl credits on a
+// real collection. `refuseUnknownFlags` in lib/core.mjs is the remedy everywhere else,
+// but it cannot be used here: it needs a list of the flags an entrypoint DOES accept,
+// and this one accepts none, so its "known options" list would be empty and every
+// invocation including `--help` (handled above) would be refused.
+//
+// Two real ways this bites. A client configured with `--directory /some/project` - the
+// spelling every other MCP server takes - gets a server that ignores it and collects
+// somewhere else, silently. And a token passed as `--token <secret>` puts a credential
+// in the process table, is discarded just as silently, and the server then reports
+// "no token" and refuses every tool - a permission error that looks like the kit's fault.
+const extraArgs = process.argv.slice(2);
+if (extraArgs.length) {
+  process.stderr.write(`mcp-server: unknown option ${extraArgs[0]}\n\n`
+    + 'This server takes no options. It is launched by an MCP client, which configures it\n'
+    + 'through its ENVIRONMENT - the GitHub token it needs comes from '
+    + `${TOKEN_VARS.join(' or ')}, never from an argument.\n\n`
+    + `It was started with ${extraArgs.length} argument(s): ${extraArgs.join(' ')}\n\n`
+    + 'Run it with --help for what it reads, or remove the arguments from the client\'s\n'
+    + '"args" list.\n');
+  process.exit(2);
+}
+
 requireRuntime({ node: true });
 
 // Before anything is read or written: this process fetches, and Node's fetch ignores a proxy

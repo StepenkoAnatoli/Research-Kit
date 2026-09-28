@@ -192,6 +192,125 @@ test('POLICY reject: integers still pass under the strict policy', () => {
   assert.deepEqual(theirs, ours, 'the strict policy changed a non-float result');
 });
 
+// The same boundary, one type over: INTEGERS OUTSIDE THE SAFE RANGE (found 2026-09-28,
+// Arena break test 12).
+//
+// `js_number` is only reached by a value Python parsed as a `float`. `json.loads` parses
+// an integer literal as an `int`, which is arbitrary precision, so `str()` printed the
+// digits the author wrote while JavaScript - which has ONE number type - had already
+// rounded them:
+//
+//     9007199254740993                Node 9007199254740992          old Python 9007199254740993
+//     123456789012345678901234567890  Node 1.2345678901234568e+29    old Python 123456789012345678901234567890
+//
+// The bytes are what get hashed, so the two languages disagreed about whether a record
+// verifies. No shipped vector carried such an integer, which is exactly why a suite of
+// chosen inputs looked like agreement: this is the float defect of 2026-09-20 again, in
+// the type nobody thought to include.
+//
+// These literals are written as STRINGS and rebuilt per side, for the same reason the
+// float cases are: `JSON.stringify` of a number past 2**53 has already rounded it, so a
+// big integer written as a JS literal would reach Python pre-damaged and the test would
+// compare two rounded values.
+const I = (literal) => ({ __int__: literal });
+const INT_CASES = [
+  I('9007199254740993'),            // 2**53 + 1: the first integer JS cannot hold
+  I('-9007199254740993'),           // and its negative
+  I('9007199254740992'),            // 2**53 exactly - the boundary, still representable
+  I('-9007199254740992'),
+  I('9007199254740991'),            // 2**53 - 1: inside the range, must be unchanged
+  I('123456789012345678901234567890'),
+  I('100000000000000000000'),       // 1e20: below JS's exponential threshold, spelled out
+  I('1000000000000000000000'),      // 1e21: AT it, JS switches to exponential
+  I('30000000000000004'),           // a 17-digit integer a corpus could carry
+  I('0'), I('-1'), I('42'),
+  { a: I('9007199254740993'), b: [I('9007199254740991'), I('1000000000000000000000')] },
+];
+
+/**
+ * Rebuild the integer markers as JavaScript numbers.
+ *
+ * `Number(literal)` is the only faithful way to hold what `JSON.parse` produced: it
+ * performs the same rounding to a double. A big integer written as a JS literal would
+ * arrive pre-rounded too, but a literal cannot be generated, so the marker travels as a
+ * string and is converted here.
+ */
+function decodeIntSpec(spec) {
+  if (Array.isArray(spec)) return spec.map(decodeIntSpec);
+  if (spec && typeof spec === 'object') {
+    if (typeof spec.__int__ === 'string') return Number(spec.__int__);
+    return Object.fromEntries(Object.entries(spec).map(([k, x]) => [k, decodeIntSpec(x)]));
+  }
+  return spec;
+}
+
+/** Canonicalise those cases through the shared Python module. */
+function pythonIntCanonical(specs, policy) {
+  const INT_DECODER = [
+    'def decode(v):',
+    '    if isinstance(v, list): return [decode(x) for x in v]',
+    '    if isinstance(v, dict):',
+    '        if isinstance(v.get("__int__"), str): return int(v["__int__"])',
+    '        return {k: decode(x) for k, x in v.items()}',
+    '    return v',
+  ].join('\n');
+  const script = [
+    'import json, sys, importlib.util',
+    `spec = importlib.util.spec_from_file_location("c", ${JSON.stringify(COMMON)})`,
+    'm = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)',
+    INT_DECODER,
+    'out = []',
+    'for raw in json.loads(sys.argv[1]):',
+    '    try:',
+    `        out.append(m.canonical_json(decode(raw), float_policy=${JSON.stringify(policy)}))`,
+    '    except Exception as e:',
+    '        out.append("ERROR:" + type(e).__name__)',
+    'sys.stdout.write(json.dumps(out))',
+  ].join('\n');
+  const run = spawnSync(PYTHON, ['-c', script, JSON.stringify(specs)], {
+    encoding: 'utf8', timeout: 60_000, windowsHide: true,
+  });
+  if (run.status !== 0) throw new Error(`python failed: ${run.stderr?.slice(0, 300)}`);
+  return JSON.parse(run.stdout);
+}
+
+test('integers outside +/-2**53 canonicalise in Python the way JavaScript parses them', () => {
+  python();   // UNSUP, not a silent skip - see the note above
+
+  const ours = INT_CASES.map((spec) => canonicalJson(decodeIntSpec(spec)));
+  const theirs = pythonIntCanonical(INT_CASES, 'normalize');
+
+  for (const [i, expected] of ours.entries()) {
+    assert.equal(theirs[i], expected,
+      `case ${i} (${JSON.stringify(INT_CASES[i])}): Node produced ${expected}, Python produced ${theirs[i]}`);
+  }
+
+  // The disagreement, pinned as VALUES rather than only as an equality: 2**53 + 1 must
+  // come back as 2**53 on BOTH sides, because that is what JavaScript parsed it as.
+  assert.equal(theirs[0], '9007199254740992', 'Python kept digits JavaScript cannot represent');
+  assert.equal(theirs[1], '-9007199254740992', 'and on the negative side');
+  assert.equal(theirs[5], '1.2345678901234568e+29', 'and past the exponential threshold');
+  // Inside the range nothing may be rewritten: a fix that routed every integer through
+  // float formatting would pass the lines above and corrupt every small one.
+  assert.equal(theirs[4], '9007199254740991', 'an integer inside 2**53 must be untouched');
+  assert.equal(theirs[9], '0', 'and zero must stay zero');
+});
+
+test('the strict policy refuses a float without refusing a large integer', () => {
+  python();   // UNSUP, not a silent skip - see the note above
+
+  // The ledger packets carry hashes and chain positions, where a float means the packet
+  // is wrong. An oversized INTEGER is a different fault - a number that lost precision,
+  // not a value of the wrong type - so it is rendered as JavaScript would render it
+  // rather than refused: refusing would make the two languages disagree about whether
+  // the packet is valid at all, which is the one thing this module must never do.
+  const integer = pythonIntCanonical([I('9007199254740993')], 'reject');
+  assert.ok(!String(integer[0]).startsWith('ERROR:'), `an integer was refused under reject: ${integer[0]}`);
+  assert.equal(integer[0], '9007199254740992', 'under reject it still renders as JavaScript does');
+  const float = pythonCanonical([{ a: F('1.0') }], 'reject');
+  assert.ok(String(float[0]).startsWith('ERROR:'), 'a float was canonicalised under reject');
+});
+
 test('the two policies are the only ones, and an unknown one is refused', () => {
   python();   // UNSUP, not a silent skip - see the note above
 

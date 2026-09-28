@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Callable
@@ -127,6 +128,26 @@ def canonical_json(value: Any, *, float_policy: str = "reject") -> str:
     if isinstance(value, str):
         return json_string(value)
     if isinstance(value, int):
+        # JavaScript has ONE number type, a double. An integer literal outside
+        # +/-2**53 does not survive the parse it is about to be hashed after:
+        # 9007199254740993 IS 9007199254740992 there, and
+        # 123456789012345678901234567890 is 1.2345678901234568e+29. Python's int is
+        # arbitrary precision, so `str()` printed the digits the author wrote and the
+        # two languages hashed DIFFERENT BYTES for one input - which is the one
+        # disagreement this module exists to prevent, one type over.
+        #
+        # Found 2026-09-28 (Arena break test 12) by differential testing 3,926 generated
+        # structures: 107 disagreed, and every one of them was an integer outside the
+        # safe range. No shipped vector carried such an integer, which is why the chosen
+        # inputs looked like agreement - the same way the float divergence below hid
+        # behind vectors that happened to contain no float.
+        if not -(2**53) < value < 2**53:
+            try:
+                return js_number(float(value))
+            except OverflowError:
+                # Unreachable from a parsed packet (parse_js_integer refuses it first);
+                # a value built in code gets the same named refusal, not a traceback.
+                raise ConformanceError("non-finite number") from None
         return str(value)
     if isinstance(value, float):
         if float_policy == "reject":
@@ -198,10 +219,23 @@ def json_depth_exceeds(text: str, limit: int = MAX_JSON_DEPTH) -> bool:
     return False
 
 
+def parse_js_integer(digits: str) -> int:
+    """An integer literal as JavaScript's reader takes it: one too large for a double is
+    Infinity there, and refused as "non-finite number" (lib/release/json.mjs). `int()`
+    would accept it, and then `float()` raised OverflowError past ~1.8e308 and `int()`
+    itself ValueError past 4300 digits - tracebacks where Node reports (2026-09-28).
+    `float()` of the digit string is Infinity, never an error, at any length."""
+    if math.isinf(float(digits)):
+        raise ConformanceError("non-finite number")
+    return int(digits)
+
+
 def parse_json_no_duplicates(text: str) -> Any:
     if json_depth_exceeds(text):
         raise ConformanceError(f"JSON nested deeper than {MAX_JSON_DEPTH} levels")
-    return json.loads(text, object_pairs_hook=reject_duplicate_pairs, parse_constant=reject_constant)
+    return json.loads(
+        text, object_pairs_hook=reject_duplicate_pairs, parse_constant=reject_constant, parse_int=parse_js_integer,
+    )
 
 
 def read_packet(
