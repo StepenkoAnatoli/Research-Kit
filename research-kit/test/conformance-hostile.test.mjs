@@ -5,6 +5,7 @@
 // wrote a FAIL report and exited 1. RecursionError is not a JSONDecodeError, so no
 // parse site caught it - and the --json contract broke exactly where a host compares
 // the two languages.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -82,3 +83,26 @@ for (const [label, value] of [['an unpaired-surrogate key', { a: 1, '\ud800': 2 
     }
   });
 }
+
+// The two languages must also AGREE on such a vector. The canonical-serialization spec
+// (docs/superpowers/specs/2026-09-16-researcher-benchmark-release-canonical-serialization.md,
+// rule 3) rejects unpaired UTF-16 surrogates, and Python always did; Node escaped one as
+// "\ud800" and hashed it, so a vector expecting that hash PASSED in Node and was refused
+// in Python (Arena break test 5).
+test('an unpaired surrogate is refused by the Node canonicaliser too, so both languages agree', () => {
+  const python = requirePython('Node/Python agreement on an unpaired surrogate');
+  const packet = JSON.parse(fs.readFileSync(path.join(CONFORMANCE, SHIPPED['ledger-conformance.mjs']), 'utf8'));
+  const canonical = '{"a":"\\ud800"}'; // what Node produced for it
+  packet.vectors = [{
+    ...packet.vectors[0], value: { a: '\ud800' }, expectedCanonical: canonical,
+    expectedSha256: crypto.createHash('sha256').update(canonical).digest('hex'),
+  }];
+  const file = path.join(tempDir('rk-surrogate-'), 'packet.json');
+  fs.writeFileSync(file, JSON.stringify(packet));
+  for (const [exe, runner] of [[process.execPath, 'ledger-conformance.mjs'], [python, 'ledger_conformance.py']]) {
+    const r = spawnSync(exe, [path.join(BIN, runner), '--vectors', file, '--json'], { encoding: 'utf8' });
+    assert.doesNotMatch(r.stderr, /Traceback|at .*\.mjs:\d+/, `${runner} crashed:\n${r.stderr.slice(-400)}`);
+    assert.equal(JSON.parse(r.stdout).status, 'FAIL', `${runner} accepted an unpaired surrogate`);
+    assert.equal(r.status, 1, runner);
+  }
+});
