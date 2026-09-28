@@ -41,7 +41,8 @@ node "{{KIT}}/bin/handoff.mjs"
 ```
 
 The remedy depends on the cause, and the command says which: something that did not
-travel is the collector's to push (`git add -f research/raw/`, dotfiles included);
+travel is the collector's to push (`git add research/` then `git add -f research/raw/.fetches.jsonl`,
+the ledger by name - `-f` on the whole folder also commits the machine-local logs);
 a corpus that travelled whole and was rewritten on checkout here is fixed **here**, with
 `.gitattributes`, and costs no credits.
 

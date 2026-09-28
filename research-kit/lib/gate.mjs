@@ -16,6 +16,7 @@ import { runPreflight, verdictContext, readGateState, fixCommand } from './prefl
 import { readCorpus } from './corpus.mjs';
 import { isGitRepo } from './machine.mjs';
 import { recordOverride } from './provenance.mjs';
+import { CORPUS_ADD } from './handoff.mjs';
 
 export const DEFAULT_CODE_PATHS = Object.freeze(['src', 'lib', 'bin', 'scripts', 'app']);
 
@@ -257,7 +258,7 @@ export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = n
         allow: false,
         judged: 'index',
         reason: 'this project is gated, but no part of research/ is tracked - the evidence is not in the repository and cannot travel',
-        fix: 'git add -f research/          # including its dotfiles',
+        fix: CORPUS_ADD.join(' && '),
         findings: [],
       };
     }

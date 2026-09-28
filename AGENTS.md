@@ -58,8 +58,10 @@ names is on disk, and that the chain verifies - and exit 1 names whatever is mis
 **The remedy depends on the cause, and the command says which.** Do not assume the other
 machine:
 
-- *Something did not travel.* Then it is the collector's to push: **`git add -f
-  research/raw/` including its dotfiles**, then the builder pulls or re-clones.
+- *Something did not travel.* Then it is the collector's to push: **`git add research/`
+  and `git add -f research/raw/.fetches.jsonl`** - the ledger by name, because a dotfile
+  rule can hide it; not the whole folder with `-f`, which also commits the machine-local
+  logs and lock the repository ignores - then the builder pulls or re-clones.
 - *Everything travelled, and this machine rewrote it on checkout.* Then the body hashes
   fail only on line endings - `core.autocrlf=true`, the default on Windows, smudges every
   text file leaving the object store, and the hashes were taken over LF bytes. The corpus

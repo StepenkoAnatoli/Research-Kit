@@ -17,10 +17,24 @@ import { readCorpus, captureOf, traceOf } from './corpus.mjs';
 import { verifyLedger } from './provenance.mjs';
 import { briefState, judgedSection, JUDGED_SECTIONS } from './brief.mjs';
 
+/**
+ * How the corpus goes into git, as the kit prints it: everything under research/ the ignore
+ * rules allow, then the LEDGER forced in by name - a dotfile a global ignore rule can hide.
+ *
+ * It was `git add -f research/raw/` (and the gate's `git add -f research/`). -f forces every
+ * ignored file, so run as printed it committed the machine-local byproducts the repository
+ * ignores on purpose - .usage.jsonl, .failures.jsonl, .diagnostics.jsonl, .fetches.lock,
+ * overrides.log - and repo-hygiene failed (found 2026-09-28, end-to-end run).
+ */
+export const CORPUS_ADD = Object.freeze([
+  'git add research/',
+  `git add -f ${PATHS.ledger}`,
+]);
+
 export const HANDOFF_REMEDY = [
   'Something did not travel. The remedy lives on the COLLECTOR machine:',
   '',
-  '    git add -f research/raw/          # including its dotfiles',
+  ...CORPUS_ADD.map((line) => `    ${line}`),
   '    git commit && git push',
   '',
   'then pull or re-clone here. research/raw/.fetches.jsonl is the hash-chained ledger,',
