@@ -332,6 +332,10 @@ export function canonicalJson(value) {
 
   const parts = [];
   const stack = [];
+  // The containers open on the way down. The recursive form failed fast on a cycle (a
+  // stack overflow); a loop would walk one forever, so a cycle is refused by name. Only
+  // ANCESTORS count: a value shared by two siblings is not a cycle and still renders.
+  const open = new Set([value]);
   let frame = frameOf(value);
   parts.push(frame.keys === null ? '[' : '{');
   for (;;) {
@@ -339,6 +343,7 @@ export function canonicalJson(value) {
     const count = isArray ? frame.node.length : frame.keys.length;
     if (frame.at >= count) {
       parts.push(isArray ? ']' : '}');
+      open.delete(frame.node);
       frame = stack.pop();
       if (!frame) return parts.join('');
       continue;
@@ -349,6 +354,8 @@ export function canonicalJson(value) {
     if (!isArray) parts.push(`${JSON.stringify(key)}:`);
     const child = frame.node[key];
     if (child !== null && typeof child === 'object') {
+      if (open.has(child)) throw new TypeError('canonicalJson: the value is cyclic - it contains itself, so it has no JSON rendering');
+      open.add(child);
       stack.push(frame);
       frame = frameOf(child);
       parts.push(frame.keys === null ? '[' : '{');

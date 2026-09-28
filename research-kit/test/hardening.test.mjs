@@ -644,3 +644,26 @@ test('canonical JSON renders at a depth that used to end the process', () => {
   // A hash is the only thing callers do with this, and it must be stable across two calls.
   assert.equal(sha256(canonicalJson(deep)), sha256(rendered));
 });
+
+// Follow-up to Arena break test 11: the recursive canonicalJson FAILED FAST on a cyclic
+// value (a stack overflow); the iterative one would walk it forever, growing its output
+// until the process ran out of memory. Nothing read from a file can be cyclic, but a hang
+// is worse than a throw, so a cycle is refused by name. Run in a child with a timeout: the
+// failure this guards against does not end on its own.
+test('canonical JSON refuses a cyclic value instead of walking it forever', async () => {
+  const core = pathToFileURL(path.join(KIT_ROOT, 'lib', 'core.mjs')).href;
+  const source = `import { canonicalJson } from ${JSON.stringify(core)};
+const loop = { a: [1, { b: null }] }; loop.a[1].b = loop;
+try { canonicalJson(loop); console.log('RENDERED'); } catch (err) { console.log('REFUSED ' + err.message); }
+const shared = { x: 1 };
+console.log(canonicalJson({ p: shared, q: [shared, shared] }));`;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', source], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let out = '';
+  child.stdout.on('data', (d) => { out += d; });
+  const timer = setTimeout(() => child.kill('SIGKILL'), 10_000);
+  const status = await new Promise((done) => child.on('close', (code) => done(code)));
+  clearTimeout(timer);
+  assert.equal(status, 0, `the child did not finish (killed after 10s, or crashed):\n${out.slice(0, 300)}`);
+  assert.match(out, /REFUSED .*cycl/, `a cyclic value was not refused by name:\n${out.slice(0, 300)}`);
+  assert.match(out, /\{"p":\{"x":1\},"q":\[\{"x":1\},\{"x":1\}\]\}/, 'a value seen twice but not cyclic must still render');
+});
