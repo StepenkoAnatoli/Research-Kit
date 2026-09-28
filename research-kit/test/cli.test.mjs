@@ -179,6 +179,21 @@ test('a run capped by its depth below the plan\'s maxScrapes says which flag rai
   assert.match(both.out, /depth normal and the plan's maxScrapes both cap this run at 10 - raise maxScrapes and pass --depth deep/, both.out);
 });
 
+// ADR-0086: the fallback is announced before a run, and --no-fallback is a real flag. A
+// run already on http-keyless has nothing to fall back to, so nothing is announced.
+test('research names its credit fallback, and --no-fallback is accepted', () => {
+  const root = project('fallback');
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({
+    topic: 'fallback', depth: 'quick', maxScrapes: 10, refreshDays: 30, limit: 8, perQuery: 3, prefer: [], queries: [],
+    urls: [{ url: 'https://x.invalid/page', type: 'P', why: 'page' }],
+  }));
+  const keyless = run('research.mjs', ['--plan', 'research/plan.json', '--dry-run', '--transport', 'http-keyless'], { root });
+  assert.equal(keyless.status, 0, keyless.out + keyless.err);
+  assert.doesNotMatch(keyless.out, /fallback:/, keyless.out);
+  const off = run('research.mjs', ['--plan', 'research/plan.json', '--dry-run', '--transport', 'http-keyless', '--no-fallback'], { root });
+  assert.equal(off.status, 0, `--no-fallback was refused:\n${off.out}${off.err}`);
+});
+
 test('pages left out by the budget are named, and --status states the budget the run will use', () => {
   const root = project('budget');
   fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({

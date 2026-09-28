@@ -619,3 +619,84 @@ test('a same-day re-collection of an unchanged page reuses its capture', () => {
   assert.equal(second.entry.file, first.entry.file);
   assert.equal(verifyLedger(dir).ok, true);
 });
+
+// ADR-0086. Firecrawl answers exhausted credits with 402 and the text below, and the CLI
+// passes on only the text (docs/decisions/2026-09-28-fetch-fallback, E-10, E-11). Until
+// 2026-09-28 every page after that point was recorded as failed.
+const EXHAUSTED = 'Error: Insufficient credits to perform this request. For more credits, you can upgrade your plan at https://firecrawl.dev/pricing or try changing the request limit to a lower value.';
+
+function exhaustingAdapter({ afterScrapes = 1, searchExhausted = false } = {}) {
+  let scrapes = 0;
+  const ok = stubAdapter();
+  return {
+    name: 'firecrawl-cli',
+    creditsExhausted: (text) => /insufficient credits/i.test(String(text ?? '')),
+    runScrape: (url) => {
+      scrapes += 1;
+      if (scrapes > afterScrapes) return { ok: false, url, error: EXHAUSTED, transport: 'firecrawl-cli', cmd: `firecrawl scrape ${url}` };
+      return { ...ok.runScrape(url), transport: 'firecrawl-cli' };
+    },
+    search: (query) => (searchExhausted
+      ? { ok: false, query, error: EXHAUSTED, results: [] }
+      : { ok: true, query, results: [] }),
+  };
+}
+
+function keylessStub(results = []) {
+  const ok = stubAdapter({ results });
+  return { ...ok, name: 'http-keyless', runScrape: (url) => ({ ...ok.runScrape(url), transport: 'http-keyless' }) };
+}
+
+test('when Firecrawl runs out of credits, the rest of the run fetches through the fallback, and says so', () => {
+  const dir = makeProject();
+  writeJson(resolve(dir, PATHS.plan), {
+    topic: 'Fixture', depth: 'normal', refreshDays: 30, limit: 8, perQuery: 3, maxScrapes: 10, prefer: [], queries: [],
+    urls: ['https://x.invalid/a', 'https://x.invalid/b', 'https://x.invalid/c'],
+  });
+  const lines = [];
+  const run = runResearch(dir, { adapter: exhaustingAdapter({ afterScrapes: 1 }), fallbackAdapter: keylessStub(), log: (l) => lines.push(l) });
+
+  assert.deepEqual(run.results.map((r) => r.status), ['collected', 'collected', 'collected'], JSON.stringify(run.results, null, 1));
+  assert.equal(run.failed, 0, 'the refused request cost nothing and is not a failed page');
+  assert.deepEqual(run.fellBack, { from: 'firecrawl-cli', to: 'http-keyless', reason: 'credits exhausted' });
+  assert.equal(lines.filter((l) => /credits ran out on firecrawl-cli.*http-keyless/.test(l)).length, 1, lines.join('\n'));
+
+  // The ledger records which transport fetched each page, and keeps the refused request.
+  const entries = readCorpus(dir).ledger.entries;
+  assert.deepEqual(entries.filter((e) => e.op === 'scrape').map((e) => e.transport), ['firecrawl-cli', 'http-keyless', 'http-keyless']);
+  assert.deepEqual(entries.filter((e) => e.op === 'fail').map((e) => e.transport), ['firecrawl-cli']);
+  assert.ok(readText(resolve(dir, PATHS.failures)).includes('"op":"credits-exhausted"'));
+});
+
+test('an exhausted search falls back too, and no fallback is taken on any other failure or when none is given', () => {
+  const dir = makeProject();
+  writeJson(resolve(dir, PATHS.plan), {
+    topic: 'Fixture', depth: 'normal', refreshDays: 30, limit: 8, perQuery: 3, maxScrapes: 10, prefer: [], urls: [],
+    queries: [{ q: 'rate limits plan' }],
+  });
+  const found = [{ url: 'https://docs.example.com/rate-limits-plan', title: 'Rate limits plan', description: 'rate limits for each plan' }];
+  const run = runResearch(dir, { adapter: exhaustingAdapter({ searchExhausted: true }), fallbackAdapter: keylessStub(found) });
+  assert.equal(run.fellBack?.to, 'http-keyless');
+  assert.deepEqual(run.results.map((r) => [r.status, r.url]), [['collected', found[0].url]]);
+
+  // A page that fails for another reason is a failed page, not a reason to switch.
+  const other = makeProject();
+  writeJson(resolve(other, PATHS.plan), {
+    topic: 'Fixture', depth: 'normal', refreshDays: 30, limit: 8, perQuery: 3, maxScrapes: 10, prefer: [], queries: [],
+    urls: ['https://x.invalid/a'],
+  });
+  const flaky = { ...exhaustingAdapter({ afterScrapes: 0 }), runScrape: (url) => ({ ok: false, url, error: 'HTTP 500', cmd: 'x' }) };
+  const r2 = runResearch(other, { adapter: flaky, fallbackAdapter: keylessStub() });
+  assert.equal(r2.fellBack, null);
+  assert.equal(r2.failed, 1);
+
+  // No fallback given (--no-fallback, or keyless already): exhausted credits stay failures.
+  const none = makeProject();
+  writeJson(resolve(none, PATHS.plan), {
+    topic: 'Fixture', depth: 'normal', refreshDays: 30, limit: 8, perQuery: 3, maxScrapes: 10, prefer: [], queries: [],
+    urls: ['https://x.invalid/a'],
+  });
+  const r3 = runResearch(none, { adapter: exhaustingAdapter({ afterScrapes: 0 }) });
+  assert.equal(r3.fellBack, null);
+  assert.equal(r3.failed, 1);
+});

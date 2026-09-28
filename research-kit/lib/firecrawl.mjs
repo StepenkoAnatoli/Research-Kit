@@ -343,6 +343,18 @@ export function status({ execFn = exec, ...opts } = {}) {
 }
 
 /** The seam the collector consumes: one URL in, one capture-shaped result out. */
+/**
+ * Whether a failure's text says the account's credits are exhausted (ADR-0086).
+ *
+ * The API answers 402 with "Insufficient credits to perform this request. ..." and the CLI
+ * prints only that text - the status never reaches this adapter (fetch-fallback corpus,
+ * E-10, E-11). Matched on the words, case-insensitively: v0 and v1 phrase the rest
+ * differently, and "Insufficient credits" is the part they share.
+ */
+export function creditsExhausted(text) {
+  return /insufficient credits/i.test(String(text ?? ''));
+}
+
 export function runScrape(url, opts = {}) {
   return scrape(url, opts);
 }
@@ -443,7 +455,7 @@ export function cliCompatibility(version = cliVersion()) {
   };
 }
 
-export default { name, scrape, search, map, command, status, runScrape };
+export default { name, scrape, search, map, command, status, runScrape, creditsExhausted };
 
 /**
  * How long the vendor asked us to wait, in milliseconds, or `null` if this is not a rate
