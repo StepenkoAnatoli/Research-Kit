@@ -7,7 +7,7 @@
 // A check emits findings. It never decides what a finding MEANS for the build - that is
 // the verdict's single judgement, in lib/preflight.mjs.
 
-import { hostOf, PATHS, resolve, exists, ageInDays, urlKey, readText, kitCommand } from './core.mjs';
+import { hostOf, siteOf, PATHS, resolve, exists, ageInDays, urlKey, readText, kitCommand } from './core.mjs';
 import { captureOf, traceOf, citedIds, parseCapture } from './corpus.mjs';
 import { documentGroups, closestPair } from './similarity.mjs';
 import { coverageOfUniversals } from './dimensions.mjs';
@@ -831,7 +831,8 @@ function corroboration(corpus) {
     if (rows.length === 1) {
       shape = { rule: 'single-source', detail: `rests on ${rows[0].id} alone - one reading, so a correct source and a lucky one look the same` };
     } else {
-      const hosts = new Set(rows.map((row) => hostOf(row.url)).filter(Boolean));
+      // By SITE, not hostname: two subdomains of one company are one voice (2026-09-28).
+      const hosts = new Set(rows.map((row) => siteOf(row.url)).filter(Boolean));
       if (hosts.size === 1) {
         shape = { rule: 'one-voice', detail: `cites ${rows.length} rows and all are ${[...hosts][0]} - a second reading of one source, which catches a misreading and not a source that is wrong about itself` };
       } else {
@@ -845,7 +846,7 @@ function corroboration(corpus) {
         } else {
           // Hosts that survive as DISTINCT documents. A three-row unknown where two rows
           // mirror each other still counts the third, so this reports what is independent.
-          const distinctHosts = new Set(groups.map((g) => hostOf(rows[g[0]].url)).filter(Boolean));
+          const distinctHosts = new Set(groups.map((g) => siteOf(rows[g[0]].url)).filter(Boolean));
           if (distinctHosts.size === 1) {
             shape = { rule: 'one-voice', detail: `cites ${rows.length} rows across ${hosts.size} hosts, but after grouping republished copies only ${[...distinctHosts][0]} remains - one voice` };
           } else {

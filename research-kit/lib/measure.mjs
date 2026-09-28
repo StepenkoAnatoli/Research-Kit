@@ -8,7 +8,7 @@
 
 import { readCorpus, captureOf, parseCapture } from './corpus.mjs';
 import { verifyLedger } from './provenance.mjs';
-import { resolve, readText, hostOf, exists } from './core.mjs';
+import { resolve, readText, siteOf, exists } from './core.mjs';
 import { quoteAnchors, anchorFound } from './quotes.mjs';
 
 const share = (part, whole) => (whole ? Math.round((part / whole) * 1000) / 10 : null);
@@ -48,7 +48,7 @@ export function measureCorpus(root, { corpus = null } = {}) {
   const byId = new Map(rows.map((r) => [r.id.toUpperCase(), r]));
   const closed = snapshot.unknowns.filter((u) => u.status === 'CLOSED');
   const withPrimary = closed.filter((u) => u.cites.some((id) => byId.get(id.toUpperCase())?.type === 'P')).length;
-  const twoHosts = closed.filter((u) => new Set(u.cites.map((id) => byId.get(id.toUpperCase())?.url).filter(Boolean).map(hostOf)).size >= 2).length;
+  const twoHosts = closed.filter((u) => new Set(u.cites.map((id) => byId.get(id.toUpperCase())?.url).filter(Boolean).map(siteOf)).size >= 2).length;
 
   return {
     rows: rows.length,

@@ -815,3 +815,15 @@ test('a closure resting only on secondary rows is flagged', () => {
   assert.match(flagged.detail, /U-1 rests only on secondary \(S\) rows/);
   assert.equal(runCheck('unknown-closure', readCorpus(makePassingProject())).find((f) => f.rule === 'secondary-only'), undefined);
 });
+
+// Found 2026-09-28: citing docs.firecrawl.dev (E-21) beside www.firecrawl.dev (E-13) turned
+// the root corpus's U-8 "independent" on hostname alone - the exact trap its own
+// [single-witness: ...] note warned about ("one company describing itself"). Independence is
+// judged by site, the registrable domain, and hosting platforms keep each owner apart.
+test('two subdomains of one company are one voice; two owners on one platform are not', async () => {
+  const { siteOf } = await import('../lib/core.mjs');
+  assert.equal(siteOf('https://docs.firecrawl.dev/billing'), siteOf('https://www.firecrawl.dev/'));
+  assert.equal(siteOf('https://api.example.co.uk/x'), 'example.co.uk');
+  assert.notEqual(siteOf('https://alice.github.io/a'), siteOf('https://bob.github.io/b'));
+  assert.notEqual(siteOf('https://firecrawl.dev/'), siteOf('https://serpapi.com/'));
+});
