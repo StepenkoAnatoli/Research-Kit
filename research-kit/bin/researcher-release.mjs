@@ -3,6 +3,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
+import { writeText } from '../lib/core.mjs';
 import {
   DEFAULT_SCHEMA_DIR,
   listJsonFiles,
@@ -95,7 +96,7 @@ function main(argv = process.argv.slice(2)) {
       recordsDir: path.resolve(parsed.records),
       manifest: path.resolve(parsed.manifest),
     });
-    if (parsed.report) fs.writeFileSync(path.resolve(parsed.report), `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+    if (parsed.report) writeText(path.resolve(parsed.report), `${JSON.stringify(result, null, 2)}\n`);   // whole or not at all (ADR-0079)
   } else {
     console.error(usage());
     return 2;

@@ -24,6 +24,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { writeBytes } from './core.mjs';
 import { openZip } from './artifact-zip.mjs';
 import { validateArtifact } from './artifact-validator.mjs';
 
@@ -354,7 +355,9 @@ export async function fetchCorpus({
   const { bytes: pkg, unwrapped, name } = unwrapArtifact(bytes);
 
   const file = path.join(dir, unwrapped ? name : `${wanted[0].name}.zip`);
-  fs.writeFileSync(file, pkg);
+  // Whole or not at all (ADR-0079), as writeArtifact is: a failed write must not empty a
+  // package already at this name (Arena break test 10, 2026-09-28).
+  writeBytes(file, pkg);
 
   return { file, artifact: wanted[0], validation: validateArtifact({ file, expectedClientRef }) };
 }
