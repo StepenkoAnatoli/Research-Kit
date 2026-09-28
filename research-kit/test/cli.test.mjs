@@ -676,6 +676,32 @@ test('new-project over an existing project says it kept it, and that --topic was
 // Found 2026-09-27: `audit --version v9` without --show rendered (or declined to render) a new
 // audit and never mentioned v9; `--topic` without --zip was dropped the same way. A flag that
 // only means something beside another is refused alone.
+// Found 2026-09-28: --zip refused a manifest naming a file outside research/audits/, and
+// --show printed that same file. A manifest travels with the corpus from another machine,
+// so what one reader refuses the other must refuse too - by name, and by symlink.
+test('audit --show refuses a manifest file outside research/audits/, as --zip does', () => {
+  const root = tempDir('rk-show-outside-');
+  const audits = path.join(root, 'research', 'audits');
+  fs.mkdirSync(audits, { recursive: true });
+  fs.writeFileSync(path.join(root, 'outside.txt'), 'OUTSIDE-THE-AUDITS\n');
+  const manifest = (file) => fs.writeFileSync(path.join(audits, 'index.json'),
+    JSON.stringify({ topics: { t: { latest: '0.1', versions: { 0.1: { main: file, subtopics: [], date: '2026-09-28' } } } } }));
+
+  manifest('research/audits/../../outside.txt');
+  const named = run('audit.mjs', ['--show', 't'], { root });
+  assert.equal(named.status, 1, named.all);
+  assert.doesNotMatch(named.out, /OUTSIDE-THE-AUDITS/, 'the file outside research/audits/ was printed');
+  assert.match(named.err, /resolves outside research\/audits\//);
+
+  if (process.platform !== 'win32') {
+    fs.symlinkSync(path.join(root, 'outside.txt'), path.join(audits, 'link.md'));
+    manifest('research/audits/link.md');
+    const linked = run('audit.mjs', ['--show', 't'], { root });
+    assert.equal(linked.status, 1, linked.all);
+    assert.doesNotMatch(linked.out, /OUTSIDE-THE-AUDITS/, 'a symlink out of research/audits/ was followed');
+  }
+});
+
 test('audit refuses --version without --show, and --topic without --zip', () => {
   const root = planned('audit flags');
   const version = run('audit.mjs', ['--version', 'v9'], { root });

@@ -339,6 +339,39 @@ export function writeAudit(root, { date = today(), force = false, env = process.
 // ---------------------------------------------------------------- the bundle
 
 /**
+ * One audit file the manifest names, read only if it is inside research/audits/:
+ * `{ text }`, or `{ text: null, outside, reason }`. `zipAudit` and `audit --show` both read
+ * through this - --show read the path as given, and printed a file --zip refused
+ * (2026-09-28). A manifest can arrive from another machine with the corpus, so containment
+ * is checked on the SOURCE PATH, before the read.
+ */
+export function readAuditFile(root, file) {
+  const auditsDir = resolve(root, PATHS.audits);
+  // The BOUNDARY must be resolved the same way the file is, or the comparison is between
+  // two different namings of the same place.
+  //
+  // It was not. `real` was realpath'd and `auditsDir` was not, so any project reached
+  // through a symlink refused to bundle its own files: on macOS /var is a symlink to
+  // /private/var, so a file at /var/.../audits/x.md realpaths to /private/var/... and
+  // "resolves outside" an audits directory it is literally inside. Real users hit this
+  // wherever a project lives under a symlink - a macOS temp dir, a symlinked ~/projects,
+  // a Linux /home -> /mnt/home. Found by the macOS CI leg on its first run.
+  //
+  // Both comparisons are kept: plain against plain still catches a manifest naming ../..
+  // when the target does not exist and realpath cannot say anything.
+  let auditsReal = auditsDir;
+  try { auditsReal = fs.realpathSync(auditsDir); } catch { /* not created yet; plain check still applies */ }
+  const abs = resolve(root, file);
+  let real = abs;
+  try { real = fs.realpathSync(abs); } catch { /* checked as a plain path below */ }
+  if (!isInside(auditsDir, abs) || (exists(abs) && !isInside(auditsReal, real))) {
+    return { text: null, outside: true, reason: `the manifest names ${file}, which resolves outside ${PATHS.audits}/` };
+  }
+  const text = readText(abs);
+  return text === null ? { text: null, outside: false, reason: `the manifest names ${file}, which is not on disk` } : { text };
+}
+
+/**
  * One topic's latest main audit plus every subtopic audit of that version, in one zip.
  * The file list comes from the MANIFEST, never a directory listing: a listing would
  * sweep in v0.1 sitting beside v0.9, which is precisely what an operator cannot check
@@ -377,43 +410,15 @@ export function zipAudit(root, { topic = '', date = today() } = {}) {
   }
 
   const files = [resolved.main, ...resolved.subtopics];
-  const auditsDir = resolve(root, PATHS.audits);
-  // The BOUNDARY must be resolved the same way the file is, or the comparison is between
-  // two different namings of the same place.
-  //
-  // It was not. `real` was realpath'd and `auditsDir` was not, so any project reached
-  // through a symlink refused to bundle its own files: on macOS /var is a symlink to
-  // /private/var, so a file at /var/.../audits/x.md realpaths to /private/var/... and
-  // "resolves outside" an audits directory it is literally inside. Real users hit this
-  // wherever a project lives under a symlink - a macOS temp dir, a symlinked ~/projects,
-  // a Linux /home -> /mnt/home. Found by the macOS CI leg on its first run.
-  //
-  // Both comparisons are kept: plain against plain still catches a manifest naming ../..
-  // when the target does not exist and realpath cannot say anything.
-  let auditsReal = auditsDir;
-  try { auditsReal = fs.realpathSync(auditsDir); } catch { /* not created yet; plain check still applies */ }
   const entries = [];
   for (const file of files) {
-    // A manifest can arrive from another machine with the corpus. Containment is checked
-    // on the SOURCE PATH, before the read: sanitising the archive entry name afterwards
-    // does nothing about a file that was already read from outside the project.
-    const abs = resolve(root, file);
-    let real = abs;
-    try { real = fs.realpathSync(abs); } catch { /* checked as a plain path below */ }
-    if (!isInside(auditsDir, abs) || (exists(abs) && !isInside(auditsReal, real))) {
-      return {
-        ok: false,
-        exit: 1,
-        reason: `the manifest names ${file}, which resolves outside ${PATHS.audits}/ - refusing to package it`,
-        fix: `repair ${PATHS.audits}/index.json`,
-      };
-    }
-    const text = readText(abs);
-    if (text === null) {
+    const read = readAuditFile(root, file);
+    if (read.outside) return { ok: false, exit: 1, reason: `${read.reason} - refusing to package it`, fix: `repair ${PATHS.audits}/index.json` };
+    if (read.text === null) {
       // A partial bundle looks like a complete one until somebody reads it.
-      return { ok: false, exit: 1, reason: `the manifest names ${file}, which is not on disk - refusing to bundle short`, fix: kitCommand('audit.mjs') };
+      return { ok: false, exit: 1, reason: `${read.reason} - refusing to bundle short`, fix: kitCommand('audit.mjs') };
     }
-    entries.push({ name: path.basename(file), data: text });
+    entries.push({ name: path.basename(file), data: read.text });
   }
 
   // The archive's name is deterministic from the manifest - topic, version and date -

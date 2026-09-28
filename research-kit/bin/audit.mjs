@@ -5,8 +5,8 @@
 // second sort, which made the reader below it dead code and the ordering unsettleable.
 
 import { parseFlags, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
-import { writeAudit, listVersions, resolveVersion, zipAudit } from '../lib/audit.mjs';
-import { readText, resolve } from '../lib/core.mjs';
+import { writeAudit, listVersions, resolveVersion, zipAudit, readAuditFile } from '../lib/audit.mjs';
+import { PATHS } from '../lib/core.mjs';
 import { heading } from '../lib/render.mjs';
 
 import { kitCommand } from '../lib/core.mjs';
@@ -83,9 +83,9 @@ if (typeof flags.show === 'string') {
   const held = resolveVersion(root, slug, typeof flags.version === 'string' ? flags.version : null);
   if (!held) { process.stderr.write(`no such version for "${slug}"\n`); process.exit(1); }
   if (!held.main) { process.stderr.write(`the manifest records no audit file for "${slug}" v${held.version}\n`); process.exit(1); }
-  const text = readText(resolve(root, held.main));
-  if (text === null) { process.stderr.write(`the manifest names ${held.main}, which is not on disk\n`); process.exit(1); }
-  process.stdout.write(text);
+  const read = readAuditFile(root, held.main);
+  if (read.text === null) { process.stderr.write(`${read.reason}${read.outside ? ` - refusing to show it. Repair ${PATHS.audits}/index.json` : ''}\n`); process.exit(1); }
+  process.stdout.write(read.text);
   process.exit(0);
 }
 
