@@ -49,6 +49,28 @@ test('an empty ledger beside captures on disk lost its entries: restore or re-co
   assert.match(report.remedy, /research\.mjs --plan research\/plan\.json --force/);
 });
 
+// The same loss, one line shorter: a torn LAST line of a longer ledger, dropped by
+// doctor --fix-arity, leaves one cited capture on disk that no entry records. Handoff said
+// OK and exited 0 while preflight failed it (fetch-entry-exists) - the builder's first
+// command disagreed with its second.
+test('a cited capture no ledger entry records is named, with the restore remedy', () => {
+  const dir = makePassingProject();
+  const capture = readCorpus(dir).captures.entries[0];
+  const second = capture.file.replace(/\.md$/, '-two.md');
+  fs.copyFileSync(resolve(dir, capture.file), resolve(dir, second));
+  const evidence = resolve(dir, PATHS.evidence);
+  const row = fs.readFileSync(evidence, 'utf8').split('\n').find((l) => l.startsWith('| E-01 '));
+  fs.appendFileSync(evidence, `${row.replace('E-01', 'E-02').replace(capture.file, second)}\n`);
+  const report = verifyHandoff(dir);
+  assert.equal(report.ok, false, 'handoff passed a capture preflight fails');
+  const finding = report.findings.find((f) => f.name === 'handoff-capture-unledgered');
+  assert.ok(finding, names(report).join(', '));
+  assert.match(finding.detail, /E-02/);
+  assert.equal(report.ledgerLost, true);
+  assert.equal(report.didNotTravel, false);
+  assert.match(report.remedy, /git checkout HEAD -- research\/raw\/\.fetches\.jsonl/);
+});
+
 test('an empty ledger with a cited capture also missing gets both remedies', () => {
   const dir = makePassingProject();
   const capture = readCorpus(dir).captures.entries[0];
