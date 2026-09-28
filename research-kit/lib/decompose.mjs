@@ -14,7 +14,7 @@ import {
 import { readCorpus, cacheDecision, tableRow, appendJsonLine } from './corpus.mjs';
 import { seedRows, UNIVERSAL_DIMENSIONS } from './dimensions.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
-import { urlKey, matchesQuery } from './research-run.mjs';
+import { urlKey, matchesQuery, mergeByRank } from './research-run.mjs';
 import { KIT_ROOT, UNTITLED_TOPIC } from './scaffold.mjs';
 
 export const RECIPE_DIR = path.join(KIT_ROOT, 'recipes');
@@ -154,7 +154,7 @@ function mapBody({ topic, rows, hosts, material, date, recipe, failures = [], dr
   // Three different empty maps, and they must not read alike: a dry run gathered nothing on
   // purpose, a quiet topic was searched and answered with nothing, and an outage was never
   // answered at all. Only the first is fixed by running without --dry-run.
-  const lost = failures.filter((f) => !f.degraded);
+  const lost = failures.filter((f) => !f.degraded && !f.covered);
   if (!hosts.length && !material.length) {
     if (dryRun) lines.push('_No material gathered - run without `--dry-run`, or add URLs to `research/plan.json`._', '');
     else if (lost.length) lines.push('_No material gathered - every search failed (below). This map is the bare checklist; re-run once the provider answers._', '');
@@ -163,7 +163,7 @@ function mapBody({ topic, rows, hosts, material, date, recipe, failures = [], dr
   if (failures.length) {
     lines.push('Search failures - a map drafted from failed searches looks like a map of a quiet topic, so they are listed:', '');
     for (const f of failures) {
-      const fell = f.degraded && f.fellBackTo ? ` - fell back to ${f.fellBackTo}` : '';
+      const fell = f.degraded && f.fellBackTo ? ` - fell back to ${f.fellBackTo}` : (f.covered ? ' - answered by the other provider' : '');
       lines.push(`- \`${scrubError(f.query)}\` on ${f.provider}: ${scrubError(f.error)}${fell}`);
     }
     lines.push('');
@@ -181,6 +181,10 @@ export function decompose(root, {
   topic,
   adapter,
   searchAdapter = null,
+  // A MERGED selection (a SerpAPI key beside the fetch provider): every one is asked each
+  // query and the lists are interleaved by rank, as research.mjs does (ADR-0027). The CLI
+  // passed only the first, while printing that both were searched (found 2026-09-28).
+  searchAdapters = null,
   recipe = '',
   limit = 8,
   maxScrapes = 0,
@@ -223,6 +227,13 @@ export function decompose(root, {
   let spent = 0;
   let searches = 0;
   let searchesUsed = 0;
+  // By the provider that paid, as research-run records it (searchesOn).
+  const searchesOn = {};
+  const countOn = (provider, used) => {
+    if (!Number.isFinite(used)) return;
+    searchesUsed += used;
+    if (used) searchesOn[provider] = (searchesOn[provider] ?? 0) + used;
+  };
   let searchCreditsEstimate = 0;
   let cached = 0;
   let failedScrapes = 0;
@@ -237,7 +248,8 @@ export function decompose(root, {
   if (dryRun) {
     // Named, as research's dry run names its queries: the dry run seeded the map and said
     // nothing about the four searches a real run spends (found 2026-09-27).
-    const meter = searchAdapter?.name ?? adapter?.name ?? 'the search provider this machine selects';
+    const merged = (searchAdapters ?? []).filter(Boolean);
+    const meter = merged.length > 1 ? merged.map((one) => one.name).join(' + ') : (searchAdapter?.name ?? adapter?.name ?? 'the search provider this machine selects');
     for (const query of queries) log(`  would search "${query}" on ${meter}, keeping up to ${limit} result(s)`);
     if (maxScrapes > 0) log(`  and scrape up to ${maxScrapes} of the pages found`);
   }
@@ -246,10 +258,35 @@ export function decompose(root, {
     const seen = new Set();
     // The SEARCH side (ADR-0027). Absent means "the fetch adapter" - what this function
     // did before the split, so a caller that has not been updated is unaffected.
-    const searcher = searchAdapter ?? adapter;
+    const searchers = (searchAdapters ?? []).filter(Boolean);
+    const searcher = searchAdapter ?? searchers[0] ?? adapter;
     for (const query of queries) {
+      if (searchers.length > 1) {
+        const lists = [];
+        const missed = [];
+        for (const one of searchers) {
+          const r = one.search(query, { limit });
+          countOn(one.name, r?.searchesUsed);
+          if (Number.isFinite(r?.creditsEstimate)) searchCreditsEstimate += r.creditsEstimate;
+          if (!r?.ok) {
+            missed.push({ query, error: r?.error, provider: one.name });
+            log(`  search failed on ${one.name}: ${r?.error}`);
+            continue;
+          }
+          lists.push({ provider: one.name, results: r.results ?? [] });
+        }
+        // A provider that missed a query another one answered is recorded, but the query is
+        // answered: `covered` keeps it out of the lost count (searchSummary).
+        for (const miss of missed) failures.push(lists.length ? { ...miss, covered: true } : miss);
+        for (const row of mergeByRank(lists)) {
+          if (seen.has(urlKey(row.url))) continue;
+          seen.add(urlKey(row.url));
+          material.push({ ...row, rankedBy: (row.providers ?? [row.provider]).filter(Boolean).join('+'), foundBy: query });
+        }
+        continue;
+      }
       let found = searcher.search(query, { limit });
-      if (Number.isFinite(found?.searchesUsed)) searchesUsed += found.searchesUsed;
+      countOn(searcher.name, found?.searchesUsed);
       if (Number.isFinite(found?.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
       let ranker = searcher.name;
       // One bounded fallback, reported rather than absorbed (RR-1, RR-2).
@@ -258,7 +295,7 @@ export function decompose(root, {
         log(`  search failed on ${searcher.name}: ${found.error}`);
         log(`  degrading to ${adapter.name} for this query - this spends fetch credits`);
         found = adapter.search(query, { limit });
-        if (Number.isFinite(found?.searchesUsed)) searchesUsed += found.searchesUsed;
+        countOn(adapter.name, found?.searchesUsed);
         if (Number.isFinite(found?.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
         ranker = adapter.name;
       }
@@ -315,8 +352,9 @@ export function decompose(root, {
         at: new Date().toISOString(), command: 'decompose', budget: maxScrapes,
         attempts: spent, spent, cached, failed: failedScrapes,
         transport: adapter.name,
-        searchTransport: searcher.name,
+        searchTransport: searchers.length > 1 ? searchers.map((one) => one.name).join('+') : searcher.name,
         searchesUsed,
+        searchesOn,
         ...(searchCreditsEstimate ? { searchCreditsEstimate } : {}),
         searchFailures: failures.filter((x) => !x.degraded).length,
         degraded: failures.filter((x) => x.degraded).length,
@@ -349,7 +387,10 @@ export function decompose(root, {
  */
 export function searchSummary({ searches = 0, failures = [], gathered = false } = {}) {
   if (!failures.length) return '';
-  const lostQueries = new Set(failures.filter((f) => !f.degraded).map((f) => f.query));
+  const lostQueries = new Set(failures.filter((f) => !f.degraded && !f.covered).map((f) => f.query));
+  // Under a merge, one provider missing a query another answered loses nothing.
+  const covered = failures.filter((f) => f.covered);
+  const missedBy = [...new Set(covered.map((f) => f.provider))];
   const fellBack = new Set(failures.filter((f) => f.degraded).map((f) => f.query));
   // Only a fallback that ANSWERED is known to have spent: one that failed too is a lost query.
   const rescued = [...fellBack].filter((q) => !lostQueries.has(q)).length;
@@ -358,6 +399,7 @@ export function searchSummary({ searches = 0, failures = [], gathered = false } 
     + (lost ? `, ${lost} failed` : '')
     + (fellBack.size ? `; ${fellBack.size} fell back to the fetch provider` : '')
     + (rescued ? `, ${rescued} answered there - those spent FETCH credits` : '')
+    + (covered.length ? `; ${missedBy.join(', ')} missed ${covered.length} that the other provider answered` : '')
     + ' (reasons in research/MAP.md)'];
   if (!gathered && lost) {
     lines.push('NOTHING gathered: every search failed, so the map is the bare checklist. Re-run once the provider answers.');
