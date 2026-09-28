@@ -539,7 +539,10 @@ test('every workflow runs with a read-only token, and none runs untrusted code u
     const escalation = text.split('\n').find((line) => /^\s*(contents|actions|packages|id-token|pull-requests|secrets):\s*write/.test(line.trim()) || /write-all/.test(line));
     assert.ok(escalation === undefined,
       `${name} widens the token beyond contents: read: ${escalation && escalation.trim()}`);
-    assert.ok(!/^ {2}pull_request_target\s*:/m.test(text),
+    // Any spelling of the trigger, not only a block key under `on:`: `on: pull_request_target`
+    // and `on: [push, pull_request_target]` are the same trigger and slipped past a scan
+    // anchored to two-space indentation (2026-09-28). Comment lines are already stripped.
+    assert.ok(!/\bpull_request_target\b/.test(text),
       `${name} uses pull_request_target, which runs with base-branch secrets while checking out pull-request code`);
   }
 });
