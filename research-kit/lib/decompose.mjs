@@ -177,6 +177,48 @@ function mapBody({ topic, rows, hosts, material, date, recipe, failures = [], dr
  * Scrape-budget accounting goes through the corpus's own `cacheDecision`, so a cache hit
  * is not an attempt and never spends a credit.
  */
+/** At most this many parts of a compound topic are searched, so one topic cannot spend without bound. */
+export const MAX_TOPIC_PARTS = 6;
+
+/**
+ * The searches phase 0 makes for a topic (ADR-0085).
+ *
+ * A topic that lists several questions - `subject: part, part; part` - is searched one part at
+ * a time: searched whole, the MoonAliza topic's three unrelated questions matched nothing
+ * together, and the map's candidates were forum threads and a coffee-scale blog
+ * (2026-09-28). A part of one or two words is searched with the subject before the colon
+ * ("Stripe: pricing, webhooks" -> "Stripe pricing"); a longer part stands alone, because a
+ * subject is often a private name no search engine knows. A list with a one-word item and no
+ * subject ("Paris, France hotels") is not compound. Anything else keeps the four searches it
+ * always had.
+ */
+export function topicQueries(topic) {
+  const text = String(topic ?? '').trim();
+  const words = (s) => s.split(/\s+/).filter(Boolean).length;
+  const colon = text.search(/:\s/);
+  const subject = colon > 0 ? text.slice(0, colon).trim() : '';
+  const items = (colon > 0 ? text.slice(colon + 1) : text).split(/[,;]/)
+    .map((item) => item.trim().replace(/^and\s+/i, '').trim()).filter(Boolean);
+  if (items.length >= 2) {
+    const parts = items.map((item) => (subject && words(item) <= 2 ? `${subject} ${item}` : item));
+    if (parts.every((part) => words(part) >= 2)) return uniq(parts).slice(0, MAX_TOPIC_PARTS);
+  }
+  return uniq([text, `${text} documentation`, `${text} pricing limits`, `${text} terms of service`]);
+}
+
+const isCompound = (queries, topic) => !queries.includes(String(topic ?? '').trim());
+
+/** Round-robin over the queries that found each page, each query's own rank order kept. */
+export function interleaveByQuery(material, queries) {
+  const lanes = queries.map((query) => material.filter((row) => row.foundBy === query));
+  const out = [];
+  for (let i = 0; lanes.some((lane) => i < lane.length); i += 1) {
+    for (const lane of lanes) if (i < lane.length) out.push(lane[i]);
+  }
+  // A row found by no listed query (none today) is kept, after the rest.
+  return [...out, ...material.filter((row) => !queries.includes(row.foundBy))];
+}
+
 export function decompose(root, {
   topic,
   adapter,
@@ -239,12 +281,8 @@ export function decompose(root, {
   let failedScrapes = 0;
   const failures = [];
 
-  const queries = uniq([
-    topic,
-    `${topic} documentation`,
-    `${topic} pricing limits`,
-    `${topic} terms of service`,
-  ]);
+  const queries = topicQueries(topic);
+  if (isCompound(queries, topic)) log(`compound topic: searching each of its ${queries.length} parts, not the whole topic (ADR-0085)`);
   if (dryRun) {
     // Named, as research's dry run names its queries: the dry run seeded the map and said
     // nothing about the four searches a real run spends (found 2026-09-27).
@@ -313,6 +351,10 @@ export function decompose(root, {
         material.push({ ...row, rankedBy: ranker, foundBy: query });
       }
     }
+    // Each part of a compound topic gets its share of the list: in search order, the first
+    // parts filled the 20 the map shows, and the MoonAliza map listed nothing for its third
+    // question (2026-09-28). Taken in turn, one per part, each part keeping its own order.
+    if (isCompound(queries, topic)) material = interleaveByQuery(material, queries);
     hosts = docsHosts(material);
 
     // The budget bounds SCRAPES, not candidates: a cache hit is not an attempt, so a

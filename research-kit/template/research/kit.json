@@ -1,4 +1,5 @@
 {
+  "kitPath": "{{KIT}}",
   "architecture": {
     "codePaths": ["src", "lib", "bin", "scripts", "app"],
     "note": "A commit touching one of these stages docs/ARCHITECTURE.md in the same commit. Guarded paths are project configuration - ADR-0008."

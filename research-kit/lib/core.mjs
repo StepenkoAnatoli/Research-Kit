@@ -607,10 +607,27 @@ export function kitCommand(script, args = '') {
  * anywhere else - a repository checkout - has only its real path. Compared by real path,
  * because node runs a symlinked kit from its target.
  */
-export function documentCommand(script, args = '', { kit = fileURLToPath(new URL('..', import.meta.url)), home = homeDir() } = {}) {
+export function documentCommand(script, args = '', { kit = fileURLToPath(new URL('..', import.meta.url)), home = homeDir(), root = null } = {}) {
+  // The project's own spelling wins (ADR-0084): new-project records the --kit it wrote into
+  // every scaffolded file, and a brief that named this machine's checkout instead sat in a
+  // project whose AGENTS.md said $HOME (found 2026-09-28 on MoonAliza).
+  const recorded = root ? projectKitPath(root) : null;
+  if (recorded) return `node "${recorded}/bin/${script}"${args ? ` ${args}` : ''}`;
   const real = (p) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
   if (real(kit) === real(path.join(home, '.agents', 'research-kit'))) return homeCommand(script, args);
   return spellCommand(path.join(kit, 'bin', script), args);
+}
+
+/**
+ * How this project spells the kit: `kitPath` in research/kit.json, written by new-project
+ * from --kit. Null for a project scaffolded before it was recorded, or an unreadable file -
+ * the caller then falls back to the running kit's spelling.
+ */
+export function projectKitPath(root) {
+  try {
+    const value = parseJson(readText(path.join(root, ...PATHS.kit.split('/'))) ?? 'null')?.kitPath;
+    return typeof value === 'string' && value.trim() && !/[\r\n"]/.test(value) ? value.trim() : null;
+  } catch { return null; }
 }
 
 /** `node "$HOME/.agents/research-kit/bin/<script>"`: the standard install, spelled for any reader's shell (ADR-0050). */
