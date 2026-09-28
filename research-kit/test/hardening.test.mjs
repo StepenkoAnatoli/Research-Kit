@@ -5,7 +5,7 @@
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, appendLine, KIT_ROOT } from './harness.mjs';
-import { PATHS, HEADERS, resolve, readText, writeText, writeJson, tolerateClosedStdout } from '../lib/core.mjs';
+import { PATHS, HEADERS, resolve, readText, writeText, writeJson, tolerateClosedStdout, canonicalJson, sha256 } from '../lib/core.mjs';
 import { readCorpus, appendRow, upsertRow, alignToHeader } from '../lib/corpus.mjs';
 import { writeAudit, zipAudit, readManifest, readManifestState, fingerprintOf } from '../lib/audit.mjs';
 import { renderBrief } from '../lib/brief.mjs';
@@ -579,4 +579,91 @@ test('the suite installs the guard before it writes its first line', () => {
   const firstWrite = source.indexOf('process.stdout.write');
   assert.ok(call !== -1, 'selftest.mjs no longer tolerates a closed stdout (2026-09-28)');
   assert.ok(call < firstWrite, `the guard is installed after the first write (write at ${firstWrite}, guard at ${call})`);
+});
+
+// --- canonical JSON at depth: input shape must not be able to end the process --------
+//
+// Found 2026-09-28, break-test. `canonicalJson` was recursive, and the fetch ledger it
+// hashes is a file that travels between machines through git and that a person may
+// hand-edit. One line nested a few thousand levels deep - which `JSON.parse` accepts -
+// overflowed the JavaScript stack, so `handoff.mjs` (the FIRST command a builder runs)
+// printed a bare V8 stack trace and exited 1: the code that means "the corpus did not
+// arrive". The depth at which it broke also moved with whatever else was on the stack,
+// so it was not even a stable limit anyone could have documented around.
+
+/** The implementation this replaced, kept as the oracle the rewrite is judged against. */
+function recursiveCanonicalJson(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(recursiveCanonicalJson).join(',')}]`;
+  const keys = Object.keys(value).filter((k) => value[k] !== undefined).sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${recursiveCanonicalJson(value[k])}`).join(',')}}`;
+}
+
+test('canonical JSON is byte-identical to the recursive form it replaced, corners included', () => {
+  const cases = [
+    null, true, false, 0, -0, 1.5, 1e21, '', 'a"b\\c', 'ünïcødé', 'line\nbreak',
+    [], {}, [1, 2, 3], { b: 1, a: 2 }, { a: [3, { d: 4, c: 5 }] }, [[[]]], [{ a: 1 }, { b: 2 }],
+    { a: null }, { z: 1, Z: 2, 0: 3, '': 4 }, [NaN, Infinity, -Infinity],
+    // The corners a rewrite silently tidies, and must not: an array renders a member JSON
+    // cannot encode as an empty string (that is `join`), an object as "undefined" (that is
+    // a template literal), and an object key whose value is undefined disappears.
+    [1, undefined, 3], { a: undefined, b: 1 }, { s: Symbol('x') }, [() => {}],
+    new Array(3), { 'key with "quotes" and \\ backslash': [1, { nested: [true, null, 'x'] }] },
+  ];
+  for (const value of cases) {
+    assert.equal(canonicalJson(value), recursiveCanonicalJson(value),
+      `rendering drifted for ${JSON.stringify(String(value)).slice(0, 60)}`);
+  }
+  // And over structures nobody would think to write out by hand.
+  let seed = 42;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const grow = (depth) => {
+    if (depth <= 0 || rnd() < 0.25) return [null, true, 0, -1.25, 42, `str${Math.floor(rnd() * 1000)}`, ''][Math.floor(rnd() * 7)];
+    if (rnd() < 0.4) return Array.from({ length: Math.floor(rnd() * 6) }, () => grow(depth - 1));
+    const out = {};
+    for (let i = 0; i < Math.floor(rnd() * 6); i += 1) out[`k${Math.floor(rnd() * 20)}`] = grow(depth - 1);
+    return out;
+  };
+  for (let i = 0; i < 2000; i += 1) {
+    const value = grow(5);
+    assert.equal(canonicalJson(value), recursiveCanonicalJson(value), `rendering drifted for case ${i}`);
+  }
+});
+
+test('canonical JSON renders at a depth that used to end the process', () => {
+  // Deeper than the recursive form survived (it broke somewhere between 2,000 and 3,000,
+  // depending on the stack it happened to have). This is the shape of the defect: the
+  // ledger line is valid JSON, so nothing upstream can refuse it.
+  const depth = 20_000;
+  const deep = JSON.parse(`${'{"a":'.repeat(depth)}1${'}'.repeat(depth)}`);
+  const rendered = canonicalJson(deep);
+  // `{"a":` per level, the single `1`, then a `}` per level - stated rather than derived
+  // from the function under test.
+  assert.equal(rendered, `${'{"a":'.repeat(depth)}1${'}'.repeat(depth)}`);
+  assert.equal(rendered.length, depth * 6 + 1, 'every level renders');
+  // A hash is the only thing callers do with this, and it must be stable across two calls.
+  assert.equal(sha256(canonicalJson(deep)), sha256(rendered));
+});
+
+// Follow-up to Arena break test 11: the recursive canonicalJson FAILED FAST on a cyclic
+// value (a stack overflow); the iterative one would walk it forever, growing its output
+// until the process ran out of memory. Nothing read from a file can be cyclic, but a hang
+// is worse than a throw, so a cycle is refused by name. Run in a child with a timeout: the
+// failure this guards against does not end on its own.
+test('canonical JSON refuses a cyclic value instead of walking it forever', async () => {
+  const core = pathToFileURL(path.join(KIT_ROOT, 'lib', 'core.mjs')).href;
+  const source = `import { canonicalJson } from ${JSON.stringify(core)};
+const loop = { a: [1, { b: null }] }; loop.a[1].b = loop;
+try { canonicalJson(loop); console.log('RENDERED'); } catch (err) { console.log('REFUSED ' + err.message); }
+const shared = { x: 1 };
+console.log(canonicalJson({ p: shared, q: [shared, shared] }));`;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', source], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let out = '';
+  child.stdout.on('data', (d) => { out += d; });
+  const timer = setTimeout(() => child.kill('SIGKILL'), 10_000);
+  const status = await new Promise((done) => child.on('close', (code) => done(code)));
+  clearTimeout(timer);
+  assert.equal(status, 0, `the child did not finish (killed after 10s, or crashed):\n${out.slice(0, 300)}`);
+  assert.match(out, /REFUSED .*cycl/, `a cyclic value was not refused by name:\n${out.slice(0, 300)}`);
+  assert.match(out, /\{"p":\{"x":1\},"q":\[\{"x":1\},\{"x":1\}\]\}/, 'a value seen twice but not cyclic must still render');
 });

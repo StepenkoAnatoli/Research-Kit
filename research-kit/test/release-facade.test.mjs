@@ -99,3 +99,21 @@ test('every extracted module is importable on its own', () => {
   assert(typeof paths.safePath === 'function' && typeof paths.inside === 'function',
     'paths.mjs should own containment');
 });
+
+// ADR-0083 (2026-09-28, Arena break test 11): JSON deeper than MAX_JSON_DEPTH is refused by
+// name. The reader recursed, so a deep document surfaced from every release validator as
+// "Maximum call stack size exceeded" - true of the reader, not of the document - and the
+// depth Node could take was not the depth Python could, so the two runners disagreed.
+test('the JSON reader refuses nesting past MAX_JSON_DEPTH by name, at any depth', () => {
+  assertEqual(json.MAX_JSON_DEPTH, 256);
+  const deep = (n) => `${'['.repeat(n)}1${']'.repeat(n)}`;
+  assert(Array.isArray(json.parseJsonNoDuplicates(deep(256))), 'a document exactly at the limit must parse');
+  for (const n of [257, 100_000]) {
+    let message = '';
+    try { json.parseJsonNoDuplicates(deep(n)); } catch (err) { message = err.message; }
+    assert(/nested deeper than 256 levels/.test(message), `${n} deep: ${message || 'parsed'}`);
+  }
+  const objects = (n) => `${'{"k":'.repeat(n)}1${'}'.repeat(n)}`;
+  assert(/nested deeper than 256 levels/.test((() => { try { json.parseJsonNoDuplicates(objects(257)); return ''; } catch (err) { return err.message; } })()),
+    'objects count toward the depth as arrays do');
+});

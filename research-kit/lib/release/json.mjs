@@ -4,8 +4,22 @@
 // key silently; for a hashed record that is the difference between one payload and a
 // different payload with the SAME digest, so every validator in this kit parses through
 // here instead. It also refuses a UTF-8 BOM, which JSON.parse accepts and hashing does not.
+/**
+ * The deepest nesting any JSON this kit reads may have (ADR-0083). The reader recurses, so
+ * without it a deep document surfaced as "Maximum call stack size exceeded"; and CPython's
+ * canonicaliser gives out near 300 levels where Node went on for thousands, so the two
+ * conformance runners disagreed on the same packet. 256 is below both; real documents
+ * here are a handful of levels deep. `bin/conformance_common.py` enforces the same number.
+ */
+export const MAX_JSON_DEPTH = 256;
+
 class JsonReader {
-  constructor(text) { this.text = String(text); this.index = 0; }
+  constructor(text) { this.text = String(text); this.index = 0; this.depth = 0; }
+
+  enter() {
+    this.depth += 1;
+    if (this.depth > MAX_JSON_DEPTH) this.error(`JSON nested deeper than ${MAX_JSON_DEPTH} levels`);
+  }
 
   error(message) { throw new Error(`${message} at byte ${this.index}`); }
 
@@ -49,11 +63,12 @@ class JsonReader {
   }
 
   object() {
+    this.enter();
     this.index += 1;
     const result = {};
     const keys = new Set();
     this.whitespace();
-    if (this.text[this.index] === '}') { this.index += 1; return result; }
+    if (this.text[this.index] === '}') { this.index += 1; this.depth -= 1; return result; }
     while (this.index < this.text.length) {
       this.whitespace();
       if (this.text[this.index] !== '"') this.error('object key must be a string');
@@ -65,7 +80,7 @@ class JsonReader {
       this.index += 1;
       result[key] = this.value();
       this.whitespace();
-      if (this.text[this.index] === '}') { this.index += 1; return result; }
+      if (this.text[this.index] === '}') { this.index += 1; this.depth -= 1; return result; }
       if (this.text[this.index] !== ',') this.error('missing comma between object members');
       this.index += 1;
     }
@@ -73,14 +88,15 @@ class JsonReader {
   }
 
   array() {
+    this.enter();
     this.index += 1;
     const result = [];
     this.whitespace();
-    if (this.text[this.index] === ']') { this.index += 1; return result; }
+    if (this.text[this.index] === ']') { this.index += 1; this.depth -= 1; return result; }
     while (this.index < this.text.length) {
       result.push(this.value());
       this.whitespace();
-      if (this.text[this.index] === ']') { this.index += 1; return result; }
+      if (this.text[this.index] === ']') { this.index += 1; this.depth -= 1; return result; }
       if (this.text[this.index] !== ',') this.error('missing comma between array members');
       this.index += 1;
     }
