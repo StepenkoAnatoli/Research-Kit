@@ -185,7 +185,9 @@ def read_packet(
         raise error("UTF-8 BOM is not permitted")
     try:
         packet = parse_json_no_duplicates(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError, ConformanceError) as failure:
+    # RecursionError sits outside JSONDecodeError: a deeply nested packet is a
+    # refused packet, not a traceback - the runner's contract is a structured FAIL.
+    except (UnicodeDecodeError, json.JSONDecodeError, ConformanceError, RecursionError) as failure:
         raise error(str(failure)) from failure
     if not isinstance(packet, dict):
         raise error("packet must be an object")

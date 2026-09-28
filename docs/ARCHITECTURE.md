@@ -294,6 +294,9 @@ establishes that they agree on 28 inputs. The tests were green and the claim was
 the runners it serves. It holds canonicalisation, ECMAScript number formatting, JSON string
 escaping, duplicate-key-rejecting parsing, the shared packet preflight, and report
 rendering. Each runner keeps a thin binding and nothing else.
+A packet nested too deep to parse is refused like any unparseable one (2026-09-28): the
+parse sites catch `RecursionError`, which is not a `JSONDecodeError`, and each runner had
+printed a traceback where its Node twin reported FAIL (`test/conformance-hostile.test.mjs`).
 
 Two decisions in it are load-bearing:
 
