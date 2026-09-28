@@ -247,6 +247,12 @@ export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = n
   if (gate === 'commit' && !corpus) {
     const materialised = materialize(root);
     if (materialised.ok && materialised.empty) {
+      // materializeIndex made its scratch dir before it knew the index held no corpus,
+      // and this return happens before `scratch` is assigned - the finally below cleans
+      // only what got assigned. Every verdict on a gated project whose research/ is not
+      // yet tracked, which is every fresh project's first commit, leaked one temp
+      // directory (found 2026-09-28, break-test).
+      try { fs.rmSync(materialised.dir, { recursive: true, force: true }); } catch { /* best effort, matching the finally */ }
       // The working tree is gated and the index holds no corpus at all: research/ is
       // untracked. Reporting that as "your contract is missing" sends the operator to
       // look for a file that is sitting right there. The real defect is that the

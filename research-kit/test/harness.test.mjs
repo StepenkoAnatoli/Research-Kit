@@ -161,3 +161,21 @@ test('the suite strips a leaked git context, and only that', () => {
       `${name} is still in this process's environment: the strip at module scope did not run`);
   }
 });
+
+// Found 2026-09-28 (break-test): a full run made ~1,400 scratch directories - about
+// 100 MB - and removed almost none, so /tmp grew without bound on a machine that runs
+// the suite (and where /tmp is tmpfs, the growth is RAM). The harness now removes
+// exactly the directories its own process created, on exit, whatever the exit was.
+test('a run takes its scratch with it when it ends', () => {
+  const child = runChild(`
+import { tempDir, fs } from ${JSON.stringify(HARNESS)};
+const dir = tempDir('rk-leakprobe-');
+fs.writeFileSync(dir + '/proof.txt', 'scratch');
+console.log(dir);
+`);
+  assert.equal(child.status, 0, `the probe child failed:\n${child.stderr}`);
+  const dir = child.stdout.trim().split('\n').pop();
+  assert.ok(/^\/.*(rk-leakprobe-)/.test(dir), `the probe child did not report its scratch dir: ${child.stdout}`);
+  assert.equal(fs.existsSync(dir), false,
+    `the scratch dir ${dir} outlived the process that made it - every run leaks its scratch`);
+});

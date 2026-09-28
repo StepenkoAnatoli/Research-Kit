@@ -1,10 +1,9 @@
 // Offline conformance and semantic tests for Git-origin/path-authority
 // snapshot envelopes. All paths and transcripts are synthetic and disposable.
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, assertEqual, cleanup } from './harness.mjs';
+import { test, describe, assert, assertEqual, cleanup, tempDir } from './harness.mjs';
 
 // Ported 2026-09-20 under ADR-0029.
 describe('path-authority-validator');
@@ -12,7 +11,7 @@ describe('path-authority-validator');
 const HASH = 'a'.repeat(64);
 
 function tempRoot() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'research-kit-path-authority-'));
+  return tempDir('research-kit-path-authority-');
 }
 
 function validSnapshot(overrides = {}) {

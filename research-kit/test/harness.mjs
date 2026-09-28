@@ -269,8 +269,25 @@ export function tempDir(prefix = 'research-kit-') {
   // parent first costs one syscall and turns a suite-wide abort into nothing at all.
   const base = os.tmpdir();
   fs.mkdirSync(base, { recursive: true });
-  return fs.mkdtempSync(path.join(base, prefix));
+  const dir = fs.mkdtempSync(path.join(base, prefix));
+  scratchDirs.push(dir);
+  return dir;
 }
+
+// Every directory this process made through tempDir(), so the run can take its scratch
+// with it when it ends (found 2026-09-28, break-test: a full run made ~1,400 scratch
+// directories - about 100 MB - and removed almost none of them, so /tmp grew without
+// bound on a machine that runs the suite, and where /tmp is tmpfs that growth is RAM).
+// Only the directories THIS process created are touched, each by the exact path
+// mkdtemp returned, so two suites running at once cannot sweep each other's scratch.
+// On 'exit', not at the end of the test list: an import-time throw, a red run and a
+// process.exit(1) all pass through here too, and none of those should leak either.
+const scratchDirs = [];
+process.on('exit', () => {
+  for (const dir of scratchDirs) {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* a scratch dir that cannot be removed must not fail the run's own exit */ }
+  }
+});
 
 /** The fixture and the scaffolder are the same call, which is what stops them drifting. */
 export function makeProject(dir = tempDir(), { topic = 'Fixture topic', content = false } = {}) {
