@@ -8,7 +8,8 @@
 // repository and can be re-read.
 
 import { PassThrough } from 'node:stream';
-import { test, describe, assert, tempDir, cleanup, fs, path } from './harness.mjs';
+import { spawnSync } from 'node:child_process';
+import { test, describe, assert, tempDir, cleanup, fs, path, KIT_ROOT } from './harness.mjs';
 import {
   handle, versionProblem, validateArgs, resourceLink, createStdioLoop, MAX_LINE,
   TOOLS, ERRORS, SUPPORTED_VERSIONS, SERVER_INFO, MODERN_VERSION, LEGACY_VERSION,
@@ -432,4 +433,45 @@ test('a message split across chunks is still one message', async () => {
 
   assert.equal(lines.length, 1, 'a stream is not a message boundary; only a newline is');
   assert.equal(JSON.parse(lines[0]).id, 9);
+});
+
+// ---------------------------------------------------------------- arguments
+//
+// Found 2026-09-28 (Arena break test 8). The server took no options and therefore
+// CHECKED none: `mcp-server.mjs --zzz-not-a-flag` printed its banner and started
+// serving, exit 0. Every other entrypoint in the kit refuses an unknown flag, and the
+// reason is not tidiness - it is that a silently ignored option is a command doing its
+// default thing while the operator believes otherwise, which cost this project 26
+// Firecrawl credits once (see refuseUnknownFlags in lib/core.mjs).
+//
+// It cannot use refuseUnknownFlags: that helper lists the options an entrypoint DOES
+// accept, and this one accepts none, so its list would be empty and it would refuse a
+// bare invocation too.
+test('the server refuses any argument, because its configuration is its environment', () => {
+  const server = path.join(KIT_ROOT, 'bin', 'mcp-server.mjs');
+  const run = (args) => spawnSync(process.execPath, [server, ...args], {
+    encoding: 'utf8', timeout: 30_000, windowsHide: true,
+    // An empty stdin, so that a server which ignores the argument cannot hang waiting
+    // for a client that will never speak: it must end the moment stdin ends.
+    input: '',
+  });
+
+  for (const args of [['--zzz-not-a-flag'], ['--directory', tempDir('rk-mcp-arg-')], ['--token', 'x']]) {
+    const r = run(args);
+    assert.equal(r.status, 2, `mcp-server.mjs accepted ${args.join(' ')} (exit ${r.status})`);
+    assert.match(r.stderr, /unknown option/, `${args.join(' ')} was not named in the refusal`);
+    assert.match(r.stderr, /takes no options/, 'the refusal does not say why there is nothing to accept');
+  }
+});
+
+test('--help still works, and the server still starts with no arguments at all', () => {
+  const server = path.join(KIT_ROOT, 'bin', 'mcp-server.mjs');
+  const help = spawnSync(process.execPath, [server, '--help'], { encoding: 'utf8', timeout: 30_000, windowsHide: true, input: '' });
+  assert.equal(help.status, 0, help.stderr);
+  assert.match(help.stdout, /mcp-server - the Research-Kit collector/);
+
+  // A refusal that refuses everything would pass the test above and break every client.
+  const bare = spawnSync(process.execPath, [server], { encoding: 'utf8', timeout: 30_000, windowsHide: true, input: '' });
+  assert.equal(bare.status, 0, `mcp-server.mjs refused to start with no arguments:\\n${bare.stderr}`);
+  assert.doesNotMatch(bare.stderr, /unknown option/);
 });
