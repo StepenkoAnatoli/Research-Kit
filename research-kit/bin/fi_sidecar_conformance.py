@@ -197,7 +197,7 @@ def load_packet(file: str | Path) -> dict[str, Any]:
         raise PacketError("UTF-8 BOM is not permitted")
     try:
         packet = parse_json_no_duplicates(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError, RecursionError) as error:
         raise PacketError(str(error)) from error
     if not isinstance(packet, dict) or packet.get("packetVersion") != VERSION or packet.get("profile") != PROFILE:
         raise PacketError("packet version or profile is invalid")
@@ -260,7 +260,7 @@ def main(argv: list[str] | None = None) -> int:
             for row in report["vectors"]:
                 print(f"- {row['vectorId']}: {row['result']}" + (f" ({row['observedCode']})" if row["result"] == "FAIL" else ""))
         return 0 if report["status"] == "PASS" else 1
-    except (OSError, PacketError, ValueError, json.JSONDecodeError) as error:
+    except (OSError, PacketError, ValueError, json.JSONDecodeError, RecursionError) as error:
         report = {"validatorVersion": VERSION, "profile": PROFILE, "vectorCount": 0, "status": "FAIL", "vectors": [], "errors": [{"code": "VECTOR-PACKET", "message": str(error)}]}
         if parsed.json:
             sys.stdout.write(report_json(report))

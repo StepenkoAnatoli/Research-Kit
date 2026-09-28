@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseFlags, listFiles, refuseUnknownFlags } from '../lib/core.mjs';
+import { parseFlags, listFiles, refuseUnknownFlags, exists, kitCommand } from '../lib/core.mjs';
 import { runPending, TEST_TIMEOUT, importTestFiles, describe, test } from '../test/harness.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 
@@ -48,6 +48,21 @@ if (process.env.RESEARCH_KIT_RESULT_FILE) {
   process.env.RESEARCH_KIT_RESULT_FILE = path.resolve(invokedFrom, process.env.RESEARCH_KIT_RESULT_FILE);
 }
 process.chdir(path.resolve(KIT_ROOT, '..'));
+
+// The suite is not portable away from its checkout: its tests judge repository fixtures
+// the deploy mirror does not ship - the CI workflows, the ADRs and decision documents, the
+// front README and AGENTS.md, this repository's collected corpus. From an INSTALLED kit
+// (install.mjs -> ~/.agents/research-kit) every one of those tests failed ENOENT - 100+
+// red on a healthy deployment, indistinguishable from a genuinely broken kit, with doctor
+// the only check that verifies an install (found 2026-09-28, break-test). Refuse there,
+// naming what is missing and the check to run instead. Exit 2: misuse, not a red suite.
+const missingAnchors = ['.github/workflows', 'docs/adr', 'AGENTS.md']
+  .filter((rel) => !exists(path.join(KIT_ROOT, '..', rel)));
+if (missingAnchors.length) {
+  process.stderr.write(`selftest runs in the repository checkout; ${missingAnchors.join(', ')} ${missingAnchors.length === 1 ? 'is' : 'are'} not beside research-kit/, so the tests that read repository fixtures would fail on a healthy deployment.\n`);
+  process.stderr.write(`run it in a clone of the repository. To verify a DEPLOYED kit: ${kitCommand('doctor.mjs')}\n`);
+  process.exit(2);
+}
 
 // Almost every test needs a scratch folder. When the temp folder cannot be used (a
 // read-only TMPDIR, a TMPDIR naming a file) the run used to report hundreds of failures

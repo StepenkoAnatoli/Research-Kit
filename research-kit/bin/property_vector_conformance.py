@@ -49,7 +49,7 @@ def load_vectors(path: str | Path) -> dict[str, Any]:
     raw = Path(path).read_bytes()
     try:
         packet = parse_json_no_duplicates(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError, ConformanceError) as error:
+    except (UnicodeDecodeError, json.JSONDecodeError, ConformanceError, RecursionError) as error:
         raise PacketError(str(error)) from error
     if not isinstance(packet, dict):
         raise PacketError("packet must be an object")

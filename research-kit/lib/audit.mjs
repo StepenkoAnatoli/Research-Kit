@@ -107,7 +107,23 @@ export function resolveVersion(root, slug, version = null) {
   const want = version ?? record.latest;
   const held = record.versions?.[want];
   if (!held) return null;
-  return { slug, topic: record.topic ?? slug, version: want, date: held.date, main: held.main, subtopics: held.subtopics ?? [] };
+  // The 2026-09-14 writer named a version's audit `file` - a basename in research/audits -
+  // and held subtopics under the TOPIC, each with versions of its own. The current writer
+  // stores a root-relative `main` and a flat `subtopics` list on the version itself. Both
+  // shapes are manifests this kit has shipped, so read both: an audit somebody was handed
+  // stays readable (found 2026-09-28, break-test: this repository's OWN --show and --zip
+  // refused every 0.1 audit, and the refusal interpolated held.main as the literal word
+  // "undefined", blaming the wrong thing).
+  const fromAudits = (value) => (typeof value === 'string' && value
+    ? (value.startsWith(`${PATHS.audits}/`) ? value : `${PATHS.audits}/${value}`)
+    : null);
+  const main = held.main ?? fromAudits(held.file);
+  const subtopics = Array.isArray(held.subtopics)
+    ? held.subtopics
+    : Object.values(record.subtopics ?? {})
+        .map((sub) => fromAudits(sub?.versions?.[want]?.file))
+        .filter(Boolean);
+  return { slug, topic: record.topic ?? slug, version: want, date: held.date, main, subtopics };
 }
 
 /** The version a fingerprint earns: unchanged corpus, unchanged version. */
@@ -356,6 +372,9 @@ export function zipAudit(root, { topic = '', date = today() } = {}) {
   const record = topics.find((t) => t.slug === slug);
   const resolved = resolveVersion(root, slug, record.latest);
   if (!resolved) return { ok: false, exit: 1, reason: `the manifest holds no latest version for "${slug}"` };
+  if (!resolved.main) {
+    return { ok: false, exit: 1, reason: `the manifest records no audit file for "${slug}" v${resolved.version}`, fix: `repair ${PATHS.audits}/index.json` };
+  }
 
   const files = [resolved.main, ...resolved.subtopics];
   const auditsDir = resolve(root, PATHS.audits);

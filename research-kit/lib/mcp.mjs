@@ -420,8 +420,22 @@ export function validateArgs(tool, args) {
  * corrupts the message stream, which is why every diagnostic in `bin/mcp-server.mjs` goes
  * to stderr.
  */
-export function createStdioLoop({ input, output, onMessage, onError = () => {} }) {
+/**
+ * The longest line the loop buffers: 4 MiB. The kit's messages are a few kilobytes - tool
+ * arguments are a repository name, a topic, a list of URLs.
+ */
+export const MAX_LINE = 4 * 1024 * 1024;
+
+export function createStdioLoop({ input, output, onMessage, onError = () => {}, maxLine = MAX_LINE }) {
   let buffer = '';
+  // BOUNDED. The buffer grew until a newline arrived, so a client that never sent one
+  // grew this process until it died (Arena break test 4, 2026-09-28). A line over the cap
+  // is refused as soon as it passes it - not when its newline comes - and its bytes are
+  // dropped through that newline, so the next message is served. Closing the connection
+  // instead would end the session over one bad message.
+  let discarding = false;
+  const tooLong = () => output.write(`${JSON.stringify(err(null, ERRORS.INVALID_REQUEST,
+    `message longer than ${maxLine} characters - refused`))}\n`);
 
   // SERIALISED, and the test that forced this found a real defect rather than a timing
   // quirk. `data` fires per chunk, so an async handler that awaits mid-chunk can be
@@ -437,9 +451,14 @@ export function createStdioLoop({ input, output, onMessage, onError = () => {} }
   async function drain() {
     let index = buffer.indexOf('\n');
     while (index !== -1) {
-      const line = buffer.slice(0, index).trim();
+      const wasDiscarding = discarding;
+      discarding = false;
+      const raw = buffer.slice(0, index);
       buffer = buffer.slice(index + 1);
       index = buffer.indexOf('\n');
+      if (wasDiscarding) continue;
+      if (raw.length > maxLine) { tooLong(); continue; }
+      const line = raw.trim();
       if (!line) continue;
       let parsed;
       try {
@@ -457,6 +476,12 @@ export function createStdioLoop({ input, output, onMessage, onError = () => {} }
           output.write(`${JSON.stringify(err(parsed.id, ERRORS.INTERNAL, error.message))}\n`);
         }
       }
+    }
+    // What is left has no newline yet. Past the cap, refuse it now and drop it.
+    if (buffer.length > maxLine || (discarding && buffer)) {
+      if (!discarding) tooLong();
+      discarding = true;
+      buffer = '';
     }
   }
 

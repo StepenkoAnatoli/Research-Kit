@@ -10,7 +10,7 @@
 import { PassThrough } from 'node:stream';
 import { test, describe, assert, tempDir, cleanup, fs, path } from './harness.mjs';
 import {
-  handle, versionProblem, validateArgs, resourceLink, createStdioLoop,
+  handle, versionProblem, validateArgs, resourceLink, createStdioLoop, MAX_LINE,
   TOOLS, ERRORS, SUPPORTED_VERSIONS, SERVER_INFO, MODERN_VERSION, LEGACY_VERSION,
 } from '../lib/mcp.mjs';
 
@@ -383,6 +383,38 @@ test('the loop reads newline-delimited JSON and writes one line per response', a
   assert.deepEqual(parsed[0].result, {});
   assert.equal(parsed[1].error.code, ERRORS.PARSE, 'unparseable input is a parse error, not a crash');
   assert.equal(parsed[2].result.tools.length, 2);
+});
+
+// Arena break test 4 (2026-09-28): the loop buffered until a newline, with no bound, so a
+// client that never sent one grew the server's memory until it died. A line over the cap
+// is refused as soon as it passes the cap - not when its newline finally arrives - its
+// bytes are dropped through that newline, and the next message is served.
+test('a line over the cap is refused at once, dropped, and the next message is served', async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const lines = [];
+  output.on('data', (c) => lines.push(...String(c).split('\n').filter(Boolean)));
+
+  createStdioLoop({ input, output, onMessage: (m) => handle(m, deps()), maxLine: 1000 });
+  for (let i = 0; i < 5; i += 1) input.write('x'.repeat(600));
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(lines.length, 1, 'the over-long line was not refused before its newline arrived');
+  assert.equal(JSON.parse(lines[0]).error.code, ERRORS.INVALID_REQUEST);
+  assert.match(JSON.parse(lines[0]).error.message, /1000/);
+
+  input.write(`${'x'.repeat(600)}\n${JSON.stringify({ jsonrpc: '2.0', id: 7, method: 'ping' })}\n`);
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(lines.length, 2, `the rest of the long line was read as a message: ${lines.join(' | ')}`);
+  assert.equal(JSON.parse(lines[1]).id, 7);
+
+  // A complete line over the cap, arriving in one chunk, is refused the same way.
+  input.write(`${'y'.repeat(1500)}\n`);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(JSON.parse(lines[2]).error.code, ERRORS.INVALID_REQUEST);
+});
+
+test('the loop has a default line cap', () => {
+  assert.ok(Number.isInteger(MAX_LINE) && MAX_LINE >= 1024 * 1024, `MAX_LINE is ${MAX_LINE}`);
 });
 
 test('a message split across chunks is still one message', async () => {
