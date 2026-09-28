@@ -1,7 +1,8 @@
 // The corpus has one owner (ADR-0003), and the format's joins live with it (ADR-0015).
 
+import { spawnSync } from 'node:child_process';
 import { test, describe, assert, makePassingProject, makeProject, corrupt, fs } from './harness.mjs';
-import { PATHS, HEADERS, resolve, writeText, readText } from '../lib/core.mjs';
+import { PATHS, HEADERS, resolve, writeText, readText, sha256File, isRegularFile } from '../lib/core.mjs';
 import {
   readCorpus, readCaptures, parseTable, parseCapture, splitRow, escapeCell, tableRow,
   repairRowArity, captureEntry, rememberCapture, cacheDecision, traceOf, captureOf,
@@ -268,6 +269,63 @@ test('a ledger-named capture that cannot be read is a named failure, not a crash
   assert.equal(verdict.pass, false);
   assert.ok(verdict.findings.some((f) => f.severity === 'fail' && /could not be read/.test(f.detail ?? '')),
     `no finding names the unreadable capture:\n${verdict.findings.filter((f) => f.severity === 'fail').map((f) => `${f.rule}: ${f.detail}`).join('\n')}`);
+});
+
+// Found 2026-09-28 (Arena break test 8). A file with NO END - a fifo, a socket, a
+// character device such as dev/zero - is refused by name instead of being opened.
+//
+// Before this, `readFileSync` was called on whatever sat at the path the ledger names.
+// On a fifo that blocks in `open()` until another process writes to the other end, so
+// every entrypoint that verifies a corpus - handoff, preflight, audit, doctor, brief and
+// the commit gate - HUNG, printing nothing at all; the git commit it gates hung with it.
+// With the ledger symlinked to dev/zero the same call allocated until libstdc++ killed
+// the process with `std::bad_alloc` / SIGABRT, which is a crash disguised as a verdict.
+//
+// A fifo can only be made on POSIX, so where it cannot the test falls back to a
+// directory: also not a regular file, so it exercises the same guard. It does NOT skip -
+// a test that returns early on a missing prerequisite is a green that asserted nothing.
+test('a capture that is not a regular file is refused by name, and is never opened', () => {
+  const root = makePassingProject();
+  const capture = fs.readdirSync(resolve(root, PATHS.raw)).find((n) => n.endsWith('.md'));
+  const abs = resolve(root, `${PATHS.raw}/${capture}`);
+  fs.rmSync(abs);
+  const fifo = process.platform !== 'win32'
+    && spawnSync('mkfifo', [abs], { windowsHide: true }).status === 0;
+  if (!fifo) fs.mkdirSync(abs);
+
+  // Watchdog-guarded by the harness: with the guard gone this call blocks until the
+  // watchdog fires, which is a FAIL named for this test rather than a silent hang.
+  const verdict = runPreflight(root);
+  assert.equal(verdict.pass, false);
+  assert.ok(verdict.findings.some((f) => f.severity === 'fail' && f.rule === 'raw-unreadable'
+    && /could not be read/.test(f.detail ?? '')),
+  `no finding names the capture that has no end (${fifo ? 'fifo' : 'directory'}):\n${verdict.findings.filter((f) => f.severity === 'fail').map((f) => `${f.rule}: ${f.detail}`).join('\n')}`);
+});
+
+// The same guard, at the two functions every other read in the kit goes through. A
+// directory is the cross-platform case: it is not a regular file, so it is refused
+// WITHOUT being opened - which is the whole point, because the open is what blocked.
+test('readText and sha256File refuse what is not a regular file, without opening it', () => {
+  const root = makePassingProject();
+  const dir = resolve(root, 'research/raw/a-directory');
+  fs.mkdirSync(dir);
+  assert.equal(isRegularFile(dir), false, 'a directory is not a regular file');
+  assert.equal(isRegularFile(resolve(root, 'research/raw/') + 'no-such-file'), false);
+  assert.equal(readText(dir, 'FALLBACK'), 'FALLBACK', 'readText opened a directory');
+  assert.equal(sha256File(dir), null, 'sha256File opened a directory');
+
+  const capture = fs.readdirSync(resolve(root, PATHS.raw)).find((n) => n.endsWith('.md'));
+  const abs = resolve(root, `${PATHS.raw}/${capture}`);
+  assert.equal(isRegularFile(abs), true, 'a capture is a regular file');
+  assert.equal(typeof readText(abs), 'string', 'readText must still read a real capture');
+  assert.match(sha256File(abs) ?? '', /^[0-9a-f]{64}$/, 'sha256File must still hash a real capture');
+
+  // A symlink to a regular file is still a regular file: following links is deliberate,
+  // so refusing them here would be a behaviour change for every caller that resolves one.
+  const link = resolve(root, 'research/raw/linked.md');
+  fs.symlinkSync(abs, link);
+  assert.equal(isRegularFile(link), true, 'a symlink to a regular file is a regular file');
+  assert.equal(readText(link), readText(abs));
 });
 
 // Found 2026-09-28 (checking an outside break-test, F-08): JSON.parse keeps the LAST of two

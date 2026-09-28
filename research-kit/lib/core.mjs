@@ -118,7 +118,37 @@ export function isDirectory(p) {
   }
 }
 
+/**
+ * A file this kit is willing to READ: a regular file, or a symlink pointing at one.
+ *
+ * Anything else has no end. `readFileSync` on a **fifo** blocks in `open()` until some
+ * other process writes to it - forever, silently; on a character device such as
+ * `dev/zero` or `dev/urandom` it allocates until the process is killed. Measured, not
+ * supposed (found 2026-09-28,
+ * break-test): with one fifo sitting in `research/raw/`, every entrypoint - `handoff`,
+ * `preflight`, `audit`, `doctor`, `brief` and the commit `gate` - hung until killed, and
+ * with the ledger symlinked to `/dev/zero` all of them died inside libstdc++ with
+ * `std::bad_alloc` / SIGABRT. No diagnostic in either case: a hang prints nothing, and
+ * SIGABRT prints a C++ exception rather than anything a person can act on.
+ *
+ * `statSync` follows symlinks on purpose. A symlink to a regular file outside the
+ * project is still a file with an end, and refusing it here would be a behaviour change
+ * for every caller that resolves a link today; what this rejects is only the kinds that
+ * cannot be read to completion.
+ */
+export function isRegularFile(p) {
+  try {
+    return fs.statSync(p).isFile();
+  } catch {
+    return false;
+  }
+}
+
 export function readText(p, fallback = null) {
+  // The guard is here rather than at each corpus call site because this is the one
+  // funnel every text read in the kit goes through - captures, the ledger, the
+  // contract, the config - and a fifo in ANY of those hangs the run just the same.
+  if (!isRegularFile(p)) return fallback;
   try {
     return fs.readFileSync(p, 'utf8');
   } catch {
@@ -289,6 +319,10 @@ export function sha256(buf) {
 
 /** Hash a file's exact bytes; null when it is not readable. */
 export function sha256File(p) {
+  // Same guard as readText, for the same measured reason: hashing a fifo hangs here and
+  // hashing /dev/zero exhausts memory. A null is "could not hash it", which every caller
+  // already handles, rather than a run that never returns.
+  if (!isRegularFile(p)) return null;
   try {
     return sha256(fs.readFileSync(p));
   } catch {
