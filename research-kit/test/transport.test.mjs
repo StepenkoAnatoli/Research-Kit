@@ -278,6 +278,27 @@ test('an impossible character reference decodes to U+FFFD, never a throw', () =>
   assert.equal(r.ok, true, r.error);
 });
 
+// Found 2026-09-28 (Arena break test 8): an href is HTML, so `?a=1&amp;b=2` means `b=2` -
+// but search and map returned the escaped text, a URL whose second parameter is "amp;b".
+// And map's pattern refused any href holding a '#', so `&#38;` (an escaped '&') and every
+// link to a section of another page were silently dropped.
+test('search and map read an href as HTML: entities decoded, fragments dropped', () => {
+  const page = (body) => ({
+    spawn: () => ({ status: 0, stderr: '', stdout: JSON.stringify({ ok: true, url: 'https://ex.invalid/a', statusCode: 200, contentType: 'text/html', body }) }),
+  });
+  const linked = httpKeyless.search('q', page('<a href="https://ex.invalid/p?x=1&amp;y=2" class="result-link">R</a>'));
+  assert.deepEqual(linked.results.map((r) => r.url), ['https://ex.invalid/p?x=1&y=2']);
+  const redirected = httpKeyless.search('q', page('<a href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fex.invalid%2Fr%3Fa%3D1%26b%3D2&amp;rut=abc" class="result-link">R</a>'));
+  assert.deepEqual(redirected.results.map((r) => r.url), ['https://ex.invalid/r?a=1&b=2']);
+  const bare = httpKeyless.search('q', page('<a href="https://ex.invalid/f?x=1&amp;y=2">F</a>'));
+  assert.deepEqual(bare.results.map((r) => r.url), ['https://ex.invalid/f?x=1&y=2']);
+
+  const mapped = httpKeyless.map('https://ex.invalid/a', page(
+    '<a href="/p?x=1&amp;y=2">a</a><a href="/q?x=1&#38;y=2">b</a><a href="/docs#limits">c</a>'
+    + '<a href="/docs#auth">c2</a><a href="#top">d</a><a href="https://other.invalid/z">e</a>'));
+  assert.deepEqual(mapped.links, ['https://ex.invalid/p?x=1&y=2', 'https://ex.invalid/q?x=1&y=2', 'https://ex.invalid/docs']);
+});
+
 test('mainContent picks the densest block', () => {
   const html = '<div><nav><a href="/a">a</a><a href="/b">b</a><a href="/c">c</a></nav><article>' + 'Real prose about rate limits and credits. '.repeat(20) + '</article></div>';
   assert.match(httpKeyless.mainContent(html).html, /Real prose/);

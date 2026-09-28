@@ -305,11 +305,11 @@ export function search(query, { limit = 8, ...opts } = {}) {
   }
   const results = [];
   for (const m of String(job.body ?? '').matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*class=["']result-link["'][^>]*>([\s\S]*?)<\/a>/gi)) {
-    results.push({ url: unwrapRedirect(m[1]), title: inline(m[2]), description: '' });
+    results.push({ url: unwrapRedirect(hrefOf(m[1])), title: inline(m[2]), description: '' });
   }
   if (!results.length) {
     for (const m of String(job.body ?? '').matchAll(/<a\b[^>]*href=["'](https?:\/\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
-      const href = unwrapRedirect(m[1]);
+      const href = unwrapRedirect(hrefOf(m[1]));
       if (/duckduckgo\.com/.test(href)) continue;
       results.push({ url: href, title: inline(m[2]), description: '' });
     }
@@ -317,6 +317,15 @@ export function search(query, { limit = 8, ...opts } = {}) {
   const seen = new Set();
   const unique = results.filter((r) => r.url && !seen.has(r.url) && seen.add(r.url));
   return { ok: true, query, cmd: command(argv), results: unique.slice(0, limit) };
+}
+
+/**
+ * An href attribute is HTML, so its value is decoded before it is a URL: `?a=1&amp;b=2`
+ * means `b=2`. Taken raw, search and map returned URLs whose second parameter was
+ * "amp;b" (Arena break test 8, 2026-09-28).
+ */
+function hrefOf(attribute) {
+  return decodeEntities(attribute).trim();
 }
 
 function unwrapRedirect(href) {
@@ -333,9 +342,15 @@ export function map(url, { limit = 50, ...opts } = {}) {
   let origin;
   try { origin = new URL(job.url ?? url); } catch { return { ok: false, url, error: 'unparseable url', cmd: command(argv), links: [] }; }
   const links = new Set();
-  for (const m of String(job.body ?? '').matchAll(/href=["']([^"'#]+)["']/gi)) {
+  // The whole attribute, then decoded: the old pattern refused any href holding a '#', so
+  // `&#38;` and every link to a section of another page were dropped. A link to a section
+  // of THIS page names no new page; any other fragment is dropped from the page it names.
+  for (const m of String(job.body ?? '').matchAll(/href=["']([^"']*)["']/gi)) {
+    const href = hrefOf(m[1]);
+    if (!href || href.startsWith('#')) continue;
     try {
-      const resolved = new URL(m[1], origin);
+      const resolved = new URL(href, origin);
+      resolved.hash = '';
       if (resolved.host !== origin.host) continue;
       if (!/^https?:$/.test(resolved.protocol)) continue;
       links.add(resolved.toString());
