@@ -12,6 +12,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { CHILD_OUTPUT_LIMIT, outputOverflow } from './runtime.mjs';
 
 export const name = 'firecrawl-cli';
 /**
@@ -137,8 +138,11 @@ export function exec(argv, { env = process.env, platform = process.platform, spa
   const invocation = resolveInvocation(argv, { env, platform, program });
   if (!invocation.ok) return { ok: false, status: null, stdout: '', stderr: invocation.detail, invocation };
   const result = spawn(invocation.file, invocation.args, {
-    env, timeout, encoding: 'utf8', shell: false, windowsHide: true,
+    env, timeout, encoding: 'utf8', shell: false, windowsHide: true, maxBuffer: CHILD_OUTPUT_LIMIT,
   });
+  // Past the limit the output is cut, and a cut JSON answer must not be parsed as one.
+  const overflow = outputOverflow(result, 'the Firecrawl CLI');
+  if (overflow) return { ok: false, status: result.status, stdout: '', stderr: overflow, invocation };
   return {
     ok: result.status === 0,
     status: result.status,
