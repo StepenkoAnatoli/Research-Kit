@@ -106,3 +106,21 @@ test('an unpaired surrogate is refused by the Node canonicaliser too, so both la
     assert.equal(r.status, 1, runner);
   }
 });
+
+// The refusal must not reach a well-formed surrogate PAIR: an astral character (here U+1F600)
+// is ordinary text, in a key and in a value, and both languages must still hash it alike.
+test('an astral character is still canonical, and Node and Python hash it alike', () => {
+  const python = requirePython('Node/Python agreement on an astral character');
+  const packet = JSON.parse(fs.readFileSync(path.join(CONFORMANCE, SHIPPED['ledger-conformance.mjs']), 'utf8'));
+  const canonical = '{"\u{1F600}":"a\u{1F600}b"}';
+  packet.vectors = [{
+    ...packet.vectors[0], value: { '\u{1F600}': 'a\u{1F600}b' }, expectedCanonical: canonical,
+    expectedSha256: crypto.createHash('sha256').update(canonical).digest('hex'),
+  }];
+  const file = path.join(tempDir('rk-astral-'), 'packet.json');
+  fs.writeFileSync(file, JSON.stringify(packet));
+  for (const [exe, runner] of [[process.execPath, 'ledger-conformance.mjs'], [python, 'ledger_conformance.py']]) {
+    const r = spawnSync(exe, [path.join(BIN, runner), '--vectors', file, '--json'], { encoding: 'utf8' });
+    assert.equal(JSON.parse(r.stdout).status, 'PASS', `${runner} refused an astral character:\n${(r.stdout || r.stderr).slice(0, 400)}`);
+  }
+});
