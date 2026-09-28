@@ -4,9 +4,14 @@ const SEVERITY_ORDER = { fail: 0, warn: 1, info: 2, pass: 3 };
 
 export function renderTable(rows, columns) {
   if (!rows.length) return '';
-  const widths = columns.map((col) => Math.max(
+  // Deliberately NOT `Math.max(col.header.length, ...rows.map(...))`. The spread passes
+  // one ARGUMENT per row, and V8 runs out of stack somewhere past 100,000 of them:
+  // measured 2026-09-28, 50,000 rows rendered and 200,000 threw
+  // `RangeError: Maximum call stack size exceeded` - a crash with a raw stack trace
+  // where a report is supposed to be. A fold has no ceiling and costs nothing.
+  const widths = columns.map((col) => rows.reduce(
+    (widest, row) => Math.max(widest, String(col.value(row) ?? '').length),
     col.header.length,
-    ...rows.map((row) => String(col.value(row) ?? '').length),
   ));
   const line = (cells) => cells.map((cell, i) => String(cell ?? '').padEnd(widths[i])).join('  ').trimEnd();
   const out = [line(columns.map((c) => c.header)), line(widths.map((w) => '-'.repeat(w)))];

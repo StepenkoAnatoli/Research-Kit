@@ -16,6 +16,7 @@ import { test, describe, assert, tempDir, fs, path, KIT_ROOT, makePassingProject
 import { renderBrief } from '../lib/brief.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
 import { spellCommand, documentCommand, parseFlags } from '../lib/core.mjs';
+import { renderTable } from '../lib/render.mjs';
 
 describe('cli');
 
@@ -963,4 +964,25 @@ fs.openSync = (p, ...rest) => {
   const home = tempDir('rk-refused-home-');
   writeRefused(run('doctor.mjs', ['--fix-arity'], { root, env: { NODE_OPTIONS: `--import=${pathToFileURL(loader).href}`, HOME: home, USERPROFILE: home, RESEARCH_KIT_CONFIG: path.join(home, 'c.json') } }),
     'doctor.mjs', '.fetches.lock');
+});
+
+// Found 2026-09-28 (Arena break test 8). `renderTable` built each column width with
+// `Math.max(col.header.length, ...rows.map(...))`, which passes one ARGUMENT per row. V8
+// runs out of stack somewhere past 100,000 of them: 50,000 rows rendered, 200,000 threw
+// `RangeError: Maximum call stack size exceeded` - a crash and a raw stack trace where a
+// report is supposed to be. Nothing in this kit produces a report that large today, and a
+// renderer that dies on a large input is still a renderer with an undocumented ceiling.
+test('renderTable has no row-count ceiling', () => {
+  const columns = [{ header: 'check', value: (row) => row.check }, { header: 'detail', value: (row) => row.detail }];
+  const rows = (n) => Array.from({ length: n }, (_, i) => ({ check: `check-${i}`, detail: `detail ${i}` }));
+
+  const small = renderTable(rows(3), columns);
+  assert.match(small, /^check\s+detail\s*\n/, small);
+  assert.equal(small.split('\n').length, 5, 'three rows, a header and a rule');
+
+  // 200,000 is where the spread form died. The widths must still be the widest cell.
+  assert.doesNotThrow(() => renderTable(rows(200_000), columns),
+    'renderTable threw on a large report: a row count is not a reason for a report to die');
+  const wide = renderTable(rows(200_000), columns);
+  assert.match(wide, /check-199999\s+detail 199999/, 'the wide column was not sized to its widest cell');
 });
