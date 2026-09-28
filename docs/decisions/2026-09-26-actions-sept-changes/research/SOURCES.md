@@ -12,3 +12,4 @@ carries the design, `S` secondary is context, `L` lead-only is a hint and never 
 | https://docs.github.com/en/rest/actions/artifacts | P | REST API endpoints for GitHub Actions artifacts - GitHub Docs | 2026-09-26 | U-2 - whether 'list workflow run artifacts' (the endpoint the kit calls) also omits expired artifacts |
 | https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax | P | Workflow syntax for GitHub Actions - GitHub Docs | 2026-09-26 | U-4 - the exact cache-mode syntax and levels |
 | https://docs.github.com/en/actions/how-tos/administer/control-workflow-execution | P | Controlling who can execute GitHub Actions workflows - GitHub Docs | 2026-09-26 | U-3 - who configures execution protections on a repository, where, and whether evaluate mode is available on this plan |
+| https://api.github.com/repos/StepenkoAnatoli/Research-Kit/actions/runs/35600022797/artifacts | P | artifacts | 2026-09-28 | U-2 |

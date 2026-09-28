@@ -46,6 +46,11 @@
       "url": "https://docs.github.com/en/actions/how-tos/administer/control-workflow-execution",
       "type": "P",
       "why": "U-3 - who configures execution protections on a repository, where, and whether evaluate mode is available on this plan"
+    },
+    {
+      "url": "https://api.github.com/repos/StepenkoAnatoli/Research-Kit/actions/runs/35600022797/artifacts",
+      "type": "P",
+      "why": "U-2"
     }
   ]
 }

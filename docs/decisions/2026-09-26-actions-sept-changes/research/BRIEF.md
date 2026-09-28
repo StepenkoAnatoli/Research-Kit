@@ -50,8 +50,10 @@ documents no change - including for "List workflow run artifacts", the endpoint 
 Trusted: E-02, for the endpoints it names ("list artifacts for a repository", "get an
 artifact"), because it announces a change and E-05 shows no sign of having been edited for it
 (its examples still carry the field the post says is gone). Neither source settles the per-run list: E-02 does not name it and E-05
-documents nothing new. That is U-2, left KNOWN-UNKNOWN with a dated day-one check, and it does
-not matter to the kit's correctness either way (below).
+documents nothing new. That was U-2, left KNOWN-UNKNOWN with a dated day-one check. The check
+ran on 2026-09-28 (E-08): the per-run list omits an expired artifact too, so E-02 holds for it
+as well, and E-05 is simply out of date on this point. It did not matter to the kit's
+correctness either way (below).
 
 **The changelog and the how-to disagree about evaluate mode** (added 2026-09-26). E-03 says
 "Evaluate mode also carries over from the preview, so you can run rules in shadow mode", with
@@ -64,16 +66,17 @@ which advised evaluate mode first - a mode this repository cannot select.
 
 Right on all four shapes, short on two details. U-1: listing only, never touched - as
 predicted. U-2: the post names the repository-level list and "get an artifact", not the
-per-run list the prior assumed it would name; `dispatch.mjs` stays correct either way, as
-predicted, and the documented download answer for an expired artifact is still `410 Gone`
-(E-05; documented, not measured). U-3: a complement to ADR-0033, not a replacement - as
+per-run list the prior assumed it would name - but the prior's shape held: measured on
+2026-09-28, the per-run list omits an expired artifact as well (E-08), and `dispatch.mjs`
+stays correct, as predicted. The download answer for an expired artifact is `410 Gone` (E-05);
+the same day, `GET .../artifacts/10638148916/zip` returned 410 and `GET .../artifacts/10638148916`
+returned 404 (observed with curl, not captured). U-3: a complement to ADR-0033, not a replacement - as
 predicted. U-4: the prior had "write the default"; the default depends on the trigger (`write`
 for trusted events, `read` for low-trust ones), and there is a fourth value, `write-only`.
 
 ## Known unknowns
 
-- **U-2** - Since 2026-09-24, does listing a run's artifacts omit expired ones, and what does downloading an expired artifact return?
-  - Day-one verification: E-02, E-05. Established: the repository-level list and "get an artifact" no longer return expired artifacts, and downloading one is documented as `410 Gone`, which `downloadArtifact` already maps to EXPIRED. NOT established: whether "List workflow run artifacts" - the endpoint `listArtifacts` calls - omits them too; the post does not name it and the reference (E-05) documents no change. Either way the kit stays correct: `dispatch.mjs` already drops `expired` artifacts and its empty-list message names both causes ("the run produced no package, or its artifact has expired"). Day-one verification: on or after 2026-10-04, call `GET /repos/StepenkoAnatoli/Research-Kit/actions/runs/36276028270/artifacts` - that run (collect job-0926cli, 2026-09-26) uploaded artifact 10916742654 with 7-day retention. Absent from the list = the per-run list omits expired artifacts too
+None. U-2, the last one, was closed on 2026-09-28 by its day-one check (E-08).
 
 ## Decision
 
@@ -89,7 +92,8 @@ inherits it. `offline-suite.yml` holds no secret and is out of scope.
 **No code change for U-1 or U-2.** The kit never lists runs; it takes the run id from the
 dispatch response (ADR-0031). `listArtifacts` already drops `expired` artifacts, its
 empty-list message already names both causes, and `downloadArtifact` already maps `410` to
-EXPIRED - whichever way U-2 falls.
+EXPIRED. U-2 has fallen on the empty-list side (E-08): an expired package now reaches the kit
+as an empty list, and that message is the one the operator sees.
 
 **For the operator, not the code: a workflow execution protection rule** (U-3), scoped to
 `collect.yml` and `live-collection.yml`, allowing the repository owner as actor and
