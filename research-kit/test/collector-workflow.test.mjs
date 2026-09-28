@@ -446,11 +446,26 @@ test('the collector runs on both supported platforms', () => {
 });
 
 test('every third-party action is pinned to a commit SHA', () => {
-  const uses = body.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('- uses:') || l.startsWith('uses:'));
-  assert.ok(uses.length >= 3, `expected the checkout, setup-node and upload actions, found ${uses.length}`);
-  for (const line of uses) {
-    assert.ok(/@[0-9a-f]{40}\b/.test(line),
-      `a tag is mutable, and whoever can move it runs code in this workflow: ${line}`);
+  // Every workflow, not only the collector. This test read collect.yml alone, and
+  // replacing all eight action pins in offline-suite.yml and live-collection.yml with
+  // mutable tags left the suite green (found 2026-09-28, break-test). offline-suite.yml
+  // runs on every pull request with read access to the repository, so a moved tag
+  // executes code there first - and its own header states the pin policy this scan did
+  // not enforce. Same shape as the injection scan below: the class of defect, across
+  // every workflow, because the next workflow added is the one that reintroduces it.
+  for (const name of fs.readdirSync(WORKFLOWS)) {
+    if (!name.endsWith('.yml') && !name.endsWith('.yaml')) continue;
+    const text = executable(fs.readFileSync(path.join(WORKFLOWS, name), 'utf8'));
+    const uses = text.split('\n').map((l) => l.trim())
+      .filter((l) => l.startsWith('- uses:') || l.startsWith('uses:'))
+      .filter((l) => !/uses:\s*\.\//.test(l));   // local actions are paths, not third-party refs
+    if (name === 'collect.yml') {
+      assert.ok(uses.length >= 3, `expected the checkout, setup-node and upload actions, found ${uses.length}`);
+    }
+    for (const line of uses) {
+      assert.ok(/@[0-9a-f]{40}\b/.test(line),
+        `a tag is mutable, and whoever can move it runs code in this workflow (${name}): ${line}`);
+    }
   }
 });
 
@@ -501,6 +516,34 @@ test('the workflows that hold a key deny every job all cache access', () => {
       `${name} does not declare a top-level \`cache-mode: none\`, so its jobs may read and write the Actions cache`);
     const override = text.split('\n').find((line) => /^\s+cache-mode:/.test(line) && !/cache-mode:\s*none\s*$/.test(line));
     assert.ok(override === undefined, `${name} re-opens the cache for one job: ${override && override.trim()}`);
+  }
+});
+
+// ---------------------------------------------------------------- the token scope
+
+test('every workflow runs with a read-only token, and none runs untrusted code under pull_request_target', () => {
+  // `permissions:\n  contents: read` is stated in all three workflows and is the pairing
+  // that makes the rest safe: offline-suite checks out and EXECUTES pull-request code, and
+  // a fork PR is capped by GitHub whatever this says - a same-repository branch is not, so
+  // a dropped `permissions:` block silently hands it the repository default token scope.
+  // Nothing caught deleting the block from every workflow (found 2026-09-28, break-test):
+  // the policy lived in YAML prose with no test, the same shape as the pins this file now
+  // scans for. `pull_request_target` is the same hazard stated as a trigger - it runs the
+  // workflow in the base context WITH its secrets and still checks out the PR's code - so
+  // no workflow may use it, now or later.
+  for (const name of fs.readdirSync(WORKFLOWS)) {
+    if (!name.endsWith('.yml') && !name.endsWith('.yaml')) continue;
+    const text = executable(fs.readFileSync(path.join(WORKFLOWS, name), 'utf8'));
+    assert.ok(/^permissions:\s*$/m.test(text) && /^ {2}contents:\s*read\s*$/m.test(text),
+      `${name} does not pin \`permissions:\n  contents: read\`, so its jobs run with whatever token scope the repository default gives them`);
+    const escalation = text.split('\n').find((line) => /^\s*(contents|actions|packages|id-token|pull-requests|secrets):\s*write/.test(line.trim()) || /write-all/.test(line));
+    assert.ok(escalation === undefined,
+      `${name} widens the token beyond contents: read: ${escalation && escalation.trim()}`);
+    // Any spelling of the trigger, not only a block key under `on:`: `on: pull_request_target`
+    // and `on: [push, pull_request_target]` are the same trigger and slipped past a scan
+    // anchored to two-space indentation (2026-09-28). Comment lines are already stripped.
+    assert.ok(!/\bpull_request_target\b/.test(text),
+      `${name} uses pull_request_target, which runs with base-branch secrets while checking out pull-request code`);
   }
 });
 
