@@ -174,8 +174,10 @@ fs.writeFileSync(dir + '/proof.txt', 'scratch');
 console.log(dir);
 `);
   assert.equal(child.status, 0, `the probe child failed:\n${child.stderr}`);
-  const dir = child.stdout.trim().split('\n').pop();
-  assert.ok(/^\/.*(rk-leakprobe-)/.test(dir), `the probe child did not report its scratch dir: ${child.stdout}`);
+  // Any absolute path: a Windows temp dir is C:\...\rk-leakprobe-*, often in 8.3 short form,
+  // and console.log ends its line with CRLF there.
+  const dir = child.stdout.trim().split(/\r?\n/).pop();
+  assert.ok(path.isAbsolute(dir) && dir.includes('rk-leakprobe-'), `the probe child did not report its scratch dir: ${child.stdout}`);
   assert.equal(fs.existsSync(dir), false,
     `the scratch dir ${dir} outlived the process that made it - every run leaks its scratch`);
 });

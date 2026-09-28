@@ -267,7 +267,9 @@ test('a fixture commit is immune to the host machine\'s global git config', () =
   fs.chmodSync(path.join(hooks, 'pre-commit'), 0o755);
   const cfgDir = tempDir('rk-hostcfg-');
   const cfg = path.join(cfgDir, 'gitconfig');
-  fs.writeFileSync(cfg, `[core]\n\thooksPath = ${hooks}\n[commit]\n\tgpgsign = true\n`);
+  // Forward slashes: a git config file reads a backslash as an escape, so a Windows path
+  // written as-is is "bad config line 2"; git on Windows takes C:/... as written.
+  fs.writeFileSync(cfg, `[core]\n\thooksPath = ${hooks.replace(/\\/g, '/')}\n[commit]\n\tgpgsign = true\n`);
   const dir = tempDir('rk-hostrepo-');
   git(dir, ['init', '-q']);
   git(dir, ['config', 'user.email', 'fixture@example.invalid']);
