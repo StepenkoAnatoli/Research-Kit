@@ -3,8 +3,8 @@
 
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
-import { writeText, readText } from '../lib/core.mjs';
+import { test, describe, assert, tempDir, fs, path, os, KIT_ROOT } from './harness.mjs';
+import { writeText, readText, homeDir } from '../lib/core.mjs';
 import {
   readMachineConfig, loadConfig, saveConfig, posture, machineRole, collectionPolicy,
   collectionRefusal, evidencePolicy, runtimePaths, skillLocations, retiredEnvNotes,
@@ -183,4 +183,15 @@ test('an empty HOME does not make the machine paths relative to the cwd', () => 
   });
   assert.equal(r.status, 0, r.stderr);
   for (const p of JSON.parse(r.stdout)) assert.ok(path.isAbsolute(p), `a machine path is relative with HOME="": ${p}`);
+});
+
+// Seen on windows-latest CI (2026-09-28): with USERPROFILE empty, os.homedir() does not return
+// "" there - it THROWS (uv_os_homedir ENOENT), and machine.mjs called it at import. Reproduced
+// here on any platform by making it throw.
+test('homeDir survives an os.homedir() that throws, and still answers an absolute path', () => {
+  const real = os.homedir;
+  os.homedir = () => { const err = new Error('A system error occurred: uv_os_homedir returned ENOENT'); err.code = 'ERR_SYSTEM_ERROR'; throw err; };
+  let home;
+  try { home = homeDir(); } finally { os.homedir = real; }
+  assert.ok(home && path.isAbsolute(home), `homeDir() gave ${JSON.stringify(home)}`);
 });

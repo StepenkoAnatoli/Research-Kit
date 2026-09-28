@@ -65,10 +65,13 @@ export function relative(root, abs) {
  * The user's home directory, absolute. HOME wins when it is set to an absolute path - tests
  * and operators redirect it that way - and otherwise the account's passwd entry is used.
  * os.homedir() returns HOME even when it is EMPTY, which made every machine path relative
- * to whatever folder a command ran in (found 2026-09-28).
+ * to whatever folder a command ran in (found 2026-09-28). On Windows, with USERPROFILE
+ * empty, it THROWS instead (uv_os_homedir ENOENT, seen on windows-latest CI) - and it was
+ * called at import, so every kit command crashed there. Both fall back to the account.
  */
 export function homeDir() {
-  const home = os.homedir();
+  let home = '';
+  try { home = os.homedir(); } catch { /* Windows, empty USERPROFILE: fall back below */ }
   if (home && path.isAbsolute(home)) return home;
   try {
     const passwd = os.userInfo().homedir;

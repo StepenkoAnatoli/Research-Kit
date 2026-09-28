@@ -28,7 +28,7 @@ set -u
 # returns an EMPTY HOME as it is, 2026-09-28). With no node
 # either, it stays empty and the fail-open path below says the kit is not deployed.
 if [ -z "${HOME:-}" ]; then
-  HOME=$(node -e 'const os = require("os"); process.stdout.write(os.homedir() || os.userInfo().homedir)' 2>/dev/null) || HOME=
+  HOME=$(node -e 'const os = require("os"); let h = ""; try { h = os.homedir(); } catch {} process.stdout.write(h || os.userInfo().homedir)' 2>/dev/null) || HOME=
 fi
 
 KIT_HOME="${RESEARCH_KIT_HOME:-$HOME/.agents/research-kit}"
