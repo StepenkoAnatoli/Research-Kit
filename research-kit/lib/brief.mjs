@@ -248,7 +248,7 @@ export function renderBrief(root, { force = false, date = today(), corpus = null
 traces to a cached page in \`${PATHS.raw}/\`.`
       : `**Gate: FAIL (${verdict.counts.fail} blocking finding${verdict.counts.fail === 1 ? '' : 's'}).** This brief is a
 draft of an incomplete research pass: phase 2 does not start until \`${PATHS.discovery}\`
-passes. Run \`${documentCommand('preflight.mjs')}\` to see what is unproven.`);
+passes. Run \`${documentCommand('preflight.mjs', '', { root })}\` to see what is unproven.`);
 
   const body = `# Brief - ${topic}
 
@@ -295,7 +295,7 @@ alone.
 ## ${BRIEF_SECTIONS[5].heading}
 
 1. Review the ${TODO_MARK} sections above (${BRIEF_SECTIONS.filter((s) => s.judged).map((s) => s.heading.split(' ')[0]).join(', ')}) before handing off.
-2. Hand this file to the builder (phase 2). Re-running \`${documentCommand('brief.mjs')}\`
+2. Hand this file to the builder (phase 2). Re-running \`${documentCommand('brief.mjs', '', { root })}\`
    redrafts this file while it is unedited; after any edit it refuses without \`--force\`,
    so your judgements are preserved.
 `;

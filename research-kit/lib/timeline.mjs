@@ -57,7 +57,7 @@ export function renderTimeline(root, { corpus = null } = {}) {
     '# Timeline',
     '',
     'Derived, chronological, and deliberately outside the chain: a review aid, never part',
-    `of a gate decision. Regenerate with \`${documentCommand('timeline.mjs')}\`.`,
+    `of a gate decision. Regenerate with \`${documentCommand('timeline.mjs', '', { root })}\`.`,
     '',
     '| When | What | Detail |',
     '|---|---|---|',

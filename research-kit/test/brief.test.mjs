@@ -206,3 +206,36 @@ test('a known unknown\'s day-one step is not labelled twice', () => {
   assert.match(text, /Day-one verification: measure lag under load/);
   assert.doesNotMatch(text, /Day-one verification: Day one/i);
 });
+
+// Found 2026-09-28 running the kit from a repository checkout on MoonAliza: the project was
+// scaffolded with --kit '$HOME/.agents/research-kit' so it could travel, and every scaffolded
+// file said so - but the drafted brief named this machine's checkout path, which exists
+// nowhere else. The files written later must spell the kit the way the scaffold did.
+test('the brief and the timeline spell the kit the way the project was scaffolded', async () => {
+  const { renderTimeline } = await import('../lib/timeline.mjs');
+  const { KIT_ROOT } = await import('../lib/scaffold.mjs');
+  const dir = makePassingProject();
+  const kit = JSON.parse(readText(resolve(dir, PATHS.kit)));
+  kit.kitPath = 'D:/Tools/research kit';
+  writeText(resolve(dir, PATHS.kit), `${JSON.stringify(kit, null, 2)}\n`);
+
+  renderBrief(dir, { force: true });
+  const brief = readText(resolve(dir, PATHS.brief));
+  assert.ok(brief.includes('node "D:/Tools/research kit/bin/brief.mjs"'), brief.split('\n').filter((l) => l.includes('brief.mjs')).join('\n'));
+  renderTimeline(dir);
+  const timeline = readText(resolve(dir, PATHS.timeline));
+  assert.ok(timeline.includes('node "D:/Tools/research kit/bin/timeline.mjs"'), timeline.slice(0, 400));
+  for (const [name, text] of [['brief', brief], ['timeline', timeline]]) {
+    assert.ok(!text.includes(KIT_ROOT), `${name} names this machine's kit path`);
+  }
+});
+
+test('a new project records the spelling it was scaffolded with', async () => {
+  const { scaffoldProject } = await import('../lib/scaffold.mjs');
+  const { tempDir } = await import('./harness.mjs');
+  for (const [kit, expected] of [[undefined, '$HOME/.agents/research-kit'], ['C:\\Users\\Jo "Q"\\kit', 'C:\\Users\\Jo "Q"\\kit']]) {
+    const dir = tempDir();
+    scaffoldProject(dir, { topic: 't', ...(kit ? { kit } : {}) });
+    assert.equal(JSON.parse(readText(resolve(dir, PATHS.kit))).kitPath, expected);
+  }
+});
