@@ -234,7 +234,14 @@ def main(argv: list[str] | None = None) -> int:
                 suffix = f" ({vector['reason']})" if vector["reason"] else ""
                 print(f"- {vector['vectorId']}: {vector['result']}{suffix}")
         return 0 if report["status"] == "PASS" else 1
-    except (OSError, PacketError) as error:
+    # ConformanceError, not just this runner's PacketError - see the matching note in
+    # bin/ledger_conformance.py. The shared module's own ConformanceError is a SUPERCLASS
+    # of PacketError, so catching only the subclass let it escape as a traceback with no
+    # JSON on stdout, which is the `--json` contract broken where a host compares the two
+    # languages (found 2026-09-28, break-test). RecursionError is named for the same
+    # reason: canonicalisation recurses, and a document deep enough to parse but too deep
+    # to canonicalise died with a traceback instead of a report.
+    except (OSError, ConformanceError, RecursionError) as error:
         report = {"validatorVersion": VERSION, "profile": PROFILE, "vectorCount": 0, "status": "FAIL", "vectors": [], "errors": [{"code": "PROPERTY-VECTOR-PACKET", "message": str(error)}]}
         if parsed.json:
             sys.stdout.write(report_json(report))

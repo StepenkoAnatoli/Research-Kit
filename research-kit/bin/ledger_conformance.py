@@ -276,7 +276,23 @@ def main(argv: list[str] | None = None) -> int:
                 suffix = f" ({row['reason']})" if row["reason"] else ""
                 print(f"- {row['vectorId']}: {row['result']}{suffix}")
         return 0 if report["status"] == "PASS" else 1
-    except (OSError, VectorPacketError) as error:
+    # ConformanceError, not just this runner's VectorPacketError. The shared module
+    # raises its own ConformanceError from canonicalisation - a float under the reject
+    # policy, an unpaired surrogate, an unsupported value type - and VectorPacketError is
+    # a SUBCLASS of it, so catching only the subclass let the base class escape as a
+    # traceback with no JSON on stdout. That is the same `--json` contract break as the
+    # RecursionError this file's hostile test pins, one layer down (found 2026-09-28,
+    # break-test). fi_sidecar_conformance.py already catches ValueError; this is the same
+    # posture stated through the shared base instead.
+    #
+    # RecursionError is named separately because it is NOT a ConformanceError - it is a
+    # RuntimeError. The PARSE sites catch it, which is why a packet nested 200,000 deep
+    # reports cleanly, but canonicalisation recurses too and `json.loads` accepts a
+    # document the canonicaliser then cannot walk: between roughly 300 and 999 levels of
+    # nesting, parsing succeeds, `canonical_json` blows the stack, and the runner died
+    # with a traceback and no JSON. Both limits are implementation details that move with
+    # the interpreter version, so the catch belongs here rather than at either one.
+    except (OSError, ConformanceError, RecursionError) as error:
         report = {"validatorVersion": VERSION, "profile": PROFILE, "vectorCount": 0, "status": "FAIL", "vectors": [], "errors": [{"code": "VECTOR-PACKET", "message": str(error)}]}
         if parsed.json:
             sys.stdout.write(report_json(report))

@@ -13,7 +13,42 @@ import crypto from 'node:crypto';
 export function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (value && typeof value === 'object') {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+    return `{${Object.keys(value).sort().map((key) => `${canonicalString(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+  }
+  return canonicalString(value);
+}
+
+/**
+ * A string JavaScript holds that JSON cannot round-trip: an unpaired surrogate.
+ *
+ * A JS string is UTF-16 code units, so an astral character is stored as a surrogate PAIR
+ * and a lone `\ud800` is stored as one code unit. `JSON.stringify` happily emits the
+ * latter as the escape `\ud800`, which is not valid JSON text - a strict parser rejects
+ * it, and re-parsing it in another language may not even produce the same string. So this
+ * side canonicalised a value the other side refuses, and the two disagreed about the
+ * digest of the same document (found 2026-09-28, break-test: a hostile vector packet made
+ * the Node runner report PASS and its Python twin a structured FAIL).
+ *
+ * `conformance_common.py`'s `json_string` has always refused this; this is that rule,
+ * stated where the bytes are produced. A well-formed pair is skipped whole, so astral
+ * keys and values are unaffected.
+ */
+function hasUnpairedSurrogate(text) {
+  for (let i = 0; i < text.length; i += 1) {
+    const unit = text.charCodeAt(i);
+    if (unit < 0xd800 || unit > 0xdfff) continue;
+    if (unit >= 0xdc00) return true;                 // a low surrogate with no high before it
+    const next = i + 1 < text.length ? text.charCodeAt(i + 1) : 0;
+    if (next < 0xdc00 || next > 0xdfff) return true; // a high surrogate with no low after it
+    i += 1;                                         // a pair: its low half is not a lone one
+  }
+  return false;
+}
+
+/** The canonical spelling of one string, refusing what cannot round-trip. */
+function canonicalString(value) {
+  if (typeof value === 'string' && hasUnpairedSurrogate(value)) {
+    throw new Error('unpaired surrogate is not canonical JSON');
   }
   const encoded = JSON.stringify(value);
   if (encoded === undefined) throw new Error('undefined is not canonical JSON');

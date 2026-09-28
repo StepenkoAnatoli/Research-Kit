@@ -135,7 +135,20 @@ def canonical_json(value: Any, *, float_policy: str = "reject") -> str:
     if isinstance(value, list):
         return "[" + ",".join(canonical_json(item, float_policy=float_policy) for item in value) + "]"
     if isinstance(value, dict):
-        keys = sorted(value, key=lambda key: key.encode("utf-16-be"))
+        # `surrogatepass` is what keeps this a SORT rather than a crash. A key may hold
+        # an unpaired surrogate - JSON spells one `\ud800`, `json.loads` accepts it, and
+        # JavaScript sorts and emits it - but CPython refuses to encode a lone surrogate
+        # to UTF-16, so the obvious `key.encode("utf-16-be")` raised UnicodeEncodeError
+        # BEFORE `json_string` below could refuse it the way it refuses the same character
+        # in a value. UnicodeEncodeError is a ValueError, not a ConformanceError, so the
+        # runners' packet handler did not catch it either: the runner printed a traceback
+        # and no JSON, which is the `--json` contract broken at exactly the point a host
+        # compares the two languages (found 2026-09-28, break-test).
+        #
+        # With `surrogatepass` the encoding is byte-identical for every key that has no
+        # lone surrogate, so the ordering is unchanged, and a key that has one now reaches
+        # `json_string` and is refused with the documented structured error.
+        keys = sorted(value, key=lambda key: key.encode("utf-16-be", "surrogatepass"))
         return "{" + ",".join(
             f"{json_string(key)}:{canonical_json(value[key], float_policy=float_policy)}" for key in keys
         ) + "}"
