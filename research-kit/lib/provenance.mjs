@@ -420,8 +420,11 @@ export function verifyLedger(root, { corpus = null } = {}) {
  * torn tail, and inventing a link is the one thing a repair must never do.
  */
 export function repairLedgerTail(root) {
+  const file = resolve(root, PATHS.ledger);
+  // Look before locking: the lock lives in research/raw/, and creating that folder makes
+  // any directory a gated project (a gate marker). No ledger, nothing to repair.
+  if (!exists(file)) return { repaired: false, reason: 'ledger-missing' };
   return withLock(root, () => {
-    const file = resolve(root, PATHS.ledger);
     const text = readText(file);
     if (text === null) return { repaired: false, reason: 'ledger-missing' };
     const lines = text.split(/\r?\n/);
@@ -450,6 +453,10 @@ export function repairLedgerTail(root) {
  * that is broken for any reason other than the hashes it is about to recompute.
  */
 export function rebuildLedger(root, migrate, { note = 'metadata migration' } = {}) {
+  // As repairLedgerTail: taking the lock would create research/raw/ where no ledger is.
+  if (!exists(resolve(root, PATHS.ledger))) {
+    return { rebuilt: false, reason: 'ledger-missing', problems: [{ rule: 'ledger-missing', detail: `${PATHS.ledger} is absent` }] };
+  }
   return withLock(root, () => {
     const before = verifyLedger(root);
     const blocking = before.problems.filter((p) => p.rule !== 'entry-hash' && p.rule !== 'prev' && p.rule !== 'body-unmodified');
