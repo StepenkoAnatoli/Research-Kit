@@ -165,6 +165,16 @@ export function collectProjectFiles(root) {
     if (!realInside(root, abs)) { outside.push(top); continue; }
     walk(abs, top);
   }
+  // Two files differing only in case are one file on Windows and macOS. The reader refuses
+  // such a package (ZIP-CASE-COLLISION, the same lowercase comparison), but only after it
+  // was written - in CI, at the collect job's last step, after the credits were spent
+  // (Arena break test 10, 2026-09-28). Asked here, before a byte is written.
+  const folded = new Map();
+  for (const rel of out) {
+    const first = folded.get(rel.toLowerCase());
+    if (first === undefined) folded.set(rel.toLowerCase(), rel);
+    else if (first !== rel) refused.push({ rel: `${first} and ${rel}`, detail: 'they differ only in case, and on a case-insensitive filesystem one silently overwrites the other' });
+  }
   if (refused.length) {
     const err = new Error(`${refused.map((r) => r.rel).join(', ')} cannot travel in a package faithfully: `
       + `${refused.map((r) => r.detail).join('; ')}. `

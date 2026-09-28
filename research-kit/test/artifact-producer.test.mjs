@@ -47,6 +47,25 @@ test('a name the archive cannot carry faithfully is refused, not quietly rewritt
   );
 });
 
+// Found 2026-09-28 (Arena break test 10, R-1; done at the user's request): two files that
+// differ only in case are one file on Windows and macOS. The reader refuses such a package
+// (ZIP-CASE-COLLISION) - but only AFTER the producer had written it, which in CI is the
+// collect job failing at its last step, after the credits were spent.
+test('two files differing only in case are refused before anything is written', () => {
+  const root = collectedProject();
+  const raw = path.join(root, 'research', 'raw');
+  fs.writeFileSync(path.join(raw, 'Capture.md'), 'one\n', 'utf8');
+  fs.writeFileSync(path.join(raw, 'capture.md'), 'two\n', 'utf8');
+  if (fs.readdirSync(raw).filter((n) => n.toLowerCase() === 'capture.md').length < 2) return;   // a case-insensitive filesystem holds one file
+  assert.throws(
+    () => build(root),
+    (err) => err.code === 'UNPACKAGEABLE_NAME'
+      && /differ only in case/.test(err.message)
+      && /Capture\.md/.test(err.message) && /capture\.md/.test(err.message),
+    'the producer must refuse a case collision the reader would refuse',
+  );
+});
+
 // ---------------------------------------------------------------- authorization is derived
 
 test('a caller cannot ask for authorization: there is no such option', () => {
