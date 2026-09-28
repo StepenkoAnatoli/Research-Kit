@@ -322,6 +322,26 @@ test('the live workflow gives its scratch plan something to collect', () => {
     'the scratch plan is never given a query, so the run collects nothing and fails');
 });
 
+test('the live workflow fills its plan before it runs research.mjs at all, dry run included', () => {
+  // Found 2026-09-28 by dispatching it: both live runs failed at the collection step with
+  // "research/plan.json has no queries and no urls - nothing to collect" (exit 2), before a
+  // credit was spent. The step ran `research.mjs --dry-run` on the scaffolded plan and only
+  // THEN wrote the query - fine until d20c686 (2026-09-27) made research.mjs refuse an
+  // empty plan, dry run included, which is right for a person and fatal here. The test
+  // above checked a query was written; nothing checked it was written FIRST.
+  const file = path.join(REPO, '.github', 'workflows', 'live-collection.yml');
+  if (!fs.existsSync(file)) return;
+  const text = fs.readFileSync(file, 'utf8');
+  const step = text.slice(text.indexOf('name: collect into a scratch project'), text.indexOf('name: a ledger was written'))
+    .split('\n').filter((line) => !line.trim().startsWith('#') && !line.trim().startsWith('//'));
+  const filled = step.findIndex((line) => /plan\.queries\s*=\s*\[/.test(line));
+  const runs = step.map((line, i) => (/bin\/research\.mjs/.test(line) ? i : -1)).filter((i) => i !== -1);
+  assert(filled !== -1 && runs.length > 0, 'the collection step no longer writes a query or runs research.mjs');
+  const early = runs.filter((i) => i < filled).map((i) => step[i].trim());
+  assertEqual(early.length, 0,
+    `research.mjs runs before the plan has a query, and refuses an empty plan (exit 2):\n  ${early.join('\n  ')}`);
+});
+
 test('the live workflow hands the search key to collection, so the search seam is tested too', () => {
   // Its header says to run it "after changing lib/serpapi.mjs" - but only FIRECRAWL_API_KEY
   // reached the collection step, so a SerpAPI key in the environment was never read and the
