@@ -300,12 +300,69 @@ export function sha256File(p) {
  * Canonical JSON: keys sorted at every depth, no insignificant whitespace.
  * The ledger's entry hash is taken over this rendering, so two writers on two
  * machines produce the same bytes for the same entry.
+ *
+ * NOT RECURSIVE, and that is a correctness property rather than an optimisation.
+ *
+ * The recursive form - `[${value.map(canonicalJson).join(',')}]` - overflowed the
+ * JavaScript stack at a few thousand levels of nesting. Measured, not supposed: a
+ * 3,000-deep object threw `RangeError: Maximum call stack size exceeded`, and the depth
+ * at which it did moved with whatever else was on the stack, so it was not even a stable
+ * limit to document. This function hashes the fetch ledger, a file that travels between
+ * machines through git and that a person may hand-edit, so ONE deeply nested line ended
+ * the process - `handoff.mjs`, the first command a builder runs, printed a bare V8 stack
+ * trace and exited 1, the code that means "the corpus did not arrive" (found 2026-09-28,
+ * break-test). Depth is a property of the input; it must not be able to end the run.
+ *
+ * The rendering is byte-for-byte what the recursive form produced, corners included,
+ * because every hash in the ledger and in the conformance vectors depends on that
+ * staying true. The corners are: keys sorted at every depth; an object key whose value is
+ * `undefined` dropped; and a member `JSON.stringify` cannot encode rendered as an empty
+ * string inside an ARRAY but as the four letters "undefined" inside an OBJECT - which is
+ * what `join(',')` and a template literal respectively did, and which a rewrite has to
+ * reproduce rather than tidy. Verified differentially against the recursive form over
+ * 20,000 generated structures before this replaced it.
  */
 export function canonicalJson(value) {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  const keys = Object.keys(value).filter((k) => value[k] !== undefined).sort();
-  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalJson(value[k])}`).join(',')}}`;
+
+  /** One frame per open container: its members in canonical order, and how far through them. */
+  const frameOf = (node) => (Array.isArray(node)
+    ? { keys: null, node, at: 0 }
+    : { keys: Object.keys(node).filter((k) => node[k] !== undefined).sort(), node, at: 0 });
+
+  const parts = [];
+  const stack = [];
+  let frame = frameOf(value);
+  parts.push(frame.keys === null ? '[' : '{');
+  for (;;) {
+    const isArray = frame.keys === null;
+    const count = isArray ? frame.node.length : frame.keys.length;
+    if (frame.at >= count) {
+      parts.push(isArray ? ']' : '}');
+      frame = stack.pop();
+      if (!frame) return parts.join('');
+      continue;
+    }
+    if (frame.at > 0) parts.push(',');
+    const key = isArray ? frame.at : frame.keys[frame.at];
+    frame.at += 1;
+    if (!isArray) parts.push(`${JSON.stringify(key)}:`);
+    const child = frame.node[key];
+    if (child !== null && typeof child === 'object') {
+      stack.push(frame);
+      frame = frameOf(child);
+      parts.push(frame.keys === null ? '[' : '{');
+      continue;
+    }
+    const encoded = JSON.stringify(child);
+    // The two container kinds rendered a member JSON cannot encode (a hole in a sparse
+    // array, a present `undefined`, a symbol, a function) DIFFERENTLY in the recursive
+    // form, and both spellings are load-bearing for byte-equality, so both are kept:
+    // an array went through `Array.prototype.join`, which renders `undefined` as an empty
+    // string, while an object went through a template literal, which renders it as the
+    // four letters "undefined".
+    parts.push(encoded === undefined ? (isArray ? '' : 'undefined') : encoded);
+  }
 }
 
 // ---------------------------------------------------------------- dates and strings

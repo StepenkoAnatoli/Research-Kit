@@ -2,8 +2,9 @@
 // hardening design, §8: a hand-typed capture, a post-hoc edit, and a removed line each
 // fail the gate, by name.
 
-import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path } from './harness.mjs';
+import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, appendLine } from './harness.mjs';
 import { PATHS, resolve, sha256, writeText, readText } from '../lib/core.mjs';
+import { verifyHandoff } from '../lib/handoff.mjs';
 import { appendFetch, verifyLedger, repairLedgerTail, rebuildLedger, withLock, entryHash, isLineEndingRewrite, hashText } from '../lib/provenance.mjs';
 import { runPreflight } from '../lib/preflight.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
@@ -210,4 +211,34 @@ test('the ledger is the collector\'s alone: the gate writes overrides, not chain
   evaluate(dir, { gate: 'commit', stagedPaths: ['src/index.js'] });
   assert.equal(readCorpus(dir).ledger.entries.length, before, 'the gate must never append to the chain');
   assert.ok(readText(resolve(dir, PATHS.overrides)).includes('GATE_OFF'));
+});
+
+// Found 2026-09-28, break-test. The ledger crosses machines through git and a person may
+// hand-edit it, so its shape is not this kit's to assume. One line nested a few thousand
+// levels deep - valid JSON, so nothing upstream can refuse it - used to overflow the
+// JavaScript stack inside `entryHash`. `handoff.mjs`, the FIRST command a builder runs,
+// then printed a bare V8 stack trace and exited 1: the code that means "the corpus did not
+// arrive". The line was the thing that was wrong, and nothing said so.
+test('a ledger line nested too deeply to walk is a named chain problem, not a crash', () => {
+  const dir = makePassingProject();
+  const depth = 20_000;
+  // Spelled as bytes, not built as a value: `JSON.stringify` is itself recursive and
+  // overflows on this document, which is exactly why the shape can only arrive here from
+  // a file rather than from anything this kit constructs.
+  const line = `{"seq":2,"prev":"${'0'.repeat(64)}","op":"scrape","url":"https://example.invalid/deep","raw":"",`
+    + `"deep":${'{"a":'.repeat(depth)}1${'}'.repeat(depth)}}`;
+  appendLine(resolve(dir, PATHS.ledger), line);
+
+  let chain;
+  assert.doesNotThrow(() => { chain = verifyLedger(dir); }, 'hashing the line ended the process instead of judging it');
+  assert.equal(chain.ok, false);
+  const problem = chain.problems.find((p) => p.rule === 'entry-hash' && p.line === 2);
+  assert.ok(problem, `expected an entry-hash problem on line 2, got: ${chain.problems.map((p) => `${p.rule}@${p.line}`).join(', ')}`);
+  assert.match(problem.detail, /does not recompute for seq 2/);
+
+  // And the builder's first command reports the ledger, rather than the stack.
+  const report = verifyHandoff(dir);
+  assert.equal(report.ok, false);
+  assert.ok(report.findings.some((f) => f.name === 'handoff-chain-broken'),
+    `handoff named: ${report.findings.map((f) => f.name).join(', ')}`);
 });
