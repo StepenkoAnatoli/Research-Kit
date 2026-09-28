@@ -361,6 +361,17 @@ test('reviewedBy reads the brief\'s declaration, and only a real one', () => {
   assert.equal(reviewedBy('Reviewed by: robot'), 'undeclared');
   assert.equal(reviewedBy('No declaration here.'), 'undeclared');
   assert.equal(reviewedBy(''), 'undeclared');
+
+  // Found by the break-test, 2026-09-27: a careless edit of the drafted placeholder,
+  // "Reviewed by: agent or human", was reported as `agent`, and two contradicting lines
+  // resolved silently to the first. An ambiguous declaration is no declaration.
+  assert.equal(reviewedBy('Reviewed by: agent or human'), 'undeclared', 'names both roles');
+  assert.equal(reviewedBy('Reviewed by: human-assisted agent'), 'undeclared', 'names both roles');
+  assert.equal(reviewedBy('Reviewed by: human\n\nReviewed by: agent'), 'undeclared', 'two lines disagree');
+  assert.equal(reviewedBy('Reviewed by: agent\n\nReviewed by: agent (again)'), 'agent', 'two lines agree');
+  assert.equal(reviewedBy('  Reviewed by: agent'), 'agent', 'indentation is not a reason to ignore it');
+  assert.equal(reviewedBy('```\nReviewed by: human\n```\nReviewed by: agent'), 'agent', 'a quoted line in a code block is not a declaration');
+  assert.equal(reviewedBy('```\nReviewed by: human\n```'), 'undeclared');
 });
 
 test('the drafted brief asks who reviewed it, and an answer reaches the manifest and both files', () => {
