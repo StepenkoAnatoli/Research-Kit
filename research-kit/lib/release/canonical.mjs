@@ -9,15 +9,28 @@
 // A record may be FLAT or NESTED ({ envelope, payload }). metaOf/payloadOf/nestedRecord
 // are the only readers that know which, so nothing above them has to.
 import crypto from 'node:crypto';
-/** Canonical JSON: recursively sorted object keys, authored array order. */
+/**
+ * Canonical JSON: recursively sorted object keys, authored array order.
+ *
+ * An unpaired UTF-16 surrogate, in a key or a value, is refused: the canonical-serialization
+ * spec (2026-09-16, rule 3) rejects it, and the Python runners always did. JSON.stringify
+ * escaped it as "\ud800" and this hashed it, so the same vector PASSED here and was refused
+ * in Python (Arena break test 5, 2026-09-28).
+ */
 export function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (value && typeof value === 'object') {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+    return `{${Object.keys(value).sort().map((key) => `${canonicalString(key)}:${canonicalJson(value[key])}`).join(',')}}`;
   }
+  if (typeof value === 'string') return canonicalString(value);
   const encoded = JSON.stringify(value);
   if (encoded === undefined) throw new Error('undefined is not canonical JSON');
   return encoded;
+}
+
+function canonicalString(text) {
+  if (!text.isWellFormed()) throw new Error('unpaired surrogate is not canonical JSON');
+  return JSON.stringify(text);
 }
 
 /**

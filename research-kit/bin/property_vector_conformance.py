@@ -234,7 +234,9 @@ def main(argv: list[str] | None = None) -> int:
                 suffix = f" ({vector['reason']})" if vector["reason"] else ""
                 print(f"- {vector['vectorId']}: {vector['result']}{suffix}")
         return 0 if report["status"] == "PASS" else 1
-    except (OSError, PacketError) as error:
+    # ConformanceError and RecursionError also arise AFTER the parse, while canonicalising
+    # a vector: a packet deep enough to parse but not to canonicalise (2026-09-28).
+    except (OSError, PacketError, ConformanceError, RecursionError) as error:
         report = {"validatorVersion": VERSION, "profile": PROFILE, "vectorCount": 0, "status": "FAIL", "vectors": [], "errors": [{"code": "PROPERTY-VECTOR-PACKET", "message": str(error)}]}
         if parsed.json:
             sys.stdout.write(report_json(report))
