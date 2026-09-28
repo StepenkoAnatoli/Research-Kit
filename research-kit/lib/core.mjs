@@ -131,9 +131,41 @@ export function ensureDir(p) {
   return p;
 }
 
+/**
+ * Write a file whole, or not at all.
+ *
+ * `fs.writeFileSync` opens with 'w', which EMPTIES the target before a byte is written, so a
+ * write cut short - a full disk, a quota, EFBIG, a killed process - left a partial new file
+ * where the old one had been (found 2026-09-28: a 6,300-byte file under a 4 KB limit became
+ * 4,096 bytes of the new text). EVIDENCE.md and MAP.md are rewritten through here and hold
+ * human review work. So the text goes to a scratch dotfile beside the target - a dotfile, so
+ * a leftover is never read as a capture - and is renamed over it, which replaces the file
+ * in one step within a filesystem. The replaced file's mode is kept (a 0600 config stays
+ * 0600); a symlinked target is written through to the file it names; a dangling link is
+ * written directly, as before. The scratch file never outlives a failure.
+ */
 export function writeText(p, text) {
   ensureDir(path.dirname(p));
-  fs.writeFileSync(p, text, 'utf8');
+  let target = p;
+  let mode = null;
+  try {
+    target = fs.realpathSync(p);
+    mode = fs.statSync(target).mode & 0o7777;
+  } catch {
+    try {
+      if (fs.lstatSync(p).isSymbolicLink()) { fs.writeFileSync(p, text, 'utf8'); return p; }   // dangling link
+    } catch { /* p does not exist yet: a new file */ }
+    target = p;
+  }
+  const scratch = path.join(path.dirname(target), `.${path.basename(target)}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`);
+  try {
+    fs.writeFileSync(scratch, text, 'utf8');
+    if (mode !== null) fs.chmodSync(scratch, mode);
+    fs.renameSync(scratch, target);
+  } catch (err) {
+    try { fs.rmSync(scratch, { force: true }); } catch { /* already gone */ }
+    throw err;
+  }
   return p;
 }
 

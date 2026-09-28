@@ -436,3 +436,41 @@ test('the timeline writes each moment in one readable form', () => {
   for (const when of whens) assert.match(when, /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2} UTC)?$/, `mixed form: ${when}`);
   assert.ok(whens.includes('2026-09-27 14:05 UTC'), `a real time was lost: ${whens}`);
 });
+
+// Found 2026-09-28 (an outside break-test, F-02; confirmed): writeText opened its target
+// with 'w', which EMPTIES it before a byte is written, so a write cut short - a full disk, a
+// quota, EFBIG, a killed process - left a partial new file where the old one had been.
+// Measured: a 6,300-byte file under a 4 KB limit became 4,096 bytes of the new text, the
+// original gone. EVIDENCE.md and MAP.md are rewritten this way and hold human review work.
+test('a write cut short leaves the file it was replacing untouched, and no scratch file', () => {
+  const dir = tempDir('rk-atomic-');
+  const target = path.join(dir, 'EVIDENCE.md');
+  fs.writeFileSync(target, 'ORIGINAL REVIEW WORK\n'.repeat(300));
+  const before = fs.readFileSync(target, 'utf8');
+  const real = fs.writeFileSync;
+  fs.writeFileSync = (file, data, ...rest) => {
+    real(file, String(data).slice(0, 64), ...rest);          // some bytes land, then the disk is full
+    const err = new Error('ENOSPC: no space left on device, write'); err.code = 'ENOSPC'; throw err;
+  };
+  let error = null;
+  try { writeText(target, 'NEW '.repeat(12_000)); } catch (err) { error = err; } finally { fs.writeFileSync = real; }
+  assert.equal(error?.code, 'ENOSPC', 'the failure must still reach the caller');
+  assert.equal(fs.readFileSync(target, 'utf8'), before, 'the file being replaced was damaged');
+  assert.deepEqual(fs.readdirSync(dir), ['EVIDENCE.md'], 'a scratch file was left behind');
+});
+
+test('writeText keeps the replaced file\'s mode, and writes through a symlink to its target', () => {
+  const dir = tempDir('rk-atomic-');
+  const target = path.join(dir, 'config.json');
+  fs.writeFileSync(target, '{}\n');
+  fs.chmodSync(target, 0o600);
+  writeText(target, '{"a":1}\n');
+  if (process.platform !== 'win32') assert.equal(fs.statSync(target).mode & 0o777, 0o600, 'a 0600 file became world-readable');
+  const real = path.join(dir, 'real.md');
+  fs.writeFileSync(real, 'old\n');
+  const link = path.join(dir, 'link.md');
+  fs.symlinkSync(real, link, 'file');
+  writeText(link, 'new\n');
+  assert.ok(fs.lstatSync(link).isSymbolicLink(), 'the symlink was replaced by a file');
+  assert.equal(fs.readFileSync(real, 'utf8'), 'new\n', 'the write did not reach the link target');
+});
