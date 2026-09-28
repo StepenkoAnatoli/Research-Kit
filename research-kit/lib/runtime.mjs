@@ -1,6 +1,6 @@
 // What this host must provide before a command can do its job.
 //
-// The README promises Node 22+, Git, and Python 3.12+. A promise in a README is not a
+// The README promises Node 22+, Git, and Python 3.11+. A promise in a README is not a
 // check: entrypoints began executing and the missing prerequisite surfaced as a syntax
 // error, a missing built-in, or a subprocess failure three layers down - none of which
 // says "your Node is too old".
@@ -15,7 +15,13 @@ import { spawn as spawnChild, spawnSync } from 'node:child_process';
 
 /** Node 22 is the floor: the kit uses `structuredClone` on arrays and modern ESM only. */
 export const REQUIRED_NODE_MAJOR = 22;
-export const REQUIRED_PYTHON = { major: 3, minor: 12 };
+/**
+ * The oldest Python the conformance runners are promised to work on, and the one CI pins
+ * (ADR-0078). Measured 2026-09-28: all three runners agree with Node on 3.10 through 3.13;
+ * 3.11 is the oldest of those still maintained. README and CI must name this same number.
+ */
+export const REQUIRED_PYTHON = { major: 3, minor: 11 };
+const PYTHON_FLOOR = `${REQUIRED_PYTHON.major}.${REQUIRED_PYTHON.minor}`;
 
 /** `{ ok, detail }` - ok when this Node is new enough to run the kit at all. */
 export function checkNode(version = process.versions.node) {
@@ -252,13 +258,13 @@ export function checkPython({ run = spawnSync } = {}) {
     rejected ??= {
       ok: false,
       detail: `${exe} ${match[0]}; the conformance runners need ${REQUIRED_PYTHON.major}.${REQUIRED_PYTHON.minor}+`,
-      fix: 'install Python 3.12+ from python.org, then reopen the terminal',
+      fix: `install Python ${PYTHON_FLOOR}+ from python.org, then reopen the terminal`,
     };
   }
   return rejected ?? {
     ok: false,
     detail: 'no python on PATH',
-    fix: 'install Python 3.12+ from python.org; only the cross-language conformance runners need it',
+    fix: `install Python ${PYTHON_FLOOR}+ from python.org; only the cross-language conformance runners need it`,
   };
 }
 

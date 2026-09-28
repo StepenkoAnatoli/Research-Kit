@@ -19,7 +19,7 @@ before spending), and a configured credential.
 the full offline suite runs on that platform in CI on every commit — see
 [the support policy](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#supported-platforms) for why the distinction is worded
 that way and what it has already caught. Needs Node 22+ (22, 24 and 26 are each tested on
-every commit), Git, and Python 3.12+ for the cross-language conformance runners.
+every commit), Git, and Python 3.11+ for the cross-language conformance runners.
 
 New here? [Your first 30 minutes](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#your-first-30-minutes) is one ordered path
 from nothing to a `preflight` verdict, and
@@ -442,7 +442,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1121 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1122 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

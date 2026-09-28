@@ -217,7 +217,7 @@ teaches people to ignore red, which costs more than the coverage is worth. If th
 changes, add `macos-latest` to the matrix in `offline-suite.yml` — there is a comment
 there saying so.
 
-**Requirements:** Node 22+ and Git. Python 3.12+ is needed for the cross-language
+**Requirements:** Node 22+ and Git. Python 3.11+ is needed for the cross-language
 conformance runners; without it those tests report `UNSUP` and **block** rather than
 silently passing. Node 22, 24 and 26 are each tested on every commit - the three lines Node
 supports (as of 2026-09). Behind an HTTPS proxy, the kit's own requests (keyless pages,
@@ -376,7 +376,7 @@ The failure modes that actually happen, and what each one looks like:
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Tests print `UNSUP  PYTHON-NOT-FOUND` and the suite exits non-zero | No Python; the cross-language conformance runners cannot run | Install Python 3.12+. This **blocks by design** — a green suite with no Python would claim Node and Python agree while testing neither |
+| Tests print `UNSUP  PYTHON-NOT-FOUND` and the suite exits non-zero | No Python; the cross-language conformance runners cannot run | Install Python 3.11+. This **blocks by design** — a green suite with no Python would claim Node and Python agree while testing neither |
 | `preflight` fails with `ledger-missing` | `research/raw/.fetches.jsonl` did not travel. Zip tools and some sync tools silently drop dotfiles | On the collector: push `research/raw/` **including its dotfiles** |
 | Commits succeed but the gate never seems to run | `githooks/pre-commit` is not executable; git skips a non-executable hook silently | `git update-index --chmod=+x research-kit/githooks/pre-commit` |
 | The gate blocks with "…is not staged with them" | You changed a declared code path without updating `docs/ARCHITECTURE.md` | Update the map, or `git commit --no-verify` (recorded) |

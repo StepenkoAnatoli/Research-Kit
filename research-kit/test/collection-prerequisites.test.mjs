@@ -138,7 +138,7 @@ test('a missing prerequisite exits 3, distinctly from a product failure', () => 
   }
 });
 
-test('the python check accepts 3.12+ and rejects older, reading either stream', () => {
+test('the python check accepts the floor (3.11+) and rejects older, reading either stream', () => {
   // Python 3 prints its version to stdout and Python 2 to stderr, which is exactly the
   // kind of detail a check written against one of them gets wrong.
   const run = (out, err = '') => () => ({ status: 0, stdout: out, stderr: err });
@@ -146,6 +146,9 @@ test('the python check accepts 3.12+ and rejects older, reading either stream', 
   assertEqual(checkPython({ run: run('Python 3.14.0') }).ok, true);
   assertEqual(checkPython({ run: run('', 'Python 2.7.18') }).ok, false);
   assertEqual(checkPython({ run: run('Python 3.9.7') }).ok, false);
+  // The floor itself, and the version just below it (ADR-0078: 3.11, measured 2026-09-28).
+  assertEqual(checkPython({ run: run('Python 3.11.2') }).ok, true, 'the floor, 3.11, must be accepted');
+  assertEqual(checkPython({ run: run('Python 3.10.20') }).ok, false, '3.10 is below the floor');
   assertEqual(checkPython({ run: () => ({ error: new Error('ENOENT'), status: null }) }).ok, false);
 });
 

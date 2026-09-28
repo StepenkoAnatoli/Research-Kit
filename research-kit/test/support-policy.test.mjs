@@ -11,6 +11,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { test, describe, assert, assertEqual, fs, path, KIT_ROOT } from './harness.mjs';
+import { REQUIRED_PYTHON } from '../lib/runtime.mjs';
 
 describe('support-policy');
 
@@ -143,7 +144,7 @@ test('the prerequisites named in the policy are the ones the suite actually need
   // of the UNSUP mechanism, and a reader who skips installing it should know before the
   // suite tells them.
   const readme = fs.readFileSync(ROOT_README, 'utf8');
-  assert(/Python 3\.12\+/.test(readme), 'the README no longer names the Python requirement');
+  assert(/Python 3\.\d+\+/.test(readme), 'the README no longer names the Python requirement');
   assert(/Node 22\+/.test(readme), 'the README no longer names the Node requirement');
 
   const yaml = fs.readFileSync(WORKFLOW, 'utf8');
@@ -152,7 +153,25 @@ test('the prerequisites named in the policy are the ones the suite actually need
   assert(node && Number(node[1].split('.')[0]) >= 22,
     `CI pins Node ${node?.[1]} but the README promises 22+`);
   assert(python && python[1].startsWith('3.1'),
-    `CI pins Python ${python?.[1]} but the README promises 3.12+`);
+    `CI pins Python ${python?.[1]} but the README promises a 3.1x floor`);
+});
+
+// Found 2026-09-28 (an outside break-test's risk list): the floor was declared 3.12 while
+// the runners passed on 3.11, and the check above only asked that CI pin SOMETHING 3.1x -
+// so the README, the code and CI could drift apart. The floor is one number: the code's
+// REQUIRED_PYTHON, the README's promise, and every python-version CI pins, so CI always
+// tests exactly the oldest Python the kit promises (ADR-0078).
+test('the Python floor is one number: the code, both READMEs and every CI pin agree', () => {
+  const floor = `${REQUIRED_PYTHON.major}.${REQUIRED_PYTHON.minor}`;
+  for (const file of [ROOT_README, path.join(KIT_ROOT, 'README.md')]) {
+    const text = fs.readFileSync(file, 'utf8');
+    const promised = [...text.matchAll(/Python (3\.\d+)\+/g)].map((m) => m[1]);
+    assert(promised.length, `${file} names no Python floor`);
+    for (const p of promised) assertEqual(p, floor, `${file} promises Python ${p}+ but the code requires ${floor}+`);
+  }
+  const pins = [...fs.readFileSync(WORKFLOW, 'utf8').matchAll(/python-version:\s*'?([\d.]+)'?/g)].map((m) => m[1]);
+  assert(pins.length, 'CI pins no Python version');
+  for (const pin of pins) assertEqual(pin, floor, `CI pins Python ${pin}, but the floor it must test is ${floor}`);
 });
 
 test('the Node lines the README says are tested are exactly the ones CI runs', () => {
