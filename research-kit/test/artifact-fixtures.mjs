@@ -6,8 +6,11 @@
 // a named mutation, so the diff that introduces a fixture is the sentence describing it.
 //
 // `rawZip` exists because `lib/archive.mjs` is CORRECT: `entryName()` refuses absolute
-// paths, drive letters, backslashes and `..`, so the kit's own writer cannot produce the
-// hostile cases the validator has to refuse. Writing them needs a writer with no opinions.
+// paths, drive letters and `..`, and turns a backslash into a separator rather than
+// storing it, so the kit's own writer cannot produce the hostile cases the validator has
+// to refuse. (It TRANSLATES, it does not refuse: that translation let a file named
+// `a\b.md` be stored as `a/b.md`, which is why collectProjectFiles now refuses such a
+// name first - Arena break test 10.) Writing them needs a writer with no opinions.
 // That is the only thing rawZip is for, and it lives in the test tree so it can never be
 // reached from a shipped path.
 
