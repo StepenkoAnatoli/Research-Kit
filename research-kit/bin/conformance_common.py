@@ -167,7 +167,40 @@ def reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return seen
 
 
+# The deepest nesting a packet may have (ADR-0083); lib/release/json.mjs enforces the same
+# number. CPython's canonicaliser recurses and gives out near 300 levels while Node went on
+# for thousands, so one packet was a result in one language and a refusal in the other.
+MAX_JSON_DEPTH = 256
+
+
+def json_depth_exceeds(text: str, limit: int = MAX_JSON_DEPTH) -> bool:
+    """Whether `text` nests deeper than `limit`, found by a flat scan: `json.loads` is
+    itself recursive, so the depth is measured before it runs."""
+    depth = 0
+    in_string = False
+    escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char in "[{":
+            depth += 1
+            if depth > limit:
+                return True
+        elif char in "]}":
+            depth -= 1
+    return False
+
+
 def parse_json_no_duplicates(text: str) -> Any:
+    if json_depth_exceeds(text):
+        raise ConformanceError(f"JSON nested deeper than {MAX_JSON_DEPTH} levels")
     return json.loads(text, object_pairs_hook=reject_duplicate_pairs, parse_constant=reject_constant)
 
 

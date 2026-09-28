@@ -124,3 +124,31 @@ test('an astral character is still canonical, and Node and Python hash it alike'
     assert.equal(JSON.parse(r.stdout).status, 'PASS', `${runner} refused an astral character:\n${(r.stdout || r.stderr).slice(0, 400)}`);
   }
 });
+
+// ADR-0083 (2026-09-28, Arena break test 11): both languages refuse a packet nested deeper
+// than 256 levels, and agree below it. Node took thousands of levels and CPython about
+// 300 before its canonicaliser hit the recursion limit, so the same packet was a result in
+// one language and a refusal in the other - the kind of disagreement these runners exist
+// to rule out. The value goes into the runner's own shipped packet, so only depth varies.
+test('Node and Python refuse a packet nested past 256 levels alike, and agree below it', () => {
+  const python = requirePython('Node/Python agreement on nesting depth');
+  for (const [nodeRunner, pythonRunner] of RUNNERS) {
+    for (const [depth, over] of [[260, true], [240, false]]) {
+      const packet = hostile(nodeRunner, nested(depth));
+      const reports = [[process.execPath, nodeRunner], [python, pythonRunner]].map(([exe, runner]) => {
+        const r = spawnSync(exe, [path.join(BIN, runner), '--vectors', packet, '--json'], { encoding: 'utf8' });
+        assert.doesNotMatch(r.stderr, /Traceback|RangeError|at .*\.mjs:\d+/, `${runner} crashed at ${depth}:\n${r.stderr.slice(-400)}`);
+        return { runner, status: r.status, report: JSON.parse(r.stdout) };
+      });
+      const [node, py] = reports;
+      assert.equal(py.report.status, node.report.status, `${depth} deep: ${pythonRunner} says ${py.report.status}, ${nodeRunner} says ${node.report.status}`);
+      assert.equal(py.report.errors?.[0]?.code, node.report.errors?.[0]?.code, `${depth} deep: the two name different codes`);
+      if (over) {
+        for (const { runner, report } of reports) {
+          assert.equal(report.status, 'FAIL', `${runner} accepted a packet nested ${depth} deep`);
+          assert.match(JSON.stringify(report.errors), /nested deeper than 256 levels/, `${runner} did not name the limit`);
+        }
+      }
+    }
+  }
+});
