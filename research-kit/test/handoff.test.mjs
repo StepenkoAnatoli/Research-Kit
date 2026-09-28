@@ -46,7 +46,11 @@ test('an empty ledger beside captures on disk lost its entries: restore or re-co
   assert.equal(report.didNotTravel, false, 'nothing is missing from this checkout');
   assert.doesNotMatch(report.remedy, /git add -f/);
   assert.match(report.remedy, /git checkout HEAD -- research\/raw\/\.fetches\.jsonl/);
-  assert.match(report.remedy, /research\.mjs --plan research\/plan\.json --force/);
+  // The command is printed quoted (kitCommand), and a checkout under a path with a space
+  // in it - routine on macOS and Windows - closes that quote between the script and its
+  // first flag. Without the optional quote this suite cannot pass from such a checkout
+  // (found 2026-09-28, break-test: one red test from a clone under "deep dir/").
+  assert.match(report.remedy, /research\.mjs"? --plan research\/plan\.json --force/);
 });
 
 // The same loss, one line shorter: a torn LAST line of a longer ledger, dropped by
