@@ -338,6 +338,11 @@ config, or a probe:
 - **`firecrawl-cli`** — metered, spawned as an argv array with no shell.
 - **`http-keyless`** — no key, no credits, grades its own capture completeness honestly.
 
+When Firecrawl's credits run out mid-run, the rest of the run switches to `http-keyless`
+and says so; each capture's ledger entry names the transport that fetched it (ADR-0086).
+`--no-fallback` records those pages as failed instead. Tavily is not a fallback: its terms
+reserve training on what is sent (C-6, re-checked 2026-09-28).
+
 ## What is built
 
 Everything the protocol needs: the corpus, the chain, the thirteen checks, the verdict,
@@ -442,7 +447,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1199 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1203 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

@@ -137,6 +137,10 @@ exist to obtain it without damaging the provenance guarantees the corpus rests o
   trigger is not met** - §6.5 and §6.7 are unchanged, and the document contains no
   no-training tier, no data opt-out and no "enterprise" anything. Corpus and brief:
   `docs/decisions/2026-09-22-tavily-terms/`.
+  **Re-read again 2026-09-28** (asked as a fallback for exhausted Firecrawl credits): §6.5 and
+  §6.7 unchanged; the FAQ's "zero data retention" is contradicted by the terms and the
+  privacy policy, and is reachable only by a negotiated contract. Trigger still unmet.
+  Corpus and brief: `docs/decisions/2026-09-28-fetch-fallback/`.
 - **Any paid tier** of anything.
 - **Reconciling the two caches** — SerpAPI's 1-hour server cache (C-3) against the kit's
   on-disk `--refresh-days`. They do not conflict today; unifying them is a separate

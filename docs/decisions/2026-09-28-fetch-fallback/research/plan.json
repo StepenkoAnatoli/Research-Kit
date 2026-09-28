@@ -1,0 +1,72 @@
+{
+  "topic": "Fetch fallback when Firecrawl credits run out: Firecrawl out-of-credits error, Tavily terms of service data training, Tavily search and extract API credits",
+  "notes": "Owning pages named directly; phase 0 found them among noise. The Tavily terms and privacy pages re-check the C-6 trigger (docs/requirements-2026-09-19-search-fetch-seam.md), last read 2026-09-22.",
+  "depth": "normal",
+  "refreshDays": 30,
+  "limit": 5,
+  "perQuery": 2,
+  "maxScrapes": 10,
+  "prefer": [
+    "docs.firecrawl.dev",
+    "tavily.com",
+    "docs.tavily.com"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://docs.firecrawl.dev/billing",
+      "type": "P",
+      "why": "U-01: what happens when credits run out"
+    },
+    {
+      "url": "https://docs.firecrawl.dev/api-reference/introduction",
+      "type": "P",
+      "why": "U-01: the status code for exhausted credits"
+    },
+    {
+      "url": "https://tavily.com/terms",
+      "type": "P",
+      "why": "U-02: C-6 trigger - does a no-training tier exist now"
+    },
+    {
+      "url": "https://tavily.com/privacy",
+      "type": "P",
+      "why": "U-02: data use of queries, opt-outs"
+    },
+    {
+      "url": "https://docs.tavily.com/documentation/api-credits",
+      "type": "P",
+      "why": "U-03: credits per search and extract, free allowance"
+    },
+    {
+      "url": "https://docs.tavily.com/documentation/api-reference/endpoint/search",
+      "type": "P",
+      "why": "U-03: search request and response"
+    },
+    {
+      "url": "https://docs.tavily.com/documentation/api-reference/endpoint/extract",
+      "type": "P",
+      "why": "U-03: extract request and response"
+    },
+    {
+      "url": "https://docs.tavily.com/documentation/rate-limits",
+      "type": "P",
+      "why": "U-03: rate limits"
+    },
+    {
+      "url": "https://docs.tavily.com/faq/faq",
+      "type": "P",
+      "why": "U-02: data retention and training answers"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/firecrawl/firecrawl/24b827e7d948c72fac1f9d6dd434e0b8cd76e812/apps/api/src/routes/shared.ts",
+      "type": "P",
+      "why": "U-04: the 402 body the API sends when credits run out"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/firecrawl/cli/v1.24.6/src/commands/scrape.ts",
+      "type": "P",
+      "why": "U-04: what the CLI prints when a scrape fails"
+    }
+  ]
+}

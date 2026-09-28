@@ -717,3 +717,18 @@ test('a key with no CLI to use it is named at collection time, with the install 
   assert.equal(unusedKeyNote(selectTransport({ explicit: 'http-keyless', env: key, probe: absent, config: {} }), key), '',
     'keyless was asked for by name: the operator chose it');
 });
+
+// ADR-0086: the text the Firecrawl API sends with its 402, as the CLI prints it on stderr
+// (fetch-fallback corpus, E-10, E-11). The adapter's scrape passes stderr on as its error,
+// and creditsExhausted must recognise it there - and nothing else.
+test('the Firecrawl adapter recognises exhausted credits from the CLI\'s own words', async () => {
+  const fc = (await import('../lib/firecrawl.mjs')).default;
+  const stderr = 'Error: Insufficient credits to perform this request. For more credits, you can upgrade your plan at https://firecrawl.dev/pricing or try changing the request limit to a lower value.';
+  const failed = fc.scrape('https://x.invalid/a', { execFn: () => ({ ok: false, status: 1, stdout: '', stderr }) });
+  assert.equal(failed.ok, false);
+  assert.equal(fc.creditsExhausted(failed.error), true);
+  assert.equal(fc.creditsExhausted('Insufficient credits. For more credits, you can upgrade your plan'), true, 'the v0 wording');
+  for (const other of ['Error: Rate limit exceeded (429)', 'Error: Payment required', 'firecrawl exited 1', '', undefined]) {
+    assert.equal(fc.creditsExhausted(other), false, String(other));
+  }
+});

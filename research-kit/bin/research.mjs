@@ -9,7 +9,7 @@
 
 import { parseFlags, flagList, refuseUnknownFlags, checkFlagValues, resolve, readText, parseJson } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal } from '../lib/machine.mjs';
-import { selectTransport, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES, unusedKeyNote } from '../lib/transport.mjs';
+import { selectTransport, TRANSPORTS, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES, unusedKeyNote } from '../lib/transport.mjs';
 import { runResearch, searchSummaryLine, readPlan, planProblems, usageSummary, topicMatch, DEPTHS, DEPTH_SCRAPES } from '../lib/research-run.mjs';
 import { parseCapture, readLedger } from '../lib/corpus.mjs';
 import { readPrior } from '../lib/prior.mjs';
@@ -17,7 +17,7 @@ import { heading } from '../lib/render.mjs';
 
 import { kitCommand } from '../lib/core.mjs';
 const { flags } = parseFlags(process.argv.slice(2));
-refuseUnknownFlags(flags, ['depth', 'dry-run', 'force', 'help', 'only', 'plan', 'refresh-days', 'search-transport', 'status', 'transport']);
+refuseUnknownFlags(flags, ['depth', 'dry-run', 'force', 'help', 'no-fallback', 'only', 'plan', 'refresh-days', 'search-transport', 'status', 'transport']);
 checkFlagValues(flags, { depth: { choices: DEPTHS }, 'refresh-days': { int: true, min: 0 }, plan: 'value', only: 'value', transport: 'value', 'search-transport': 'value' });
 const root = process.cwd();
 
@@ -37,6 +37,8 @@ if (flags.help) {
   --search-transport <name>
                        ${SEARCH_PROVIDER_NAMES.join(' | ')} - the SEARCH side only.
                        Default: the fetch transport, unless a SerpAPI key is configured.
+  --no-fallback        when Firecrawl's credits run out, record the remaining pages as
+                       failed instead of switching the rest of the run to http-keyless
 
 Every scrape spends a credit. Plan the queries before collecting.
 `);
@@ -174,8 +176,15 @@ process.stdout.write(unusedKeyNote(chosen));
 if (!chosen.search.sameAsFetch) {
   process.stdout.write(`search:    ${chosen.search.name} - ${chosen.search.why}\n`);
 }
+// The transport the run switches to if the chosen one reports its credits exhausted
+// (ADR-0086): free, no new vendor, already a named transport. Only an adapter that can say
+// what exhaustion looks like gets one.
+const fallbackAdapter = !flags['no-fallback'] && typeof chosen.adapter?.creditsExhausted === 'function'
+  && chosen.adapter !== TRANSPORTS['http-keyless'] ? TRANSPORTS['http-keyless'] : null;
+if (fallbackAdapter) process.stdout.write(`fallback:  ${fallbackAdapter.name} if credits run out (--no-fallback to record those pages as failed instead)\n`);
 const run = runResearch(root, {
   adapter: chosen.adapter,
+  fallbackAdapter,
   searchAdapter: chosen.search.adapter,
   searchAdapters: chosen.search.adapters ?? null,
   plan: typeof flags.plan === 'string' ? readPlan(root, flags.plan) : null,
@@ -202,7 +211,7 @@ function budgetCap({ depth, budget, maxScrapes }) {
 
 process.stdout.write(`${heading('run')}
 depth      ${run.depth} (budget ${run.budget} scrapes)
-collected  ${run.collected}
+${run.fellBack ? `fell back  ${run.fellBack.from} -> ${run.fellBack.to} (${run.fellBack.reason}); pages after that were fetched by ${run.fellBack.to}, and the ledger says which\n` : ''}collected  ${run.collected}
 cached     ${run.cached}
 failed     ${run.failed}
 spent      ${run.spent} (budget consumed: collected + failed)

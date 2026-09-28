@@ -305,6 +305,9 @@ export function runResearch(root, {
   searchAdapter = null,
   // Several providers: asked in parallel and interleaved by rank. One stays one.
   searchAdapters = null,
+  // Taken once, when the fetch adapter reports its credits are exhausted (ADR-0086): the
+  // rest of the run searches and fetches through it. Null means no fallback.
+  fallbackAdapter = null,
   plan = null,
   depth = '',
   refreshDays = null,
@@ -393,6 +396,35 @@ ${compatibility.remedy}`);
   const searcher = searchAdapter ?? searchers[0] ?? adapter;
   const searchName = searcher?.name ?? adapter?.name ?? '';
 
+  // Credits run out mid-run (ADR-0086). Firecrawl answers 402, and its CLI passes on only
+  // the text "Insufficient credits ...", so the adapter itself says what exhaustion looks
+  // like (`creditsExhausted`), and this run switches ONCE: every later search and fetch
+  // that would have gone to the exhausted adapter goes to the fallback, and the ledger's
+  // per-capture transport records which one fetched each page. Until 2026-09-28 every
+  // page after that point was recorded as failed.
+  let fellBack = null;
+  const exhausted = (provider, text) => Boolean(provider === adapter && fallbackAdapter && provider.creditsExhausted?.(text));
+  const switchToFallback = (text, during) => {
+    if (fellBack) return;
+    fellBack = { from: adapter.name, to: fallbackAdapter.name, reason: 'credits exhausted' };
+    log(`  credits ran out on ${adapter.name} (during ${during}) - the rest of this run uses ${fallbackAdapter.name}; each capture records the transport that fetched it`);
+    appendJsonLine(root, PATHS.failures, {
+      at: new Date().toISOString(), op: 'credits-exhausted', provider: adapter.name, fallback: fallbackAdapter.name, error: String(text ?? '').slice(0, 300),
+    });
+  };
+  // The provider to use now: the exhausted adapter's place is taken by the fallback.
+  const live = (provider) => (fellBack && provider === adapter ? fallbackAdapter : provider);
+  // Ask, and on exhaustion switch and ask the fallback in the same breath.
+  const askLive = (provider, text) => {
+    const first = live(provider);
+    const r = ask(first, text);
+    if (!r.ok && exhausted(first, r.error)) {
+      switchToFallback(r.error, `search "${text}"`);
+      return { r: ask(fallbackAdapter, text), provider: fallbackAdapter };
+    }
+    return { r, provider: first };
+  };
+
   const seen = new Set(corpus.captures.entries.map((e) => e.url).filter(Boolean).map(urlKey));
   const targets = [];
 
@@ -446,8 +478,10 @@ ${compatibility.remedy}`);
     // still contribute, and the failure is recorded like any other.
     if (searchers.length > 1) {
       const lists = [];
-      for (const one of searchers) {
-        const r = ask(one, text);
+      for (const planned of searchers) {
+        const asked = askLive(planned, text);
+        const { r } = asked;
+        const one = asked.provider;
         countOn(one.name, r.searchesUsed);
         if (Number.isFinite(r.creditsEstimate)) searchCreditsEstimate += r.creditsEstimate;
         if (!r.ok) {
@@ -483,24 +517,26 @@ ${compatibility.remedy}`);
       continue;
     }
 
-    let found = ask(searcher, text);
-    let ranker = searchName;
+    const firstAsk = askLive(searcher, text);
+    let found = firstAsk.r;
+    let ranker = firstAsk.provider.name;
 
     // A second meter is a second thing that can be down. One bounded fallback to the
     // fetch provider's own search (RR-1, RR-2): it keeps the run alive, it costs fetch
     // credits, and it is REPORTED rather than absorbed - a silent fallback is a bill the
     // operator did not know they were paying.
-    if (!found.ok && searcher !== adapter) {
+    if (!found.ok && firstAsk.provider !== live(adapter)) {
       const reason = found.error;
       searchFailures += 1;
-      failedOn(searchName);
+      failedOn(ranker);
       appendJsonLine(root, PATHS.failures, {
-        at: new Date().toISOString(), op: 'search', query: text, provider: searchName, error: reason, degraded: true,
+        at: new Date().toISOString(), op: 'search', query: text, provider: ranker, error: reason, degraded: true,
       });
-      log(`  search failed on ${searchName}: ${reason}`);
-      log(`  degrading to ${adapter.name} for this query - this spends fetch credits`);
-      found = ask(adapter, text);
-      ranker = adapter.name;
+      log(`  search failed on ${ranker}: ${reason}`);
+      const next = askLive(adapter, text);
+      log(`  degrading to ${next.provider.name} for this query - this spends fetch credits`);
+      found = next.r;
+      ranker = next.provider.name;
       if (found.ok) degraded += 1;
     }
 
@@ -557,8 +593,8 @@ ${compatibility.remedy}`);
       continue;
     }
     if (!decision.hit) attempts += 1;
-    const outcome = collectOne(root, target.url, {
-      runScrape: (url) => adapter.runScrape(url),
+    const fetchWith = (fetcher) => collectOne(root, target.url, {
+      runScrape: (url) => fetcher.runScrape(url),
       corpus,
       type: target.type,
       usedFor: target.usedFor,
@@ -566,12 +602,19 @@ ${compatibility.remedy}`);
       force,
       date,
       now,
-      transportName: adapter.name,
+      transportName: fetcher.name,
       // Empty for a plan URL - nobody's ranking chose it, a person wrote it down.
       discoveredBy: target.rankedBy ?? '',
       dryRun,
       log,
     });
+    let outcome = fetchWith(live(adapter));
+    // The refused request cost nothing (a 402 is not charged), so it is not a failed page:
+    // the same page is fetched again through the fallback.
+    if (outcome.status === 'failed' && exhausted(live(adapter), outcome.reason)) {
+      switchToFallback(outcome.reason, `fetch ${target.url}`);
+      outcome = fetchWith(fallbackAdapter);
+    }
     if (outcome.status === 'collected') spent += 1;
     if (outcome.status === 'cached') cached += 1;
     if (outcome.status === 'failed') { failed += 1; spent += 1; }
@@ -586,6 +629,7 @@ ${compatibility.remedy}`);
     appendJsonLine(root, PATHS.usage, {
       at: new Date().toISOString(), depth: tier, budget, attempts, spent, cached, failed,
       transport: adapter.name,
+      ...(fellBack ? { fellBackTo: fellBack.to } : {}),
       searchTransport: searchName,
       searchesUsed,
       searchesOn,
@@ -606,6 +650,8 @@ ${compatibility.remedy}`);
     // "collected" told the operator they had pages they did not have.
     collected: spent - failed,
     searchesUsed, searchesOn, searchCreditsEstimate, searchFailures, searchFailuresOn, degraded,
+    // { from, to, reason } once the run switched transports (ADR-0086), else null.
+    fellBack,
     results, discovered,
   };
 }
