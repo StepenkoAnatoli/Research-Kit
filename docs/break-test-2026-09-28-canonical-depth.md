@@ -171,13 +171,20 @@ A future date is caught (`future-date`); `not-a-date` and `0000-01-01` are not, 
 `at` field is the authoritative fetch time and the chain does check it. Recorded because it
 is an asymmetry in what the gate asserts, not because anything broke.
 
-**7. Node 24 and Node 26 were not exercised — unchecked.**
+**7. Node 24 and Node 26 — closed by CI, not locally.**
 ADR-0046 and the `node-lines` job promise every supported line passes. `nodejs.org` is
-unreachable from this sandbox (`SSL_ERROR_SYSCALL`; only the npm registry proxy answers),
-so no second runtime could be fetched. This session's evidence is Node 22 only. The
-`canonicalJson` rewrite is the one change with runtime-sensitive surface — it trades
-recursion for an explicit stack, which is if anything *more* portable — but that is an
-argument, not a measurement.
+unreachable from the sandbox this session ran in (`SSL_ERROR_SYSCALL`; only the npm
+registry proxy answers), so no second runtime could be fetched and every measurement above
+is Node 22. That was the one gap in the local evidence, and it mattered most here: the
+`canonicalJson` rewrite is the change with runtime-sensitive surface.
+
+It is closed on the pull request rather than in this session. `gh pr checks 129` on the
+commit under review returned **pass** for all six checks — `node (24)`, `node (26)`,
+`platform (ubuntu-latest)`, `platform (ubuntu-26.04)`, `platform (windows-latest)` and
+`suite`. What could *not* be read is the per-platform test count each leg published: the
+Actions log archive is served from `results-receiver.actions.githubusercontent.com`, which
+this sandbox cannot reach (`EOF`). So the verdicts are measured and the counts are not;
+a reviewer with ordinary network access can read them in the job summaries.
 
 ## Hardening recommendations
 
@@ -186,8 +193,10 @@ argument, not a measurement.
    are compared at the bound rather than below it.
 2. Have `buildZip` refuse at the reader's limits, in words. Cheap now, and it removes the
    only asymmetry left between the container's writer and its reader.
-3. When CI next runs green on Node 24 and 26, that closes risk 7 — worth reading the job
-   summary rather than assuming it, since this session could not.
+3. Risk 7 is closed by CI on this branch, but only in verdicts. Whoever merges should read
+   the job summaries for the per-platform counts — this session could not reach the log
+   archive to read them, and a count is the one number in a job summary that a pass/fail
+   badge does not carry.
 
 ## Summary
 
@@ -204,4 +213,6 @@ it turned the builder's first command into a stack trace that blamed the wrong m
 exit 1 there already means something specific. The fix is one function, byte-identical to
 what it replaced, proven so differentially over 20,031 inputs before it shipped.
 
-The suite is green at 1175 tests, every CI step passes, and the working tree is clean.
+The suite is green at 1175 tests locally on Node 22, and all six CI checks pass on the
+commit under review — including the Node 24 and Node 26 legs this sandbox could not run.
+The working tree is clean.
