@@ -13,7 +13,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { fetchEnv, CHILD_OUTPUT_LIMIT, MAX_PAGE_BYTES, outputOverflow } from './runtime.mjs';
+import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow } from './runtime.mjs';
 
 export const name = 'http-keyless';
 export const FULL_THRESHOLD = 1500;
@@ -379,27 +379,6 @@ export default { name, scrape, search, map, command, status, runScrape };
  * When this file is the process entry point it IS the job runner: read one JSON job on
  * stdin, do the async work, print one JSON line.
  */
-/**
- * The body as text, refused once it passes MAX_PAGE_BYTES (ADR-0082): declared too large by
- * Content-Length, or found so while reading - a chunked answer declares nothing. It was
- * `response.text()`, which held any body whole, however large.
- */
-async function boundedText(response) {
-  const tooLarge = () => new Error(`the page is larger than ${MAX_PAGE_BYTES / (1024 * 1024)} MiB - not captured (ADR-0082)`);
-  if (Number(response.headers.get('content-length')) > MAX_PAGE_BYTES) {
-    await response.body?.cancel();
-    throw tooLarge();
-  }
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of response.body ?? []) {
-    size += chunk.byteLength;
-    if (size > MAX_PAGE_BYTES) throw tooLarge();
-    chunks.push(chunk);
-  }
-  return new TextDecoder().decode(Buffer.concat(chunks));
-}
-
 async function child() {
   const chunks = [];
   for await (const chunk of process.stdin) chunks.push(chunk);
@@ -420,7 +399,7 @@ async function child() {
       headers: { 'user-agent': USER_AGENT, accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8' },
       signal: AbortSignal.timeout(job.timeout ?? 45_000),
     });
-    const body = await boundedText(response);
+    const body = await boundedText(response, 'the page');
     process.stdout.write(JSON.stringify({
       ok: response.ok,
       url: response.url || job.url,
