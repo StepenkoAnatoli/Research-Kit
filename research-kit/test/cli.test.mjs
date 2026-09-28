@@ -312,6 +312,18 @@ test('ADR-0028: bundle.mjs on a project with no manifest says so and exits 0', (
   assert.match(r.out, /BUNDLE_INDEX\.md is not in this project/);
 });
 
+// Found 2026-09-28 (Arena break test 7): bundle.mjs accepted --json and never read it, so
+// a caller that parsed the output got the markdown report and a SyntaxError.
+test('bundle.mjs --json prints the report as JSON, with and without an archive', () => {
+  for (const [root, present] of [[path.resolve(KIT_ROOT, '..'), true], [project(), false]]) {
+    const r = run('bundle.mjs', ['--json'], { root });
+    assert.equal(r.status, 0, r.err);
+    let report;
+    assert.doesNotThrow(() => { report = JSON.parse(r.out); }, `--json printed:\n${r.out.slice(0, 300)}`);
+    assert.equal(report.present, present);
+  }
+});
+
 // ---------------------------------------------------------------- decompose
 
 test('FR-6: decompose --dry-run announces the providers and writes a map', () => {
