@@ -270,3 +270,40 @@ test('an unknown recipe names the recipes that exist', () => {
     return true;
   });
 });
+
+// Found 2026-09-28 on MoonAliza: the topic "MoonAliza open gaps: accurate context accounting
+// across providers, native SQLite in the packaged Electron app, Research Kit redistribution
+// rights" was searched whole, four times, and the map's candidates were forum threads and a
+// coffee-scale blog. A topic that lists several questions is searched one question at a time
+// (ADR-0085).
+test('a compound topic is searched part by part; a plain one keeps its four searches', async () => {
+  const { topicQueries } = await import('../lib/decompose.mjs');
+  assert.deepEqual(topicQueries('MoonAliza open gaps: accurate context accounting across providers, native SQLite in the packaged Electron app, Research Kit redistribution rights'),
+    ['accurate context accounting across providers', 'native SQLite in the packaged Electron app', 'Research Kit redistribution rights']);
+  // A part too short to search alone carries the subject before the colon.
+  assert.deepEqual(topicQueries('Stripe: pricing, webhooks; rate limits'), ['Stripe pricing', 'Stripe webhooks', 'Stripe rate limits']);
+  // Not compound: one list item is a single word, or there is only one part.
+  for (const topic of ['Paris, France hotels', 'Widget pricing', 'Stripe: webhook retries']) {
+    assert.deepEqual(topicQueries(topic), [topic, `${topic} documentation`, `${topic} pricing limits`, `${topic} terms of service`], topic);
+  }
+  // At most six parts are searched, so one topic cannot spend an unbounded number of searches.
+  assert.equal(topicQueries(Array.from({ length: 9 }, (_, i) => `part number ${i}`).join(', ')).length, 6);
+
+  const dir = makeProject();
+  const searched = [];
+  const lines = [];
+  const adapter = { name: 'stub', search: (q) => { searched.push(q); return { ok: true, results: [] }; } };
+  decompose(dir, { topic: 'Stripe: pricing, webhooks', adapter, log: (l) => lines.push(l) });
+  assert.deepEqual(searched, ['Stripe pricing', 'Stripe webhooks']);
+
+  // Each part gets its share of the 20 candidates the map lists; in search order the first
+  // parts filled them all and the MoonAliza map showed nothing for its third question.
+  const many = makeProject();
+  const byQuery = (q) => Array.from({ length: 15 }, (_, i) => ({ url: `https://${q.toLowerCase().replace(/\W+/g, '-')}.example.com/${i}`, title: `${q} ${i}` }));
+  decompose(many, { topic: 'Stripe: pricing, webhooks, rate limits', adapter: { name: 'stub', search: (q) => ({ ok: true, results: byQuery(q) }) } });
+  const listed = readText(resolve(many, PATHS.map));
+  for (const host of ['stripe-pricing', 'stripe-webhooks', 'stripe-rate-limits']) {
+    assert.ok((listed.match(new RegExp(`${host}\\.example\\.com`, 'g')) ?? []).length >= 6, `${host} is under-represented:\n${listed}`);
+  }
+  assert.ok(lines.some((l) => /compound topic.*2 parts/.test(l)), lines.join('\n'));
+});
