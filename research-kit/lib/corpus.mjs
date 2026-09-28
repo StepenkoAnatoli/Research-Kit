@@ -11,9 +11,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   PATHS, HEADERS, resolve, relative, exists, isDirectory, readText, readJson,
-  writeText, appendLine, listFiles, sha256File, ageInDays, hostOf, parseJson,
+  writeText, appendLine, listFiles, sha256File, ageInDays, hostOf, parseJson, realInside,
 } from './core.mjs';
 import { sketch } from './similarity.mjs';
+import { parseJsonNoDuplicates } from './release/json.mjs';
 
 // ---------------------------------------------------------------- table machinery
 
@@ -200,6 +201,31 @@ export function countRenderFailures(body) {
  * The capture index: every file under `research/raw/`, plus `byUrl` where the newest
  * retrieval wins. Dotfiles are the kit's own logs and are not captures.
  */
+/**
+ * The largest capture the corpus will read. The biggest real one in this repository is
+ * 465 KB; a 100 MB file crashed every reader in the similarity sketch, and a 600 MB one
+ * could not be read as a string and was skipped in silence (found 2026-09-28).
+ */
+export const CAPTURE_MAX_BYTES = 10 * 1024 * 1024;
+
+/**
+ * A duplicate object key in a hand-edited JSON file, or '' (2026-09-28). JSON.parse keeps
+ * the LAST of two equal keys, so a merge or a paste loses the first value in silence. Only
+ * a DUPLICATE is reported here: the strict reader may differ from JSON.parse in other ways,
+ * and parse errors are already JSON.parse's to name.
+ */
+function duplicateKey(text) {
+  const source = String(text ?? '').replace(/^\uFEFF/, '');
+  try {
+    parseJsonNoDuplicates(source);
+    return '';
+  } catch (err) {
+    return /duplicate object key/.test(err.message)
+      ? `${err.message} - JSON keeps only the last value, so the first is silently lost`
+      : '';
+  }
+}
+
 export function readCaptures(root) {
   const dir = resolve(root, PATHS.raw);
   const entries = [];
@@ -209,11 +235,28 @@ export function readCaptures(root) {
   for (const name of listFiles(dir).sort()) {
     if (name.startsWith('.')) continue;
     const abs = path.join(dir, name);
-    if (isDirectory(abs)) continue;
-    const text = readText(abs);
-    if (text === null) continue;
-    const { front, body } = parseCapture(text);
     const rel = `${PATHS.raw}/${name}`;
+    // A link that lands outside the project is not read (ADR-0076): git stores symlinks,
+    // and research/raw/x.md -> ~/.ssh/id_rsa would otherwise be read as a capture.
+    if (!realInside(root, abs)) {
+      problems.push({ kind: 'capture-outside', file: rel, detail: `${rel} is a link to somewhere outside the project - not read` });
+      continue;
+    }
+    if (isDirectory(abs)) continue;
+    // Checked BEFORE reading: every file here is either read or named, never dropped.
+    let size = 0;
+    try { size = fs.statSync(abs).size; } catch { /* unreadable - named below */ }
+    if (size > CAPTURE_MAX_BYTES) {
+      problems.push({ kind: 'capture-too-large', file: rel,
+        detail: `${rel} is ${(size / 1024 / 1024).toFixed(0)} MB, over the ${CAPTURE_MAX_BYTES / 1024 / 1024} MB a capture may be - not read. A page the collector fetched is never this size; remove it` });
+      continue;
+    }
+    const text = readText(abs);
+    if (text === null) {
+      problems.push({ kind: 'capture-unreadable', file: rel, detail: `${rel} could not be read - check its permissions` });
+      continue;
+    }
+    const { front, body } = parseCapture(text);
     if (!front.url) {
       problems.push({ kind: 'capture-no-url', file: rel, detail: 'capture has no url in its front-matter' });
     }
@@ -332,6 +375,8 @@ export function readCorpus(root) {
   if (planText !== null) {
     try {
       plan = parseJson(planText);
+      const duplicate = duplicateKey(planText);
+      if (duplicate) problems.push({ kind: 'plan-unparsed', artifact: PATHS.plan, detail: duplicate });
     } catch (err) {
       problems.push({ kind: 'plan-unparsed', artifact: PATHS.plan, detail: err.message });
     }
@@ -342,7 +387,11 @@ export function readCorpus(root) {
   // guarded and nothing said so (found 2026-09-27).
   const kitText = readText(at(PATHS.kit));
   if (kitText !== null) {
-    try { parseJson(kitText); } catch (err) {
+    try {
+      parseJson(kitText);
+      const duplicate = duplicateKey(kitText);
+      if (duplicate) problems.push({ kind: 'kit-unparsed', artifact: PATHS.kit, detail: `${duplicate} - until it is fixed, the gate reads only the last value` });
+    } catch (err) {
       problems.push({ kind: 'kit-unparsed', artifact: PATHS.kit, detail: `${err.message} - until it parses, the gate guards only the default code paths` });
     }
   }
@@ -384,6 +433,13 @@ export function readCorpus(root) {
   // A cited capture that is not on disk is a corpus problem, not a check's discovery.
   for (const row of evidence) {
     if (!row.raw) continue;
+    if (exists(at(row.raw)) && !realInside(root, at(row.raw))) {
+      // A Raw cell that lands outside the project (a "../" spelling, or a link) is never
+      // read: evidence-context printed such a file into an agent's context (2026-09-28).
+      problems.push({ kind: 'raw-outside', artifact: PATHS.evidence, row: row.id, file: row.raw, line: row.line,
+        detail: `${row.raw} (row ${row.id}) is outside the project - a Raw cell names a capture in ${PATHS.raw}/` });
+      continue;
+    }
     if (!exists(at(row.raw))) {
       problems.push({ kind: 'raw-dangling', artifact: PATHS.evidence, row: row.id, file: row.raw, line: row.line });
     }

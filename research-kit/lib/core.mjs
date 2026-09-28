@@ -61,9 +61,42 @@ export function relative(root, abs) {
 }
 
 /** A name is inside the project when it does not climb out of it. */
+/**
+ * The user's home directory, absolute. HOME wins when it is set to an absolute path - tests
+ * and operators redirect it that way - and otherwise the account's passwd entry is used.
+ * os.homedir() returns HOME even when it is EMPTY, which made every machine path relative
+ * to whatever folder a command ran in (found 2026-09-28). On Windows, with USERPROFILE
+ * empty, it THROWS instead (uv_os_homedir ENOENT, seen on windows-latest CI) - and it was
+ * called at import, so every kit command crashed there. Both fall back to the account.
+ */
+export function homeDir() {
+  let home = '';
+  try { home = os.homedir(); } catch { /* Windows, empty USERPROFILE: fall back below */ }
+  if (home && path.isAbsolute(home)) return home;
+  try {
+    const passwd = os.userInfo().homedir;
+    if (passwd && path.isAbsolute(passwd)) return passwd;
+  } catch { /* no passwd entry: nothing better to offer */ }
+  return home;
+}
+
 export function isInside(root, abs) {
   const rel = path.relative(root, abs);
   return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
+}
+
+/**
+ * Does `abs` REALLY land inside `root`, with every symlink on both sides resolved?
+ * (ADR-0076.) `isInside` compares spellings; git stores symlinks, so a cloned corpus can
+ * spell research/raw/x.md and land on ~/.ssh/id_rsa. Anything that cannot be resolved -
+ * a dangling link, a vanished file - is not inside.
+ */
+export function realInside(root, abs) {
+  try {
+    return isInside(fs.realpathSync(root), fs.realpathSync(abs));
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------- filesystem
@@ -370,7 +403,7 @@ export function kitCommand(script, args = '') {
  * anywhere else - a repository checkout - has only its real path. Compared by real path,
  * because node runs a symlinked kit from its target.
  */
-export function documentCommand(script, args = '', { kit = fileURLToPath(new URL('..', import.meta.url)), home = os.homedir() } = {}) {
+export function documentCommand(script, args = '', { kit = fileURLToPath(new URL('..', import.meta.url)), home = homeDir() } = {}) {
   const real = (p) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
   if (real(kit) === real(path.join(home, '.agents', 'research-kit'))) return homeCommand(script, args);
   return spellCommand(path.join(kit, 'bin', script), args);

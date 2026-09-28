@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { exists, readText, writeText, ensureDir, readJson, nowIso, parseJson } from './core.mjs';
+import { exists, readText, writeText, ensureDir, readJson, nowIso, parseJson, homeDir } from './core.mjs';
 
 import { kitCommand } from './core.mjs';
 // ---------------------------------------------------------------- anchors (ADR-0012)
@@ -22,8 +22,8 @@ import { kitCommand } from './core.mjs';
  * another root installs a skill nothing discovers.
  */
 export const RUNTIME_ANCHORS = Object.freeze({
-  settingsPath: path.join(os.homedir(), '.claude', 'settings.json'),
-  skillRoots: Object.freeze([path.join(os.homedir(), '.claude', 'skills')]),
+  settingsPath: path.join(homeDir(), '.claude', 'settings.json'),
+  skillRoots: Object.freeze([path.join(homeDir(), '.claude', 'skills')]),
   projectSkillDir: '.claude/skills',
 });
 
@@ -36,16 +36,16 @@ export const RUNTIME_ANCHORS = Object.freeze({
 export function agentsHome(env = process.env) {
   return env.RESEARCH_KIT_HOME
     ? path.dirname(path.resolve(env.RESEARCH_KIT_HOME))
-    : path.join(os.homedir(), '.agents');
+    : path.join(homeDir(), '.agents');
 }
 
 export function kitHome(env = process.env) {
-  return env.RESEARCH_KIT_HOME ? path.resolve(env.RESEARCH_KIT_HOME) : path.join(os.homedir(), '.agents', 'research-kit');
+  return env.RESEARCH_KIT_HOME ? path.resolve(env.RESEARCH_KIT_HOME) : path.join(homeDir(), '.agents', 'research-kit');
 }
 
 export const KIT_HOME = kitHome();
-export const CONFIG_PATH = path.join(os.homedir(), '.agents', 'research-kit.config.json');
-export const INSTALL_STATE_PATH = path.join(os.homedir(), '.agents', 'research-kit.install.json');
+export const CONFIG_PATH = path.join(homeDir(), '.agents', 'research-kit.config.json');
+export const INSTALL_STATE_PATH = path.join(homeDir(), '.agents', 'research-kit.install.json');
 export const SKILL_NAME = 'research-first';
 export const EDIT_GATE_HOOK = 'hooks/edit-gate.mjs';
 

@@ -24,10 +24,11 @@ set -u
 # HOME can be unset (a cron job, a systemd unit, some CI agents), and under `set -u` the
 # lines below then stopped the hook with "parameter not set" - every commit refused by a
 # shell error. dash does not expand `~` without HOME, so the home directory comes from
-# node, which is what lib/machine.mjs uses (os.homedir(), the passwd entry). With no node
+# node, which is what lib/machine.mjs uses (homeDir: HOME, else the passwd entry - node
+# returns an EMPTY HOME as it is, 2026-09-28). With no node
 # either, it stays empty and the fail-open path below says the kit is not deployed.
 if [ -z "${HOME:-}" ]; then
-  HOME=$(node -e 'process.stdout.write(require("os").homedir())' 2>/dev/null) || HOME=
+  HOME=$(node -e 'const os = require("os"); let h = ""; try { h = os.homedir(); } catch {} process.stdout.write(h || os.userInfo().homedir)' 2>/dev/null) || HOME=
 fi
 
 KIT_HOME="${RESEARCH_KIT_HOME:-$HOME/.agents/research-kit}"

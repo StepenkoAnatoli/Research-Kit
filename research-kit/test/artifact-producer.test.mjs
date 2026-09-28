@@ -18,6 +18,7 @@ import { writeRaw } from '../lib/collect.mjs';
 import { firstFinding } from '../lib/finding.mjs';
 import { collectedProject, approvedProject, IDENTITY } from './artifact-fixtures.mjs';
 import { reviewedBy } from '../lib/brief.mjs';
+import { runPreflight } from '../lib/preflight.mjs';
 
 describe('artifact-producer');
 
@@ -402,4 +403,46 @@ test('the drafted brief asks who reviewed it, and an answer reaches the manifest
     assert.equal(result.reviewedBy, who);
   }
   cleanup(own);
+});
+
+// ---------------------------------------------------------------- nothing from outside (ADR-0076)
+
+// Found 2026-09-28 (checking an outside break-test): git stores symlinks, so a cloned corpus
+// can carry research/raw/x.md -> ~/.ssh/id_rsa. createArtifact followed every link and
+// packed the OUTSIDE file's bytes into the zip - from raw/, anywhere under research/, and
+// from docs/, including through a linked directory. Packaging now refuses, naming the path.
+test('a link that lands outside the project is refused, and its bytes are never packaged', () => {
+  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-outside-'));
+  const secret = path.join(outsideDir, 'id_rsa');
+  fs.writeFileSync(secret, 'PRIVATE KEY MATERIAL\n');
+  const cases = [
+    ['research/raw/evil.md', (at) => fs.symlinkSync(secret, at, 'file')],
+    ['docs/extra.md', (at) => fs.symlinkSync(secret, at, 'file')],
+    ['research/linked', (at) => fs.symlinkSync(outsideDir, at, 'junction')],
+  ];
+  for (const [rel, link] of cases) {
+    const root = approvedProject();
+    fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    link(path.join(root, rel));
+    let built = null;
+    let error = null;
+    try { built = build(root); } catch (err) { error = err; }
+    assert.ok(error, `${rel}: packaging accepted a link to a file outside the project${built ? ` (entries: ${built.entries.filter((e) => e.data.includes('PRIVATE KEY')).map((e) => e.name).join(', ')})` : ''}`);
+    assert.match(error.message, /outside the project/, `${rel}: ${error.message}`);
+    assert.ok(error.message.includes(rel), `${rel}: the refusal does not name the link: ${error.message}`);
+  }
+});
+
+test('readCaptures does not read a capture that links outside the project, and the gate blocks on it', () => {
+  const root = approvedProject();
+  const secret = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rk-outside-')), 'secret.md');
+  fs.writeFileSync(secret, '---\nurl: https://example.com/secret\n---\nSECRET DATA FROM OUTSIDE\n');
+  fs.symlinkSync(secret, path.join(root, 'research/raw/evil.md'), 'file');
+  const corpus = readCorpus(root);
+  assert.equal(corpus.captures.entries.some((e) => e.file.endsWith('evil.md')), false, 'the outside file was read as a capture');
+  assert.ok(corpus.problems.some((p) => p.kind === 'capture-outside' && p.file === 'research/raw/evil.md'),
+    `no capture-outside problem: ${JSON.stringify(corpus.problems)}`);
+  const verdict = runPreflight(root);
+  assert.equal(verdict.pass, false);
+  assert.ok(verdict.findings.some((f) => f.severity === 'fail' && f.rule === 'capture-outside'), 'the gate did not block on it');
 });

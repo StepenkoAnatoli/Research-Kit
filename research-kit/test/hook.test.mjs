@@ -238,3 +238,17 @@ test('a commit with HOME unset is judged, not refused by a shell error', () => {
   assert.doesNotMatch(result.stderr, /parameter not set/, result.stderr);
   assert.equal(result.status, 0, `an ungated repository was refused with HOME unset:\n${result.stdout}${result.stderr}`);
 });
+
+// The same, for the hook (2026-09-28): with HOME="" its node call returned "" as well, so it
+// looked for the kit at "/.agents/research-kit". It now asks for the passwd entry too.
+test('a commit with HOME empty looks for the kit in the real home, not /.agents', () => {
+  requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
+  const dir = tempDir('rk-emptyhome-');
+  git(dir, ['init', '-q']);
+  const env = { ...process.env, HOME: '', RESEARCH_KIT_CONFIG: isolatedConfig(),
+    RESEARCH_KIT_INSTALL_STATE: path.join(tempDir('research-kit-hookstate-'), 'install.json') };
+  delete env.RESEARCH_KIT_HOME;
+  const result = spawnSync(SH, [HOOK], { cwd: dir, encoding: 'utf8', timeout: 60_000, env });
+  assert.doesNotMatch(result.stderr, /(^|\s)\/\.agents\//m, `the hook looked in /.agents:\n${result.stderr}`);
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+});

@@ -1,8 +1,10 @@
 // Everything outside the project: the three config states, the role, and the retired
 // names (ADR-0002, ADR-0010, ADR-0012, ADR-0020).
 
-import { test, describe, assert, tempDir, fs, path } from './harness.mjs';
-import { writeText, readText } from '../lib/core.mjs';
+import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+import { test, describe, assert, tempDir, fs, path, os, KIT_ROOT } from './harness.mjs';
+import { writeText, readText, homeDir } from '../lib/core.mjs';
 import {
   readMachineConfig, loadConfig, saveConfig, posture, machineRole, collectionPolicy,
   collectionRefusal, evidencePolicy, runtimePaths, skillLocations, retiredEnvNotes,
@@ -165,4 +167,31 @@ test('loadConfig never throws on a hostile file - it resolves a posture instead'
     const { env } = envWith(body);
     assert.doesNotThrow(() => loadConfig(env), `body: ${JSON.stringify(body)}`);
   }
+});
+
+// Found 2026-09-28 (checking an outside break-test's risk list): with HOME set but EMPTY -
+// some sudo and service environments - os.homedir() returns "", so the config path, the kit
+// home and the install state were RELATIVE, resolved against whatever folder a command ran
+// in. The home directory now falls back to the account's passwd entry.
+test('an empty HOME does not make the machine paths relative to the cwd', () => {
+  const probe = `import('${pathToFileURL(path.join(KIT_ROOT, 'lib', 'machine.mjs')).href}').then((m) => {
+    process.stdout.write(JSON.stringify([m.CONFIG_PATH, m.INSTALL_STATE_PATH, m.agentsHome({}), m.kitHome({})]));
+  });`;
+  const r = spawnSync(process.execPath, ['--input-type=module', '-e', probe], {
+    encoding: 'utf8', cwd: tempDir('rk-empty-home-cwd-'),
+    env: { PATH: process.env.PATH, HOME: '', USERPROFILE: '', SystemRoot: process.env.SystemRoot },
+  });
+  assert.equal(r.status, 0, r.stderr);
+  for (const p of JSON.parse(r.stdout)) assert.ok(path.isAbsolute(p), `a machine path is relative with HOME="": ${p}`);
+});
+
+// Seen on windows-latest CI (2026-09-28): with USERPROFILE empty, os.homedir() does not return
+// "" there - it THROWS (uv_os_homedir ENOENT), and machine.mjs called it at import. Reproduced
+// here on any platform by making it throw.
+test('homeDir survives an os.homedir() that throws, and still answers an absolute path', () => {
+  const real = os.homedir;
+  os.homedir = () => { const err = new Error('A system error occurred: uv_os_homedir returned ENOENT'); err.code = 'ERR_SYSTEM_ERROR'; throw err; };
+  let home;
+  try { home = homeDir(); } finally { os.homedir = real; }
+  assert.ok(home && path.isAbsolute(home), `homeDir() gave ${JSON.stringify(home)}`);
 });
