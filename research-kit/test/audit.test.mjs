@@ -6,7 +6,7 @@
 // operator's unzip tool.
 
 import zlib from 'node:zlib';
-import { test, describe, assert, makePassingProject, corrupt, fs } from './harness.mjs';
+import { test, describe, assert, makePassingProject, corrupt, fs, tempDir } from './harness.mjs';
 import { PATHS, resolve, readText, readJson, writeText, makeSlug } from '../lib/core.mjs';
 import { writeAudit, listVersions, resolveVersion, nextVersion, zipAudit, fingerprintOf, readManifest, TOPIC_SLUG, SUBTOPIC_SLUG } from '../lib/audit.mjs';
 import { crc32, buildZip, entryName } from '../lib/archive.mjs';
@@ -212,6 +212,59 @@ test('a manifest naming a file that is not on disk is REFUSED, not bundled short
   assert.equal(bundle.ok, false);
   assert.match(bundle.reason, /refusing to bundle short/);
   assert.match(bundle.fix, /bin[\\/]audit\.mjs/, 'the command that makes one, in this platform path spelling');
+});
+
+// Found 2026-09-28 (break-test): the 2026-09-14 writer stored a version as
+// {file: <basename>, scope, at, ...} and held subtopics under the TOPIC; the current
+// reader expected {main, subtopics} on the version itself. Every audit shipped before the
+// rename - including this repository's own - was refused by --show and --zip, and the
+// refusal interpolated held.main as the literal word "undefined". resolveVersion reads
+// either shape, basenames resolving against research/audits.
+test('an audit manifest in the 2026-09-14 shape still shows and zips', () => {
+  const dir = tempDir('rk-old-manifest-');
+  const audits = resolve(dir, PATHS.audits);
+  fs.mkdirSync(audits, { recursive: true });
+  fs.writeFileSync(resolve(audits, 'old-shape-v0.1-2026-09-14.md'), '# the main audit\n## Blocking unknowns\nnone\n');
+  fs.writeFileSync(resolve(audits, 'old-shape--d-1-v0.1-2026-09-14.md'), '# a subtopic audit\n');
+  fs.writeFileSync(resolve(audits, 'index.json'), JSON.stringify({
+    topics: {
+      'old-shape': {
+        latest: '0.1',
+        versions: {
+          0.1: { file: 'old-shape-v0.1-2026-09-14.md', scope: 'full', at: '2026-09-14T20:30:57.908Z', date: '2026-09-14', evidenceCount: 6, closedUnknowns: 4, knownUnknowns: 0, failures: 0, fingerprint: 'x' },
+        },
+        subtopics: {
+          'd-1': { versions: { 0.1: { file: 'old-shape--d-1-v0.1-2026-09-14.md', scope: 'subtopic', at: '2026-09-14T20:30:57.909Z', date: '2026-09-14', fingerprint: 'y' } }, latest: '0.1', id: 'D-1', subtopic: 'Old' },
+        },
+      },
+    },
+  }));
+
+  const resolved = resolveVersion(dir, 'old-shape');
+  assert.equal(resolved.main, `${PATHS.audits}/old-shape-v0.1-2026-09-14.md`);
+  assert.deepEqual(resolved.subtopics, [`${PATHS.audits}/old-shape--d-1-v0.1-2026-09-14.md`]);
+  assert.equal(readText(resolve(dir, resolved.main)).includes('# the main audit'), true, '--show reads the same spelling');
+
+  const bundle = zipAudit(dir);
+  assert.equal(bundle.ok, true, bundle.reason);
+  assert.equal(bundle.count, 2, 'one main plus one topic-held subtopic');
+  const read = readZip(fs.readFileSync(resolve(dir, bundle.file)));
+  assert.ok(read.some((e) => e.text.includes('# the main audit')), 'the old main audit is in the bundle');
+  assert.ok(read.some((e) => e.text.includes('# a subtopic audit')), 'the old subtopic audit is in the bundle');
+});
+
+test('a version with no audit file recorded is named as such, not interpolated as undefined', () => {
+  const dir = tempDir('rk-no-file-manifest-');
+  const audits = resolve(dir, PATHS.audits);
+  fs.mkdirSync(audits, { recursive: true });
+  fs.writeFileSync(resolve(audits, 'index.json'), JSON.stringify({
+    topics: { 'no-file': { latest: '0.1', versions: { 0.1: { date: '2026-09-14', fingerprint: 'x' } } } },
+  }));
+
+  const bundle = zipAudit(dir);
+  assert.equal(bundle.ok, false);
+  assert.match(bundle.reason, /records no audit file for "no-file" v0\.1/);
+  assert.ok(!bundle.reason.includes('undefined'), 'the literal word undefined is not the diagnosis');
 });
 
 test('no audits at all: refused, with the command that makes one', () => {
