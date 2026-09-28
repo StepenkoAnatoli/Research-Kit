@@ -6,7 +6,7 @@
 
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
-import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability } from './harness.mjs';
+import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability, fixtureCommitArgs } from './harness.mjs';
 import { PATHS, resolve, readText, writeText } from '../lib/core.mjs';
 import { evaluate, materializeIndex } from '../lib/gate.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
@@ -33,7 +33,7 @@ function makeRepo() {
   git(dir, ['config', 'user.email', 'fixture@example.invalid']);
   git(dir, ['config', 'user.name', 'Fixture']);
   git(dir, ['add', '-A', '-f']);
-  git(dir, ['commit', '-q', '-m', 'the passing corpus']);
+  git(dir, fixtureCommitArgs('the passing corpus'));
   return dir;
 }
 

@@ -8,7 +8,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { test, describe, assert, tempDir, fs, path, KIT_ROOT, importTestFiles } from './harness.mjs';
+import { test, describe, assert, tempDir, fs, path, KIT_ROOT, importTestFiles, LEAKED_GIT_CONTEXT, stripLeakedGitContext } from './harness.mjs';
 
 describe('harness');
 
@@ -126,4 +126,38 @@ test('a test file that throws at import is returned as broken, not thrown', asyn
   const broken = await importTestFiles(dir, ['boom.test.mjs', 'fine.test.mjs']);
   assert.deepEqual(broken.map((b) => b.file), ['boom.test.mjs']);
   assert.match(broken[0].error.message, /boom at import/);
+});
+
+// Found 2026-09-28 (break-test): with GIT_DIR and GIT_WORK_TREE exported - a wrapper that
+// saved `git rev-parse --git-dir` once, a hook that runs the tests - every scratch
+// repository the suite built was bypassed and the fixture commits landed in the
+// repository the variables named instead: a "the corpus" commit appeared on the host
+// repository's own branch, carrying its __pycache__. The harness now strips the leaked
+// git context from its process before any test runs; this pins the list, so a future
+// variable cannot be added to git and quietly miss the sweep.
+test('the suite strips a leaked git context, and only that', () => {
+  const env = {
+    PATH: '/usr/bin',
+    GIT_DIR: '/elsewhere/.git',
+    GIT_WORK_TREE: '/elsewhere',
+    GIT_INDEX_FILE: '/elsewhere/index',
+    GIT_CONFIG_PARAMETERS: "'core.hooksPath=/elsewhere'",
+    UNRELATED: 'kept',
+  };
+  const removed = stripLeakedGitContext(env);
+  assert.deepEqual(removed.sort(),
+    ['GIT_CONFIG_PARAMETERS', 'GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE'],
+    'a variable in the list but absent from the environment must not be reported');
+  for (const name of LEAKED_GIT_CONTEXT) {
+    assert.equal(name in env, false, `${name} survived the strip`);
+  }
+  assert.equal(env.UNRELATED, 'kept', 'the strip touches nothing but git context');
+  assert.equal(env.PATH, '/usr/bin', 'the strip touches nothing but git context');
+
+  // The module already applied itself to the real process this run is part of, so a
+  // leaked context cannot survive into any git child the suite spawns.
+  for (const name of LEAKED_GIT_CONTEXT) {
+    assert.equal(name in process.env, false,
+      `${name} is still in this process's environment: the strip at module scope did not run`);
+  }
 });

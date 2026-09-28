@@ -2,7 +2,7 @@
 
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
-import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability } from './harness.mjs';
+import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability, fixtureCommitArgs } from './harness.mjs';
 import { PATHS, resolve, writeText } from '../lib/core.mjs';
 import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, PIN_LINES } from '../lib/handoff.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
@@ -203,7 +203,7 @@ test('the line-ending remedy, run as printed, makes a CRLF checkout pass', () =>
   const dir = makePassingProject();
   fs.rmSync(path.join(dir, '.gitattributes'), { force: true });
   for (const args of [['init', '-q'], ['config', 'user.email', 't@t'], ['config', 'user.name', 't'],
-    ['add', '-A'], ['commit', '-q', '--no-verify', '-m', 'corpus']]) {
+    ['add', '-A'], fixtureCommitArgs('corpus')]) {
     assert.equal(git(dir, ...args).status, 0, `git ${args.join(' ')}`);
   }
   git(dir, 'config', 'core.autocrlf', 'true');
