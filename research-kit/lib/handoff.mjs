@@ -7,11 +7,12 @@
 // Read-only BY DESIGN: the machine that asks cannot collect the missing bytes.
 //
 // One remedy PER CAUSE. Something that did not travel lives on the collector; a corpus
-// that travelled whole and was rewritten on checkout lives here. One blanket text for
-// both is what used to send operators to re-collect a corpus already on disk.
+// that travelled whole and was rewritten on checkout lives here; a ledger emptied beside
+// its captures is restored from git or re-collected, never pushed. One blanket text for
+// all of them is what used to send operators to re-collect a corpus already on disk.
 
 import path from 'node:path';
-import { PATHS, resolve, exists, readText } from './core.mjs';
+import { PATHS, resolve, exists, readText, kitCommand } from './core.mjs';
 import { readCorpus, captureOf } from './corpus.mjs';
 import { verifyLedger } from './provenance.mjs';
 import { briefState, judgedSection, JUDGED_SECTIONS } from './brief.mjs';
@@ -26,6 +27,27 @@ export const HANDOFF_REMEDY = [
   'and it is evidence, not a byproduct - zip tools, sync tools, and some git filters',
   'drop dotfiles.',
 ].join('\n');
+
+/**
+ * The ledger is here and empty while the captures are on disk: its entries were lost where
+ * the captures are - a one-line ledger whose torn tail `doctor --fix-arity` dropped leaves
+ * exactly this (Arena, 2026-09-28). The push remedy was printed for it, and on the collector
+ * that pushes the same empty ledger. A function, because the collect command names the
+ * running kit.
+ */
+export function ledgerLostRemedy() {
+  return [
+    'The ledger lost its entries: every capture is here, and nothing records that it was fetched.',
+    'Pushing sends the same empty ledger. Restore it from git when a committed copy holds them:',
+    '',
+    '    git checkout HEAD -- research/raw/.fetches.jsonl',
+    '',
+    '(git log -- research/raw/.fetches.jsonl finds an earlier one). If no copy holds them, the',
+    'captures are unproven: re-collect them on the collector machine, which spends credits:',
+    '',
+    `    ${kitCommand('research.mjs', '--plan research/plan.json --force')}`,
+  ].join('\n');
+}
 
 /** The .gitattributes lines that pin the corpus to LF (ADR-0020). */
 export const PIN_LINES = Object.freeze(['research/raw/* text eol=lf', '*.jsonl text eol=lf']);
@@ -165,7 +187,10 @@ export function verifyHandoff(root, { corpus = null } = {}) {
     });
   }
 
-  const travelled = findings.filter((f) => f.name !== 'handoff-chain-broken' || f.kind !== 'line-endings');
+  // Present, empty, and captures on disk: lost here, not left behind.
+  const ledgerLost = snapshot.ledger.present && !snapshot.ledger.entries.length && snapshot.captures.entries.length > 0;
+  const travelled = findings.filter((f) => (f.name !== 'handoff-chain-broken' || f.kind !== 'line-endings')
+    && !(ledgerLost && f.name === 'handoff-ledger-empty'));
   const report = {
     root,
     ok: findings.length === 0,
@@ -174,6 +199,7 @@ export function verifyHandoff(root, { corpus = null } = {}) {
     lineEndings,
     // "Something did not travel" is anything that is not purely a line-ending rewrite.
     didNotTravel: travelled.length > 0,
+    ledgerLost,
     entries: snapshot.ledger.entries.length,
     // Not a finding: the corpus can arrive whole while the brief is unreviewed. The CLI
     // says so, because phase 2 starts from that file.
@@ -192,6 +218,7 @@ export function verifyHandoff(root, { corpus = null } = {}) {
 export function handoffRemedy(report) {
   const parts = [];
   if (report.didNotTravel) parts.push(HANDOFF_REMEDY);
+  if (report.ledgerLost) parts.push(ledgerLostRemedy());
   if (report.lineEndings?.length) {
     // Whether this is a repository at all decides which remedy is even runnable.
     const isRepo = exists(path.join(report.root ?? '.', '.git'));
