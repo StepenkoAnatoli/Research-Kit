@@ -132,16 +132,25 @@ export function requireCapability(value, code, reason) {
 
 let pythonProbe;
 /**
- * The Python interpreter on this host - `python`, else `python3` - or null. Stock Ubuntu
- * and macOS ship only `python3`, and three conformance tests that called `python` by name
- * went red there although the kit was fine (break-test, 2026-09-27).
+ * The Python interpreter on this host - `python3`, else `python` (checked >= 3.11) - or null.
+ * Stock Ubuntu and macOS ship only `python3`, and an old `python` alias (like 2.7 or 3.8)
+ * must not hide a usable `python3` (matching runtime.mjs checkPython).
  */
 export function findPython() {
   if (pythonProbe === undefined) {
     pythonProbe = null;
-    for (const exe of ['python', 'python3']) {
+    for (const exe of ['python3', 'python']) {
       const probe = spawnSync(exe, ['--version'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
-      if (!probe.error && probe.status === 0) { pythonProbe = exe; break; }
+      if (probe.error || probe.status !== 0) continue;
+      const text = `${probe.stdout ?? ''}${probe.stderr ?? ''}`.trim();
+      const match = text.match(/(\d+)\.(\d+)/);
+      if (match) {
+        const [major, minor] = [Number(match[1]), Number(match[2])];
+        if (major > 3 || (major === 3 && minor >= 11)) {
+          pythonProbe = exe;
+          break;
+        }
+      }
     }
   }
   return pythonProbe;

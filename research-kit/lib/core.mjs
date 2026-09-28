@@ -348,6 +348,10 @@ export function parseFlags(argv) {
   const positional = [];
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
+    if (arg === '--') {
+      positional.push(...argv.slice(i + 1));
+      break;
+    }
     if (!arg.startsWith('--')) { positional.push(arg); continue; }
     const eq = arg.indexOf('=');
     const name = eq > 0 ? arg.slice(2, eq) : arg.slice(2);

@@ -16,9 +16,10 @@ const root = process.cwd();
 if (flags.help) {
   process.stdout.write(`bundle - compare this project against the archive it was handed over as.
 
-  node research-kit/bin/bundle.mjs [--all]
+  node research-kit/bin/bundle.mjs [options]
 
-  --all   list every file, not only the ones that moved
+  --all    list every file, not only the ones that moved
+  --json   machine-readable report
 
 ${BUNDLE_INDEX} is a frozen record of a past state (ADR-0028), not a promise about the
 present. A corpus that never changed would mean a kit nobody used. What this reports is
@@ -29,6 +30,11 @@ without anybody noticing.
 }
 
 const result = verifyBundle(root);
+
+if (flags.json) {
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  process.exit(0);
+}
 
 if (!result.present) {
   process.stdout.write(`${result.reason}\n`);

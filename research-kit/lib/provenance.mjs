@@ -420,8 +420,9 @@ export function verifyLedger(root, { corpus = null } = {}) {
  * torn tail, and inventing a link is the one thing a repair must never do.
  */
 export function repairLedgerTail(root) {
+  const file = resolve(root, PATHS.ledger);
+  if (!exists(file)) return { repaired: false, reason: 'ledger-missing' };
   return withLock(root, () => {
-    const file = resolve(root, PATHS.ledger);
     const text = readText(file);
     if (text === null) return { repaired: false, reason: 'ledger-missing' };
     const lines = text.split(/\r?\n/);
@@ -450,6 +451,8 @@ export function repairLedgerTail(root) {
  * that is broken for any reason other than the hashes it is about to recompute.
  */
 export function rebuildLedger(root, migrate, { note = 'metadata migration' } = {}) {
+  const file = resolve(root, PATHS.ledger);
+  if (!exists(file)) return { rebuilt: false, reason: 'ledger-missing', problems: [{ rule: 'ledger-missing', detail: `${PATHS.ledger} is absent` }] };
   return withLock(root, () => {
     const before = verifyLedger(root);
     const blocking = before.problems.filter((p) => p.rule !== 'entry-hash' && p.rule !== 'prev' && p.rule !== 'body-unmodified');

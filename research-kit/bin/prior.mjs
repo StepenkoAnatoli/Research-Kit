@@ -8,6 +8,8 @@ import { parseFlags, refuseUnknownFlags, checkFlagValues, readText, resolve } fr
 import { readLedger } from '../lib/corpus.mjs';
 import { readPrior, registerPrior, MIN_PRIOR, PRIOR_PATH } from '../lib/prior.mjs';
 import { heading } from '../lib/render.mjs';
+import { isGated } from '../lib/gate.mjs';
+import { GATE_MARKERS } from '../lib/scaffold.mjs';
 
 import { kitCommand } from '../lib/core.mjs';
 const { flags, positional } = parseFlags(process.argv.slice(2));
@@ -34,6 +36,12 @@ the evidence already in hand is not a prediction; write what you now believe in 
 where it is labelled as hindsight.
 `);
   process.exit(0);
+}
+
+if (!isGated(root)) {
+  process.stderr.write(`prior: ${root} is not a research project - it holds none of ${GATE_MARKERS.join(', ')}. Nothing was written.\n`
+    + `Run this from the project folder, or make one: ${kitCommand('new-project.mjs', '<dir> --topic "<topic>"')}\n`);
+  process.exit(2);
 }
 
 const entries = readLedger(root).entries;

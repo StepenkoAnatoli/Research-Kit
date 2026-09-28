@@ -16,6 +16,7 @@ research/raw/.diagnostics.jsonl
 research/raw/.usage.jsonl
 research/raw/.failures.jsonl
 research/raw/.fetches.lock
+research/overrides.log
 
 # The same four, at ANY depth. The rules above are anchored to this directory, so a
 # NESTED decision project (ADR-0030) is covered only by its own .gitignore - which works
