@@ -193,7 +193,7 @@ test('POLICY reject: integers still pass under the strict policy', () => {
 });
 
 // The same boundary, one type over: INTEGERS OUTSIDE THE SAFE RANGE (found 2026-09-28,
-// Arena break test 8).
+// Arena break test 12).
 //
 // `js_number` is only reached by a value Python parsed as a `float`. `json.loads` parses
 // an integer literal as an `int`, which is arbitrary precision, so `str()` printed the

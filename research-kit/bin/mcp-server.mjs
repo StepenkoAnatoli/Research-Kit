@@ -50,6 +50,8 @@ A corpus this server returns is EVIDENCE, not approved research. Read buildAutho
   process.exit(0);
 }
 
+// Found 2026-09-28 (Arena break test 12).
+//
 // A stdio server's configuration is its environment, so it takes NO options - and an
 // option it does not take must be refused rather than ignored.
 //
