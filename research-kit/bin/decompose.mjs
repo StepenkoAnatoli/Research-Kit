@@ -72,6 +72,7 @@ if (spends && !policy.mayCollect) {
 
 let adapter = null;
 let searchAdapter = null;
+let searchAdapters = null;
 if (!spends) {
   // A dry run names the provider its searches would spend on, when this machine can say;
   // selecting one probes and spends nothing, and a machine that cannot select one still
@@ -82,6 +83,7 @@ if (!spends) {
       explicitSearch: typeof flags['search-transport'] === 'string' ? flags['search-transport'] : '',
     });
     searchAdapter = chosen.search.adapter ?? chosen.adapter;
+    searchAdapters = chosen.search.adapters ?? null;
   } catch { /* named generically below */ }
 }
 if (spends) {
@@ -92,6 +94,9 @@ if (spends) {
     });
     adapter = chosen.adapter;
     searchAdapter = chosen.search.adapter;
+    // A merged selection names every provider it searches; passing only `adapter` searched
+    // SerpAPI alone under a banner that said both (found 2026-09-28).
+    searchAdapters = chosen.search.adapters ?? null;
     process.stdout.write(`transport: ${chosen.name} - ${chosen.why}\n`);
     process.stdout.write(unusedKeyNote(chosen));
     if (!chosen.search.sameAsFetch) {
@@ -109,6 +114,7 @@ try {
     topic: resolved.topic,
     adapter,
     searchAdapter,
+    searchAdapters,
     recipe: typeof flags.recipe === 'string' ? flags.recipe : '',
     limit: Number(flags.limit ?? 8),
     maxScrapes: Number(flags['max-scrapes'] ?? 0),

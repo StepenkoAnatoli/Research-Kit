@@ -370,6 +370,16 @@ ${compatibility.remedy}`);
   // The search side keeps its OWN counters, because it is a separate meter and a summary
   // that merged them would hide the whole point of the split.
   let searchesUsed = 0;
+  // The same searches, by the provider that PAID for them. `searchesUsed` is their sum, and
+  // under a merge it was logged against one provider's name: one query on SerpAPI and
+  // Firecrawl read as two SerpAPI searches, charged to its free-plan meter (found
+  // 2026-09-28, end-to-end run).
+  const searchesOn = {};
+  const countOn = (provider, used) => {
+    if (!Number.isFinite(used)) return;
+    searchesUsed += used;
+    if (used) searchesOn[provider] = (searchesOn[provider] ?? 0) + used;
+  };
   let searchCreditsEstimate = 0;
   let overBudget = 0;
   let searchFailures = 0;
@@ -438,7 +448,7 @@ ${compatibility.remedy}`);
       const lists = [];
       for (const one of searchers) {
         const r = ask(one, text);
-        if (Number.isFinite(r.searchesUsed)) searchesUsed += r.searchesUsed;
+        countOn(one.name, r.searchesUsed);
         if (Number.isFinite(r.creditsEstimate)) searchCreditsEstimate += r.creditsEstimate;
         if (!r.ok) {
           searchFailures += 1;
@@ -502,7 +512,7 @@ ${compatibility.remedy}`);
       });
       continue;
     }
-    if (Number.isFinite(found.searchesUsed)) searchesUsed += found.searchesUsed;
+    countOn(ranker, found.searchesUsed);
     if (Number.isFinite(found.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
     // Said per query: a run whose searches all came back empty printed only "collected 0,
     // failed 0", with nothing to say a search had run (found 2026-09-27). An empty search is
@@ -578,6 +588,7 @@ ${compatibility.remedy}`);
       transport: adapter.name,
       searchTransport: searchName,
       searchesUsed,
+      searchesOn,
       ...(searchCreditsEstimate ? { searchCreditsEstimate } : {}),
       searchFailures,
       degraded,
@@ -594,7 +605,7 @@ ${compatibility.remedy}`);
     // collected + failed, because a failed fetch can still consume budget; reporting it as
     // "collected" told the operator they had pages they did not have.
     collected: spent - failed,
-    searchesUsed, searchCreditsEstimate, searchFailures, searchFailuresOn, degraded,
+    searchesUsed, searchesOn, searchCreditsEstimate, searchFailures, searchFailuresOn, degraded,
     results, discovered,
   };
 }
@@ -611,7 +622,10 @@ export function searchSummaryLine(run) {
   const name = run.searchTransport;
   // An estimate is labelled as one: the account balance (doctor) is the vendor's own number.
   const credits = run.searchCreditsEstimate ? ` (≈${run.searchCreditsEstimate} credits, estimated by the documented 2 per 10 results)` : '';
-  const line = `searches   ${run.searchesUsed} on ${name}${credits}`;
+  // More than one meter paid: name each, so no provider's count carries another's searches.
+  const on = Object.entries(run.searchesOn ?? {});
+  const counted = on.length > 1 ? on.map(([provider, used]) => `${used} on ${provider}`).join(', ') : `${run.searchesUsed} on ${name}`;
+  const line = `searches   ${counted}${credits}`;
   const failed = Number(run.searchFailuresOn?.[name] ?? 0);
   if (!failed) return line;
   return `${line} - ${failed} attempt${failed === 1 ? '' : 's'} failed, reasons in ${PATHS.failures}`;
@@ -668,12 +682,18 @@ export function searchUsage(root, { now = new Date(), provider = '' } = {}) {
   const providers = new Set();
 
   for (const row of rows) {
-    const used = Number(row.searchesUsed);
+    // A row that says who paid (since 2026-09-28) is counted per provider; an older row is
+    // attributed to its searchTransport, as it always was.
+    const by = row.searchesOn && typeof row.searchesOn === 'object' ? row.searchesOn : null;
+    const used = by
+      ? (provider ? Number(by[provider] ?? 0) : Object.values(by).reduce((sum, n) => sum + Number(n || 0), 0))
+      : Number(row.searchesUsed);
     if (!Number.isFinite(used) || used <= 0) continue;
-    if (provider && row.searchTransport !== provider) continue;
+    if (!by && provider && row.searchTransport !== provider) continue;
     const at = Date.parse(row.at);
     if (!Number.isFinite(at)) continue;
-    if (row.searchTransport) providers.add(row.searchTransport);
+    if (by) for (const [name, n] of Object.entries(by)) { if (Number(n) > 0) providers.add(name); }
+    else if (row.searchTransport) providers.add(row.searchTransport);
     if (at >= hourAgo) lastHour += used;
     if (at >= monthStart) thisMonth += used;
     if (at >= monthStart && Number.isFinite(Number(row.searchCreditsEstimate))) creditsEstimate += Number(row.searchCreditsEstimate);

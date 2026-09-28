@@ -21,7 +21,7 @@ The gate is the handoff point. Before it passes, phase 2 does not start.
 
 The role is machine config - `role: "collector" | "builder"` in
 `~/.agents/research-kit.config.json`, default `collector`; declare it with
-`node "{{KIT}}/bin/install-hooks.mjs" --role builder`.
+`node "/root/.agents/research-kit/bin/install-hooks.mjs" --role builder`.
 
 | | **collector** (the operator's PC) | **builder** (a sandbox, a CI box, a laptop) |
 |---|---|---|
@@ -37,12 +37,11 @@ page forges a corpus instead of reporting a gap. Name the missing fact instead.
 A builder's first command is:
 
 ```
-node "{{KIT}}/bin/handoff.mjs"
+node "/root/.agents/research-kit/bin/handoff.mjs"
 ```
 
 The remedy depends on the cause, and the command says which: something that did not
-travel is the collector's to push (`git add research/` then `git add -f research/raw/.fetches.jsonl`,
-the ledger by name - `-f` on the whole folder also commits the machine-local logs);
+travel is the collector's to push (`git add -f research/raw/`, dotfiles included);
 a corpus that travelled whole and was rewritten on checkout here is fixed **here**, with
 `.gitattributes`, and costs no credits.
 
@@ -71,17 +70,17 @@ spent credits are not spent again.
 
 The sequence is decompose -> contract -> collect -> gate -> brief.
 
-0. **Decompose** (collector machine): `node "{{KIT}}/bin/decompose.mjs"` - it maps the project's own topic from `research/plan.json`; pass `--topic "<topic>"` only while the project is untitled, since a different topic is refused -
+0. **Decompose** (collector machine): `node "/root/.agents/research-kit/bin/decompose.mjs"` - it maps the project's own topic from `research/plan.json`; pass `--topic "<topic>"` only while the project is untitled, since a different topic is refused -
    drafts `research/MAP.md` seeded with the universal checklist. The tool contains no
    judgment. Mark every row COVERED (citing U-## rows), DISMISSED (reason required), or
    GAP.
 1. **Write the intent** in `research/DISCOVERY.md` under `## Build intent`, and enumerate
    the blocking unknowns FROM the map.
-2. **Collect**: `node "{{KIT}}/bin/research.mjs" --plan research/plan.json`. Prefer the page
+2. **Collect**: `node "/root/.agents/research-kit/bin/research.mjs" --plan research/plan.json`. Prefer the page
    that *owns* the fact over any write-up about it.
 3. **Rewrite** each auto-extracted `Finding` cell into a real claim, keeping the `Raw`
    cell pointing at the cached page.
-4. **Gate**: `node "{{KIT}}/bin/preflight.mjs"`. **Do not start building until it prints
+4. **Gate**: `node "/root/.agents/research-kit/bin/preflight.mjs"`. **Do not start building until it prints
    PASS.** Evidence must be *fetched*, not typed, and by a named transport.
 5. **Hand off**: write `research/BRIEF.md`.
 
@@ -114,7 +113,7 @@ hint, never proof. Never invent a citation. Flag contradictions instead of avera
 ## Rule 5 - cost discipline
 
 Every scrape spends credits. Plan the queries in `research/plan.json` first, reuse the
-cache (`--refresh-days`), and check the budget with `node "{{KIT}}/bin/research.mjs" --status`.
+cache (`--refresh-days`), and check the budget with `node "/root/.agents/research-kit/bin/research.mjs" --status`.
 
 ## Rule 6 - secrets
 

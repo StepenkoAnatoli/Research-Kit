@@ -2,7 +2,9 @@
 
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
-import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability } from './harness.mjs';
+import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability, requireGit } from './harness.mjs';
+import { evaluate } from '../lib/gate.mjs';
+import { TEMPLATE_DIR } from '../lib/scaffold.mjs';
 import { PATHS, resolve, writeText } from '../lib/core.mjs';
 import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, PIN_LINES } from '../lib/handoff.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
@@ -246,3 +248,52 @@ test('every command the line-ending remedy prints is a plain git command a Windo
   }
   assert.doesNotMatch(remedy, /printf/);
 });
+
+// Found 2026-09-28, end-to-end run: the push remedy said `git add -f research/raw/`, and the
+// commit gate's fix said `git add -f research/`. -f forces EVERY ignored file in, so run as
+// printed they committed the machine-local byproducts the repository ignores on purpose
+// (.usage.jsonl, .failures.jsonl, .diagnostics.jsonl, .fetches.lock) - the run's own corpus
+// commit did, and repo-hygiene went red. Only the ledger needs forcing, where an ignore rule
+// (a global one hiding dotfiles, say) would otherwise drop it. research/overrides.log is left
+// out on purpose: the template's .gitignore un-ignores it while repo-hygiene calls it a
+// byproduct, and which one is right is an open question, not this fix's to settle.
+function runPrinted(dir, text) {
+  for (const raw of String(text).split('\n')) {
+    const line = raw.replace(/#.*$/, '').trim();
+    for (const command of line.split('&&').map((c) => c.trim()).filter((c) => c.startsWith('git add'))) {
+      const r = spawnSync('git', command.split(/\s+/).slice(1), { cwd: dir, encoding: 'utf8' });
+      assert.equal(r.status, 0, `${command}: ${r.stderr}`);
+    }
+  }
+}
+
+function collectorCheckout() {
+  requireGit('running the printed corpus commands');
+  const dir = makePassingProject();
+  fs.copyFileSync(path.join(TEMPLATE_DIR, '.gitignore'), path.join(dir, '.gitignore'));
+  spawnSync('git', ['init', '-q'], { cwd: dir });
+  // A global-style rule that hides every dotfile: the case the ledger must survive.
+  fs.appendFileSync(path.join(dir, '.git', 'info', 'exclude'), '.*\n!.gitignore\n');
+  for (const byproduct of ['.usage.jsonl', '.failures.jsonl', '.diagnostics.jsonl', '.fetches.lock']) {
+    fs.writeFileSync(resolve(dir, `research/raw/${byproduct}`), '{}\n');
+  }
+  return dir;
+}
+
+function tracked(dir) {
+  return spawnSync('git', ['ls-files'], { cwd: dir, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
+}
+
+for (const [label, printed] of [
+  ['the handoff push remedy', () => HANDOFF_REMEDY],
+  ['the commit gate\'s fix for an untracked corpus', (dir) => evaluate(dir, { gate: 'commit', stagedPaths: ['README.md'], record: false }).fix],
+]) {
+  test(`${label}, run as printed, tracks the ledger and no machine-local byproduct`, () => {
+    const dir = collectorCheckout();
+    runPrinted(dir, printed(dir));
+    const files = tracked(dir);
+    assert.ok(files.includes(PATHS.ledger), `the ledger was not added:\n${files.join('\n')}`);
+    const leaked = files.filter((f) => /(^|\/)\.(usage|diagnostics|failures)\.jsonl$|\.fetches\.lock$/.test(f));
+    assert.deepEqual(leaked, [], 'machine-local byproducts were committed');
+  });
+}

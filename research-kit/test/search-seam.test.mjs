@@ -11,7 +11,7 @@ import { pathToFileURL } from 'node:url';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
 import { runResearch, searchUsage, searchSummaryLine, matchesQuery, isPreferred, FREE_TIER_PER_HOUR, FREE_TIER_PER_MONTH } from '../lib/research-run.mjs';
-import { decompose } from '../lib/decompose.mjs';
+import { decompose, searchSummary } from '../lib/decompose.mjs';
 import * as serpapi from '../lib/serpapi.mjs';
 import { readLedger, readCorpus } from '../lib/corpus.mjs';
 import { withLock, holdsLock } from '../lib/provenance.mjs';
@@ -358,6 +358,55 @@ test('RR-7: a merged run counts failures PER PROVIDER, so the summary can name t
     sleep: () => {},
   });
   assert.deepEqual(run.searchFailuresOn, { 'stub-search': 2 });
+});
+
+// Found 2026-09-28, end-to-end run (collection-cost-model): one query, merged over SerpAPI
+// and Firecrawl, was logged as `searchesUsed: 2` under searchTransport "serpapi" and printed
+// as "searches 2 on serpapi". The Firecrawl search was charged to SerpAPI's 50/hour and
+// 250/month free-plan meter, and the Firecrawl credit estimate was printed on SerpAPI's line.
+test('a merged run counts each search on the meter that paid for it', () => {
+  const root = project();
+  const run = runResearch(root, {
+    adapter: fetchStub(),
+    searchAdapters: [searchStub({ name: 'one', results: ['https://x.invalid/a'] }), searchStub({ name: 'two', results: ['https://y.invalid/b'] })],
+    plan: plan(),
+    sleep: () => {},
+  });
+  assert.deepEqual(run.searchesOn, { one: 1, two: 1 });
+  assert.equal(searchUsage(root, { provider: 'one' }).lastHour, 1, 'one was charged for two\'s search');
+  assert.equal(searchUsage(root, { provider: 'two' }).lastHour, 1, 'two\'s search was not counted on two');
+  const line = searchSummaryLine(run);
+  assert.match(line, /1 on one/);
+  assert.match(line, /1 on two/);
+});
+
+// Found 2026-09-28, end-to-end run (collection-cost-model): decompose printed "searching on
+// its own meter AND with firecrawl-cli, merged by rank" and then searched SerpAPI alone -
+// its usage row held 4 searches for 4 queries and no Firecrawl estimate. The CLI handed it
+// only the selection's first adapter. Phase 0 then scraped what SerpAPI alone had ranked.
+test('decompose searches every provider of a merged selection, and says who paid', () => {
+  const root = project();
+  const one = searchStub({ name: 'one', results: ['https://one.invalid/seam-probe'] });
+  const two = searchStub({ name: 'two', results: ['https://two.invalid/seam-probe'] });
+  const out = decompose(root, { topic: 'seam probe', adapter: fetchStub(), searchAdapters: [one, two], maxScrapes: 0, log: () => {} });
+  assert.equal(one.calls.search, out.searches, 'the first provider was not asked every query');
+  assert.equal(two.calls.search, out.searches, 'the second provider was never asked');
+  assert.equal(out.material, 2, 'both providers\' results are candidates');
+  const row = JSON.parse(readText(path.join(root, 'research', 'raw', '.usage.jsonl')).trim().split('\n').pop());
+  assert.deepEqual(row.searchesOn, { one: out.searches, two: out.searches });
+});
+
+// Seen on the first real merged run: SerpAPI timed out on one query that Firecrawl answered,
+// and the summary said "3 of 4 searches answered, 1 failed" - every query had results.
+test('decompose: a query one provider missed and another answered is answered, not lost', () => {
+  const root = project();
+  const down = searchStub({ name: 'down', fail: 'SerpAPI did not answer within 30s' });
+  const up = searchStub({ name: 'up', results: ['https://up.invalid/seam-probe'] });
+  const out = decompose(root, { topic: 'seam probe', adapter: fetchStub(), searchAdapters: [down, up], maxScrapes: 0, log: () => {} });
+  const line = searchSummary(out);
+  assert.match(line, new RegExp(`${out.searches} of ${out.searches} searches answered`), line);
+  assert.doesNotMatch(line, /failed \(|, \d+ failed/, line);
+  assert.match(line, /down/, 'the provider that missed is not named');
 });
 
 test('RR-7: the summary line says "attempted and failed", never a bare zero', () => {
