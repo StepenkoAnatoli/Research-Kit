@@ -5,7 +5,7 @@
 // it is asserted against the module's whole surface rather than against one function,
 // because the way this gets lost is somebody adding a convenient option later.
 
-import { test, describe, assert, fs, path, os, cleanup } from './harness.mjs';
+import { test, describe, assert, fs, path, os, cleanup, tempDir } from './harness.mjs';
 import { sha256, canonicalJson, resolve, readText, writeText, today, PATHS, HEADERS } from '../lib/core.mjs';
 import {
   createArtifact, deriveState, collectProjectFiles, packageName, checkClientRef,
@@ -22,7 +22,7 @@ import { runPreflight } from '../lib/preflight.mjs';
 
 describe('artifact-producer');
 
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-producer-'));
+const scratch = tempDir('rk-producer-');
 
 function build(root, overrides = {}) {
   return createArtifact({ root, ...IDENTITY, ...overrides });
@@ -381,7 +381,7 @@ test('the drafted brief asks who reviewed it, and an answer reaches the manifest
   assert.equal(undeclared.manifest.buildAuthorized, true, 'approval does not depend on the declaration');
   assert.equal(undeclared.manifest.formatVersion, '1.1.0');
 
-  const own = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-reviewed-by-'));
+  const own = tempDir('rk-reviewed-by-');
   for (const who of ['agent', 'human']) {
     const root = approvedProject();
     const briefFile = resolve(root, 'research/BRIEF.md');
@@ -412,7 +412,7 @@ test('the drafted brief asks who reviewed it, and an answer reaches the manifest
 // packed the OUTSIDE file's bytes into the zip - from raw/, anywhere under research/, and
 // from docs/, including through a linked directory. Packaging now refuses, naming the path.
 test('a link that lands outside the project is refused, and its bytes are never packaged', () => {
-  const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-outside-'));
+  const outsideDir = tempDir('rk-outside-');
   const secret = path.join(outsideDir, 'id_rsa');
   fs.writeFileSync(secret, 'PRIVATE KEY MATERIAL\n');
   const cases = [
@@ -435,7 +435,7 @@ test('a link that lands outside the project is refused, and its bytes are never 
 
 test('readCaptures does not read a capture that links outside the project, and the gate blocks on it', () => {
   const root = approvedProject();
-  const secret = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rk-outside-')), 'secret.md');
+  const secret = path.join(tempDir('rk-outside-'), 'secret.md');
   fs.writeFileSync(secret, '---\nurl: https://example.com/secret\n---\nSECRET DATA FROM OUTSIDE\n');
   fs.symlinkSync(secret, path.join(root, 'research/raw/evil.md'), 'file');
   const corpus = readCorpus(root);

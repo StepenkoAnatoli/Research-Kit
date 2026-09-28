@@ -1,10 +1,9 @@
 // Persisted, deterministic replay for graph and canonical-hash property regressions.
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { test, describe, assert, assertEqual } from './harness.mjs';
+import { test, describe, assert, assertEqual, tempDir } from './harness.mjs';
 
 // Ported 2026-09-20 under ADR-0029.
 describe('property-replay');
@@ -12,7 +11,7 @@ describe('property-replay');
 const ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 
 function tempDirectory() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'research-kit-property-replay-'));
+  return tempDir('research-kit-property-replay-');
 }
 
 test('a failing property seed is persisted once as a self-describing replay envelope', async () => {

@@ -5,7 +5,7 @@
 // with a real staged file, and assert the process exit status.
 
 import { spawnSync, execFileSync } from 'node:child_process';
-import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, KIT_ROOT, requireCapability, requireGit } from './harness.mjs';
+import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, KIT_ROOT, requireCapability, requireGit, fixtureCommitArgs } from './harness.mjs';
 import { PATHS, resolve, writeText, readText } from '../lib/core.mjs';
 import { posture } from '../lib/machine.mjs';
 import { hookExecutability, scaffoldProject } from '../lib/scaffold.mjs';
@@ -40,7 +40,7 @@ function makeRepo() {
   // index, so a fixture whose research/ was never added is not a project, it is a
   // repository with no evidence in it.
   git(dir, ['add', '-A', '-f']);
-  git(dir, ['commit', '-q', '-m', 'the corpus']);
+  git(dir, fixtureCommitArgs('the corpus'));
   return dir;
 }
 
@@ -251,4 +251,42 @@ test('a commit with HOME empty looks for the kit in the real home, not /.agents'
   const result = spawnSync(SH, [HOOK], { cwd: dir, encoding: 'utf8', timeout: 60_000, env });
   assert.doesNotMatch(result.stderr, /(^|\s)\/\.agents\//m, `the hook looked in /.agents:\n${result.stderr}`);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+});
+
+// Found 2026-09-28 (break-test): a host machine's GLOBAL git config runs on every commit
+// a scratch fixture makes, and two settings there are common enough to have names:
+// `core.hooksPath` (what husky and corporate hook frameworks install) and `commit.gpgsign`
+// (mandated signing, with no key reachable from a test). The corpus fixtures died on
+// either - 12 and 13 red tests on a healthy checkout - reporting kit defects that did not
+// exist. The fixture commit is now isolated (fixtureCommitArgs); this test reproduces the
+// hostile machine so the isolation cannot silently regress.
+test('a fixture commit is immune to the host machine\'s global git config', () => {
+  requireGit('a fixture commit under a hostile global config');
+  const hooks = tempDir('rk-hosthooks-');
+  fs.writeFileSync(path.join(hooks, 'pre-commit'), '#!/bin/sh\necho "host hook ran" >&2\nexit 1\n');
+  fs.chmodSync(path.join(hooks, 'pre-commit'), 0o755);
+  const cfgDir = tempDir('rk-hostcfg-');
+  const cfg = path.join(cfgDir, 'gitconfig');
+  // Forward slashes: a git config file reads a backslash as an escape, so a Windows path
+  // written as-is is "bad config line 2"; git on Windows takes C:/... as written.
+  fs.writeFileSync(cfg, `[core]\n\thooksPath = ${hooks.replace(/\\/g, '/')}\n[commit]\n\tgpgsign = true\n`);
+  const dir = tempDir('rk-hostrepo-');
+  git(dir, ['init', '-q']);
+  git(dir, ['config', 'user.email', 'fixture@example.invalid']);
+  git(dir, ['config', 'user.name', 'Fixture']);
+  fs.writeFileSync(path.join(dir, 'file.txt'), 'fixture\n');
+  git(dir, ['add', 'file.txt']);
+
+  // GIT_CONFIG_GLOBAL redirects one command's global config, so the hostile settings
+  // never touch the operator's real one - the probe is hermetic either way it ends.
+  const hostile = (args) => spawnSync('git', args, {
+    cwd: dir, encoding: 'utf8', timeout: 20_000,
+    env: { ...process.env, GIT_CONFIG_GLOBAL: cfg },
+  });
+  const bare = hostile(['commit', '-q', '-m', 'unisolated']);
+  assert.notEqual(bare.status, 0, 'the hostile config stopped biting - this test now asserts nothing');
+  const isolated = hostile(fixtureCommitArgs('the corpus'));
+  assert.equal(isolated.status, 0,
+    `a fixture commit died on the host's global config (core.hooksPath, commit.gpgsign):\n${isolated.stderr}`);
+  assert.doesNotMatch(isolated.stderr, /host hook ran/, 'the host hook ran on a fixture commit');
 });

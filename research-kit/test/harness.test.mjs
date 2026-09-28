@@ -8,7 +8,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { test, describe, assert, tempDir, fs, path, KIT_ROOT, importTestFiles } from './harness.mjs';
+import { test, describe, assert, tempDir, fs, path, KIT_ROOT, importTestFiles, LEAKED_GIT_CONTEXT, stripLeakedGitContext } from './harness.mjs';
 
 describe('harness');
 
@@ -126,4 +126,58 @@ test('a test file that throws at import is returned as broken, not thrown', asyn
   const broken = await importTestFiles(dir, ['boom.test.mjs', 'fine.test.mjs']);
   assert.deepEqual(broken.map((b) => b.file), ['boom.test.mjs']);
   assert.match(broken[0].error.message, /boom at import/);
+});
+
+// Found 2026-09-28 (break-test): with GIT_DIR and GIT_WORK_TREE exported - a wrapper that
+// saved `git rev-parse --git-dir` once, a hook that runs the tests - every scratch
+// repository the suite built was bypassed and the fixture commits landed in the
+// repository the variables named instead: a "the corpus" commit appeared on the host
+// repository's own branch, carrying its __pycache__. The harness now strips the leaked
+// git context from its process before any test runs; this pins the list, so a future
+// variable cannot be added to git and quietly miss the sweep.
+test('the suite strips a leaked git context, and only that', () => {
+  const env = {
+    PATH: '/usr/bin',
+    GIT_DIR: '/elsewhere/.git',
+    GIT_WORK_TREE: '/elsewhere',
+    GIT_INDEX_FILE: '/elsewhere/index',
+    GIT_CONFIG_PARAMETERS: "'core.hooksPath=/elsewhere'",
+    UNRELATED: 'kept',
+  };
+  const removed = stripLeakedGitContext(env);
+  assert.deepEqual(removed.sort(),
+    ['GIT_CONFIG_PARAMETERS', 'GIT_DIR', 'GIT_INDEX_FILE', 'GIT_WORK_TREE'],
+    'a variable in the list but absent from the environment must not be reported');
+  for (const name of LEAKED_GIT_CONTEXT) {
+    assert.equal(name in env, false, `${name} survived the strip`);
+  }
+  assert.equal(env.UNRELATED, 'kept', 'the strip touches nothing but git context');
+  assert.equal(env.PATH, '/usr/bin', 'the strip touches nothing but git context');
+
+  // The module already applied itself to the real process this run is part of, so a
+  // leaked context cannot survive into any git child the suite spawns.
+  for (const name of LEAKED_GIT_CONTEXT) {
+    assert.equal(name in process.env, false,
+      `${name} is still in this process's environment: the strip at module scope did not run`);
+  }
+});
+
+// Found 2026-09-28 (break-test): a full run made ~1,400 scratch directories - about
+// 100 MB - and removed almost none, so /tmp grew without bound on a machine that runs
+// the suite (and where /tmp is tmpfs, the growth is RAM). The harness now removes
+// exactly the directories its own process created, on exit, whatever the exit was.
+test('a run takes its scratch with it when it ends', () => {
+  const child = runChild(`
+import { tempDir, fs } from ${JSON.stringify(HARNESS)};
+const dir = tempDir('rk-leakprobe-');
+fs.writeFileSync(dir + '/proof.txt', 'scratch');
+console.log(dir);
+`);
+  assert.equal(child.status, 0, `the probe child failed:\n${child.stderr}`);
+  // Any absolute path: a Windows temp dir is C:\...\rk-leakprobe-*, often in 8.3 short form,
+  // and console.log ends its line with CRLF there.
+  const dir = child.stdout.trim().split(/\r?\n/).pop();
+  assert.ok(path.isAbsolute(dir) && dir.includes('rk-leakprobe-'), `the probe child did not report its scratch dir: ${child.stdout}`);
+  assert.equal(fs.existsSync(dir), false,
+    `the scratch dir ${dir} outlived the process that made it - every run leaks its scratch`);
 });

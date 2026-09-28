@@ -6,7 +6,7 @@
 
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
-import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability } from './harness.mjs';
+import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability, fixtureCommitArgs } from './harness.mjs';
 import { PATHS, resolve, readText, writeText } from '../lib/core.mjs';
 import { evaluate, materializeIndex } from '../lib/gate.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
@@ -33,7 +33,7 @@ function makeRepo() {
   git(dir, ['config', 'user.email', 'fixture@example.invalid']);
   git(dir, ['config', 'user.name', 'Fixture']);
   git(dir, ['add', '-A', '-f']);
-  git(dir, ['commit', '-q', '-m', 'the passing corpus']);
+  git(dir, fixtureCommitArgs('the passing corpus'));
   return dir;
 }
 
@@ -148,4 +148,31 @@ test('the scratch directory does not survive the verdict', () => {
     }
   }
   assert.deepEqual(seen, [], 'every commit would otherwise leak a copy of the corpus into the temp directory');
+});
+
+// Found 2026-09-28 (break-test): the empty-index verdict - a gated project whose
+// research/ is not tracked yet, which is every fresh project's first commit - returned
+// from evaluate before the scratch variable was assigned, so the finally that removes
+// it never ran and every such verdict leaked one temp directory.
+test('the empty-index verdict takes its scratch with it too', () => {
+  const dir = makePassingProject();
+  git(dir, ['init', '-q']);                 // a repository whose research/ is UNTRACKED
+  git(dir, ['config', 'user.email', 'fixture@example.invalid']);
+  git(dir, ['config', 'user.name', 'Fixture']);
+  const scratch = tempDir('rk-index-empty-');
+  const saved = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
+  Object.assign(process.env, { TMPDIR: scratch, TEMP: scratch, TMP: scratch });
+  let seen;
+  try {
+    assert.equal(os.tmpdir(), scratch, 'the private temp directory was not taken up');
+    const verdict = evaluate(dir, { gate: 'commit', stagedPaths: [], record: false });
+    assert.equal(verdict.verdict, 'block', 'the fixture stopped being the untracked-corpus case');
+    seen = fs.readdirSync(scratch);
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+  assert.deepEqual(seen, [], 'every first commit of a fresh project would otherwise leak a temp directory');
 });

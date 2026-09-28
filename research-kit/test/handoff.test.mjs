@@ -2,7 +2,7 @@
 
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
-import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability, requireGit } from './harness.mjs';
+import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability, requireGit, fixtureCommitArgs } from './harness.mjs';
 import { evaluate } from '../lib/gate.mjs';
 import { TEMPLATE_DIR } from '../lib/scaffold.mjs';
 import { PATHS, resolve, writeText } from '../lib/core.mjs';
@@ -48,7 +48,11 @@ test('an empty ledger beside captures on disk lost its entries: restore or re-co
   assert.equal(report.didNotTravel, false, 'nothing is missing from this checkout');
   assert.doesNotMatch(report.remedy, /git add -f/);
   assert.match(report.remedy, /git checkout HEAD -- research\/raw\/\.fetches\.jsonl/);
-  assert.match(report.remedy, /research\.mjs --plan research\/plan\.json --force/);
+  // The command is printed quoted (kitCommand), and a checkout under a path with a space
+  // in it - routine on macOS and Windows - closes that quote between the script and its
+  // first flag. Without the optional quote this suite cannot pass from such a checkout
+  // (found 2026-09-28, break-test: one red test from a clone under "deep dir/").
+  assert.match(report.remedy, /research\.mjs"? --plan research\/plan\.json --force/);
 });
 
 // The same loss, one line shorter: a torn LAST line of a longer ledger, dropped by
@@ -205,7 +209,7 @@ test('the line-ending remedy, run as printed, makes a CRLF checkout pass', () =>
   const dir = makePassingProject();
   fs.rmSync(path.join(dir, '.gitattributes'), { force: true });
   for (const args of [['init', '-q'], ['config', 'user.email', 't@t'], ['config', 'user.name', 't'],
-    ['add', '-A'], ['commit', '-q', '--no-verify', '-m', 'corpus']]) {
+    ['add', '-A'], fixtureCommitArgs('corpus')]) {
     assert.equal(git(dir, ...args).status, 0, `git ${args.join(' ')}`);
   }
   git(dir, 'config', 'core.autocrlf', 'true');

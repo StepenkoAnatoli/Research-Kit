@@ -1,9 +1,8 @@
 // R29 workbook linkage: strict shape and explicit offline cross-reference checks.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { test, describe, assert, assertEqual, cleanup } from './harness.mjs';
+import { test, describe, assert, assertEqual, cleanup, tempDir } from './harness.mjs';
 
 // Ported 2026-09-20 under ADR-0029.
 describe('r29-workbook-linkage');
@@ -47,7 +46,7 @@ function bundle() {
 }
 
 function schemaResult(value) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'r29-linkage-schema-'));
+  const root = tempDir('r29-linkage-schema-');
   const file = path.join(root, 'register.json');
   fs.writeFileSync(file, JSON.stringify(value), 'utf8');
   const result = runSchemaConformance({ files: [file], schemaPath: SCHEMA });

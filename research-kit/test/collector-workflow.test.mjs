@@ -14,8 +14,7 @@
 // be a rule that passes because somebody described the danger, which is how the structural
 // guard in this repository first fooled itself.
 
-import { test, describe, assert, fs, path, KIT_ROOT } from './harness.mjs';
-import os from 'node:os';
+import { test, describe, assert, fs, path, KIT_ROOT, tempDir } from './harness.mjs';
 import { spawnSync } from 'node:child_process';
 
 describe('collector-workflow');
@@ -527,7 +526,7 @@ function planScript() {
 function runPlan(queries, { topic = 'a topic', maxPages = '3', prefer = '' } = {}) {
   const script = planScript();
   assert.ok(script, 'the plan-writing script was not found in collect.yml - these tests are vacuous');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'collect-plan-'));
+  const dir = tempDir('collect-plan-');
   fs.mkdirSync(path.join(dir, 'research'));
   fs.writeFileSync(path.join(dir, 'research', 'plan.json'), JSON.stringify({ depth: 'quick', queries: [], urls: [] }));
   const run = spawnSync(process.execPath, ['-e', script], {

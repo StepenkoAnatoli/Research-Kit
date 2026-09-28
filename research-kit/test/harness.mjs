@@ -25,6 +25,56 @@ import { appendFetch } from '../lib/provenance.mjs';
 import { writeRaw } from '../lib/collect.mjs';
 import { PATHS, resolve, writeText, appendLine, today } from '../lib/core.mjs';
 
+// --- this suite does not inherit the git context it was started in -----------------
+//
+// GIT_DIR, GIT_WORK_TREE and their kin are how git redirects EVERY child git process to
+// a repository other than the one its cwd names. From git's own mouth - a hook, which
+// receives GIT_INDEX_FILE and is judged on that index - they are the data path. Arriving
+// in THIS process they are ambient state from wherever the suite was started: a wrapper
+// that exported GIT_DIR once and never unset it, a hook that runs the tests, an editor
+// integration. Every scratch repository the suite builds is then bypassed, and its
+// fixture commits land in the repository the variables name instead (found 2026-09-28,
+// break-test: with GIT_DIR and GIT_WORK_TREE exported, `git add -A -f` in hook.test.mjs's
+// fixture staged this repository's own __pycache__ and COMMITTED to it - 16 red tests,
+// and a "the corpus" commit on a branch nobody asked for).
+//
+// So the suite removes them from its own process before any test runs, and says so on
+// stderr: a variable silently ignored is a variable nobody learns to unset. The commit
+// gate itself (bin/gate.mjs) deliberately still honours these - it runs from inside
+// git's hook, where they point at the repository being committed. The suite is the
+// opposite case: it judges this checkout and its own scratch repositories, never a
+// repository named by the environment it happened to be started in.
+export const LEAKED_GIT_CONTEXT = Object.freeze([
+  'GIT_DIR',                       // redirects the repository itself
+  'GIT_WORK_TREE',                 // redirects the working tree git operates on
+  'GIT_INDEX_FILE',                // redirects the index (also how `git add -A -f` escapes)
+  'GIT_OBJECT_DIRECTORY',          // redirects where objects are written
+  'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+  'GIT_PREFIX',                    // a hook's cwd prefix, wrong for every scratch spawn
+  'GIT_CEILING_DIRECTORIES',       // can stop discovery of the very checkout being judged
+  'GIT_CONFIG_PARAMETERS',         // an outer `git -c ...` speaking to its own children
+]);
+
+/** Remove the leaked git context from `env`, returning the names that were there. */
+export function stripLeakedGitContext(env) {
+  const removed = [];
+  for (const name of LEAKED_GIT_CONTEXT) {
+    if (name in env) {
+      delete env[name];
+      removed.push(name);
+    }
+  }
+  return removed;
+}
+
+const leakedGitContext = stripLeakedGitContext(process.env);
+if (leakedGitContext.length) {
+  process.stderr.write(
+    `${leakedGitContext.join(', ')} found in the environment and removed for this run. `
+    + 'They redirect every git child process to a repository other than the one its cwd names, '
+    + 'so the suite would judge - and commit to - that repository instead of this checkout.\n');
+}
+
 /**
  * The per-test watchdog, in milliseconds.
  *
@@ -219,14 +269,50 @@ export function tempDir(prefix = 'research-kit-') {
   // parent first costs one syscall and turns a suite-wide abort into nothing at all.
   const base = os.tmpdir();
   fs.mkdirSync(base, { recursive: true });
-  return fs.mkdtempSync(path.join(base, prefix));
+  const dir = fs.mkdtempSync(path.join(base, prefix));
+  scratchDirs.push(dir);
+  return dir;
 }
+
+// Every directory this process made through tempDir(), so the run can take its scratch
+// with it when it ends (found 2026-09-28, break-test: a full run made ~1,400 scratch
+// directories - about 100 MB - and removed almost none of them, so /tmp grew without
+// bound on a machine that runs the suite, and where /tmp is tmpfs that growth is RAM).
+// Only the directories THIS process created are touched, each by the exact path
+// mkdtemp returned, so two suites running at once cannot sweep each other's scratch.
+// On 'exit', not at the end of the test list: an import-time throw, a red run and a
+// process.exit(1) all pass through here too, and none of those should leak either.
+const scratchDirs = [];
+process.on('exit', () => {
+  for (const dir of scratchDirs) {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* a scratch dir that cannot be removed must not fail the run's own exit */ }
+  }
+});
 
 /** The fixture and the scaffolder are the same call, which is what stops them drifting. */
 export function makeProject(dir = tempDir(), { topic = 'Fixture topic', content = false } = {}) {
   if (content) scaffoldProject(dir, { topic, kit: KIT_ROOT });
   else createEmptyProject(dir);
   return dir;
+}
+
+/**
+ * The argv for a fixture's own corpus commit, immune to the host machine's git config.
+ *
+ * A scratch repository reads the operator's GLOBAL config unless a command says otherwise,
+ * and two settings there run on every commit: `core.hooksPath` (what `husky install` and
+ * corporate hook frameworks write) and `commit.gpgsign` (a mandated-signing machine with
+ * no key reachable from a test). A fixture commit that dies on either reports a kit
+ * defect that does not exist - 12 and 13 red tests respectively on an otherwise healthy
+ * checkout (found 2026-09-28, break-test). The fixture is not signed and runs no hooks:
+ * the gate is exercised by running the hook file directly, and a corpus commit is setup,
+ * not the thing under test.
+ *
+ * The `-c` precedes the subcommand because after it, `git commit -c <arg>` means "take
+ * that commit's message as a template" - a different, quiet kind of breakage.
+ */
+export function fixtureCommitArgs(message) {
+  return ['-c', 'commit.gpgsign=false', 'commit', '-q', '--no-verify', '-m', message];
 }
 
 /** A project that passes the gate: one unknown, one row, one capture, one ledger entry. */

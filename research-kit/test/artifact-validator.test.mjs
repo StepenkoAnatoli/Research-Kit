@@ -5,7 +5,7 @@
 // can review. Everything runs offline, reads no credential, and writes only into a temp
 // directory the harness removes.
 
-import { test, describe, assert, fs, path, os, cleanup } from './harness.mjs';
+import { test, describe, assert, fs, path, os, cleanup, tempDir } from './harness.mjs';
 import { sha256, canonicalJson } from '../lib/core.mjs';
 import { validateArtifact, authorizationProblems, SUPPORTED_FORMAT_MAJOR } from '../lib/artifact-validator.mjs';
 import { ZIP_LIMITS, openZip, checkEntryName } from '../lib/artifact-zip.mjs';
@@ -15,7 +15,7 @@ import {
 
 describe('artifact-validator');
 
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'rk-fixtures-'));
+const scratch = tempDir('rk-fixtures-');
 
 const collected = basePackage(collectedProject());
 const approved = basePackage(approvedProject());

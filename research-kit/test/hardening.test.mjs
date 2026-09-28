@@ -62,9 +62,13 @@ test('F10: a manifest entry that climbs out of research/audits/ is refused', () 
   manifest.topics['fixture-topic'].versions['0.1'].subtopics.push('../../private-canary.txt');
   writeJson(resolve(dir, `${PATHS.audits}/index.json`), manifest);
 
-  const bundle = zipAudit(dir);
-  assert.equal(bundle.ok, false, 'a corpus can arrive from another machine with its manifest');
-  assert.match(bundle.reason, /outside/);
+  // The canary sits BESIDE the scratch project, in the temp root itself, so the run's
+  // scratch sweep (tempDir) does not reach it: removed here, or every run leaves it behind.
+  try {
+    const bundle = zipAudit(dir);
+    assert.equal(bundle.ok, false, 'a corpus can arrive from another machine with its manifest');
+    assert.match(bundle.reason, /outside/);
+  } finally { fs.rmSync(outside, { force: true }); }
 });
 
 test('F10: an absolute path in the manifest is refused too', () => {
