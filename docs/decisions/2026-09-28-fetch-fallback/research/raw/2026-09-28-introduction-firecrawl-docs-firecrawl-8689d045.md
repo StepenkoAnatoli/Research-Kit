@@ -1,0 +1,103 @@
+---
+url: https://docs.firecrawl.dev/api-reference/introduction
+retrieved: 2026-09-28
+command: firecrawl scrape https://docs.firecrawl.dev/api-reference/introduction --only-main-content --json
+statusCode: 200
+transport: firecrawl-cli
+completeness: full
+title: Introduction - Firecrawl Docs
+---
+> ## Documentation Index
+>
+> Fetch the complete documentation index at: [/llms.txt](https://docs.firecrawl.dev/llms.txt)
+>
+> Use this file to discover all available pages before exploring further.
+
+[Skip to main content](https://docs.firecrawl.dev/api-reference/introduction#content-area)
+
+## [​](https://docs.firecrawl.dev/api-reference/introduction\#features)  Features
+
+[**Scrape** \\
+\\
+Extract content from any webpage in markdown or json format.](https://docs.firecrawl.dev/api-reference/endpoint/scrape)
+
+[**Crawl** \\
+\\
+Crawl entire websites, extract their content and metadata.](https://docs.firecrawl.dev/api-reference/endpoint/crawl-post)
+
+[**Map** \\
+\\
+Get a complete list of URLs from any website quickly and reliably.](https://docs.firecrawl.dev/api-reference/endpoint/map)
+
+[**Search** \\
+\\
+Search the web and get full page content in any format.](https://docs.firecrawl.dev/api-reference/endpoint/search)
+
+## [​](https://docs.firecrawl.dev/api-reference/introduction\#agentic-features)  Agentic Features
+
+[**Extract** \\
+\\
+Extract structured data from entire webpages using natural language.](https://docs.firecrawl.dev/api-reference/endpoint/extract)
+
+## [​](https://docs.firecrawl.dev/api-reference/introduction\#base-url)  Base URL
+
+All requests contain the following base URL:
+
+```
+https://api.firecrawl.dev
+```
+
+## [​](https://docs.firecrawl.dev/api-reference/introduction\#authentication)  Authentication
+
+For authentication, it’s required to include an Authorization header. The header should contain `Bearer fc-123456789`, where `fc-123456789` represents your API Key.
+
+```
+Authorization: Bearer fc-123456789
+```
+
+​
+
+## [​](https://docs.firecrawl.dev/api-reference/introduction\#response-codes)  Response codes
+
+Firecrawl employs conventional HTTP status codes to signify the outcome of your requests.Typically, 2xx HTTP status codes denote success, 4xx codes represent failures related to the user, and 5xx codes signal infrastructure problems.
+
+| Status | Description |
+| --- | --- |
+| 200 | Request was successful. |
+| 400 | Verify the correctness of the parameters. |
+| 401 | The API key was not provided. |
+| 402 | Payment required |
+| 404 | The requested resource could not be located. |
+| 408 | The request timed out (e.g., page took too long to load). |
+| 429 | The rate limit has been surpassed. |
+| 5xx | Signifies a server error with Firecrawl. |
+
+Refer to the Error Codes section for a detailed explanation of all potential API errors.
+
+### [​](https://docs.firecrawl.dev/api-reference/introduction\#firecrawl-error-codes)  Firecrawl error codes
+
+When a 408 or 5xx error occurs, Firecrawl provides more specific error codes to clarify what went wrong.​
+
+| Error Code | Status | Description |
+| --- | --- | --- |
+| `SCRAPE_TIMEOUT` | 408 | The page took too long to load or render. Try increasing the `timeout` parameter (up to 60000ms). |
+| `SCRAPE_ALL_ENGINES_FAILED` | 500 | All scraping engines failed. |
+| `SCRAPE_SSL_ERROR` | 500 | Page SSL certificate is invalid. You can use `skipTlsVerification:true` to bypass this check. |
+| `SCRAPE_SITE_ERROR` | 500 | Unrecoverable site error. |
+| `SCRAPE_DNS_RESOLUTION_ERROR` | 500 | DNS resolution failed. |
+| `SCRAPE_ACTION_ERROR` | 500 | Error while performing a page action. |
+| `SCRAPE_PDF_PREFETCH_FAILED` | 500 | Failed to prefetch PDF. |
+| `SCRAPE_PDF_INSUFFICIENT_TIME_ERROR` | 500 | Not enough time to process PDF. |
+| `SCRAPE_PDF_ANTIBOT_ERROR` | 500 | PDF blocked by anti-bot mechanisms. |
+| `SCRAPE_ZDR_VIOLATION_ERROR` | 500 | Zero Data Retention conflict: occurs when `zeroDataRetention:true` but another option (e.g. `screenshot`) requires temporary storage. |
+| `SCRAPE_UNSUPPORTED_FILE_ERROR` | 500 | Unsupported file type or file size exceeds 10MB limit. |
+| `SCRAPE_LOCKDOWN_CACHE_MISS` | 404 | Lockdown mode is enabled but no cached data is available for the URL. Seed the cache with a non-lockdown scrape first, or disable `lockdown`. See [Lockdown Mode](https://docs.firecrawl.dev/features/lockdown). |
+| `UNKNOWN_ERROR` | 500 | Generic or unexpected error. |
+
+## [​](https://docs.firecrawl.dev/api-reference/introduction\#429-responses)  429 responses
+
+When you exceed your plan’s rate or concurrency limits, the API returns a 429 response code. See [Rate Limits](https://docs.firecrawl.dev/rate-limits) for per-plan limits.
+
+[Suggest edits](https://github.com/firecrawl/firecrawl-docs/edit/main/api-reference/introduction.mdx) [Raise issue](https://github.com/firecrawl/firecrawl-docs/issues/new?title=Issue%20on%20docs&body=Path:%20/api-reference/introduction)
+
+✕

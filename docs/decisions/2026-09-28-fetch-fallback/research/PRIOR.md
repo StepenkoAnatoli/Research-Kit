@@ -1,0 +1,1 @@
+I expect Tavily's terms still allow training on customer input (C-6 unchanged, no no-training tier), so Tavily stays excluded; and Firecrawl signals exhausted credits with HTTP 402 Payment Required, which the CLI surfaces as an error the kit can detect.
