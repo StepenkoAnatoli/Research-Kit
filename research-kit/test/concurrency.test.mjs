@@ -1,7 +1,7 @@
 // F14, F13 and F12's residual — the collection critical section, and the lease that
 // decides who holds it (ADR-0025).
 
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { test, describe, assert, makeProject, makePassingProject, tempDir, cleanup, fs, path, KIT_ROOT } from './harness.mjs';
@@ -72,31 +72,58 @@ test('F14: a dry run takes no lock at all - it decides and writes nothing', () =
   assert.equal(fs.existsSync(resolve(dir, PATHS.lock)), false);
 });
 
-test('F14: two collectors in separate PROCESSES serialise, and neither loses its row', () => {
+// Rewritten 2026-09-28 (Arena break test 8): this ran its two children with spawnSync, one
+// AFTER the other, so they never competed for the lock and the test passed with the lock
+// removed. Now both start together behind a barrier file, each reports when it asked for
+// the section and when it held it, and the test asserts they really overlapped in time
+// while never overlapping inside the section.
+test('F14: two collectors in separate PROCESSES serialise, and neither loses its row', async () => {
   const dir = makeProject();
-  const child = (url) => `
+  const scratch = tempDir('research-kit-conc-');
+  const go = path.join(scratch, 'go');
+  const child = (name) => `
+import fs from 'node:fs';
 import { readCorpus } from ${JSON.stringify(pathToFileURL(path.join(KIT_ROOT, 'lib', 'corpus.mjs')).href)};
 import { collectOne } from ${JSON.stringify(pathToFileURL(path.join(KIT_ROOT, 'lib', 'collect.mjs')).href)};
-const corpus = readCorpus(${JSON.stringify(dir)});
-collectOne(${JSON.stringify(dir)}, ${JSON.stringify(url)}, {
-  corpus,
+const nap = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+fs.writeFileSync(${JSON.stringify(path.join(scratch, name + '.ready'))}, '');
+while (!fs.existsSync(${JSON.stringify(go)})) nap(5);
+const times = { asked: Date.now() };
+collectOne(${JSON.stringify(dir)}, ${JSON.stringify('https://x.invalid/' + name)}, {
+  corpus: readCorpus(${JSON.stringify(dir)}),
   runScrape: (u) => {
-    // Hold the section long enough that the other process must actually wait.
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 400);
+    times.entered = Date.now();
+    nap(400); // hold the section long enough that the other process must wait for it
+    times.left = Date.now();
     return { ok: true, url: u, title: 'T', markdown: ${JSON.stringify(PAGE)}, statusCode: 200, transport: 'stub', completeness: 'full', cmd: 'stub' };
   },
 });
+process.stdout.write(JSON.stringify(times));
 `;
-  const scratch = tempDir('research-kit-conc-');
-  const files = ['a', 'b'].map((name) => {
+  const names = ['a', 'b'];
+  const exits = names.map((name) => {
     const file = path.join(scratch, `${name}.mjs`);
-    writeText(file, child(`https://x.invalid/${name}`));
-    return file;
+    writeText(file, child(name));
+    const proc = spawn(process.execPath, [file], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    let err = '';
+    proc.stdout.on('data', (d) => { out += d; });
+    proc.stderr.on('data', (d) => { err += d; });
+    return new Promise((done) => proc.on('close', (status) => done({ status, out, err })));
   });
+  const deadline = Date.now() + 30_000;
+  while (!names.every((name) => fs.existsSync(path.join(scratch, `${name}.ready`)))) {
+    assert.ok(Date.now() < deadline, 'the children never reached the start barrier');
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  fs.writeFileSync(go, '');
+  const results = await Promise.all(exits);
+  for (const result of results) assert.equal(result.status, 0, result.err);
+  const [first, second] = results.map((r) => JSON.parse(r.out)).sort((x, y) => x.entered - y.entered);
 
-  const running = files.map((file) => spawnSync(process.execPath, [file], { encoding: 'utf8', timeout: 60_000 }));
-  for (const result of running) assert.equal(result.status, 0, result.stderr);
-
+  assert.ok(second.asked < first.left,
+    'the second collector asked only after the first had finished - they never competed, and this test proves nothing');
+  assert.ok(second.entered >= first.left, 'both were inside the section at once');
   const after = readCorpus(dir);
   assert.equal(after.evidence.length, 2, 'both rows survived - neither read-modify-write clobbered the other');
   assert.deepEqual(after.evidence.map((r) => r.id).sort(), ['E-01', 'E-02']);
