@@ -42,4 +42,3 @@ __pycache__/
 # gate, which is exactly what happened when this project was uploaded without its
 # dotfiles. If you copy this project by hand, copy research/raw/.* too.
 !research/raw/.fetches.jsonl
-!research/overrides.log

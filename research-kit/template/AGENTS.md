@@ -92,7 +92,8 @@ approved research, whoever does them. Declare who did in the brief, with a line
 
 There are exactly three overrides - `git commit --no-verify`, a deliberate
 `research/GATE_OFF`, and a repository-local `core.hooksPath` - and all three are recorded
-in `research/overrides.log`. If you take one, say so in your reply.
+in `research/overrides.log`, a local log that is never committed. If you take one, say so in
+your reply.
 
 ## Rule 2 - questions are for intent, never for facts
 
