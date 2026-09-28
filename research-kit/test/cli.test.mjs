@@ -584,11 +584,15 @@ test('every command the kit tells you to run, runs from where you are', () => {
   // remedies printed by preflight, doctor and research named "node research-kit/bin/...",
   // which exists only at the repository root. Copy-pasting a fix produced MODULE_NOT_FOUND.
   // Every printed command now names the running kit by its full path (kitCommand).
+  // A scratch home: on a machine where the kit is installed, doctor has fewer next steps to
+  // print, and the count below read the operator's machine rather than the kit (Arena, F-01).
   const root = planned();
+  const home = tempDir('rk-cmd-home-');
+  const env = { HOME: home, USERPROFILE: home, APPDATA: home, RESEARCH_KIT_CONFIG: path.join(home, 'c.json') };
   const outputs = [
-    run('preflight.mjs', [], { root }).all,
-    run('doctor.mjs', [], { root }).all,
-    run('research.mjs', ['--dry-run'], { root }).all,
+    run('preflight.mjs', [], { root, env }).all,
+    run('doctor.mjs', [], { root, env }).all,
+    run('research.mjs', ['--dry-run'], { root, env }).all,
   ].join('\n');
   const commands = [...outputs.matchAll(/node ("[^"]+\.mjs"|\S+\.mjs)/g)].map((m) => m[1].replace(/^"|"$/g, ''));
   assert.ok(commands.length >= 3, `expected the CLIs to print some next steps, found ${commands.length}`);
