@@ -83,7 +83,7 @@ jobs:
         run: |
           echo "os: ${{ matrix.os }} ($(uname -s 2>/dev/null || echo windows))"
           node --version
-          python --version
+          "$(command -v python || command -v python3)" --version
           git --version
 
       - name: no credentials are present
@@ -165,6 +165,9 @@ jobs:
           # RUNNER_TEMP, not /tmp: on a Windows runner /tmp is Git Bash's own mount and
           # the two languages disagree about what that path means.
           tmp="${RUNNER_TEMP:-/tmp}"
+          # `python` is what setup-python provides; a stock Ubuntu box has only `python3`,
+          # and this step should run there verbatim, as the suite does (2026-09-28).
+          py="$(command -v python || command -v python3)"
           for pair in \
             "ledger-conformance.mjs:ledger_conformance.py:qualification-ledger-vectors.json" \
             "fi-sidecar-conformance.mjs:fi_sidecar_conformance.py:fi-sidecar-evidence-manifest-vectors.json" \
@@ -172,7 +175,7 @@ jobs:
           do
             n="${pair%%:*}"; rest="${pair#*:}"; p="${rest%%:*}"; v="${rest##*:}"
             node "research-kit/bin/$n" --vectors "research-kit/conformance/$v" --json > "$tmp/node.json"
-            python "research-kit/bin/$p" --vectors "research-kit/conformance/$v" --json > "$tmp/py.json"
+            "$py" "research-kit/bin/$p" --vectors "research-kit/conformance/$v" --json > "$tmp/py.json"
             node -e '
               const fs = require("fs");
               const rows = (f) => {
