@@ -801,3 +801,17 @@ test('hygiene calls the brief stale when only the map has changed', () => {
   const stale = runCheck('hygiene', snapshot(dir)).filter((f) => f.rule === 'brief-stale');
   assert.equal(stale.length, 1, 'a map change left the brief current');
 });
+
+// Found 2026-09-28 by the first measurement (docs/measurement-2026-09-28.md): the registry
+// says unknown-closure checks that every CLOSED unknown rests on "a real, fresh, primary row",
+// but it only warned about L rows - three corpora closed everything on S rows and passed with
+// no warning. AGENTS.md Rule 4: P carries the design, S is context.
+test('a closure resting only on secondary rows is flagged', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (t) => t.replace(/\| P \| (https:\/\/example\.invalid)/, '| S | $1'));
+  const findings = runCheck('unknown-closure', readCorpus(dir));
+  const flagged = findings.find((f) => f.rule === 'secondary-only');
+  assert.equal(flagged?.severity, 'warn', JSON.stringify(findings));
+  assert.match(flagged.detail, /U-1 rests only on secondary \(S\) rows/);
+  assert.equal(runCheck('unknown-closure', readCorpus(makePassingProject())).find((f) => f.rule === 'secondary-only'), undefined);
+});

@@ -343,6 +343,17 @@ function unknownClosure(corpus, options = {}) {
           { row: unknown.id, line: unknown.line }));
       }
     }
+    // The registry promised "a primary row" and only L was checked (found 2026-09-28 by the
+    // first measurement: three corpora closed everything on S rows with no warning). Rule 4:
+    // P carries the design, S is context - so a closure with no P row at all is said. If the
+    // page owns the fact (a vendor's own terms, a spec), its row should be typed P.
+    const rows = cited.map((id) => byId.get(id.toUpperCase())).filter(Boolean);
+    if (rows.length && !rows.some((row) => row.type === 'P') && rows.some((row) => row.type === 'S')) {
+      out.push(finding('warn', 'unknown-closure', 'secondary-only',
+        `${unknown.id} rests only on secondary (S) rows - S is context, P carries the design; `
+        + 'collect the page that owns the fact, or type its row P if it already is that page',
+        { row: unknown.id, line: unknown.line }));
+    }
   }
   if (!out.length) {
     const closed = corpus.unknowns.filter((u) => u.status === 'CLOSED').length;
