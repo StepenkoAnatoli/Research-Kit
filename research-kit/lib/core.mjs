@@ -194,6 +194,24 @@ export function writeBytes(p, data, encoding = null) {
   return p;
 }
 
+/**
+ * A stdout whose reader has gone away is not a failure of the command.
+ *
+ * `node bin/selftest.mjs | head -1` - or `| grep -m1`, or a pager somebody quits - closes
+ * the pipe, and Node turns the next write into an unhandled 'error' event: the process
+ * died with a raw stack and exit 1 while the suite was still running, so a healthy run
+ * reported itself as broken and the result file was never written (found 2026-09-28,
+ * break-test; the suite is the only entrypoint measured large enough to hit it - 99 KB of
+ * output against a 64 KB pipe buffer). Dropping the writes lets the run finish with its
+ * own verdict, which is the only exit code that means anything here.
+ */
+export function tolerateClosedStdout(stream = process.stdout) {
+  stream.on('error', (err) => {
+    if (err?.code !== 'EPIPE') throw err;
+    stream.write = () => true;
+  });
+}
+
 /** Why a write was refused, in words, by error code (2026-09-28). */
 const WRITE_REFUSALS = Object.freeze({
   EACCES: 'permission denied - the folder or the file is not writable by this user',
