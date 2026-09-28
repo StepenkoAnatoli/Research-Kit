@@ -360,6 +360,26 @@ test('RR-7: a merged run counts failures PER PROVIDER, so the summary can name t
   assert.deepEqual(run.searchFailuresOn, { 'stub-search': 2 });
 });
 
+// Found 2026-09-28, end-to-end run (collection-cost-model): one query, merged over SerpAPI
+// and Firecrawl, was logged as `searchesUsed: 2` under searchTransport "serpapi" and printed
+// as "searches 2 on serpapi". The Firecrawl search was charged to SerpAPI's 50/hour and
+// 250/month free-plan meter, and the Firecrawl credit estimate was printed on SerpAPI's line.
+test('a merged run counts each search on the meter that paid for it', () => {
+  const root = project();
+  const run = runResearch(root, {
+    adapter: fetchStub(),
+    searchAdapters: [searchStub({ name: 'one', results: ['https://x.invalid/a'] }), searchStub({ name: 'two', results: ['https://y.invalid/b'] })],
+    plan: plan(),
+    sleep: () => {},
+  });
+  assert.deepEqual(run.searchesOn, { one: 1, two: 1 });
+  assert.equal(searchUsage(root, { provider: 'one' }).lastHour, 1, 'one was charged for two\'s search');
+  assert.equal(searchUsage(root, { provider: 'two' }).lastHour, 1, 'two\'s search was not counted on two');
+  const line = searchSummaryLine(run);
+  assert.match(line, /1 on one/);
+  assert.match(line, /1 on two/);
+});
+
 test('RR-7: the summary line says "attempted and failed", never a bare zero', () => {
   const line = searchSummaryLine({ searchesUsed: 0, searchTransport: 'serpapi', searchFailuresOn: { serpapi: 1 } });
   assert.match(line, /^searches {3}0 on serpapi/);
