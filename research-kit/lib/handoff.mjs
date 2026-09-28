@@ -13,7 +13,7 @@
 
 import path from 'node:path';
 import { PATHS, resolve, exists, readText, kitCommand } from './core.mjs';
-import { readCorpus, captureOf } from './corpus.mjs';
+import { readCorpus, captureOf, traceOf } from './corpus.mjs';
 import { verifyLedger } from './provenance.mjs';
 import { briefState, judgedSection, JUDGED_SECTIONS } from './brief.mjs';
 
@@ -29,16 +29,16 @@ export const HANDOFF_REMEDY = [
 ].join('\n');
 
 /**
- * The ledger is here and empty while the captures are on disk: its entries were lost where
- * the captures are - a one-line ledger whose torn tail `doctor --fix-arity` dropped leaves
- * exactly this (Arena, 2026-09-28). The push remedy was printed for it, and on the collector
- * that pushes the same empty ledger. A function, because the collect command names the
- * running kit.
+ * The ledger is here, but captures on disk have no entry in it - it is empty, or short:
+ * its entries were lost where the captures are. A torn last line that `doctor --fix-arity`
+ * dropped leaves exactly this (Arena, 2026-09-28). The push remedy was printed for it, and
+ * on the collector that pushes the same ledger. A function, because the collect command
+ * names the running kit.
  */
 export function ledgerLostRemedy() {
   return [
-    'The ledger lost its entries: every capture is here, and nothing records that it was fetched.',
-    'Pushing sends the same empty ledger. Restore it from git when a committed copy holds them:',
+    'The ledger lost entries: the captures are here, and nothing records that they were fetched.',
+    'Pushing sends the same ledger. Restore it from git when a committed copy holds them:',
     '',
     '    git checkout HEAD -- research/raw/.fetches.jsonl',
     '',
@@ -140,13 +140,14 @@ export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } =
  * `verifyHandoff(root, { corpus })` -> the report.
  *
  * Findings are named: handoff-ledger-missing, handoff-ledger-empty,
- * handoff-capture-missing, handoff-chain-broken, plus one handoff-remedy.
+ * handoff-capture-missing, handoff-capture-unledgered, handoff-chain-broken, plus one handoff-remedy.
  */
 export function verifyHandoff(root, { corpus = null } = {}) {
   const snapshot = corpus ?? readCorpus(root);
   const chain = snapshot.chain ?? verifyLedger(root, { corpus: snapshot });
   const findings = [];
   const missingCaptures = [];
+  const unledgered = [];
   const lineEndings = chain.lineEndings ?? [];
 
   if (!snapshot.ledger.present) {
@@ -166,7 +167,19 @@ export function verifyHandoff(root, { corpus = null } = {}) {
   for (const row of snapshot.evidence) {
     const capture = captureOf(snapshot, row);
     const file = row.raw || capture?.file || '';
-    if (file && exists(resolve(root, file))) continue;
+    if (file && exists(resolve(root, file))) {
+      // On disk, and the ledger holds entries, but none records this capture: preflight
+      // fails it (fetch-entry-exists). An empty ledger is named once, above.
+      if (snapshot.ledger.entries.length && !traceOf(snapshot, row).fetch) {
+        unledgered.push({ row: row.id, file });
+        findings.push({
+          name: 'handoff-capture-unledgered',
+          severity: 'fail',
+          detail: `${row.id} cites ${file}, which is on disk but no ledger entry records it`,
+        });
+      }
+      continue;
+    }
     missingCaptures.push({ row: row.id, file: file || row.url });
     findings.push({
       name: 'handoff-capture-missing',
@@ -188,14 +201,18 @@ export function verifyHandoff(root, { corpus = null } = {}) {
   }
 
   // Present, empty, and captures on disk: lost here, not left behind.
-  const ledgerLost = snapshot.ledger.present && !snapshot.ledger.entries.length && snapshot.captures.entries.length > 0;
+  // Or entries missing for captures that are here - a torn last line of a longer ledger.
+  const ledgerLost = snapshot.ledger.present
+    && ((!snapshot.ledger.entries.length && snapshot.captures.entries.length > 0) || unledgered.length > 0);
   const travelled = findings.filter((f) => (f.name !== 'handoff-chain-broken' || f.kind !== 'line-endings')
+    && f.name !== 'handoff-capture-unledgered'
     && !(ledgerLost && f.name === 'handoff-ledger-empty'));
   const report = {
     root,
     ok: findings.length === 0,
     findings,
     missingCaptures,
+    unledgered,
     lineEndings,
     // "Something did not travel" is anything that is not purely a line-ending rewrite.
     didNotTravel: travelled.length > 0,
