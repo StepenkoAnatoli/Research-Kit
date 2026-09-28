@@ -21,7 +21,8 @@
 // that will fail on a runner, found offline instead of after an approval.
 
 import vm from 'node:vm';
-import { test, describe, assert, fs, path, KIT_ROOT } from './harness.mjs';
+import { spawnSync } from 'node:child_process';
+import { test, describe, assert, fs, path, KIT_ROOT, requireCapability } from './harness.mjs';
 
 describe('workflow-embedded-scripts');
 
@@ -149,4 +150,75 @@ test('no workflow uses the GitHub Actions falsy-ternary footgun', () => {
   }
   assert.deepEqual(offenders, [],
     'a ternary whose true-branch is the empty string yields its third operand instead');
+});
+
+// ---------------------------------------------------------------- the shell around them
+//
+// Added 2026-09-28 (Arena break test 13, residual risk). The `node -e` scripts above are
+// parsed; the bash each `run:` block IS was not, so a shell typo - an unclosed `if`, a
+// stray quote - failed only when a runner reached that step, which on the collector is
+// after the approval and possibly after the credits. Every run block in this repository
+// runs under bash (Git Bash on Windows, offline-suite.yml says why), so `bash -n` parses
+// each one offline. `${{ ... }}` is GitHub's, substituted before bash sees the text, so
+// it is replaced by a plain word first.
+
+/** Every `run:` block, dedented, as bash will receive it once GitHub has substituted it. */
+export function runBlocks(text, file) {
+  const lines = text.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const m = /^(\s*)(?:-\s+)?run:\s*(.*)$/.exec(lines[i]);
+    if (!m || lines[i].trim().startsWith('#')) continue;
+    const keyIndent = m[1].length + (lines[i].trim().startsWith('-') ? 2 : 0);
+    const at = i + 1;   // the `run:` line itself, before i moves past the block
+    let body;
+    if (/^[|>][-+]?\s*$/.test(m[2])) {
+      const block = [];
+      let j = i + 1;
+      for (; j < lines.length; j += 1) {
+        const line = lines[j];
+        if (line.trim() !== '' && line.length - line.trimStart().length <= keyIndent) break;
+        block.push(line);
+      }
+      const indent = Math.min(...block.filter((l) => l.trim()).map((l) => l.length - l.trimStart().length));
+      body = block.map((l) => l.slice(Number.isFinite(indent) ? indent : 0)).join('\n');
+      i = j - 1;
+    } else {
+      body = m[2];
+    }
+    out.push({ file, line: at, body: body.replace(/\$\{\{[\s\S]*?\}\}/g, 'GH_EXPR') });
+  }
+  return out;
+}
+
+const BASH = ['bash'].find((b) => spawnSync(b, ['-c', 'echo ok'], { encoding: 'utf8' }).stdout?.trim() === 'ok') ?? null;
+
+function bashSyntax(body) {
+  const r = spawnSync(BASH, ['-n'], { input: body, encoding: 'utf8', timeout: 20_000 });
+  return r.status === 0 ? null : (r.stderr || `bash -n exited ${r.status}`).trim();
+}
+
+const runs = fs.readdirSync(WORKFLOWS)
+  .filter((n) => n.endsWith('.yml') || n.endsWith('.yaml'))
+  .flatMap((n) => runBlocks(fs.readFileSync(path.join(WORKFLOWS, n), 'utf8'), n));
+
+test('every run block in every workflow is valid bash', () => {
+  requireCapability(BASH, 'BASH-NOT-FOUND', 'no bash on this host to parse the workflow run blocks with');
+  assert.ok(runs.length >= 40, `expected the workflows' run blocks, found ${runs.length}`);
+  const broken = runs.map((r) => ({ ...r, error: bashSyntax(r.body) })).filter((r) => r.error)
+    .map((r) => `${r.file}:${r.line}  ${r.error.split('\n')[0]}`);
+  assert.deepEqual(broken, [], 'these run blocks will fail on the runner before doing anything:\n  ' + broken.join('\n  '));
+});
+
+test('the run-block check catches a real shell syntax error, so it is not vacuously green', () => {
+  requireCapability(BASH, 'BASH-NOT-FOUND', 'no bash on this host to parse the workflow run blocks with');
+  const yaml = [
+    'jobs:', '  x:', '    steps:',
+    '      - name: fine', '        run: |', '          echo "${{ inputs.value }}"', '          if [ -n "$A" ]; then echo a; fi',
+    '      - name: broken', '        run: |', '          if [ -n "$A" ]; then', '            echo never closed',
+  ].join('\n');
+  const blocks = runBlocks(yaml, 'probe.yml');
+  assert.equal(blocks.length, 2);
+  assert.equal(bashSyntax(blocks[0].body), null, `a valid block was refused: ${bashSyntax(blocks[0].body)}`);
+  assert.notEqual(bashSyntax(blocks[1].body), null, 'an unclosed if was accepted');
 });

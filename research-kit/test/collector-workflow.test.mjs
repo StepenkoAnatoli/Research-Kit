@@ -547,6 +547,51 @@ test('every workflow runs with a read-only token, and none runs untrusted code u
   }
 });
 
+// ---------------------------------------------------------------- limits and cancellation
+
+/** Each job's name and body, read as text: the top-level keys under `jobs:`. */
+function jobsOf(text) {
+  const after = text.split(/^jobs:\s*$/m)[1] ?? '';
+  const parts = after.split(/^ {2}([A-Za-z0-9_-]+):\s*$/m);
+  const jobs = [];
+  for (let i = 1; i < parts.length; i += 2) jobs.push({ name: parts[i], body: parts[i + 1] });
+  return jobs;
+}
+
+test('every job in every workflow has its own time limit', () => {
+  // All six jobs set timeout-minutes today, and nothing required it: a job added without
+  // one runs up to GitHub's default of six hours, and on the collector that is six hours
+  // of a paid run nobody is watching (Arena break test 13, residual risk, 2026-09-28).
+  for (const name of fs.readdirSync(WORKFLOWS)) {
+    if (!name.endsWith('.yml') && !name.endsWith('.yaml')) continue;
+    const jobs = jobsOf(executable(fs.readFileSync(path.join(WORKFLOWS, name), 'utf8')));
+    assert.ok(jobs.length > 0, `${name}: no jobs were found, so this test would prove nothing`);
+    for (const job of jobs) {
+      assert.ok(/^ {4}timeout-minutes:\s*\d+\s*$/m.test(job.body),
+        `${name}: job "${job.name}" has no timeout-minutes, so it may run for GitHub's default six hours`);
+    }
+  }
+});
+
+test('no failure elsewhere can cancel a platform leg, the Windows one included', () => {
+  // Windows-only seams - the .cmd transport guard, CRLF on the runtime paths - are
+  // verified by the windows-latest leg and nowhere else, so that leg must always run to
+  // the end. fail-fast: false keeps one leg's failure from cancelling the others, and no
+  // concurrency group may cancel a run in progress. Both hold today and were unpinned.
+  for (const name of fs.readdirSync(WORKFLOWS)) {
+    if (!name.endsWith('.yml') && !name.endsWith('.yaml')) continue;
+    const text = executable(fs.readFileSync(path.join(WORKFLOWS, name), 'utf8'));
+    assert.ok(!/cancel-in-progress:\s*true/.test(text), `${name} cancels a run in progress when a newer one starts`);
+    for (const job of jobsOf(text)) {
+      if (!/^ {4}strategy:\s*$/m.test(job.body) || !/^ {6}matrix:\s*$/m.test(job.body)) continue;
+      assert.ok(/^ {6}fail-fast:\s*false\s*$/m.test(job.body),
+        `${name}: the matrix of job "${job.name}" does not set fail-fast: false, so one leg's failure cancels the rest`);
+    }
+  }
+  const suite = fs.readFileSync(path.join(WORKFLOWS, 'offline-suite.yml'), 'utf8');
+  assert.ok(/windows-latest/.test(executable(suite)), 'the offline suite no longer runs on Windows at all');
+});
+
 // ---------------------------------------------------------------- pages fetched by URL
 //
 // Added 2026-09-27. The dispatcher could only SEARCH: a page it already knew - an API
