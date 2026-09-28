@@ -29,7 +29,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  PATHS, resolve, exists, isDirectory, readText, sha256, canonicalJson, nowIso, listFiles, homeCommand, realInside,
+  PATHS, resolve, exists, isDirectory, readText, sha256, canonicalJson, nowIso, listFiles, homeCommand, realInside, writeBytes,
 } from './core.mjs';
 import { buildZip } from './archive.mjs';
 import { readCorpus, parseCapture } from './corpus.mjs';
@@ -615,7 +615,10 @@ function nextActionsFor(derived) {
 export function writeArtifact(outFile, options) {
   const built = createArtifact(options);
   fs.mkdirSync(path.dirname(path.resolve(outFile)), { recursive: true });
-  fs.writeFileSync(outFile, built.bytes);
+  // Whole or not at all (ADR-0079), and it matters more here than anywhere: this is the
+  // package a workflow uploads and a builder consumes, and re-creating it at a name that
+  // already holds one must never trade a good package for a truncated one (2026-09-28).
+  writeBytes(outFile, built.bytes);
   const validation = validateArtifact({ file: outFile, expectedClientRef: built.manifest.clientRef ?? null });
   return { ...built, file: outFile, validation };
 }

@@ -7,8 +7,7 @@
 // It knows the container and nothing else. What goes inside a bundle is lib/audit.mjs's.
 
 import zlib from 'node:zlib';
-import { writeText, ensureDir } from './core.mjs';
-import fs from 'node:fs';
+import { writeText, writeBytes, ensureDir } from './core.mjs';
 import path from 'node:path';
 
 const CRC_TABLE = (() => {
@@ -118,7 +117,10 @@ export function buildZip(entries, { date = new Date(1980, 0, 1, 0, 0, 0) } = {})
 export function writeZip(file, entries, options = {}) {
   const bytes = buildZip(entries, options);
   ensureDir(path.dirname(file));
-  fs.writeFileSync(file, bytes);
+  // Whole or not at all (ADR-0079). The audit bundle is a file a person keeps, and it is
+  // several hundred KB: a killed process or a full disk must not leave a truncated one
+  // where a good one was (found 2026-09-28, break-test).
+  writeBytes(file, bytes);
   return { file, bytes: bytes.length, entries: entries.length };
 }
 
