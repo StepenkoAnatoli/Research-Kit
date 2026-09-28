@@ -25,7 +25,11 @@ test('crc32 matches its published vectors', () => {
 
 test('entryName refuses anything that could unpack outside the folder', () => {
   assert.equal(entryName('a/b.md'), 'a/b.md');
-  assert.equal(entryName('a\\b.md'), 'a/b.md');
+  // A backslash is refused, not translated (2026-09-28, Arena break test 10): translating
+  // `a\\b.md` into `a/b.md` stored a file under a name nobody gave it, and the package
+  // writer then contradicted its own manifest. The writer changes no name it is handed.
+  assert.throws(() => entryName('a\\b.md'), /backslash/);
+  assert.throws(() => buildZip([{ name: 'research\\raw\\x.md', data: 'x' }]), /backslash/);
   assert.throws(() => entryName('/etc/passwd'), /not a relative path/);
   assert.throws(() => entryName('C:/Windows/x'), /not a relative path/);
   assert.throws(() => entryName('../escape.md'), /climbs out/);
