@@ -130,6 +130,26 @@ test('every project in this repository carries the template .gitignore rules', (
   assert.deepEqual(gaps, [], 'doctor warns shape-kit-rules-missing for:\n  ' + gaps.join('\n  '));
 });
 
+// Found 2026-09-28, break-test: the root .gitattributes was replaced with one line and
+// the suite stayed green. That file is the shield for every body hash in every corpus -
+// a capture's hash is taken over LF bytes, and a default Windows checkout (core.autocrlf)
+// smudges them to CRLF, so each hash stops recomputing and handoff and preflight report
+// the corpus as damaged when nothing is wrong with it. The template's copy is pinned
+// (scaffold.test.mjs) and the remedy is documented (ADR-0062), but the repository's own
+// pin lines could be deleted silently - the failure they guard only appears on the next
+// Windows checkout, as six named blockers about hashes nobody touched.
+test('every project in this repository carries the template .gitattributes pins', () => {
+  if (!inGitRepo) return;
+  const repo = path.resolve(KIT_ROOT, '..');
+  const decisions = path.join(repo, 'docs', 'decisions');
+  const projects = [repo, ...fs.readdirSync(decisions).map((d) => path.join(decisions, d))
+    .filter((d) => fs.existsSync(path.join(d, 'research')))];
+  const gaps = projects.map((d) => [path.relative(repo, d) || '.', missingKitLines(d, '.gitattributes')])
+    .filter(([, missing]) => missing.length).map(([d, missing]) => `${d}: ${missing.join(', ')}`);
+  assert.deepEqual(gaps, [],
+    'these projects lose every corpus body-hash on a default Windows checkout:\n  ' + gaps.join('\n  '));
+});
+
 test('the ledger is still not swept up by the broader rules', () => {
   // The mirror of the test above, and the reason it is worded as a denylist of four names
   // rather than "ignore everything hidden under research/raw". The chain is evidence and
