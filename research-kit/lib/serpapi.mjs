@@ -136,10 +136,13 @@ export function runJob(job, { timeout = DEFAULT_TIMEOUT, spawn = spawnSync, node
  */
 export function normalizeSearch(payload) {
   const rows = Array.isArray(payload?.organic_results) ? payload.organic_results : [];
-  return rows.map((row) => ({
-    url: row.link ?? row.url ?? '',
-    title: row.title ?? '',
-    description: row.snippet ?? row.description ?? '',
+  // A malformed row is dropped, and a field of the wrong type read as empty: one null row
+  // threw and took every valid result with it (Arena break test 9, 2026-09-28).
+  const text = (value) => (typeof value === 'string' ? value : '');
+  return rows.filter((row) => row && typeof row === 'object' && !Array.isArray(row)).map((row) => ({
+    url: text(row.link) || text(row.url),
+    title: text(row.title),
+    description: text(row.snippet) || text(row.description),
     position: Number.isFinite(row.position) ? row.position : null,
   })).filter((row) => row.url);
 }

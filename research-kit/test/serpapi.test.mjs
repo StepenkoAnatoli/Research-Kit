@@ -592,3 +592,18 @@ test('AR-1: ONE module resolves provider choice, for both sides', () => {
   }
   assert.deepEqual(offenders, [], 'a second module resolves a provider by itself');
 });
+
+// Found 2026-09-28 (Arena break test 9): one null row in organic_results threw a TypeError
+// that discarded every valid result beside it, and a row whose link was an object or whose
+// title was a number passed through as that type, to break whatever read it next.
+test('TR-3: malformed result rows cannot crash or pollute the valid results', () => {
+  const rows = [null, false, 12, 'bad', [], {}, { link: { bad: 'url' } },
+    { link: 'https://a.example/', title: 42, snippet: [] },
+    { url: 'https://b.example/', title: 'Valid', description: 'Kept', position: 2 }];
+  const r = serpapi.search('q', { key: SENTINEL, job: stubJob({ ok: true, payload: { organic_results: rows } }) });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.results, [
+    { url: 'https://a.example/', title: '', description: '', position: null },
+    { url: 'https://b.example/', title: 'Valid', description: 'Kept', position: 2 },
+  ]);
+});
