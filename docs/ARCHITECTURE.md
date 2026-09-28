@@ -314,6 +314,16 @@ Two decisions in it are load-bearing:
   `1e-05`/`0.00001`. Post-processing `repr` would have caught the first four and missed
   the fifth, because the two languages switch to exponential notation at different
   thresholds — not at different *formats*.
+- **An integer outside +/-2**53 is rendered the way `JSON.parse` in JavaScript would
+  render it, not the way Python's arbitrary-precision `int` prints it** (2026-09-28,
+  Arena break test 8). `9007199254740993` IS `9007199254740992` after a JavaScript
+  parse, and `123456789012345678901234567890` is `1.2345678901234568e+29`; `str()` on a
+  Python `int` printed the digits the author wrote, so the two languages hashed
+  DIFFERENT BYTES for one input. Found by differential testing 3,926 generated
+  structures - 107 disagreed, all of them this case - and no shipped vector carried such
+  an integer, which is why the chosen inputs looked like agreement: the same way the
+  float divergence above hid behind vectors that happened to contain no float. Integers
+  INSIDE the range go through `str()` unchanged, so the fix cannot rewrite a small one.
 - **`float_policy` is a required, named argument**, because the repository has two
   deliberate policies that were previously indistinguishable from a bug. `reject` refuses
   a float outright: the ledger and property vectors carry hashes and chain positions,
