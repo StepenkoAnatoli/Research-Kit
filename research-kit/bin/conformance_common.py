@@ -135,7 +135,7 @@ def canonical_json(value: Any, *, float_policy: str = "reject") -> str:
         # two languages hashed DIFFERENT BYTES for one input - which is the one
         # disagreement this module exists to prevent, one type over.
         #
-        # Found 2026-09-28 (Arena break test 8) by differential testing 3,926 generated
+        # Found 2026-09-28 (Arena break test 12) by differential testing 3,926 generated
         # structures: 107 disagreed, and every one of them was an integer outside the
         # safe range. No shipped vector carried such an integer, which is why the chosen
         # inputs looked like agreement - the same way the float divergence below hid

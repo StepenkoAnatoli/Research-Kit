@@ -271,7 +271,7 @@ test('a ledger-named capture that cannot be read is a named failure, not a crash
     `no finding names the unreadable capture:\n${verdict.findings.filter((f) => f.severity === 'fail').map((f) => `${f.rule}: ${f.detail}`).join('\n')}`);
 });
 
-// Found 2026-09-28 (Arena break test 8). A file with NO END - a fifo, a socket, a
+// Found 2026-09-28 (Arena break test 12). A file with NO END - a fifo, a socket, a
 // character device such as dev/zero - is refused by name instead of being opened.
 //
 // Before this, `readFileSync` was called on whatever sat at the path the ledger names.

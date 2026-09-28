@@ -437,7 +437,7 @@ test('a message split across chunks is still one message', async () => {
 
 // ---------------------------------------------------------------- arguments
 //
-// Found 2026-09-28 (Arena break test 8). The server took no options and therefore
+// Found 2026-09-28 (Arena break test 12). The server took no options and therefore
 // CHECKED none: `mcp-server.mjs --zzz-not-a-flag` printed its banner and started
 // serving, exit 0. Every other entrypoint in the kit refuses an unknown flag, and the
 // reason is not tidiness - it is that a silently ignored option is a command doing its

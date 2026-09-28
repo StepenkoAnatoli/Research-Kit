@@ -966,7 +966,7 @@ fs.openSync = (p, ...rest) => {
     'doctor.mjs', '.fetches.lock');
 });
 
-// Found 2026-09-28 (Arena break test 8). `renderTable` built each column width with
+// Found 2026-09-28 (Arena break test 12). `renderTable` built each column width with
 // `Math.max(col.header.length, ...rows.map(...))`, which passes one ARGUMENT per row. V8
 // runs out of stack somewhere past 100,000 of them: 50,000 rows rendered, 200,000 threw
 // `RangeError: Maximum call stack size exceeded` - a crash and a raw stack trace where a
