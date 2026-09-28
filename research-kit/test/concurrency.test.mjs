@@ -283,3 +283,27 @@ test('release DOES remove the lock it actually owns', () => {
     assert.equal(fs.existsSync(lock), false, 'the holder did not release its own lock');
   } finally { cleanup(dir); }
 });
+
+// Found 2026-09-28 (checking an outside break-test, F-04): a lock write that failed - a full
+// disk - leaked the descriptor and left the EMPTY lock file just created, which the next run
+// then found as a lock it could not read. The failure still reaches the caller, and leaves
+// neither behind.
+test('a lock whose write fails closes its descriptor, removes its own file, and reports the failure', () => {
+  const root = makeProject();
+  const realWrite = fs.writeSync;
+  const realClose = fs.closeSync;
+  const closed = [];
+  let failed = false;
+  fs.writeSync = (fd, ...rest) => {
+    if (!failed) { failed = true; const err = new Error('ENOSPC: no space left on device, write'); err.code = 'ENOSPC'; throw err; }
+    return realWrite(fd, ...rest);
+  };
+  fs.closeSync = (fd) => { closed.push(fd); return realClose(fd); };
+  let error = null;
+  try { withLock(root, () => {}); } catch (err) { error = err; } finally { fs.writeSync = realWrite; fs.closeSync = realClose; }
+  assert.ok(error && error.code === 'ENOSPC', `the write failure did not reach the caller: ${error?.message}`);
+  assert.ok(closed.length >= 1, 'the lock descriptor was never closed');
+  const lockDir = resolve(root, PATHS.raw);
+  const leftovers = fs.existsSync(lockDir) ? fs.readdirSync(lockDir).filter((n) => /lock/i.test(n)) : [];
+  assert.deepEqual(leftovers, [], `an empty lock file was left behind: ${leftovers.join(', ')}`);
+});

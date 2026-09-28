@@ -161,7 +161,16 @@ function acquire(root) {
   for (;;) {
     try {
       const fd = fs.openSync(file, 'wx');
-      fs.writeSync(fd, JSON.stringify(token));
+      try {
+        fs.writeSync(fd, JSON.stringify(token));
+      } catch (writeErr) {
+        // A write that fails (a full disk) must not leak the descriptor or leave the EMPTY
+        // lock just created, which the next run would find as a lock it cannot read
+        // (2026-09-28). It is ours - 'wx' made it - so removing it races with nobody.
+        try { fs.closeSync(fd); } catch { /* already gone */ }
+        try { fs.unlinkSync(file); } catch { /* already gone */ }
+        throw writeErr;
+      }
       fs.closeSync(fd);
       return token;
     } catch (err) {
