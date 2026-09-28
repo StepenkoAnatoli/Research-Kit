@@ -148,6 +148,37 @@ test('FR-6: the flag outranks the environment, end to end through the CLI', () =
 // Found 2026-09-27: a plan naming five pages with maxScrapes 2 printed two lines and "budget 2",
 // and said nothing about the other three - pages the operator wrote down, left unfetched without
 // a word. And --status said "up to 10 scrapes" for that plan: the depth's cap, not the run's.
+// Found 2026-09-28 on MoonAliza: a scaffolded plan says depth "quick" and maxScrapes 10, and the
+// run stopped at 4 - the depth's cap, not the plan's. "Run again" was right but hid the other
+// answer: the plan's 10 applies only from a deeper --depth, and nothing said so.
+test('a run capped by its depth below the plan\'s maxScrapes says which flag raises it', () => {
+  const root = project('depth-cap');
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({
+    topic: 'depth cap', depth: 'quick', maxScrapes: 10, refreshDays: 30, limit: 8, perQuery: 3, prefer: [], queries: [],
+    urls: [1, 2, 3, 4, 5, 6].map((i) => ({ url: `https://x.invalid/page-${i}`, type: 'P', why: `page ${i}` })),
+  }));
+  const dry = run('research.mjs', ['--plan', 'research/plan.json', '--dry-run', '--transport', 'http-keyless'], { root });
+  assert.match(dry.out, /left\s+2 over the budget/, dry.out);
+  assert.match(dry.out, /depth quick caps this run at 4.*maxScrapes 10.*--depth normal/s, `the summary does not say the depth was the cap:\n${dry.out}`);
+
+  // Capped by the plan itself, a deeper --depth would change nothing, so it is not suggested.
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({
+    topic: 'depth cap', depth: 'normal', maxScrapes: 2, refreshDays: 30, limit: 8, perQuery: 3, prefer: [], queries: [],
+    urls: [1, 2, 3].map((i) => ({ url: `https://x.invalid/page-${i}`, type: 'P', why: `page ${i}` })),
+  }));
+  const own = run('research.mjs', ['--plan', 'research/plan.json', '--dry-run', '--transport', 'http-keyless'], { root });
+  assert.match(own.out, /the plan's maxScrapes 2 caps this run/, own.out);
+  assert.doesNotMatch(own.out, /--depth /, own.out);
+
+  // Both at 10: raising either alone changes nothing, so the summary names both.
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({
+    topic: 'depth cap', depth: 'normal', maxScrapes: 10, refreshDays: 30, limit: 8, perQuery: 3, prefer: [], queries: [],
+    urls: Array.from({ length: 11 }, (_, i) => ({ url: `https://x.invalid/page-${i}`, type: 'P', why: `page ${i}` })),
+  }));
+  const both = run('research.mjs', ['--plan', 'research/plan.json', '--dry-run', '--transport', 'http-keyless'], { root });
+  assert.match(both.out, /depth normal and the plan's maxScrapes both cap this run at 10 - raise maxScrapes and pass --depth deep/, both.out);
+});
+
 test('pages left out by the budget are named, and --status states the budget the run will use', () => {
   const root = project('budget');
   fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({

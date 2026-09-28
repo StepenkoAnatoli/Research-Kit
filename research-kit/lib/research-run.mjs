@@ -598,7 +598,7 @@ ${compatibility.remedy}`);
   return {
     transport: adapter.name,
     searchTransport: searchName,
-    depth: tier, budget, attempts, spent, cached, failed,
+    depth: tier, budget, maxScrapes: settings.maxScrapes, attempts, spent, cached, failed,
     // Pages the budget left out this run; the next run reaches them, a cached page being free.
     overBudget,
     // What actually landed on disk, as distinct from what the run cost. `spent` is

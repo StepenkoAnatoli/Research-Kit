@@ -187,13 +187,26 @@ const run = runResearch(root, {
   log: (line) => process.stdout.write(`${line}\n`),
 });
 
+// Which cap bound the run, and what lifts it (found 2026-09-28): a scaffolded plan says depth
+// quick and maxScrapes 10, and a run that stopped at 4 did not say the 10 needs a deeper --depth.
+function budgetCap({ depth, budget, maxScrapes }) {
+  const deeper = Object.entries(DEPTH_SCRAPES).find(([, n]) => n > budget);
+  if (maxScrapes < (DEPTH_SCRAPES[depth] ?? budget)) return `           the plan's maxScrapes ${maxScrapes} caps this run; raise it in research/plan.json\n`;
+  if (maxScrapes === budget) {
+    return `           depth ${depth} and the plan's maxScrapes both cap this run at ${budget} - raise maxScrapes`
+      + (deeper ? ` and pass --depth ${deeper[0]} (${deeper[1]})` : '') + '\n';
+  }
+  return `           depth ${depth} caps this run at ${budget}; the plan's maxScrapes ${maxScrapes} applies from a deeper tier`
+    + (deeper ? ` - --depth ${deeper[0]} allows ${Math.min(deeper[1], maxScrapes)}` : '') + '\n';
+}
+
 process.stdout.write(`${heading('run')}
 depth      ${run.depth} (budget ${run.budget} scrapes)
 collected  ${run.collected}
 cached     ${run.cached}
 failed     ${run.failed}
 spent      ${run.spent} (budget consumed: collected + failed)
-${run.overBudget ? `left       ${run.overBudget} over the budget - run again to fetch them; a page already fetched costs nothing\n` : ''}`);
+${run.overBudget ? `left       ${run.overBudget} over the budget - run again to fetch them; a page already fetched costs nothing\n${budgetCap(run)}` : ''}`);
 
 // The topic signal, printed at the one moment it helps: the pages are on disk and nobody
 // has read them yet. It decides nothing - see `topicMatch` for the two thresholds that were

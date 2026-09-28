@@ -1,6 +1,6 @@
 {
   "topic": "{{TOPIC}}",
-  "notes": "Fill queries and urls BEFORE collecting - every scrape spends a credit. q is the search query, why records which unknown in research/DISCOVERY.md it closes, prefer lists the official domains that carry the fact.",
+  "notes": "Fill queries and urls BEFORE collecting - every scrape spends a credit. q is the search query, why records which unknown in research/DISCOVERY.md it closes, prefer lists the official domains that carry the fact. depth sets the scrapes per run (probe 2, quick 4, normal 10, deep 25); maxScrapes can only lower that.",
   "depth": "quick",
   "refreshDays": 30,
   "limit": 8,
