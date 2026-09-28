@@ -15,7 +15,7 @@ import { pathToFileURL } from 'node:url';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT, makePassingProject } from './harness.mjs';
 import { renderBrief } from '../lib/brief.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
-import { spellCommand, documentCommand } from '../lib/core.mjs';
+import { spellCommand, documentCommand, parseFlags } from '../lib/core.mjs';
 
 describe('cli');
 
@@ -312,6 +312,18 @@ test('ADR-0028: bundle.mjs on a project with no manifest says so and exits 0', (
   assert.match(r.out, /BUNDLE_INDEX\.md is not in this project/);
 });
 
+// Found 2026-09-28 (Arena break test 7): bundle.mjs accepted --json and never read it, so
+// a caller that parsed the output got the markdown report and a SyntaxError.
+test('bundle.mjs --json prints the report as JSON, with and without an archive', () => {
+  for (const [root, present] of [[path.resolve(KIT_ROOT, '..'), true], [project(), false]]) {
+    const r = run('bundle.mjs', ['--json'], { root });
+    assert.equal(r.status, 0, r.err);
+    let report;
+    assert.doesNotThrow(() => { report = JSON.parse(r.out); }, `--json printed:\n${r.out.slice(0, 300)}`);
+    assert.equal(report.present, present);
+  }
+});
+
 // ---------------------------------------------------------------- decompose
 
 test('FR-6: decompose --dry-run announces the providers and writes a map', () => {
@@ -462,6 +474,18 @@ test('a real flag is still accepted after the refusal was added', () => {
     const r = run(bin, [flag], { root });
     assert.doesNotMatch(r.err ?? '', /unknown option/, `${bin} refused its own ${flag}`);
   }
+});
+
+// Found 2026-09-28 (Arena break test 7): `--` did not end the options. parseFlags read it
+// as a flag named "" and every argument after it as a flag too, so `prior.mjs -- "--my
+// prior"` was refused with "unknown option --", and no positional could start with a dash.
+test('-- ends the options: everything after it is positional', () => {
+  const { flags, positional } = parseFlags(['--topic', 't', '--', '--not-a-flag', 'x']);
+  assert.deepEqual({ ...flags }, { topic: 't' });
+  assert.deepEqual(positional, ['--not-a-flag', 'x']);
+  const r = run('bundle.mjs', ['--'], { root: project() });
+  assert.doesNotMatch(r.err ?? '', /unknown option/, `bundle.mjs refused --:\n${r.err}`);
+  assert.equal(r.status, 0, r.err);
 });
 
 test('no workflow passes a flag its entrypoint does not accept', () => {
@@ -864,10 +888,13 @@ test('the suite refuses a deployed kit, and names the check that verifies one', 
 // drafted research/BRIEF.md about nothing and timeline.mjs wrote research/TIMELINE.md, both
 // exiting 0. A later new-project in that folder KEPT the stray brief. preflight already says
 // "not gated - nothing to judge"; the two writers now refuse there and write nothing.
-test('brief and timeline refuse a folder that is not a research project, and write nothing', () => {
-  for (const bin of ['brief.mjs', 'timeline.mjs']) {
+// prior.mjs joined them after Arena break test 7: it registered a prior there, writing
+// research/PRIOR.md and a ledger - an orphaned half-project, and now a gated one.
+test('brief, timeline and prior refuse a folder that is not a research project, and write nothing', () => {
+  const prior = 'A prediction long enough to register: the answer is whatever the primary sources say it is, nothing less.';
+  for (const [bin, args] of [['brief.mjs', []], ['timeline.mjs', []], ['prior.mjs', [prior]]]) {
     const root = tempDir('rk-not-a-project-');
-    const r = run(bin, [], { root });
+    const r = run(bin, args, { root });
     assert.equal(r.status, 2, `${bin} exited ${r.status} outside a project:\n${r.all.slice(0, 400)}`);
     assert.match(r.err, /not a research project/, `${bin} did not say why:\n${r.all.slice(0, 400)}`);
     assert.match(r.err, /new-project\.mjs/, `${bin} did not name the way to make one`);

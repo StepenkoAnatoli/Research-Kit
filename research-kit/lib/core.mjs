@@ -341,13 +341,15 @@ export function uniq(items) {
 /**
  * Generic `--flag value` / `--flag` / positional splitting. It knows no flag names and
  * no semantics: an entrypoint reads meaning out of what this hands back.
- * Repeated flags collect into an array.
+ * Repeated flags collect into an array. A bare `--` ends the options, as POSIX has it:
+ * everything after it is positional, even an argument that starts with `--`.
  */
 export function parseFlags(argv) {
   const flags = Object.create(null);
   const positional = [];
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
+    if (arg === '--') { positional.push(...argv.slice(i + 1)); break; }
     if (!arg.startsWith('--')) { positional.push(arg); continue; }
     const eq = arg.indexOf('=');
     const name = eq > 0 ? arg.slice(2, eq) : arg.slice(2);

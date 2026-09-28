@@ -8,7 +8,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { test, describe, assert, tempDir, fs, path, KIT_ROOT, importTestFiles, LEAKED_GIT_CONTEXT, stripLeakedGitContext } from './harness.mjs';
+import { test, describe, assert, tempDir, fs, path, KIT_ROOT, importTestFiles, LEAKED_GIT_CONTEXT, stripLeakedGitContext, findPython } from './harness.mjs';
 
 describe('harness');
 
@@ -180,4 +180,21 @@ console.log(dir);
   assert.ok(path.isAbsolute(dir) && dir.includes('rk-leakprobe-'), `the probe child did not report its scratch dir: ${child.stdout}`);
   assert.equal(fs.existsSync(dir), false,
     `the scratch dir ${dir} outlived the process that made it - every run leaks its scratch`);
+});
+
+// Found 2026-09-28 (Arena break test 7): findPython took the first of `python`, `python3`
+// that answered --version, and never read the version. On the most common Linux and older
+// macOS layout - `python` an alias for 2.7 or 3.8, `python3` the real one - every
+// cross-language test ran the old interpreter and failed with its syntax errors, although
+// lib/runtime.mjs checkPython, which the kit itself uses, would have picked python3.
+test('findPython picks the interpreter checkPython would, and none too old', () => {
+  const hosts = (versions) => (exe) => (versions[exe]
+    ? { status: 0, stdout: exe === 'python' && versions[exe].startsWith('2.') ? '' : `Python ${versions[exe]}\n`,
+      stderr: versions[exe].startsWith('2.') ? `Python ${versions[exe]}\n` : '' }
+    : { error: Object.assign(new Error(`spawn ${exe} ENOENT`), { code: 'ENOENT' }) });
+  assert.equal(findPython({ run: hosts({ python: '2.7.18', python3: '3.12.1' }) }), 'python3');
+  assert.equal(findPython({ run: hosts({ python: '3.8.10', python3: '3.12.1' }) }), 'python3');
+  assert.equal(findPython({ run: hosts({ python: '3.12.1' }) }), 'python', 'a Windows host has only `python`');
+  assert.equal(findPython({ run: hosts({ python: '3.8.10' }) }), null, 'an interpreter too old for the runners was chosen');
+  assert.equal(findPython({ run: hosts({}) }), null);
 });

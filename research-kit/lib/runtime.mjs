@@ -234,7 +234,10 @@ export function checkGit({ run = spawnSync } = {}) {
   return { ok: true, detail: String(probe.stdout).trim() };
 }
 
-/** `{ ok, detail }` - ok when a python new enough for the conformance runners answers. */
+/**
+ * `{ ok, detail, exe }` - ok when a python new enough for the conformance runners answers;
+ * `exe` names it (`python3` or `python`), so a caller can run the one this chose.
+ */
 export function checkPython({ run = spawnSync } = {}) {
   // Keeps looking after an old interpreter. `python` is an ALIAS on most hosts, and on a
   // great many it still points at 2.7 or an old 3.x while `python3` is the real one - the
@@ -250,10 +253,10 @@ export function checkPython({ run = spawnSync } = {}) {
     if (probe.error || probe.status !== 0) continue;
     const text = `${probe.stdout ?? ''}${probe.stderr ?? ''}`.trim();   // 3.x prints to stdout, 2.x to stderr
     const match = text.match(/(\d+)\.(\d+)\.(\d+)/);
-    if (!match) return { ok: true, detail: `${exe}: ${text} (version not parsed; proceeding)` };
+    if (!match) return { ok: true, exe, detail: `${exe}: ${text} (version not parsed; proceeding)` };
     const [major, minor] = [Number(match[1]), Number(match[2])];
     if (major > REQUIRED_PYTHON.major || (major === REQUIRED_PYTHON.major && minor >= REQUIRED_PYTHON.minor)) {
-      return { ok: true, detail: `${exe} ${match[0]}` };
+      return { ok: true, exe, detail: `${exe} ${match[0]}` };
     }
     rejected ??= {
       ok: false,

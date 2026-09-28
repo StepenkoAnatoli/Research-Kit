@@ -24,6 +24,7 @@ import { createEmptyProject, scaffoldProject, KIT_ROOT } from '../lib/scaffold.m
 import { appendFetch } from '../lib/provenance.mjs';
 import { writeRaw } from '../lib/collect.mjs';
 import { PATHS, resolve, writeText, appendLine, today } from '../lib/core.mjs';
+import { checkPython } from '../lib/runtime.mjs';
 
 // --- this suite does not inherit the git context it was started in -----------------
 //
@@ -132,18 +133,15 @@ export function requireCapability(value, code, reason) {
 
 let pythonProbe;
 /**
- * The Python interpreter on this host - `python`, else `python3` - or null. Stock Ubuntu
- * and macOS ship only `python3`, and three conformance tests that called `python` by name
- * went red there although the kit was fine (break-test, 2026-09-27).
+ * The Python interpreter the conformance runners need on this host, or null: whichever
+ * `checkPython` chooses - `python3` first, then `python`, each only at 3.11 or newer. Stock
+ * Ubuntu and macOS ship only `python3`, and three conformance tests that called `python` by
+ * name went red there (break-test, 2026-09-27); the fix took the first that answered, so an
+ * old `python` alias hid a usable `python3` (Arena break test 7). `run` is for tests.
  */
-export function findPython() {
-  if (pythonProbe === undefined) {
-    pythonProbe = null;
-    for (const exe of ['python', 'python3']) {
-      const probe = spawnSync(exe, ['--version'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
-      if (!probe.error && probe.status === 0) { pythonProbe = exe; break; }
-    }
-  }
+export function findPython({ run } = {}) {
+  if (run) return checkPython({ run }).exe ?? null;
+  if (pythonProbe === undefined) pythonProbe = checkPython().exe ?? null;
   return pythonProbe;
 }
 

@@ -17,6 +17,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { test, describe, assert, fs, path, KIT_ROOT } from './harness.mjs';
+import { missingKitLines } from '../lib/scaffold.mjs';
 
 describe('repo-hygiene');
 
@@ -112,6 +113,21 @@ test('no collector byproduct is tracked at any depth', () => {
 
   assert.deepEqual(offenders, [],
     'these are machine-local byproducts and must never be tracked:\n  ' + offenders.join('\n  '));
+});
+
+// Found 2026-09-28 (Arena break test 7): ADR-0081 added `research/overrides.log` to the
+// template and every nested project, but the root got only the any-depth form, which
+// missingKitLines does not read as the template's line - so doctor warned
+// shape-kit-rules-missing on every clean checkout of this repository.
+test('every project in this repository carries the template .gitignore rules', () => {
+  if (!inGitRepo) return;
+  const repo = path.resolve(KIT_ROOT, '..');
+  const decisions = path.join(repo, 'docs', 'decisions');
+  const projects = [repo, ...fs.readdirSync(decisions).map((d) => path.join(decisions, d))
+    .filter((d) => fs.existsSync(path.join(d, 'research')))];
+  const gaps = projects.map((d) => [path.relative(repo, d) || '.', missingKitLines(d, '.gitignore')])
+    .filter(([, missing]) => missing.length).map(([d, missing]) => `${d}: ${missing.join(', ')}`);
+  assert.deepEqual(gaps, [], 'doctor warns shape-kit-rules-missing for:\n  ' + gaps.join('\n  '));
 });
 
 test('the ledger is still not swept up by the broader rules', () => {

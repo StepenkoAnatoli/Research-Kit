@@ -158,6 +158,19 @@ test('rebuildLedger refuses a chain broken for any other reason', () => {
   assert.equal(result.reason, 'chain-broken');
 });
 
+// Found 2026-09-28 (Arena break test 7): both took the ledger lock before looking for the
+// ledger, and taking it creates research/raw/ - one of the four gate markers. So
+// `doctor.mjs --fix-arity` run in a folder that is not a project turned it into a gated
+// project missing its whole scaffold, which the next doctor run reported as 7 blockers.
+test('repair and rebuild with no ledger write nothing, not even the lock folder', () => {
+  const dir = tempDir('rk-no-ledger-');
+  assert.equal(repairLedgerTail(dir).reason, 'ledger-missing');
+  const rebuilt = rebuildLedger(dir, () => ({}));
+  assert.equal(rebuilt.rebuilt, false);
+  assert.equal(rebuilt.reason, 'ledger-missing');
+  assert.deepEqual(fs.readdirSync(dir), [], 'a folder with no ledger was given one of the gate markers');
+});
+
 test('the exclusive section is reentrant in-process and releases only its own acquisition', () => {
   const dir = makeProject();
   const lock = resolve(dir, PATHS.lock);
