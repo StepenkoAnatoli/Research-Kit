@@ -10,7 +10,7 @@ import { spawn } from 'node:child_process';
 import { test, describe, assert, tempDir, fs, path } from './harness.mjs';
 import * as httpKeyless from '../lib/http-transport.mjs';
 import { exec } from '../lib/firecrawl.mjs';
-import { runJob as serpapiJob } from '../lib/serpapi.mjs';
+import { search as serpapiSearch, account as serpapiAccount, runJob as serpapiJob } from '../lib/serpapi.mjs';
 import { CHILD_OUTPUT_LIMIT, MAX_PAGE_BYTES } from '../lib/runtime.mjs';
 
 describe('large-response');
@@ -21,6 +21,14 @@ import http from 'node:http';
 const MiB = 1024 * 1024;
 const server = http.createServer((req, res) => {
   const size = Number(new URL(req.url, 'http://x').searchParams.get('mib')) * MiB;
+  if (req.url.startsWith('/json')) {
+    const body = ' '.repeat(size) + '{"organic_results":[]}';
+    const headers = { 'content-type': 'application/json' };
+    if (!req.url.startsWith('/json-chunked')) headers['content-length'] = Buffer.byteLength(body);
+    res.writeHead(200, headers);
+    res.end(body);
+    return;
+  }
   const page = (n) => '<html><body><main><p>' + 'word '.repeat(Math.ceil(n / 5)) + '</p></main></body></html>';
   if (req.url.startsWith('/chunked')) {           // no Content-Length: only reading tells
     res.writeHead(200, { 'content-type': 'text/html' });
@@ -93,4 +101,18 @@ test('every vendor child runs with the raised output limit, and an overflow is n
     assert.doesNotMatch(text ?? '', /ENOBUFS|spawnSync/, `${who} leaked the Node error: ${text}`);
   }
   assert.equal(fc.ok, false);
+});
+
+test('SerpAPI search and account bound declared and chunked bodies before parsing JSON', async () => {
+  await withServer((base) => {
+    for (const request of [serpapiSearch.bind(null, 'probe'), serpapiAccount]) {
+      for (const route of ['json', 'json-chunked']) {
+        for (const mib of [1, MAX_PAGE_BYTES / (1024 * 1024) + 1]) {
+          const r = request({ key: 'offline-sentinel', env, endpoint: `${base}/${route}?mib=${mib}` });
+          assert.equal(r.ok, mib === 1, `${route}, ${mib} MiB: ${r.error}`);
+          if (mib > 1) assert.match(r.error, /SerpAPI response is larger than 16 MiB/);
+        }
+      }
+    }
+  });
 });

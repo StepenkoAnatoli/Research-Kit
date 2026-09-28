@@ -534,3 +534,9 @@ reduces case state with `REOPEN > FAIL > BLOCKED > ROLLED-BACK > INCOMPLETE > PA
 Its deliberately narrow XLSX reader reads ZIP/XML projection cells only; it never invokes an
 office application or changes the source package. `researcher-release fi-validate` exposes the
 same seam with explicit paths and writes a report only when `--report` is supplied.
+
+### Break-test boundary hardening (2026-09-28)
+
+`serpapi.mjs` normalizes untrusted search rows defensively: null, primitive and array rows are ignored, URL/title/description fields remain strings, and valid neighboring results survive malformed entries. Regression coverage lives in `serpapi.test.mjs`.
+
+The shared `runtime.mjs` reader `boundedText` now enforces the existing 16 MiB body limit for keyless fetches and SerpAPI search/account responses, before JSON parsing. Both Content-Length and streamed bytes are checked; `large-response.test.mjs` covers both forms. Child-output bounds alone do not bound downloaded bodies.

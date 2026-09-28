@@ -28,7 +28,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from './machine.mjs';
-import { fetchEnv, CHILD_OUTPUT_LIMIT, outputOverflow } from './runtime.mjs';
+import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow } from './runtime.mjs';
 
 export const name = 'serpapi';
 
@@ -136,10 +136,12 @@ export function runJob(job, { timeout = DEFAULT_TIMEOUT, spawn = spawnSync, node
  */
 export function normalizeSearch(payload) {
   const rows = Array.isArray(payload?.organic_results) ? payload.organic_results : [];
-  return rows.map((row) => ({
-    url: row.link ?? row.url ?? '',
-    title: row.title ?? '',
-    description: row.snippet ?? row.description ?? '',
+  // A malformed row must not throw away the valid results beside it (IR-6).
+  const text = (value) => typeof value === 'string' ? value : '';
+  return rows.filter((row) => row && typeof row === 'object' && !Array.isArray(row)).map((row) => ({
+    url: text(row.link) || text(row.url),
+    title: text(row.title),
+    description: text(row.snippet) || text(row.description),
     position: Number.isFinite(row.position) ? row.position : null,
   })).filter((row) => row.url);
 }
@@ -467,7 +469,7 @@ async function child() {
       headers: { accept: 'application/json' },
       signal: AbortSignal.timeout(job.timeout ?? DEFAULT_TIMEOUT),
     });
-    const body = await response.text();
+    const body = await boundedText(response, 'the SerpAPI response');
     let payload = null;
     try {
       payload = JSON.parse(body);
