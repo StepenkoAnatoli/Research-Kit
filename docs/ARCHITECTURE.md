@@ -295,6 +295,7 @@ the runners it serves. It holds canonicalisation, ECMAScript number formatting, 
 escaping, duplicate-key-rejecting parsing, the shared packet preflight, and report
 rendering. Each runner keeps a thin binding and nothing else.
 A packet nested deeper than `MAX_JSON_DEPTH` (256) is refused before `json.loads` runs, by a flat scan (ADR-0083, 2026-09-28): the Node reader enforces the same number, and without it Node accepted depths at which this canonicaliser hit the recursion limit, so the two runners disagreed.
+An integer literal too large for a double is refused at parse as `non-finite number` (`parse_js_integer`, 2026-09-28), as the Node reader refuses it: canonicalising one through `float()` raised OverflowError, and `int()` past 4300 digits ValueError - tracebacks where Node reported.
 A packet nested too deep to parse is refused like any unparseable one (2026-09-28): the
 parse sites catch `RecursionError`, which is not a `JSONDecodeError`, and each runner had
 printed a traceback where its Node twin reported FAIL (`test/conformance-hostile.test.mjs`).

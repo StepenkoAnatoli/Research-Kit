@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Callable
@@ -141,7 +142,12 @@ def canonical_json(value: Any, *, float_policy: str = "reject") -> str:
         # inputs looked like agreement - the same way the float divergence below hid
         # behind vectors that happened to contain no float.
         if not -(2**53) < value < 2**53:
-            return js_number(float(value))
+            try:
+                return js_number(float(value))
+            except OverflowError:
+                # Unreachable from a parsed packet (parse_js_integer refuses it first);
+                # a value built in code gets the same named refusal, not a traceback.
+                raise ConformanceError("non-finite number") from None
         return str(value)
     if isinstance(value, float):
         if float_policy == "reject":
@@ -213,10 +219,23 @@ def json_depth_exceeds(text: str, limit: int = MAX_JSON_DEPTH) -> bool:
     return False
 
 
+def parse_js_integer(digits: str) -> int:
+    """An integer literal as JavaScript's reader takes it: one too large for a double is
+    Infinity there, and refused as "non-finite number" (lib/release/json.mjs). `int()`
+    would accept it, and then `float()` raised OverflowError past ~1.8e308 and `int()`
+    itself ValueError past 4300 digits - tracebacks where Node reports (2026-09-28).
+    `float()` of the digit string is Infinity, never an error, at any length."""
+    if math.isinf(float(digits)):
+        raise ConformanceError("non-finite number")
+    return int(digits)
+
+
 def parse_json_no_duplicates(text: str) -> Any:
     if json_depth_exceeds(text):
         raise ConformanceError(f"JSON nested deeper than {MAX_JSON_DEPTH} levels")
-    return json.loads(text, object_pairs_hook=reject_duplicate_pairs, parse_constant=reject_constant)
+    return json.loads(
+        text, object_pairs_hook=reject_duplicate_pairs, parse_constant=reject_constant, parse_int=parse_js_integer,
+    )
 
 
 def read_packet(

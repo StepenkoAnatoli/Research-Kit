@@ -152,3 +152,27 @@ test('Node and Python refuse a packet nested past 256 levels alike, and agree be
     }
   }
 });
+
+// Follow-up to Arena break test 12: Python now canonicalises an integer outside +/-2**53
+// through float(), as JavaScript parses it - but float() RAISES OverflowError past about
+// 1.8e308, and json.loads raises ValueError past 4300 digits. Neither is caught, so a
+// packet holding such an integer was a traceback in Python where Node refuses it by name
+// ("non-finite number"). Both must be the same structured FAIL.
+test('an integer too large for a double is refused alike by Node and Python', () => {
+  const python = requirePython('Node/Python agreement on an integer past the double range');
+  for (const digits of [400, 5000]) {
+    const packet = JSON.parse(fs.readFileSync(path.join(CONFORMANCE, SHIPPED['ledger-conformance.mjs']), 'utf8'));
+    packet.vectors[0].value = '__BIG__';
+    const file = path.join(tempDir('rk-bigint-'), 'packet.json');
+    fs.writeFileSync(file, JSON.stringify(packet).replace('"__BIG__"', `1${'0'.repeat(digits)}`));
+    const reports = [[process.execPath, 'ledger-conformance.mjs'], [python, 'ledger_conformance.py']].map(([exe, runner]) => {
+      const r = spawnSync(exe, [path.join(BIN, runner), '--vectors', file, '--json'], { encoding: 'utf8' });
+      assert.doesNotMatch(r.stderr, /Traceback|at .*\.mjs:\d+/, `${runner} crashed on ${digits} digits:\n${r.stderr.slice(-400)}`);
+      assert.equal(r.status, 1, `${runner} exited ${r.status} on ${digits} digits`);
+      return JSON.parse(r.stdout);
+    });
+    assert.equal(reports[1].status, 'FAIL');
+    assert.equal(reports[1].errors?.[0]?.code, reports[0].errors?.[0]?.code, `${digits} digits: the two name different codes`);
+    assert.match(JSON.stringify(reports[1].errors), /non-finite number/, `${digits} digits: Python did not say why`);
+  }
+});
