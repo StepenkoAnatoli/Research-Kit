@@ -519,6 +519,31 @@ test('the workflows that hold a key deny every job all cache access', () => {
   }
 });
 
+// ---------------------------------------------------------------- the token scope
+
+test('every workflow runs with a read-only token, and none runs untrusted code under pull_request_target', () => {
+  // `permissions:\n  contents: read` is stated in all three workflows and is the pairing
+  // that makes the rest safe: offline-suite checks out and EXECUTES pull-request code, and
+  // a fork PR is capped by GitHub whatever this says - a same-repository branch is not, so
+  // a dropped `permissions:` block silently hands it the repository default token scope.
+  // Nothing caught deleting the block from every workflow (found 2026-09-28, break-test):
+  // the policy lived in YAML prose with no test, the same shape as the pins this file now
+  // scans for. `pull_request_target` is the same hazard stated as a trigger - it runs the
+  // workflow in the base context WITH its secrets and still checks out the PR's code - so
+  // no workflow may use it, now or later.
+  for (const name of fs.readdirSync(WORKFLOWS)) {
+    if (!name.endsWith('.yml') && !name.endsWith('.yaml')) continue;
+    const text = executable(fs.readFileSync(path.join(WORKFLOWS, name), 'utf8'));
+    assert.ok(/^permissions:\s*$/m.test(text) && /^ {2}contents:\s*read\s*$/m.test(text),
+      `${name} does not pin \`permissions:\n  contents: read\`, so its jobs run with whatever token scope the repository default gives them`);
+    const escalation = text.split('\n').find((line) => /^\s*(contents|actions|packages|id-token|pull-requests|secrets):\s*write/.test(line.trim()) || /write-all/.test(line));
+    assert.ok(escalation === undefined,
+      `${name} widens the token beyond contents: read: ${escalation && escalation.trim()}`);
+    assert.ok(!/^ {2}pull_request_target\s*:/m.test(text),
+      `${name} uses pull_request_target, which runs with base-branch secrets while checking out pull-request code`);
+  }
+});
+
 // ---------------------------------------------------------------- pages fetched by URL
 //
 // Added 2026-09-27. The dispatcher could only SEARCH: a page it already knew - an API
