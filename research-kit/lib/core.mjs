@@ -55,6 +55,16 @@ export function resolve(root, rel) {
   return path.join(root, ...String(rel).split('/'));
 }
 
+/**
+ * A path the operator typed: absolute as it is, anything else inside the project. `resolve`
+ * joins its argument onto the root, so `--plan /tmp/x/plan.json` became `<root>/tmp/x/...`
+ * and "does not exist" (found 2026-09-28; `prior --file` had the same join).
+ */
+export function operatorPath(root, typed) {
+  const text = String(typed);
+  return path.isAbsolute(text) ? path.normalize(text) : resolve(root, text);
+}
+
 /** The inverse: an absolute path back to its POSIX project-relative name. */
 export function relative(root, abs) {
   return path.relative(root, abs).split(path.sep).join('/');

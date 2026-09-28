@@ -7,7 +7,7 @@
 //
 // `--dry-run` and `--status` still work there, because they spend nothing.
 
-import { parseFlags, flagList, refuseUnknownFlags, checkFlagValues, resolve, readText, parseJson } from '../lib/core.mjs';
+import { parseFlags, flagList, refuseUnknownFlags, checkFlagValues, resolve, readText, parseJson, operatorPath } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal, loadConfig } from '../lib/machine.mjs';
 import { findBrowser } from '../lib/browser-transport.mjs';
 import { selectTransport, TRANSPORTS, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES, unusedKeyNote } from '../lib/transport.mjs';
@@ -121,7 +121,7 @@ function vendorMeter(search) {
   const planPath = typeof flags.plan === 'string' ? flags.plan : 'research/plan.json';
   // Named before "empty": readPlan reads an unparseable or missing file as the defaults, so a
   // trailing comma was reported as "no queries and no urls" (found 2026-09-27).
-  const planText = readText(resolve(root, planPath));
+  const planText = readText(operatorPath(root, planPath));
   if (planText === null) {
     process.stderr.write(`${planPath} does not exist - nothing to collect. new-project writes research/plan.json.\n`);
     process.exit(2);
