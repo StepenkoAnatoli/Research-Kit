@@ -1,0 +1,49 @@
+{
+  "topic": "What a Firecrawl scrape and search and a SerpAPI search cost today, and whether the research kit's budget and credit assumptions still hold",
+  "notes": "The pages that own these facts are known; they are fetched directly. One search checks for a Firecrawl credit page the direct list misses.",
+  "depth": "normal",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 3,
+  "maxScrapes": 8,
+  "prefer": [
+    "firecrawl.dev",
+    "serpapi.com"
+  ],
+  "queries": [
+    {
+      "q": "Firecrawl search credits per 10 results",
+      "why": "U-3 - the search price rule, if the billing page does not state it",
+      "prefer": [
+        "docs.firecrawl.dev"
+      ]
+    }
+  ],
+  "urls": [
+    {
+      "url": "https://www.firecrawl.dev/pricing",
+      "type": "P",
+      "why": "U-1, U-2 - the free plan's credits and the per-page price"
+    },
+    {
+      "url": "https://docs.firecrawl.dev/billing",
+      "type": "P",
+      "why": "U-2, U-3 - what each endpoint costs in credits"
+    },
+    {
+      "url": "https://docs.firecrawl.dev/rate-limits",
+      "type": "P",
+      "why": "U-4 - requests per minute per plan and endpoint"
+    },
+    {
+      "url": "https://serpapi.com/pricing",
+      "type": "P",
+      "why": "U-5 - Free Plan searches per month and per hour"
+    },
+    {
+      "url": "https://serpapi.com/faq",
+      "type": "P",
+      "why": "U-5 - whether a cached search is charged"
+    }
+  ]
+}
