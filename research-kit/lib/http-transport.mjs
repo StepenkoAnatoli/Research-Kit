@@ -132,12 +132,28 @@ export function mainContent(html) {
     if (value > bestScore) { best = block; bestScore = value; }
   }
 
+  // A run of sections is the content, not a set of rivals for it (found 2026-09-28):
+  // nodejs.org/api/fs.html is 314 <section>s with no <main>, and the densest one - 1,095
+  // characters - was kept while ~40,500 words were graded away as outside it. When the
+  // chosen block holds under a quarter of the page's words and the page's sections hold at
+  // least half, the sections are taken together, in order.
+  const totalWords = wordsOf(cleaned);
+  const sections = [...cleaned.matchAll(/<section\b[^>]*>([\s\S]*?)<\/section>/gi)].map((m) => m[0]);
+  const sectionWords = sections.reduce((sum, s) => sum + wordsOf(s), 0);
+  let basis = 'densest';
+  if (sections.length >= 3 && wordsOf(best) < totalWords / 4 && sectionWords >= totalWords / 2) {
+    best = sections.join('\n');
+    basis = 'sections';
+  }
+
   const dropped = blocks
     .filter((block) => !best.includes(block) && !block.includes(best))
     .map((block) => ({ words: wordsOf(block), text: block }))
-    .filter((entry) => entry.words >= 5);
+    // Around a run of sections, as around a declared <main>, a block that is mostly links is
+    // navigation, not content the capture lost.
+    .filter((entry) => entry.words >= 5 && (basis !== 'sections' || linkShare(entry.text) < 0.5));
 
-  return { html: best, dropped, chosenWords: wordsOf(best), totalWords: wordsOf(cleaned) };
+  return { html: best, dropped, chosenWords: wordsOf(best), totalWords, basis };
 }
 
 /** The share of a block's words that sit inside links: near 1 for navigation, near 0 for prose. */
