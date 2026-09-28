@@ -135,7 +135,11 @@ def canonical_json(value: Any, *, float_policy: str = "reject") -> str:
     if isinstance(value, list):
         return "[" + ",".join(canonical_json(item, float_policy=float_policy) for item in value) + "]"
     if isinstance(value, dict):
-        keys = sorted(value, key=lambda key: key.encode("utf-16-be"))
+        # "surrogatepass": an unpaired surrogate in a key must reach json_string, which
+        # refuses it by name. The strict codec raised UnicodeEncodeError here first, and the
+        # runners printed a traceback instead of a report (2026-09-28). Ordinary keys encode
+        # to the same bytes either way.
+        keys = sorted(value, key=lambda key: key.encode("utf-16-be", "surrogatepass"))
         return "{" + ",".join(
             f"{json_string(key)}:{canonical_json(value[key], float_policy=float_policy)}" for key in keys
         ) + "}"

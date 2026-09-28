@@ -297,6 +297,12 @@ rendering. Each runner keeps a thin binding and nothing else.
 A packet nested too deep to parse is refused like any unparseable one (2026-09-28): the
 parse sites catch `RecursionError`, which is not a `JSONDecodeError`, and each runner had
 printed a traceback where its Node twin reported FAIL (`test/conformance-hostile.test.mjs`).
+Two packets that PARSE crashed the Python runners while canonicalising (2026-09-28): an
+unpaired-surrogate object key raised `UnicodeEncodeError` in the key sort before `json_string`
+could refuse it (the sort now encodes with `surrogatepass`), and a packet a few hundred levels
+deep raised `RecursionError` in `canonical_json`, past the parse sites. The ledger and property
+runners' `main` now catch `ConformanceError` and `RecursionError`; the FI runner already caught
+both as `ValueError` and `RecursionError`.
 
 Two decisions in it are load-bearing:
 
