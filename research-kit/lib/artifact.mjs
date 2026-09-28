@@ -29,7 +29,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  PATHS, resolve, exists, isDirectory, readText, sha256, canonicalJson, nowIso, listFiles, homeCommand,
+  PATHS, resolve, exists, isDirectory, readText, sha256, canonicalJson, nowIso, listFiles, homeCommand, realInside,
 } from './core.mjs';
 import { buildZip } from './archive.mjs';
 import { readCorpus, parseCapture } from './corpus.mjs';
@@ -124,6 +124,9 @@ const EXCLUDED_NAME = /(^|\/)(\.env(\..*)?|\.git|node_modules|\.firecrawl)(\/|$)
 /** The project files that travel, as POSIX-relative paths, deterministically ordered. */
 export function collectProjectFiles(root) {
   const out = [];
+  // Links that land outside the project (ADR-0076). Refused, not skipped: a package that
+  // silently lacks a file the project has is its own kind of lie.
+  const outside = [];
   const walk = (dir, rel) => {
     for (const name of listFiles(dir).sort()) {
       const childRel = rel ? `${rel}/${name}` : name;
@@ -131,15 +134,29 @@ export function collectProjectFiles(root) {
       if (EXCLUDED.includes(childRel)) continue;
       if (EXCLUDED_NAME.test(childRel)) continue;
       if (name === '.gitkeep') continue;
+      if (!realInside(root, abs)) { outside.push(childRel); continue; }
       if (isDirectory(abs)) { walk(abs, childRel); continue; }
       out.push(childRel);
     }
   };
   for (const rel of ['AGENTS.md', 'START_HERE.md', '.gitattributes', '.gitignore']) {
-    if (exists(resolve(root, rel)) && !isDirectory(resolve(root, rel))) out.push(rel);
+    const abs = resolve(root, rel);
+    if (!exists(abs) || isDirectory(abs)) continue;
+    if (!realInside(root, abs)) { outside.push(rel); continue; }
+    out.push(rel);
   }
-  if (isDirectory(resolve(root, 'research'))) walk(resolve(root, 'research'), 'research');
-  if (isDirectory(resolve(root, 'docs'))) walk(resolve(root, 'docs'), 'docs');
+  for (const top of ['research', 'docs']) {
+    const abs = resolve(root, top);
+    if (!isDirectory(abs)) continue;
+    if (!realInside(root, abs)) { outside.push(top); continue; }
+    walk(abs, top);
+  }
+  if (outside.length) {
+    const err = new Error(`${outside.join(', ')} ${outside.length === 1 ? 'is a link' : 'are links'} to somewhere outside the project; `
+      + 'packaging would copy what is there into the archive. Remove the link, or replace it with the file itself.');
+    err.code = 'OUTSIDE_PROJECT';
+    throw err;
+  }
   // Sorted by the ZIP path so two runs over identical bytes lay the archive out
   // identically. `listFiles().sort()` already orders each directory; this makes the
   // whole inventory's order a property of the names rather than of the walk.
@@ -465,6 +482,11 @@ export function createArtifact({
   }
 
   const ledgerAbs = resolve(root, PATHS.ledger);
+  if (exists(ledgerAbs) && !realInside(root, ledgerAbs)) {
+    const err = new Error(`${PATHS.ledger} is a link to somewhere outside the project; packaging would copy what is there into the archive.`);
+    err.code = 'OUTSIDE_PROJECT';
+    throw err;
+  }
   if (exists(ledgerAbs) && !entries.some((e) => e.name === `project/${PATHS.ledger}`)) {
     // The ledger is a dotfile inside research/raw/ and every hand-rolled copy in this
     // project's history has lost exactly this file. Added explicitly rather than trusted

@@ -66,6 +66,20 @@ export function isInside(root, abs) {
   return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
 }
 
+/**
+ * Does `abs` REALLY land inside `root`, with every symlink on both sides resolved?
+ * (ADR-0076.) `isInside` compares spellings; git stores symlinks, so a cloned corpus can
+ * spell research/raw/x.md and land on ~/.ssh/id_rsa. Anything that cannot be resolved -
+ * a dangling link, a vanished file - is not inside.
+ */
+export function realInside(root, abs) {
+  try {
+    return isInside(fs.realpathSync(root), fs.realpathSync(abs));
+  } catch {
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------- filesystem
 
 export function exists(p) {

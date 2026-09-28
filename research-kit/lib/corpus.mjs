@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   PATHS, HEADERS, resolve, relative, exists, isDirectory, readText, readJson,
-  writeText, appendLine, listFiles, sha256File, ageInDays, hostOf, parseJson,
+  writeText, appendLine, listFiles, sha256File, ageInDays, hostOf, parseJson, realInside,
 } from './core.mjs';
 import { sketch } from './similarity.mjs';
 
@@ -209,11 +209,17 @@ export function readCaptures(root) {
   for (const name of listFiles(dir).sort()) {
     if (name.startsWith('.')) continue;
     const abs = path.join(dir, name);
+    const rel = `${PATHS.raw}/${name}`;
+    // A link that lands outside the project is not read (ADR-0076): git stores symlinks,
+    // and research/raw/x.md -> ~/.ssh/id_rsa would otherwise be read as a capture.
+    if (!realInside(root, abs)) {
+      problems.push({ kind: 'capture-outside', file: rel, detail: `${rel} is a link to somewhere outside the project - not read` });
+      continue;
+    }
     if (isDirectory(abs)) continue;
     const text = readText(abs);
     if (text === null) continue;
     const { front, body } = parseCapture(text);
-    const rel = `${PATHS.raw}/${name}`;
     if (!front.url) {
       problems.push({ kind: 'capture-no-url', file: rel, detail: 'capture has no url in its front-matter' });
     }
