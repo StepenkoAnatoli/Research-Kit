@@ -888,10 +888,13 @@ test('the suite refuses a deployed kit, and names the check that verifies one', 
 // drafted research/BRIEF.md about nothing and timeline.mjs wrote research/TIMELINE.md, both
 // exiting 0. A later new-project in that folder KEPT the stray brief. preflight already says
 // "not gated - nothing to judge"; the two writers now refuse there and write nothing.
-test('brief and timeline refuse a folder that is not a research project, and write nothing', () => {
-  for (const bin of ['brief.mjs', 'timeline.mjs']) {
+// prior.mjs joined them after Arena break test 7: it registered a prior there, writing
+// research/PRIOR.md and a ledger - an orphaned half-project, and now a gated one.
+test('brief, timeline and prior refuse a folder that is not a research project, and write nothing', () => {
+  const prior = 'A prediction long enough to register: the answer is whatever the primary sources say it is, nothing less.';
+  for (const [bin, args] of [['brief.mjs', []], ['timeline.mjs', []], ['prior.mjs', [prior]]]) {
     const root = tempDir('rk-not-a-project-');
-    const r = run(bin, [], { root });
+    const r = run(bin, args, { root });
     assert.equal(r.status, 2, `${bin} exited ${r.status} outside a project:\n${r.all.slice(0, 400)}`);
     assert.match(r.err, /not a research project/, `${bin} did not say why:\n${r.all.slice(0, 400)}`);
     assert.match(r.err, /new-project\.mjs/, `${bin} did not name the way to make one`);

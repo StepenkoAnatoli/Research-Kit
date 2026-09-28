@@ -189,9 +189,9 @@ a flag-driven failure with the policy name told a reader the policy had failed t
 binding, role-aware next steps), `install-hooks.mjs` (`--fail-closed`, `--role`),
 `new-project.mjs` (its first next step omits `--topic` once the project has one, ADR-0056), `decompose.mjs` (phase 0 CLI, refused on a builder by role),
 `timeline.mjs`, `audit.mjs` (lists and resolves versions through the manifest's
-reader), `brief.mjs` (drafts the handoff and reports the brief's state; it and
-`timeline.mjs` refuse with exit 2, writing nothing, in a folder holding none of the gate
-markers - they wrote `research/` into any folder until 2026-09-28; `timeline`, `brief`, `new-project`,
+reader), `brief.mjs` (drafts the handoff and reports the brief's state; it,
+`timeline.mjs` and `prior.mjs` refuse with exit 2, writing nothing, in a folder holding none of the gate
+markers - they wrote `research/` into any folder until 2026-09-28, `prior` a PRIOR.md and a ledger; `timeline`, `brief`, `new-project`,
 `doctor --fix-arity` and `install` name a write the system refused - `could not write <file>:
 <CODE> (why)`, exit 2, via `writeFailure` - where they printed a stack trace, 2026-09-28),
 `path-authority.mjs` (offline Git-origin/path-authority snapshot validation and
