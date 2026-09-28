@@ -822,3 +822,18 @@ test('brief and timeline refuse a folder that is not a research project, and wri
     assert.deepEqual(fs.readdirSync(root), [], `${bin} wrote into a folder that is not a project`);
   }
 });
+
+// Found 2026-09-28 (gap sweep): with a temp folder the suite cannot write (uid nobody,
+// TMPDIR read-only) the run reported 541 failures, every one EACCES, and nothing said the
+// cause was one setting. The runner now tries the temp folder once, first, and names it
+// and the fix at the top and again under the red summary.
+test('an unusable temp folder is named once, with the fix, not left to hundreds of failures', () => {
+  const file = path.join(tempDir('rk-tmp-file-'), 'not-a-folder');
+  fs.writeFileSync(file, 'a regular file where the temp folder should be\n');
+  const r = run('selftest.mjs', ['artifact-cli'], { root: tempDir('rk-tmp-cwd-'), env: { TMPDIR: file, TEMP: file, TMP: file } });
+  assert.notEqual(r.status, 0, 'a run that could not create a scratch folder passed');
+  const said = r.all.split(file).length - 1;
+  assert.ok(said >= 2, `the temp folder was not named at the top and in the summary (${said}x):\n${r.all.slice(0, 600)}`);
+  assert.match(r.all, /temp folder/);
+  assert.match(r.all, /TMPDIR/);
+});

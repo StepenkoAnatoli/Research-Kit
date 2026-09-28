@@ -7,6 +7,7 @@
 // cwd-sensitive and a red without a cwd is a failure that cannot be localised.
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { parseFlags, listFiles, refuseUnknownFlags } from '../lib/core.mjs';
 import { runPending, TEST_TIMEOUT, importTestFiles, describe, test } from '../test/harness.mjs';
@@ -47,6 +48,24 @@ if (process.env.RESEARCH_KIT_RESULT_FILE) {
   process.env.RESEARCH_KIT_RESULT_FILE = path.resolve(invokedFrom, process.env.RESEARCH_KIT_RESULT_FILE);
 }
 process.chdir(path.resolve(KIT_ROOT, '..'));
+
+// Almost every test needs a scratch folder. When the temp folder cannot be used (a
+// read-only TMPDIR, a TMPDIR naming a file) the run used to report hundreds of failures
+// with one cause and never say it (found 2026-09-28: 541 x EACCES). Try it once, first,
+// and name it at the top and again under a red summary. The run still happens, so the
+// count and the result file stay honest.
+const tempProblem = (() => {
+  const base = os.tmpdir();
+  try {
+    fs.mkdirSync(base, { recursive: true });
+    fs.rmSync(fs.mkdtempSync(path.join(base, 'rk-selftest-')), { recursive: true, force: true });
+    return null;
+  } catch (err) {
+    return `the temp folder ${base} cannot be used (${err.code ?? err.message}), so every test that needs a scratch folder fails. `
+      + 'Point TMPDIR (TEMP and TMP on Windows) at a folder this user can write, and run again.';
+  }
+})();
+if (tempProblem) process.stderr.write(`\n${tempProblem}\n\n`);
 
 const started = Date.now();
 // A file that throws while loading is a named FAIL, not the end of the run.
@@ -109,6 +128,7 @@ if (unsupported.length) {
 if (blocking) {
   writeResultFile(1);
   process.stdout.write(`\nA red suite stops work. cwd: ${process.cwd()} (started in ${invokedFrom})\n`);
+  if (tempProblem) process.stdout.write(`Likely cause: ${tempProblem}\n`);
   process.exit(1);
 }
 
