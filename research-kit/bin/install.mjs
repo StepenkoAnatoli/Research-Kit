@@ -2,7 +2,7 @@
 // bin/install.mjs - deploy the kit and the skill; role-aware next steps.
 
 import path from 'node:path';
-import { parseFlags, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, checkFlagValues, writeFailure } from '../lib/core.mjs';
 import { deploy } from '../lib/installer.mjs';
 import { machineRole, KIT_HOME } from '../lib/machine.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
@@ -26,11 +26,19 @@ version shipped are pruned, because a copy-over deploy never removes anything.
   process.exit(0);
 }
 
-const result = deploy({
-  from: KIT_ROOT,
-  dryRun: Boolean(flags['dry-run']),
-  into: typeof flags.into === 'string' ? path.resolve(flags.into) : '',
-});
+let result;
+try {
+  result = deploy({
+    from: KIT_ROOT,
+    dryRun: Boolean(flags['dry-run']),
+    into: typeof flags.into === 'string' ? path.resolve(flags.into) : '',
+  });
+} catch (err) {
+  const why = writeFailure(err);
+  if (!why) throw err;
+  process.stderr.write(`${why} The deploy stopped part-way; fix that and run this again - it overwrites what is there.\n`);
+  process.exit(2);
+}
 
 if (result.dryRun) {
   process.stdout.write(`would deploy ${result.from}\n           -> ${result.to}\nwould prune: ${result.prune.join(', ') || '(nothing)'}\n`);

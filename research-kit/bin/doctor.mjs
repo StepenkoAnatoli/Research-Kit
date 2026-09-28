@@ -4,7 +4,7 @@
 // It describes WHEREVER IT IS RUN. A clean report from the wrong directory is a clean
 // report about the wrong project.
 
-import { parseFlags, refuseUnknownFlags } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, writeFailure } from '../lib/core.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
 import { repairLedgerTail } from '../lib/provenance.mjs';
 import { renderTable, heading } from '../lib/render.mjs';
@@ -26,7 +26,15 @@ Run it, fix what it says, run it again. Stop at READY.
 }
 
 if (flags['fix-arity']) {
-  const repair = repairLedgerTail(root);
+  let repair;
+  try {
+    repair = repairLedgerTail(root);
+  } catch (err) {
+    const why = writeFailure(err);
+    if (!why) throw err;
+    process.stderr.write(`${why} No repair was made.\n`);
+    process.exit(2);
+  }
   process.stdout.write(repair.repaired
     ? `repaired: dropped the torn tail at line ${repair.line}\n`
     : `no repair made: ${repair.reason}\n`);

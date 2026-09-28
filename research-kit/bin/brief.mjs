@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // bin/brief.mjs - draft the phase-1 -> phase-2 handoff, and report the brief's state.
 
-import { parseFlags, PATHS, refuseUnknownFlags, kitCommand } from '../lib/core.mjs';
+import { parseFlags, PATHS, refuseUnknownFlags, kitCommand, writeFailure } from '../lib/core.mjs';
 import { renderBrief, briefState, JUDGED_SECTIONS, judgedSection } from '../lib/brief.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { runPreflight } from '../lib/preflight.mjs';
@@ -51,7 +51,15 @@ if (!verdict.pass && !flags.force) {
   process.stdout.write(`the gate fails (${verdict.counts.fail} blocking finding(s)) - drafting anyway, but phase 2 does not start until it passes.\n\n`);
 }
 
-const result = renderBrief(root, { force: Boolean(flags.force), corpus, verdict });
+let result;
+try {
+  result = renderBrief(root, { force: Boolean(flags.force), corpus, verdict });
+} catch (err) {
+  const why = writeFailure(err);
+  if (!why) throw err;
+  process.stderr.write(`${why} The brief was not changed.\n`);
+  process.exit(2);
+}
 if (!result.written) {
   process.stderr.write(`${result.reason}\n`);
   process.exit(1);

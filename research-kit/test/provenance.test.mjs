@@ -81,6 +81,30 @@ test('a hand-typed raw file with no ledger entry fails fetch-entry-exists', () =
     verdict.failures.map((finding) => `${finding.check}/${finding.rule}`).join(', '));
 });
 
+// Arena, 2026-09-28 (the F-02 follow-up): the two sanctioned ledger rewrites opened the
+// ledger with writeFileSync, which empties it first. A repair or a migration cut short by a
+// full disk left a truncated ledger - the one file that proves every capture was fetched.
+test('a ledger rewrite cut short leaves the ledger as it was', () => {
+  const cutShort = (dir, rewrite) => {
+    const file = resolve(dir, PATHS.ledger);
+    const before = fs.readFileSync(file, 'utf8');
+    const real = fs.writeFileSync;
+    fs.writeFileSync = (target, data, ...rest) => {
+      if (!/fetches\.jsonl(\.tmp-|$)/.test(String(target))) return real(target, data, ...rest);
+      real(target, String(data).slice(0, 40), ...rest);
+      const err = new Error('ENOSPC: no space left on device, write'); err.code = 'ENOSPC'; throw err;
+    };
+    let error = null;
+    try { rewrite(dir); } catch (err) { error = err; } finally { fs.writeFileSync = real; }
+    assert.equal(error?.code, 'ENOSPC', 'the failure must still reach the caller');
+    assert.equal(fs.readFileSync(file, 'utf8'), before, 'the ledger was damaged by a failed rewrite');
+  };
+  const torn = makePassingProject();
+  fs.appendFileSync(resolve(torn, PATHS.ledger), '{"seq": 9, "url": "https://ex');
+  cutShort(torn, repairLedgerTail);
+  cutShort(makePassingProject(), (dir) => rebuildLedger(dir, () => ({})));
+});
+
 test('a torn tail is repairable; a chain broken in the middle is not', () => {
   const dir = makePassingProject();
   appendFetch(dir, { op: 'scrape', url: 'https://example.invalid/two', raw: '', bodySha256: '', transport: 'firecrawl-cli' });

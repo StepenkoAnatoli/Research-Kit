@@ -131,10 +131,72 @@ export function ensureDir(p) {
   return p;
 }
 
+/**
+ * Write a file whole, or not at all.
+ *
+ * `fs.writeFileSync` opens with 'w', which EMPTIES the target before a byte is written, so a
+ * write cut short - a full disk, a quota, EFBIG, a killed process - left a partial new file
+ * where the old one had been (found 2026-09-28: a 6,300-byte file under a 4 KB limit became
+ * 4,096 bytes of the new text). EVIDENCE.md and MAP.md are rewritten through here and hold
+ * human review work. So the text goes to a scratch dotfile beside the target - a dotfile, so
+ * a leftover is never read as a capture - and is renamed over it, which replaces the file
+ * in one step within a filesystem. The replaced file's mode is kept (a 0600 config stays
+ * 0600); a symlinked target is written through to the file it names; a dangling link is
+ * written directly, as before. The scratch file never outlives a failure.
+ */
 export function writeText(p, text) {
   ensureDir(path.dirname(p));
-  fs.writeFileSync(p, text, 'utf8');
+  let target = p;
+  let mode = null;
+  try {
+    target = fs.realpathSync(p);
+    mode = fs.statSync(target).mode & 0o7777;
+  } catch {
+    try {
+      if (fs.lstatSync(p).isSymbolicLink()) { fs.writeFileSync(p, text, 'utf8'); return p; }   // dangling link
+    } catch { /* p does not exist yet: a new file */ }
+    target = p;
+  }
+  const scratch = path.join(path.dirname(target), `.${path.basename(target)}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`);
+  try {
+    fs.writeFileSync(scratch, text, 'utf8');
+    if (mode !== null) fs.chmodSync(scratch, mode);
+    fs.renameSync(scratch, target);
+  } catch (err) {
+    try { fs.rmSync(scratch, { force: true }); } catch { /* already gone */ }
+    err.target = p;   // the file the caller asked for, not the scratch name a rename reports
+    throw err;
+  }
   return p;
+}
+
+/** Why a write was refused, in words, by error code (2026-09-28). */
+const WRITE_REFUSALS = Object.freeze({
+  EACCES: 'permission denied - the folder or the file is not writable by this user',
+  EPERM: 'not permitted - the folder or the file is read-only or locked',
+  EROFS: 'the filesystem is read-only',
+  ENOSPC: 'no space is left on the disk',
+  EDQUOT: 'the disk quota is used up',
+  EFBIG: 'the file would exceed the size this process may write',
+  EISDIR: 'a folder is where the file should be',
+  ENOTDIR: 'a file is where a folder should be',
+  EEXIST: 'something already exists where a folder should be',
+  EBUSY: 'the file is in use by another process',
+});
+
+/**
+ * One line naming a write the environment refused - `could not write <file>: <CODE>
+ * (<why>).` - or null when `err` is not such a refusal. Entrypoints that write catch with
+ * this and exit 2: an environment fact ("your folder is read-only") reached the top as a
+ * Node stack trace, exit 1, which reads as a bug in the kit (found 2026-09-28). Anything
+ * else is re-thrown by the caller, so a genuine bug keeps its stack.
+ */
+export function writeFailure(err, cwd = process.cwd()) {
+  const why = WRITE_REFUSALS[err?.code];
+  if (!why) return null;
+  const where = err.target ?? err.dest ?? err.path;
+  const shown = where ? (isInside(cwd, path.resolve(cwd, where)) ? path.relative(cwd, path.resolve(cwd, where)) : where) : 'a file';
+  return `could not write ${shown}: ${err.code} (${why}).`;
 }
 
 /** Append one line, creating the file and its directory when absent. */

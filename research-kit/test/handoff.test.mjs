@@ -32,6 +32,33 @@ test('an empty ledger is named handoff-ledger-empty - present is not the same as
   assert.ok(names(verifyHandoff(dir)).includes('handoff-ledger-empty'));
 });
 
+// Arena, 2026-09-28: a one-line ledger with a torn tail, repaired by doctor --fix-arity, is
+// EMPTY while every capture is still on disk. The advice was to push from the collector -
+// which, on the collector, pushes the same empty ledger. Nothing failed to travel: the
+// entries were lost where the captures are, so the remedy is to restore or re-collect.
+test('an empty ledger beside captures on disk lost its entries: restore or re-collect, not push', () => {
+  const dir = makePassingProject();
+  assert.ok(readCorpus(dir).captures.entries.length > 0, 'the fixture holds captures');
+  writeText(resolve(dir, PATHS.ledger), '');
+  const report = verifyHandoff(dir);
+  assert.ok(names(report).includes('handoff-ledger-empty'));
+  assert.equal(report.ledgerLost, true);
+  assert.equal(report.didNotTravel, false, 'nothing is missing from this checkout');
+  assert.doesNotMatch(report.remedy, /git add -f/);
+  assert.match(report.remedy, /git checkout HEAD -- research\/raw\/\.fetches\.jsonl/);
+  assert.match(report.remedy, /research\.mjs --plan research\/plan\.json --force/);
+});
+
+test('an empty ledger with a cited capture also missing gets both remedies', () => {
+  const dir = makePassingProject();
+  const capture = readCorpus(dir).captures.entries[0];
+  writeText(resolve(dir, PATHS.ledger), '');
+  fs.rmSync(resolve(dir, capture.file));
+  const report = verifyHandoff(dir);
+  assert.equal(report.didNotTravel, true);
+  assert.match(report.remedy, /git add -f/);
+});
+
 test('a capture an evidence row names but that is not on disk is named, per row', () => {
   const dir = makePassingProject();
   const capture = readCorpus(dir).captures.entries[0];
