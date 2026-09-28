@@ -11,11 +11,14 @@
 import * as firecrawl from './firecrawl.mjs';
 import * as httpKeyless from './http-transport.mjs';
 import * as serpapi from './serpapi.mjs';
+import browser from './browser-transport.mjs';
 import { loadConfig } from './machine.mjs';
 
 export const TRANSPORTS = Object.freeze({
   'firecrawl-cli': firecrawl,
   'http-keyless': httpKeyless,
+  // Fetch only, chosen only by name (ADR-0088): a local Chromium rendering the page.
+  browser,
 });
 
 export const TRANSPORT_NAMES = Object.freeze(Object.keys(TRANSPORTS));
@@ -30,7 +33,8 @@ export const TRANSPORT_NAMES = Object.freeze(Object.keys(TRANSPORTS));
  * selection.
  */
 export const SEARCH_PROVIDERS = Object.freeze({
-  ...TRANSPORTS,
+  // Only the transports that search: the browser fetches and nothing else (ADR-0088).
+  ...Object.fromEntries(Object.entries(TRANSPORTS).filter(([, adapter]) => typeof adapter.search === 'function')),
   serpapi,
 });
 
@@ -210,6 +214,15 @@ export function selectSearch({ explicit = '', env = process.env, config = null, 
     };
   }
 
+  // A fetch-only transport has no search of its own; the keyless route searches for it.
+  if (typeof side.adapter?.search !== 'function') {
+    return {
+      name: httpKeyless.name,
+      adapter: httpKeyless,
+      why: `${side.name} does not search - searching with ${httpKeyless.name}`,
+      searchOnly: false,
+    };
+  }
   return {
     name: side.name,
     adapter: side.adapter,
@@ -272,4 +285,4 @@ function labelled(adapter, label) {
   };
 }
 
-export { firecrawl, httpKeyless, serpapi };
+export { firecrawl, httpKeyless, serpapi, browser };

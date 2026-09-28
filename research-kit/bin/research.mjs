@@ -8,7 +8,8 @@
 // `--dry-run` and `--status` still work there, because they spend nothing.
 
 import { parseFlags, flagList, refuseUnknownFlags, checkFlagValues, resolve, readText, parseJson } from '../lib/core.mjs';
-import { collectionPolicy, collectionRefusal } from '../lib/machine.mjs';
+import { collectionPolicy, collectionRefusal, loadConfig } from '../lib/machine.mjs';
+import { findBrowser } from '../lib/browser-transport.mjs';
 import { selectTransport, TRANSPORTS, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES, unusedKeyNote } from '../lib/transport.mjs';
 import { runResearch, searchSummaryLine, readPlan, planProblems, usageSummary, topicMatch, DEPTHS, DEPTH_SCRAPES } from '../lib/research-run.mjs';
 import { parseCapture, readLedger } from '../lib/corpus.mjs';
@@ -179,8 +180,10 @@ if (!chosen.search.sameAsFetch) {
 // The transport the run switches to if the chosen one reports its credits exhausted
 // (ADR-0086): free, no new vendor, already a named transport. Only an adapter that can say
 // what exhaustion looks like gets one.
+// The browser renders what keyless cannot, so it is preferred when one is installed (ADR-0088).
 const fallbackAdapter = !flags['no-fallback'] && typeof chosen.adapter?.creditsExhausted === 'function'
-  && chosen.adapter !== TRANSPORTS['http-keyless'] ? TRANSPORTS['http-keyless'] : null;
+  ? (findBrowser({ config: loadConfig(process.env) }) ? TRANSPORTS.browser : TRANSPORTS['http-keyless'])
+  : null;
 if (fallbackAdapter) process.stdout.write(`fallback:  ${fallbackAdapter.name} if credits run out (--no-fallback to record those pages as failed instead)\n`);
 const run = runResearch(root, {
   adapter: chosen.adapter,

@@ -21,10 +21,14 @@ test('both adapters hold the same seven-function shape', () => {
   }
 });
 
-test('the registry holds exactly the two adapters, and names no third vendor', () => {
-  assert.deepEqual(TRANSPORT_NAMES, ['firecrawl-cli', 'http-keyless']);
+// Three adapters since ADR-0088, still one vendor: `browser` runs a Chromium already on the
+// machine, with no key and no account, so it adds a transport and no third vendor.
+test('the registry holds exactly three adapters, and names no third vendor', () => {
+  assert.deepEqual(TRANSPORT_NAMES, ['firecrawl-cli', 'http-keyless', 'browser']);
   assert.equal(TRANSPORTS['firecrawl-cli'].name, 'firecrawl-cli');
   assert.equal(TRANSPORTS['http-keyless'].name, 'http-keyless');
+  assert.equal(TRANSPORTS.browser.name, 'browser');
+  assert.equal(TRANSPORTS.browser.creditsExhausted, undefined, 'no account, so nothing to run out of');
 });
 
 test('selection precedence: explicit, then env, then config, then a probe', () => {
