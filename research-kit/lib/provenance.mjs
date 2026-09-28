@@ -17,7 +17,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import {
   PATHS, GENESIS, resolve, exists, readText, ensureDir, appendLine, canonicalJson,
-  sha256, nowIso,
+  sha256, nowIso, writeText,
 } from './core.mjs';
 import { readCorpus, readLedger } from './corpus.mjs';
 
@@ -434,10 +434,10 @@ export function repairLedgerTail(root) {
     if (!torn) return { repaired: false, reason: 'tail-parses' };
 
     const head = lines.slice(0, -1).join('\n');
-    fs.writeFileSync(file, head ? `${head}\n` : '', 'utf8');
+    writeText(file, head ? `${head}\n` : '');
     const after = verifyLedger(root);
     if (!after.ok) {
-      fs.writeFileSync(file, text, 'utf8');
+      writeText(file, text);
       return { repaired: false, reason: 'chain-broken-before-tail' };
     }
     return { repaired: true, reason: 'tail-dropped', line: lines.length };
@@ -481,7 +481,7 @@ export function rebuildLedger(root, migrate, { note = 'metadata migration' } = {
     };
     boundary.entrySha256 = entryHash(boundary);
     out.push(boundary);
-    fs.writeFileSync(file, `${out.map((e) => JSON.stringify(e)).join('\n')}\n`, 'utf8');
+    writeText(file, `${out.map((e) => JSON.stringify(e)).join('\n')}\n`);
     return { rebuilt: true, entries: out.length, changed };
   });
 }
