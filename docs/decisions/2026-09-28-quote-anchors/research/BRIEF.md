@@ -36,9 +36,9 @@ the marker, threshold and severity should be - without the gate ever judging pro
 
 | Claim | Source | Type |
 |---|---|---|
-| OpenContracts issue #2189: steered to quote its cited passages, a deep-research agent produced quotations that "do not occur anywhere in the corpus" - an exact-substring search for six quoted strings returned 0 matches each - attached to real, well-placed citations, so the report "looks rigorously cited". | E-01 `github.com` (U-01) | S |
-| OpenContracts PR #2193 verifies each quoted passage against the cited source's text: "whitespace-/case-normalized substring" with a difflib fuzzy fallback at threshold 0.92; a quote that fails is demoted to paraphrase (quotation marks stripped) with a warning; quotes shorter than a minimum word count are skipped as the main source of false positives. [render-reviewed: the PR description paragraphs cited here are present in full at lines 42-69; the failures are GitHub widget notices] | E-02 `github.com` (U-02) | S |
-| MDN String.prototype.normalize: forms NFC, NFD, NFKC, NFKD; NFKC is "Compatibility Decomposition, followed by Canonical Composition" - available in Node without dependencies. | E-05 `developer.mozilla.org` (U-03) | P |
+| OpenContracts issue #2189: steered to quote its cited passages, a deep-research agent produced quotations that "do not occur anywhere in the corpus" - an exact-substring search for six quoted strings returned 0 matches each - attached to real, well-placed citations, so the report "looks rigorously cited". [quote: exact-substring search across every document's text layer for the report's six quoted strings returned 0 matches for all six] | E-01 `github.com` (U-01) | S |
+| OpenContracts PR #2193 verifies each quoted passage against the cited source's text: "whitespace-/case-normalized substring" with a difflib fuzzy fallback at threshold 0.92; a quote that fails is demoted to paraphrase (quotation marks stripped) with a warning; quotes shorter than a minimum word count are skipped as the main source of false positives. [render-reviewed: the PR description paragraphs cited here are present in full at lines 42-69; the failures are GitHub widget notices] [quote: whitespace-/case-normalized substring, with a difflib.SequenceMatcher longest-contiguous-block fuzzy fallback] | E-02 `github.com` (U-02) | S |
+| MDN String.prototype.normalize: forms NFC, NFD, NFKC, NFKD; NFKC is "Compatibility Decomposition, followed by Canonical Composition" - available in Node without dependencies. [quote: Compatibility Decomposition, followed by Canonical Composition] | E-05 `developer.mozilla.org` (U-03) | P |
 
 ## Contradictions and how they were resolved
 
@@ -96,4 +96,4 @@ curly quotes, and one too short.
    redrafts this file while it is unedited; after any edit it refuses without `--force`,
    so your judgements are preserved.
 
-<!-- research-kit:brief-draft body=e68f8b78aac67c14 inputs=d90977445f2a8a8e gate=pass -->
+<!-- research-kit:brief-draft body=a678830ab20c5673 inputs=34671ad698db7fc2 gate=pass -->

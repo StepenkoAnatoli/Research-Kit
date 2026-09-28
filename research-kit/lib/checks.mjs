@@ -8,11 +8,12 @@
 // the verdict's single judgement, in lib/preflight.mjs.
 
 import { hostOf, PATHS, resolve, exists, ageInDays, urlKey, readText, kitCommand } from './core.mjs';
-import { captureOf, traceOf, citedIds } from './corpus.mjs';
+import { captureOf, traceOf, citedIds, parseCapture } from './corpus.mjs';
 import { documentGroups, closestPair } from './similarity.mjs';
 import { coverageOfUniversals } from './dimensions.mjs';
 import { verifyLedger } from './provenance.mjs';
 import { readPrior, PRIOR_PATH } from './prior.mjs';
+import { quoteAnchors, anchorFound, quoteWords, MIN_QUOTE_WORDS } from './quotes.mjs';
 import { draftStamp, briefInputsHash } from './brief.mjs';
 
 const VALID_STATUSES = ['CLOSED', 'KNOWN-UNKNOWN'];
@@ -55,6 +56,7 @@ function discoveryContract(corpus) {
 
 function citations(corpus) {
   const out = [];
+  let quoted = 0;
   for (const row of corpus.evidence) {
     if (!row.url) {
       out.push(finding('fail', 'citations', 'row-url', `${row.id} has no URL`, { row: row.id, line: row.line }));
@@ -88,9 +90,31 @@ function citations(corpus) {
       out.push(finding('warn', 'citations', 'raw-thin',
         `${row.id}'s capture is ${capture.bytes} bytes - too thin to carry a claim`, { row: row.id, line: row.line }));
     }
+    // Quote anchors (ADR-0087): `[quote: ...]` in the Finding must occur in this row's
+    // capture. A quote the capture refutes is a claim about the evidence that the evidence
+    // denies - the same class as an edited capture - so it blocks under every policy.
+    const anchors = quoteAnchors(row.finding);
+    if (anchors.length) {
+      const body = parseCapture(readText(resolve(corpus.root, capture.file)) ?? '').body;
+      for (const anchor of anchors) {
+        quoted += 1;
+        if (quoteWords(anchor) < MIN_QUOTE_WORDS) {
+          out.push(finding('warn', 'citations', 'quote-too-short',
+            `${row.id} quotes "${anchor.quote}" - under ${MIN_QUOTE_WORDS} words anchors almost nothing; quote the sentence the claim rests on`,
+            { row: row.id, line: row.line }));
+          continue;
+        }
+        if (!anchorFound(anchor.fragments, body)) {
+          out.push(finding('fail', 'citations', 'quote-not-found',
+            `${row.id} quotes "${anchor.quote}", which does not occur in ${capture.file} - copy the passage from the capture, or drop the marker and paraphrase`,
+            { row: row.id, line: row.line }));
+        }
+      }
+    }
   }
   if (!out.some((f) => f.severity !== 'pass')) {
-    out.push(finding('pass', 'citations', 'citations', `${corpus.evidence.length} evidence rows, each with a cached page`));
+    out.push(finding('pass', 'citations', 'citations', `${corpus.evidence.length} evidence rows, each with a cached page`
+      + (quoted ? `; ${quoted} quote${quoted === 1 ? '' : 's'} found in ${quoted === 1 ? 'its' : 'their'} capture` : '')));
   }
   return out;
 }
