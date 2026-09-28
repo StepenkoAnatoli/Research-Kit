@@ -28,7 +28,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from './machine.mjs';
-import { fetchEnv, CHILD_OUTPUT_LIMIT, outputOverflow } from './runtime.mjs';
+import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow } from './runtime.mjs';
 
 export const name = 'serpapi';
 
@@ -470,7 +470,9 @@ async function child() {
       headers: { accept: 'application/json' },
       signal: AbortSignal.timeout(job.timeout ?? DEFAULT_TIMEOUT),
     });
-    const body = await response.text();
+    // Bounded before it is parsed, as the keyless page is (Arena break test 9): the child
+    // output limit bounds what reaches the parent, not what this child downloads.
+    const body = await boundedText(response, 'the SerpAPI response');
     let payload = null;
     try {
       payload = JSON.parse(body);

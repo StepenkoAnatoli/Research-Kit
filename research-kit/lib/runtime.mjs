@@ -119,6 +119,28 @@ export const MAX_PAGE_BYTES = 16 * MiB;
  */
 export const CHILD_OUTPUT_LIMIT = 8 * MAX_PAGE_BYTES;
 
+/**
+ * A response body as text, refused once it passes MAX_PAGE_BYTES (ADR-0082): declared too
+ * large by Content-Length, or found so while reading - a chunked answer declares nothing.
+ * Every transport child reads through this; `response.text()` held any body whole. `who`
+ * names the body in the refusal.
+ */
+export async function boundedText(response, who) {
+  const tooLarge = () => new Error(`${who} is larger than ${MAX_PAGE_BYTES / MiB} MiB - not read (ADR-0082)`);
+  if (Number(response.headers.get('content-length')) > MAX_PAGE_BYTES) {
+    await response.body?.cancel();
+    throw tooLarge();
+  }
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of response.body ?? []) {
+    size += chunk.byteLength;
+    if (size > MAX_PAGE_BYTES) throw tooLarge();
+    chunks.push(chunk);
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks));
+}
+
 /** A sentence naming a child's output overflow, or null when that is not what happened. */
 export function outputOverflow(result, who) {
   if (result?.error?.code !== 'ENOBUFS') return null;
