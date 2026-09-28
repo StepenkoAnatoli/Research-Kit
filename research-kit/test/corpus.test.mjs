@@ -269,3 +269,19 @@ test('a ledger-named capture that cannot be read is a named failure, not a crash
   assert.ok(verdict.findings.some((f) => f.severity === 'fail' && /could not be read/.test(f.detail ?? '')),
     `no finding names the unreadable capture:\n${verdict.findings.filter((f) => f.severity === 'fail').map((f) => `${f.rule}: ${f.detail}`).join('\n')}`);
 });
+
+// Found 2026-09-28 (checking an outside break-test, F-08): JSON.parse keeps the LAST of two
+// equal keys, so `{"topic":"a", ..., "topic":"b"}` in plan.json - a merge, a paste - lost the
+// first value in silence. A duplicate key in plan.json or kit.json now blocks, naming the key.
+test('a duplicate key in plan.json or kit.json is named and blocks', () => {
+  for (const [file, kind] of [[PATHS.plan, 'plan-unparsed'], [PATHS.kit, 'kit-unparsed']]) {
+    const root = makePassingProject();
+    const abs = resolve(root, file);
+    const text = fs.existsSync(abs) ? fs.readFileSync(abs, 'utf8').trim() : '{}';
+    fs.writeFileSync(abs, text.replace(/^\{/, '{"topic": "the first one", ').replace(/\}$/, ', "topic": "the second one"}'));
+    const problem = readCorpus(root).problems.find((p) => p.kind === kind);
+    assert.ok(problem, `${file}: no ${kind} problem for a duplicate key`);
+    assert.match(problem.detail, /duplicate.*"topic"/, `${file}: ${problem.detail}`);
+    assert.equal(runPreflight(root).pass, false, `${file}: the gate passed with a duplicate key`);
+  }
+});

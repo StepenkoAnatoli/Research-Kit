@@ -14,6 +14,7 @@ import {
   writeText, appendLine, listFiles, sha256File, ageInDays, hostOf, parseJson, realInside,
 } from './core.mjs';
 import { sketch } from './similarity.mjs';
+import { parseJsonNoDuplicates } from './release/json.mjs';
 
 // ---------------------------------------------------------------- table machinery
 
@@ -207,6 +208,24 @@ export function countRenderFailures(body) {
  */
 export const CAPTURE_MAX_BYTES = 10 * 1024 * 1024;
 
+/**
+ * A duplicate object key in a hand-edited JSON file, or '' (2026-09-28). JSON.parse keeps
+ * the LAST of two equal keys, so a merge or a paste loses the first value in silence. Only
+ * a DUPLICATE is reported here: the strict reader may differ from JSON.parse in other ways,
+ * and parse errors are already JSON.parse's to name.
+ */
+function duplicateKey(text) {
+  const source = String(text ?? '').replace(/^\uFEFF/, '');
+  try {
+    parseJsonNoDuplicates(source);
+    return '';
+  } catch (err) {
+    return /duplicate object key/.test(err.message)
+      ? `${err.message} - JSON keeps only the last value, so the first is silently lost`
+      : '';
+  }
+}
+
 export function readCaptures(root) {
   const dir = resolve(root, PATHS.raw);
   const entries = [];
@@ -356,6 +375,8 @@ export function readCorpus(root) {
   if (planText !== null) {
     try {
       plan = parseJson(planText);
+      const duplicate = duplicateKey(planText);
+      if (duplicate) problems.push({ kind: 'plan-unparsed', artifact: PATHS.plan, detail: duplicate });
     } catch (err) {
       problems.push({ kind: 'plan-unparsed', artifact: PATHS.plan, detail: err.message });
     }
@@ -366,7 +387,11 @@ export function readCorpus(root) {
   // guarded and nothing said so (found 2026-09-27).
   const kitText = readText(at(PATHS.kit));
   if (kitText !== null) {
-    try { parseJson(kitText); } catch (err) {
+    try {
+      parseJson(kitText);
+      const duplicate = duplicateKey(kitText);
+      if (duplicate) problems.push({ kind: 'kit-unparsed', artifact: PATHS.kit, detail: `${duplicate} - until it is fixed, the gate reads only the last value` });
+    } catch (err) {
       problems.push({ kind: 'kit-unparsed', artifact: PATHS.kit, detail: `${err.message} - until it parses, the gate guards only the default code paths` });
     }
   }
