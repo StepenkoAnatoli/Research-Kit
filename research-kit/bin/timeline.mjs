@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // bin/timeline.mjs - regenerate research/TIMELINE.md.
 
-import { parseFlags, refuseUnknownFlags, kitCommand } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, kitCommand, writeFailure } from '../lib/core.mjs';
 import { renderTimeline } from '../lib/timeline.mjs';
 import { isGated } from '../lib/gate.mjs';
 import { GATE_MARKERS } from '../lib/scaffold.mjs';
@@ -28,5 +28,12 @@ if (!isGated(process.cwd())) {
   process.exit(2);
 }
 
-const result = renderTimeline(process.cwd());
-process.stdout.write(`wrote ${result.file} (${result.events} events)\n`);
+try {
+  const result = renderTimeline(process.cwd());
+  process.stdout.write(`wrote ${result.file} (${result.events} events)\n`);
+} catch (err) {
+  const why = writeFailure(err);
+  if (!why) throw err;
+  process.stderr.write(`${why} Nothing was changed.\n`);
+  process.exit(2);
+}

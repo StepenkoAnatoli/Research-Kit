@@ -6,7 +6,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseFlags, kitCommand, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
+import { parseFlags, kitCommand, refuseUnknownFlags, checkFlagValues, writeFailure } from '../lib/core.mjs';
 import { scaffoldProject, LAYOUT, GATE_MARKERS, validateProject, UNTITLED_TOPIC } from '../lib/scaffold.mjs';
 import { resolveTopic } from '../lib/decompose.mjs';
 import { KIT_HOME } from '../lib/machine.mjs';
@@ -55,11 +55,19 @@ const dir = path.resolve(positional[0] ?? process.cwd());
 const existingTopic = (() => {
   try { return (fs.readFileSync(path.join(dir, 'research', 'DISCOVERY.md'), 'utf8').match(/^# Discovery Contract - (.+)$/m)?.[1] ?? '').trim(); } catch { return ''; }
 })();
-const result = scaffoldProject(dir, {
-  topic: typeof flags.topic === 'string' ? flags.topic : UNTITLED_TOPIC,
-  kit: typeof flags.kit === 'string' && flags.kit.trim() ? flags.kit.trim() : KIT_HOME,
-  force: Boolean(flags.force),
-});
+let result;
+try {
+  result = scaffoldProject(dir, {
+    topic: typeof flags.topic === 'string' ? flags.topic : UNTITLED_TOPIC,
+    kit: typeof flags.kit === 'string' && flags.kit.trim() ? flags.kit.trim() : KIT_HOME,
+    force: Boolean(flags.force),
+  });
+} catch (err) {
+  const why = writeFailure(err);
+  if (!why) throw err;
+  process.stderr.write(`${why} The project may be partly scaffolded; fix that and run this again - files already written are kept.\n`);
+  process.exit(2);
+}
 
 process.stdout.write(`scaffolded ${result.dir}\n  wrote   ${result.written.length}\n  kept    ${result.skipped.length}\n  repaired ${result.repaired.length}\n`);
 // Named, not counted: "kept 1" hid that the kept file was the .gitignore that keeps .env out.

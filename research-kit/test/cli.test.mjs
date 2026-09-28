@@ -11,6 +11,7 @@
 // network.
 
 import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT, makePassingProject } from './harness.mjs';
 import { renderBrief } from '../lib/brief.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
@@ -836,4 +837,52 @@ test('an unusable temp folder is named once, with the fix, not left to hundreds 
   assert.ok(said >= 2, `the temp folder was not named at the top and in the summary (${said}x):\n${r.all.slice(0, 600)}`);
   assert.match(r.all, /temp folder/);
   assert.match(r.all, /TMPDIR/);
+});
+
+// Found 2026-09-28 (an outside break-test, F-03; confirmed as uid nobody in a read-only
+// project): a write the environment refuses reached the top of timeline, brief --force,
+// new-project, doctor --fix-arity and install as a raw Node stack trace, exit 1 - which
+// reads as a bug in the kit and collides with "a check failed". Each now names the file and
+// the reason in words, and exits 2. Triggered portably: a folder where a file belongs (a
+// chmod is a no-op on Windows), and an injected ENOSPC for the lock write.
+const writeRefused = (r, bin, file) => {
+  assert.equal(r.status, 2, `${bin} exited ${r.status}:\n${r.all.slice(0, 500)}`);
+  assert.match(r.err, /could not write/, `${bin} did not name the failure:\n${r.all.slice(0, 500)}`);
+  assert.ok(r.err.includes(file), `${bin} did not name ${file}:\n${r.err.slice(0, 500)}`);
+  assert.doesNotMatch(r.all, /^\s+at .+:\d+:\d+\)?$/m, `${bin} printed a stack trace:\n${r.all.slice(0, 800)}`);
+  assert.doesNotMatch(r.all, /node:fs:/, `${bin} printed Node internals`);
+};
+
+test('timeline and brief --force name a refused write, exit 2, and print no stack', () => {
+  for (const [bin, args, file] of [['timeline.mjs', [], 'TIMELINE.md'], ['brief.mjs', ['--force'], 'BRIEF.md']]) {
+    const root = makePassingProject(tempDir('rk-refused-'));
+    const target = path.join(root, 'research', file);
+    fs.rmSync(target, { force: true, recursive: true });
+    fs.mkdirSync(target);
+    writeRefused(run(bin, args, { root }), bin, file);
+  }
+});
+
+test('new-project and install name a refused write, exit 2, and print no stack', () => {
+  const blocker = path.join(tempDir('rk-refused-'), 'a-file');
+  fs.writeFileSync(blocker, 'a file where a folder is needed\n');
+  writeRefused(run('new-project.mjs', [path.join(blocker, 'proj'), '--topic', 'x'], { root: tempDir('rk-np-cwd-') }), 'new-project.mjs', 'a-file');
+  const home = tempDir('rk-refused-home-');
+  writeRefused(run('install.mjs', [], { root: home, env: { HOME: home, USERPROFILE: home, RESEARCH_KIT_HOME: path.join(blocker, 'kit'), RESEARCH_KIT_CONFIG: path.join(home, 'c.json') } }),
+    'install.mjs', 'a-file');
+});
+
+test('doctor --fix-arity names a refused lock write, exit 2, and prints no stack', () => {
+  const root = makePassingProject(tempDir('rk-refused-'));
+  const loader = path.join(tempDir('rk-loader-'), 'enospc.mjs');
+  fs.writeFileSync(loader, `import fs from 'node:fs';
+const open = fs.openSync;
+fs.openSync = (p, ...rest) => {
+  if (String(p).endsWith('.fetches.lock')) { const e = new Error('ENOSPC: no space left on device, open'); e.code = 'ENOSPC'; e.path = String(p); throw e; }
+  return open(p, ...rest);
+};
+`);
+  const home = tempDir('rk-refused-home-');
+  writeRefused(run('doctor.mjs', ['--fix-arity'], { root, env: { NODE_OPTIONS: `--import=${pathToFileURL(loader).href}`, HOME: home, USERPROFILE: home, RESEARCH_KIT_CONFIG: path.join(home, 'c.json') } }),
+    'doctor.mjs', '.fetches.lock');
 });
