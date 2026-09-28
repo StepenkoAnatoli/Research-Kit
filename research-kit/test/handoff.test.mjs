@@ -254,9 +254,8 @@ test('every command the line-ending remedy prints is a plain git command a Windo
 // printed they committed the machine-local byproducts the repository ignores on purpose
 // (.usage.jsonl, .failures.jsonl, .diagnostics.jsonl, .fetches.lock) - the run's own corpus
 // commit did, and repo-hygiene went red. Only the ledger needs forcing, where an ignore rule
-// (a global one hiding dotfiles, say) would otherwise drop it. research/overrides.log is left
-// out on purpose: the template's .gitignore un-ignores it while repo-hygiene calls it a
-// byproduct, and which one is right is an open question, not this fix's to settle.
+// (a global one hiding dotfiles, say) would otherwise drop it. research/overrides.log is
+// machine-local too (ADR-0081): the template's .gitignore un-ignored it until 2026-09-28.
 function runPrinted(dir, text) {
   for (const raw of String(text).split('\n')) {
     const line = raw.replace(/#.*$/, '').trim();
@@ -277,6 +276,7 @@ function collectorCheckout() {
   for (const byproduct of ['.usage.jsonl', '.failures.jsonl', '.diagnostics.jsonl', '.fetches.lock']) {
     fs.writeFileSync(resolve(dir, `research/raw/${byproduct}`), '{}\n');
   }
+  fs.writeFileSync(resolve(dir, PATHS.overrides), 'override\n');
   return dir;
 }
 
@@ -293,7 +293,7 @@ for (const [label, printed] of [
     runPrinted(dir, printed(dir));
     const files = tracked(dir);
     assert.ok(files.includes(PATHS.ledger), `the ledger was not added:\n${files.join('\n')}`);
-    const leaked = files.filter((f) => /(^|\/)\.(usage|diagnostics|failures)\.jsonl$|\.fetches\.lock$/.test(f));
+    const leaked = files.filter((f) => /(^|\/)\.(usage|diagnostics|failures)\.jsonl$|\.fetches\.lock$|overrides\.log$/.test(f));
     assert.deepEqual(leaked, [], 'machine-local byproducts were committed');
   });
 }
