@@ -208,7 +208,7 @@ only when asked: `fi-validate --report <file>`),
 `selftest.mjs` (the whole suite, queued by the harness — which **awaits** every test,
 so `ok` means the assertions settled; ADR-0021. It runs from the repository root whatever
 the caller's cwd, resolving a relative `RESEARCH_KIT_RESULT_FILE` against the caller's
-folder first; started anywhere else, it crashed at import before any test ran - ADR-0071); a test file that throws while it is imported is reported as a named FAIL by `importTestFiles` in the harness, and the rest of the suite still runs and counts - one such file used to abort the whole run with no count); it tries the temp folder once before the run and, if it cannot be used, names it and the TMPDIR fix at the top and under a red summary - an unwritable one gave 541 EACCES failures and no cause).
+folder first; started anywhere else, it crashed at import before any test ran - ADR-0071); a test file that throws while it is imported is reported as a named FAIL by `importTestFiles` in the harness, and the rest of the suite still runs and counts - one such file used to abort the whole run with no count); it tries the temp folder once before the run and, if it cannot be used, names it and the TMPDIR fix at the top and under a red summary - an unwritable one gave 541 EACCES failures and no cause; outside a repository checkout - a deployed kit - it refuses with exit 2 and points at `doctor`, where 80 tests had failed on a healthy install, ADR-0080).
 
 ### Not lib, not bin — but load-bearing
 

@@ -813,6 +813,27 @@ test('the suite runs from any cwd, and a relative result file lands in the calle
   assert.equal(result.exit, 0);
 });
 
+// Found 2026-09-28 (break-test): in a DEPLOYED kit (`install.mjs` into a scratch HOME) the
+// suite reported 100+ failing tests - every test that reads repository fixtures a deploy
+// does not ship (CI workflows, docs/, AGENTS.md, the collected corpus) was red on a
+// healthy install, indistinguishable from a broken one. The suite now refuses there,
+// naming the checkout it needs and the check that verifies a deployment.
+test('the suite refuses a deployed kit, and names the check that verifies one', () => {
+  const home = tempDir('rk-deployed-suite-');
+  const kit = path.join(home, '.agents', 'research-kit');
+  const env = { HOME: home, USERPROFILE: home, RESEARCH_KIT_HOME: kit, RESEARCH_KIT_CONFIG: path.join(home, 'absent.json') };
+  const installed = run('install.mjs', [], { root: home, env });
+  assert.equal(installed.status, 0, installed.all);
+  const refused = spawnSync(process.execPath, [path.join(kit, 'bin', 'selftest.mjs')], {
+    cwd: home, encoding: 'utf8', timeout: 60_000, windowsHide: true,
+    env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, ...env },
+  });
+  const all = `${refused.stdout ?? ''}${refused.stderr ?? ''}`;
+  assert.equal(refused.status, 2, `a deployed kit's suite did not refuse:\n${all.slice(0, 600)}`);
+  assert.match(all, /repository checkout/);
+  assert.match(all, /doctor\.mjs/);
+});
+
 // Found 2026-09-28 (gap sweep): run from a folder that is not a research project, brief.mjs
 // drafted research/BRIEF.md about nothing and timeline.mjs wrote research/TIMELINE.md, both
 // exiting 0. A later new-project in that folder KEPT the stray brief. preflight already says
