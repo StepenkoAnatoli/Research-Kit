@@ -18,6 +18,9 @@ import { scanForSecrets } from '../lib/doctor.mjs';
 import { lineEndingRemedy } from '../lib/handoff.mjs';
 import { runPreflight } from '../lib/preflight.mjs';
 import { runCheck } from '../lib/checks.mjs';
+import { writeZip } from '../lib/archive.mjs';
+import { writeArtifact } from '../lib/artifact.mjs';
+import { collectedProject, IDENTITY } from './artifact-fixtures.mjs';
 
 describe('hardening');
 
@@ -478,3 +481,47 @@ test('writeText keeps the replaced file\'s mode, and writes through a symlink to
   assert.ok(fs.lstatSync(link).isSymbolicLink(), 'the symlink was replaced by a file');
   assert.equal(fs.readFileSync(real, 'utf8'), 'new\n', 'the write did not reach the link target');
 });
+
+// Found 2026-09-28 (break-test): ADR-0079's rule - a rewrite replaces the file whole or
+// not at all - was implemented in `writeText` and applied to the text files. The two
+// files this kit HANDS TO SOMEBODY ELSE are written as bytes by `lib/archive.mjs`
+// (`writeZip`, the audit bundle) and `lib/artifact.mjs` (`writeArtifact`, the delivered
+// package), and both still called `fs.writeFileSync` on the target. Measured: a
+// 2,679,013-byte package re-created under a 512 KB file-size limit was left as 524,288
+// bytes, and the package it replaced was gone. The technique is the one above: a partial
+// write lands, then the environment refuses the rest.
+test('a ZIP write cut short leaves the file it was replacing untouched', () => {
+  const dir = tempDir('rk-atomic-');
+  const target = path.join(dir, 'audit.zip');
+  const previous = Buffer.from('PREVIOUS AUDIT BUNDLE\n'.repeat(200));
+  fs.writeFileSync(target, previous);
+  const real = fs.writeFileSync;
+  fs.writeFileSync = (file, data, ...rest) => {
+    real(file, Buffer.isBuffer(data) ? data.subarray(0, 32) : String(data).slice(0, 32), ...rest);
+    const err = new Error('ENOSPC: no space left on device, write'); err.code = 'ENOSPC'; throw err;
+  };
+  let error = null;
+  try { writeZip(target, [{ name: 'a.md', data: 'x'.repeat(4096) }]); } catch (err) { error = err; } finally { fs.writeFileSync = real; }
+  assert.equal(error?.code, 'ENOSPC', 'the failure must still reach the caller');
+  assert.deepEqual(fs.readFileSync(target), previous, 'the bundle being replaced was damaged');
+  assert.deepEqual(fs.readdirSync(dir), ['audit.zip'], 'a scratch file was left behind');
+});
+
+test('a package write cut short leaves the file it was replacing untouched', () => {
+  const dir = tempDir('rk-atomic-');
+  const target = path.join(dir, 'package.zip');
+  const previous = Buffer.from('PREVIOUS PACKAGE\n'.repeat(200));
+  fs.writeFileSync(target, previous);
+  const root = collectedProject();          // built BEFORE the write is sabotaged
+  const real = fs.writeFileSync;
+  fs.writeFileSync = (file, data, ...rest) => {
+    real(file, Buffer.isBuffer(data) ? data.subarray(0, 32) : String(data).slice(0, 32), ...rest);
+    const err = new Error('ENOSPC: no space left on device, write'); err.code = 'ENOSPC'; throw err;
+  };
+  let error = null;
+  try { writeArtifact(target, { root, ...IDENTITY }); } catch (err) { error = err; } finally { fs.writeFileSync = real; }
+  assert.equal(error?.code, 'ENOSPC', 'the failure must still reach the caller');
+  assert.deepEqual(fs.readFileSync(target), previous, 'the package being replaced was damaged');
+  assert.ok(!fs.readdirSync(dir).some((name) => name.includes('.tmp-')), `a scratch file was left behind: ${fs.readdirSync(dir)}`);
+});
+
