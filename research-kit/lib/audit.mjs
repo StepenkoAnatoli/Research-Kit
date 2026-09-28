@@ -17,6 +17,7 @@ import { readCorpus, claimOf, captureOf, traceOf } from './corpus.mjs';
 import { runPreflight } from './preflight.mjs';
 import { briefSection, judgedSection, BRIEF_SECTIONS } from './brief.mjs';
 import { writeZip } from './archive.mjs';
+import { withLock } from './provenance.mjs';
 
 import { kitCommand } from './core.mjs';
 /**
@@ -278,40 +279,45 @@ export function writeAudit(root, { date = today(), force = false, env = process.
   const topic = corpus.map.topic || corpus.plan?.topic || 'untitled';
   const slug = makeSlug(topic);
   const fingerprint = fingerprintOf(corpus);
-  const { version, fresh } = nextVersion(root, slug, fingerprint);
-  if (!fresh && !force) {
-    const held = resolveVersion(root, slug, version);
-    return { written: false, reason: `the corpus is unchanged since v${version} - nothing to snapshot`, version, held };
-  }
+  // Choosing the version, writing the immutable files and updating the manifest are one
+  // exclusive section: unlocked, two audits at once could interleave, lose a version or
+  // collide on an immutable file (found 2026-09-28). withLock is re-entrant.
+  return withLock(root, () => {
+    const { version, fresh } = nextVersion(root, slug, fingerprint);
+    if (!fresh && !force) {
+      const held = resolveVersion(root, slug, version);
+      return { written: false, reason: `the corpus is unchanged since v${version} - nothing to snapshot`, version, held };
+    }
 
-  const dir = `${PATHS.audits}`;
-  const mainFile = `${dir}/${slug}-v${version}-${date}.md`;
-  writeImmutable(root, mainFile, mainAudit(corpus, { version, date, verdict }));
+    const dir = `${PATHS.audits}`;
+    const mainFile = `${dir}/${slug}-v${version}-${date}.md`;
+    writeImmutable(root, mainFile, mainAudit(corpus, { version, date, verdict }));
 
-  const subtopics = [];
-  for (const row of corpus.subtopics) {
-    if (row.status !== 'COVERED' && row.status !== 'GAP') continue;
-    // The subtopic segment is capped for the same reason the slug is (SUBTOPIC_SLUG).
-    // Uncapped, the two together produced 114-character relative paths in this
-    // repository - which, under a 157-character project root, is 272 and past Windows'
-    // 260-character MAX_PATH. `git add` refused until `core.longpaths` was set. The
-    // files already written are left alone: they read fine, and renaming them would
-    // break both the manifest that names them and the history that contains them.
-    const file = `${dir}/${slug}-${makeSlug(row.id, 'row', SUBTOPIC_SLUG)}-v${version}-${date}.md`;
-    writeImmutable(root, file, subtopicAudit(corpus, row, { version, date }));
-    subtopics.push(file);
-  }
+    const subtopics = [];
+    for (const row of corpus.subtopics) {
+      if (row.status !== 'COVERED' && row.status !== 'GAP') continue;
+      // The subtopic segment is capped for the same reason the slug is (SUBTOPIC_SLUG).
+      // Uncapped, the two together produced 114-character relative paths in this
+      // repository - which, under a 157-character project root, is 272 and past Windows'
+      // 260-character MAX_PATH. `git add` refused until `core.longpaths` was set. The
+      // files already written are left alone: they read fine, and renaming them would
+      // break both the manifest that names them and the history that contains them.
+      const file = `${dir}/${slug}-${makeSlug(row.id, 'row', SUBTOPIC_SLUG)}-v${version}-${date}.md`;
+      writeImmutable(root, file, subtopicAudit(corpus, row, { version, date }));
+      subtopics.push(file);
+    }
 
-  const manifest = readManifest(root);
-  manifest.topics = manifest.topics ?? {};
-  const record = manifest.topics[slug] ?? { topic, versions: {} };
-  record.topic = topic;
-  record.versions[version] = { date, fingerprint, main: mainFile, subtopics };
-  record.latest = version;
-  manifest.topics[slug] = record;
-  writeJson(manifestPath(root), manifest);
+    const manifest = readManifest(root);
+    manifest.topics = manifest.topics ?? {};
+    const record = manifest.topics[slug] ?? { topic, versions: {} };
+    record.topic = topic;
+    record.versions[version] = { date, fingerprint, main: mainFile, subtopics };
+    record.latest = version;
+    manifest.topics[slug] = record;
+    writeJson(manifestPath(root), manifest);
 
-  return { written: true, slug, topic, version, date, main: mainFile, subtopics, verdict };
+    return { written: true, slug, topic, version, date, main: mainFile, subtopics, verdict };
+  });
 }
 
 // ---------------------------------------------------------------- the bundle

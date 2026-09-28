@@ -11,6 +11,7 @@ import { PATHS, resolve, readText, readJson, writeText, makeSlug } from '../lib/
 import { writeAudit, listVersions, resolveVersion, nextVersion, zipAudit, fingerprintOf, readManifest, TOPIC_SLUG, SUBTOPIC_SLUG } from '../lib/audit.mjs';
 import { crc32, buildZip, entryName } from '../lib/archive.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
+import { holdsLock } from '../lib/provenance.mjs';
 
 describe('audit');
 
@@ -328,4 +329,24 @@ test('the subtopic segment is capped independently of the topic slug', () => {
   assert.ok(SUBTOPIC_SLUG < TOPIC_SLUG, 'the subtopic budget should be the smaller of the two');
   assert.ok(TOPIC_SLUG + SUBTOPIC_SLUG + 'research/audits/'.length + '-v0.1-2026-09-20.md'.length <= 130,
     'the two budgets together no longer fit the documented path ceiling');
+});
+
+// Found 2026-09-28 (checking an outside break-test, F-06): writeAudit picked the next
+// version from the manifest, wrote the immutable files, then read-modified-wrote the
+// manifest - all without the project's lock, so two audits at once could interleave and
+// lose a version or collide on an immutable file. It now runs that span under withLock.
+test('an audit allocates its version and writes its manifest under the project lock', () => {
+  const root = makePassingProject();
+  const realWrite = fs.writeFileSync;
+  const seen = [];
+  fs.writeFileSync = (file, ...rest) => {
+    if (String(file).includes('audits')) seen.push({ file: String(file), locked: holdsLock(root) });
+    return realWrite(file, ...rest);
+  };
+  let result;
+  try { result = writeAudit(root); } finally { fs.writeFileSync = realWrite; }
+  assert.equal(result.written, true, result.reason);
+  assert.ok(seen.length >= 2, `expected audit writes, saw ${seen.length}`);
+  const unlocked = seen.filter((w) => !w.locked).map((w) => w.file);
+  assert.deepEqual(unlocked, [], `written without the lock: ${unlocked.join(', ')}`);
 });
