@@ -150,6 +150,36 @@ test('every project in this repository carries the template .gitattributes pins'
     'these projects lose every corpus body-hash on a default Windows checkout:\n  ' + gaps.join('\n  '));
 });
 
+test('the ADR log has one file per number, and the index names them all', () => {
+  // `docs/adr/README.md` is what a reviewer reads BEFORE suggesting a decision - a
+  // recorded one that is missing from the index gets re-proposed, and two files with the
+  // same number make every reference to it ambiguous ("per ADR-0042" - which one?).
+  // Nothing judged this: adding `0042-duplicate-number.md` beside the real 0042, or a new
+  // ADR that never reaches the index, left the suite green (found 2026-09-28, break-test).
+  // The realistic path is two branches each adding "the next ADR" and merging cleanly.
+  // A link may REPEAT (rows refine and supersede each other in prose); a FILE may not.
+  const dir = path.join(path.resolve(KIT_ROOT, '..'), 'docs', 'adr');
+  const files = fs.readdirSync(dir).filter((f) => /^\d{4}-.*\.md$/.test(f));
+  assert.ok(files.length >= 40, `expected a substantial ADR log, found ${files.length} files`);
+
+  const byNumber = new Map();
+  for (const f of files) {
+    const list = byNumber.get(f.slice(0, 4)) ?? [];
+    list.push(f);
+    byNumber.set(f.slice(0, 4), list);
+  }
+  const forked = [...byNumber.entries()].filter(([, list]) => list.length > 1)
+    .map(([n, list]) => `${n}: ${list.join(', ')}`);
+  assert.deepEqual(forked, [], 'two ADRs share one number, so every reference to it is ambiguous:\n  ' + forked.join('\n  '));
+
+  const index = fs.readFileSync(path.join(dir, 'README.md'), 'utf8');
+  const links = new Set([...index.matchAll(/\]\((\d{4}-[^)]+\.md)\)/g)].map((m) => m[1]));
+  const unlisted = files.filter((f) => !links.has(f));
+  assert.deepEqual(unlisted, [], 'these ADRs exist but are absent from docs/adr/README.md:\n  ' + unlisted.join('\n  '));
+  const dangling = [...links].filter((f) => !fs.existsSync(path.join(dir, f)));
+  assert.deepEqual(dangling, [], 'the index links ADRs that do not exist:\n  ' + dangling.join('\n  '));
+});
+
 test('the ledger is still not swept up by the broader rules', () => {
   // The mirror of the test above, and the reason it is worded as a denylist of four names
   // rather than "ignore everything hidden under research/raw". The chain is evidence and
