@@ -262,6 +262,22 @@ test('decodeEntities handles named, decimal and hex references', () => {
   assert.equal(httpKeyless.decodeEntities('a&amp;b &#65; &#x42; &nbsp;c'), 'a&b A B  c');
 });
 
+// Found 2026-09-28 (Arena break test 8): a numeric reference past U+10FFFF made
+// String.fromCodePoint throw a RangeError, so one malformed entity in a fetched page
+// crashed the scrape instead of being captured. HTML parses such a reference - and 0 and
+// a lone surrogate - as U+FFFD, the replacement character; so does this now.
+test('an impossible character reference decodes to U+FFFD, never a throw', () => {
+  for (const ref of ['&#1114112;', '&#x110000;', '&#xFFFFFFFFFF;', '&#99999999999999999999;', '&#0;', '&#xD800;']) {
+    assert.equal(httpKeyless.decodeEntities(`a${ref}b`), 'a�b', ref);
+  }
+  assert.equal(httpKeyless.decodeEntities('&#x1F600;'), '\u{1F600}', 'a real astral character must survive');
+  const body = `<main><p>${'A documented limit applies here. '.repeat(40)}&#1114112;</p></main>`;
+  const r = httpKeyless.scrape('https://x.invalid/p', {
+    spawn: () => ({ status: 0, stderr: '', stdout: JSON.stringify({ ok: true, url: 'https://x.invalid/p', statusCode: 200, contentType: 'text/html', body }) }),
+  });
+  assert.equal(r.ok, true, r.error);
+});
+
 test('mainContent picks the densest block', () => {
   const html = '<div><nav><a href="/a">a</a><a href="/b">b</a><a href="/c">c</a></nav><article>' + 'Real prose about rate limits and credits. '.repeat(20) + '</article></div>';
   assert.match(httpKeyless.mainContent(html).html, /Real prose/);

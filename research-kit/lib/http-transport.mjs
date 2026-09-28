@@ -48,11 +48,21 @@ function runJob(job, { timeout = 60_000, spawn = spawnSync, nodePath = process.e
 
 const BLOCK_DROP = /<(script|style|noscript|svg|iframe|form|template)\b[\s\S]*?<\/\1>/gi;
 
+/**
+ * One numeric character reference. HTML reads 0, a surrogate, and anything past U+10FFFF
+ * as U+FFFD: String.fromCodePoint THROWS on the last, so one malformed entity crashed the
+ * whole scrape (Arena break test 8, 2026-09-28).
+ */
+function codePoint(n) {
+  return Number.isSafeInteger(n) && n > 0 && n <= 0x10FFFF && (n < 0xD800 || n > 0xDFFF)
+    ? String.fromCodePoint(n) : '\uFFFD';
+}
+
 export function decodeEntities(text) {
   const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', mdash: '—', ndash: '–', hellip: '…', rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”' };
   return String(text)
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => codePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => codePoint(Number(dec)))
     .replace(/&([a-z]+);/gi, (all, key) => named[key.toLowerCase()] ?? all);
 }
 
