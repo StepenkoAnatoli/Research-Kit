@@ -408,6 +408,13 @@ export function readCorpus(root) {
   // A cited capture that is not on disk is a corpus problem, not a check's discovery.
   for (const row of evidence) {
     if (!row.raw) continue;
+    if (exists(at(row.raw)) && !realInside(root, at(row.raw))) {
+      // A Raw cell that lands outside the project (a "../" spelling, or a link) is never
+      // read: evidence-context printed such a file into an agent's context (2026-09-28).
+      problems.push({ kind: 'raw-outside', artifact: PATHS.evidence, row: row.id, file: row.raw, line: row.line,
+        detail: `${row.raw} (row ${row.id}) is outside the project - a Raw cell names a capture in ${PATHS.raw}/` });
+      continue;
+    }
     if (!exists(at(row.raw))) {
       problems.push({ kind: 'raw-dangling', artifact: PATHS.evidence, row: row.id, file: row.raw, line: row.line });
     }

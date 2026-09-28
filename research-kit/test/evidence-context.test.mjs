@@ -7,7 +7,9 @@
 // concludes nothing.
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, assertEqual, fs, path, KIT_ROOT, tempDir, cleanup } from './harness.mjs';
+import { test, describe, assert, assertEqual, fs, path, os, KIT_ROOT, tempDir, cleanup, makePassingProject } from './harness.mjs';
+import { resolve, PATHS } from '../lib/core.mjs';
+import { runPreflight } from '../lib/preflight.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { evidenceContext, renderContext, excerptFor } from '../lib/evidence-context.mjs';
 
@@ -257,4 +259,24 @@ test('the recorded status is labelled as a recording, and comes after the eviden
       'the recorded status appears before the evidence it is supposed to be judged against');
     assert(/not a judgement by this command/i.test(text), 'the status is shown without saying whose it is');
   } finally { cleanup(root); }
+});
+
+// Found 2026-09-28 (checking an outside break-test, F-02): an EVIDENCE Raw cell spelled
+// "../<elsewhere>/secret.md" made `evidence-context --all` print the OUTSIDE file into its
+// output - an agent's context. The gate failed, but only through `citations`, and the row
+// still read as present. It is now a blocking raw-outside problem and is never read.
+test('a Raw cell that lands outside the project is never read, and blocks as raw-outside', () => {
+  const root = makePassingProject();
+  const secret = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rk-outside-')), 'secret.md');
+  fs.writeFileSync(secret, '---\nurl: https://example.com/x\n---\nTOP SECRET OUTSIDE THE PROJECT\n');
+  const evidence = resolve(root, PATHS.evidence);
+  const text = fs.readFileSync(evidence, 'utf8');
+  const cited = text.match(/research\/raw\/[^\s|]+\.md/)[0];
+  fs.writeFileSync(evidence, text.replace(cited, path.relative(root, secret).split(path.sep).join('/')));
+  const corpus = readCorpus(root);
+  assert.ok(corpus.problems.some((p) => p.kind === 'raw-outside'), `no raw-outside problem: ${JSON.stringify(corpus.problems)}`);
+  const rendered = JSON.stringify(corpus.unknowns.map((u) => evidenceContext(corpus, u.id)));
+  assert.ok(!rendered.includes('TOP SECRET'), 'evidence-context carried the outside file');
+  assert.match(rendered, /outside the project/);
+  assert.ok(runPreflight(root).findings.some((f) => f.severity === 'fail' && f.rule === 'raw-outside'), 'the gate did not block on raw-outside');
 });

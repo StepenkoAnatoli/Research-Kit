@@ -10,7 +10,7 @@
 // evidence closes the unknown stays a person's call — that is the whole protocol, and a
 // tool that quietly rendered a verdict here would be the most dangerous thing in the kit.
 
-import { PATHS, resolve, readText } from './core.mjs';
+import { PATHS, resolve, readText, realInside } from './core.mjs';
 import { captureOf, traceOf, parseCapture } from './corpus.mjs';
 import { supersededRows } from './checks.mjs';
 import { findingWithContext } from './finding.mjs';
@@ -106,7 +106,11 @@ export function evidenceContext(corpus, unknownId, { limit = 420 } = {}) {
     let excerpt = '';
     let excerptProblem = '';
     let extractor = null;
-    if (row.raw) {
+    const rawOutside = row.raw && !realInside(corpus.root, resolve(corpus.root, row.raw));
+    if (rawOutside && readText(resolve(corpus.root, row.raw)) !== null) {
+      // Never read: this output lands in an agent's context (ADR-0076, 2026-09-28).
+      excerptProblem = `${row.raw} is outside the project, so it is not read`;
+    } else if (row.raw) {
       const text = readText(resolve(corpus.root, row.raw));
       if (text === null) {
         excerptProblem = `${row.raw} is named by the row and is not on disk`;

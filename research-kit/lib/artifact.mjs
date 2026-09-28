@@ -241,6 +241,7 @@ export function findingsReviewState(root, corpus) {
   const unrewritten = [];
   for (const row of rows) {
     if (!row.raw) continue;
+    if (!realInside(root, resolve(root, row.raw))) continue;   // never read from outside (ADR-0076)
     const text = readText(resolve(root, row.raw));
     if (text === null) continue;
     // The collector's own call, over what it extracted from: the page body after the
