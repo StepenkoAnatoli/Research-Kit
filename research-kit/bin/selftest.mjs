@@ -8,9 +8,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { parseFlags, listFiles, refuseUnknownFlags } from '../lib/core.mjs';
-import { runPending, TEST_TIMEOUT } from '../test/harness.mjs';
+import { runPending, TEST_TIMEOUT, importTestFiles, describe, test } from '../test/harness.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 
 const { flags, positional } = parseFlags(process.argv.slice(2));
@@ -50,8 +49,12 @@ if (process.env.RESEARCH_KIT_RESULT_FILE) {
 process.chdir(path.resolve(KIT_ROOT, '..'));
 
 const started = Date.now();
-for (const file of files) {
-  await import(pathToFileURL(path.join(dir, file)).href);
+// A file that throws while loading is a named FAIL, not the end of the run.
+for (const { file, error } of await importTestFiles(dir, files)) {
+  describe(file.replace(/\.test\.mjs$/, ''));
+  test('the test file loads', () => {
+    throw new Error(`${file} threw while it was imported, so none of its tests ran: ${error?.message ?? error}`);
+  });
 }
 
 const { failures, passed, unsupported, blocking } = await runPending();

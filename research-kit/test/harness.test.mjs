@@ -8,7 +8,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, tempDir, fs, path, KIT_ROOT, importTestFiles } from './harness.mjs';
 
 describe('harness');
 
@@ -113,4 +113,17 @@ process.exit(failures ? 1 : 0);
 `);
   assert.equal(child.status, 0);
   assert.match(child.stdout, /passed=2 failures=0/);
+});
+
+// Found 2026-09-28 (gap sweep): a test file that throws while it is being imported - an
+// unwritable TMPDIR, a missing fixture, a read at module scope - aborted the whole RUNNER,
+// so no test ran, no count printed, and CI saw "crashed before reporting". The loader now
+// returns the failure, and the runner reports it as a named FAIL and runs everything else.
+test('a test file that throws at import is returned as broken, not thrown', async () => {
+  const dir = tempDir('rk-import-');
+  fs.writeFileSync(path.join(dir, 'fine.test.mjs'), 'export const loaded = true;\n');
+  fs.writeFileSync(path.join(dir, 'boom.test.mjs'), "throw new Error('boom at import');\n");
+  const broken = await importTestFiles(dir, ['boom.test.mjs', 'fine.test.mjs']);
+  assert.deepEqual(broken.map((b) => b.file), ['boom.test.mjs']);
+  assert.match(broken[0].error.message, /boom at import/);
 });

@@ -206,7 +206,7 @@ only when asked: `fi-validate --report <file>`),
 `selftest.mjs` (the whole suite, queued by the harness — which **awaits** every test,
 so `ok` means the assertions settled; ADR-0021. It runs from the repository root whatever
 the caller's cwd, resolving a relative `RESEARCH_KIT_RESULT_FILE` against the caller's
-folder first; started anywhere else, it crashed at import before any test ran - ADR-0071).
+folder first; started anywhere else, it crashed at import before any test ran - ADR-0071); a test file that throws while it is imported is reported as a named FAIL by `importTestFiles` in the harness, and the rest of the suite still runs and counts - one such file used to abort the whole run with no count).
 
 ### Not lib, not bin — but load-bearing
 
