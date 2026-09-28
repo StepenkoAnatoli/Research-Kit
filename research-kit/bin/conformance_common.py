@@ -127,6 +127,21 @@ def canonical_json(value: Any, *, float_policy: str = "reject") -> str:
     if isinstance(value, str):
         return json_string(value)
     if isinstance(value, int):
+        # JavaScript has ONE number type, a double. An integer literal outside
+        # +/-2**53 does not survive the parse it is about to be hashed after:
+        # 9007199254740993 IS 9007199254740992 there, and
+        # 123456789012345678901234567890 is 1.2345678901234568e+29. Python's int is
+        # arbitrary precision, so `str()` printed the digits the author wrote and the
+        # two languages hashed DIFFERENT BYTES for one input - which is the one
+        # disagreement this module exists to prevent, one type over.
+        #
+        # Found 2026-09-28 (Arena break test 8) by differential testing 3,926 generated
+        # structures: 107 disagreed, and every one of them was an integer outside the
+        # safe range. No shipped vector carried such an integer, which is why the chosen
+        # inputs looked like agreement - the same way the float divergence below hid
+        # behind vectors that happened to contain no float.
+        if not -(2**53) < value < 2**53:
+            return js_number(float(value))
         return str(value)
     if isinstance(value, float):
         if float_policy == "reject":
