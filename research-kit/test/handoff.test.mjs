@@ -1,8 +1,7 @@
 // The arrival question, and one remedy per cause (ADR-0011, ADR-0020).
 
 import { spawnSync } from 'node:child_process';
-import os from 'node:os';
-import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability, requireGit, fixtureCommitArgs } from './harness.mjs';
+import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireGit, fixtureCommitArgs } from './harness.mjs';
 import { evaluate } from '../lib/gate.mjs';
 import { TEMPLATE_DIR } from '../lib/scaffold.mjs';
 import { PATHS, resolve, writeText } from '../lib/core.mjs';
@@ -205,7 +204,11 @@ test('doctor makes handoff a BLOCKER on a builder and silent on a collector', ()
 // here by running it.
 test('the line-ending remedy, run as printed, makes a CRLF checkout pass', () => {
   const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
-  requireCapability(git(os.tmpdir(), '--version').status === 0, 'no-git', 'git is not installed');
+  // requireGit, not a local probe. The probe ran with `cwd: os.tmpdir()`, so on a host
+  // whose TMPDIR cannot be used the SPAWN failed and the run reported
+  // "no-git: git is not installed" - a false claim about the machine, printed in the
+  // one place somebody reads to find out why the suite is red (found 2026-09-28).
+  requireGit('the line-ending remedy');
   const dir = makePassingProject();
   fs.rmSync(path.join(dir, '.gitattributes'), { force: true });
   for (const args of [['init', '-q'], ['config', 'user.email', 't@t'], ['config', 'user.name', 't'],
