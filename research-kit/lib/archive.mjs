@@ -7,8 +7,7 @@
 // It knows the container and nothing else. What goes inside a bundle is lib/audit.mjs's.
 
 import zlib from 'node:zlib';
-import { writeText, ensureDir } from './core.mjs';
-import fs from 'node:fs';
+import { writeText, writeBytes, ensureDir } from './core.mjs';
 import path from 'node:path';
 
 const CRC_TABLE = (() => {
@@ -27,10 +26,17 @@ export function crc32(buf) {
   return (c ^ 0xffffffff) >>> 0;
 }
 
-/** An archive must not be able to unpack outside the folder it is opened into. */
+/**
+ * An archive must not be able to unpack outside the folder it is opened into, and the
+ * writer changes no name it is handed: a name it cannot store as given is refused.
+ * A backslash used to be translated into a separator, which stored `a\\b.md` as `a/b.md`
+ * - a directory invented out of a name - while the package manifest still declared the
+ * original (Arena break test 10, 2026-09-28). Every caller passes `/`-separated names.
+ */
 export function entryName(name) {
-  const value = String(name).split('\\').join('/');
+  const value = String(name);
   if (!value) throw new Error('archive entry has no name');
+  if (value.includes('\\')) throw new Error(`archive entry "${value}" contains a backslash - use / to separate folders`);
   if (value.startsWith('/') || /^[A-Za-z]:/.test(value)) throw new Error(`archive entry "${value}" is not a relative path`);
   if (value.split('/').includes('..')) throw new Error(`archive entry "${value}" climbs out of the archive`);
   return value;
@@ -118,7 +124,10 @@ export function buildZip(entries, { date = new Date(1980, 0, 1, 0, 0, 0) } = {})
 export function writeZip(file, entries, options = {}) {
   const bytes = buildZip(entries, options);
   ensureDir(path.dirname(file));
-  fs.writeFileSync(file, bytes);
+  // Whole or not at all (ADR-0079). The audit bundle is a file a person keeps, and it is
+  // several hundred KB: a killed process or a full disk must not leave a truncated one
+  // where a good one was (found 2026-09-28, break-test).
+  writeBytes(file, bytes);
   return { file, bytes: bytes.length, entries: entries.length };
 }
 

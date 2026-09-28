@@ -9,9 +9,13 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseFlags, listFiles, refuseUnknownFlags, exists, kitCommand } from '../lib/core.mjs';
+import { parseFlags, listFiles, refuseUnknownFlags, exists, kitCommand, tolerateClosedStdout } from '../lib/core.mjs';
 import { runPending, TEST_TIMEOUT, importTestFiles, describe, test } from '../test/harness.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
+
+// Before the first write: a reader that quits early (`| head -1`) must not turn this run
+// into an EPIPE crash, because that reads exactly like a red suite (2026-09-28).
+tolerateClosedStdout();
 
 const { flags, positional } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['help']);

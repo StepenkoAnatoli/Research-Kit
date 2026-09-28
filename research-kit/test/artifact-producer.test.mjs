@@ -28,6 +28,44 @@ function build(root, overrides = {}) {
   return createArtifact({ root, ...IDENTITY, ...overrides });
 }
 
+// Found 2026-09-28 (break-test): a file named `a\b.md` in the packaged tree travelled into
+// the archive as `a/b.md` - a directory invented from a name - while the manifest kept
+// declaring `a\b.md`. The package contradicted itself, was written anyway, and was then
+// refused by its own read-back: in CI's collect job that is the run failing at the last
+// step, after the credits are spent. The producer refuses now, before the write, and names
+// the file.
+test('a name the archive cannot carry faithfully is refused, not quietly rewritten', () => {
+  if (process.platform === 'win32') return;   // a backslash is not a legal filename there
+  const root = collectedProject();
+  fs.writeFileSync(path.join(root, 'research', 'raw', 'a\\b.md'), 'a capture\n', 'utf8');
+  assert.throws(
+    () => build(root),
+    (err) => err.code === 'UNPACKAGEABLE_NAME'
+      && /backslash/.test(err.message)
+      && /a\\b\.md/.test(err.message),
+    'the producer must refuse a name the archiver would rewrite',
+  );
+});
+
+// Found 2026-09-28 (Arena break test 10, R-1; done at the user's request): two files that
+// differ only in case are one file on Windows and macOS. The reader refuses such a package
+// (ZIP-CASE-COLLISION) - but only AFTER the producer had written it, which in CI is the
+// collect job failing at its last step, after the credits were spent.
+test('two files differing only in case are refused before anything is written', () => {
+  const root = collectedProject();
+  const raw = path.join(root, 'research', 'raw');
+  fs.writeFileSync(path.join(raw, 'Capture.md'), 'one\n', 'utf8');
+  fs.writeFileSync(path.join(raw, 'capture.md'), 'two\n', 'utf8');
+  if (fs.readdirSync(raw).filter((n) => n.toLowerCase() === 'capture.md').length < 2) return;   // a case-insensitive filesystem holds one file
+  assert.throws(
+    () => build(root),
+    (err) => err.code === 'UNPACKAGEABLE_NAME'
+      && /differ only in case/.test(err.message)
+      && /Capture\.md/.test(err.message) && /capture\.md/.test(err.message),
+    'the producer must refuse a case collision the reader would refuse',
+  );
+});
+
 // ---------------------------------------------------------------- authorization is derived
 
 test('a caller cannot ask for authorization: there is no such option', () => {

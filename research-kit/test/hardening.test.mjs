@@ -2,8 +2,10 @@
 // each pinned here so it cannot return. One test per finding, named by its F-number, and
 // each one FAILS against the behaviour the review described.
 
-import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, appendLine } from './harness.mjs';
-import { PATHS, HEADERS, resolve, readText, writeText, writeJson } from '../lib/core.mjs';
+import { spawn } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, appendLine, KIT_ROOT } from './harness.mjs';
+import { PATHS, HEADERS, resolve, readText, writeText, writeJson, tolerateClosedStdout } from '../lib/core.mjs';
 import { readCorpus, appendRow, upsertRow, alignToHeader } from '../lib/corpus.mjs';
 import { writeAudit, zipAudit, readManifest, readManifestState, fingerprintOf } from '../lib/audit.mjs';
 import { renderBrief } from '../lib/brief.mjs';
@@ -18,6 +20,9 @@ import { scanForSecrets } from '../lib/doctor.mjs';
 import { lineEndingRemedy } from '../lib/handoff.mjs';
 import { runPreflight } from '../lib/preflight.mjs';
 import { runCheck } from '../lib/checks.mjs';
+import { writeZip } from '../lib/archive.mjs';
+import { writeArtifact } from '../lib/artifact.mjs';
+import { collectedProject, IDENTITY } from './artifact-fixtures.mjs';
 
 describe('hardening');
 
@@ -477,4 +482,101 @@ test('writeText keeps the replaced file\'s mode, and writes through a symlink to
   writeText(link, 'new\n');
   assert.ok(fs.lstatSync(link).isSymbolicLink(), 'the symlink was replaced by a file');
   assert.equal(fs.readFileSync(real, 'utf8'), 'new\n', 'the write did not reach the link target');
+});
+
+// Found 2026-09-28 (break-test): ADR-0079's rule - a rewrite replaces the file whole or
+// not at all - was implemented in `writeText` and applied to the text files. The two
+// files this kit HANDS TO SOMEBODY ELSE are written as bytes by `lib/archive.mjs`
+// (`writeZip`, the audit bundle) and `lib/artifact.mjs` (`writeArtifact`, the delivered
+// package), and both still called `fs.writeFileSync` on the target. Measured: a
+// 2,679,013-byte package re-created under a 512 KB file-size limit was left as 524,288
+// bytes, and the package it replaced was gone. The technique is the one above: a partial
+// write lands, then the environment refuses the rest.
+test('a ZIP write cut short leaves the file it was replacing untouched', () => {
+  const dir = tempDir('rk-atomic-');
+  const target = path.join(dir, 'audit.zip');
+  const previous = Buffer.from('PREVIOUS AUDIT BUNDLE\n'.repeat(200));
+  fs.writeFileSync(target, previous);
+  const real = fs.writeFileSync;
+  fs.writeFileSync = (file, data, ...rest) => {
+    real(file, Buffer.isBuffer(data) ? data.subarray(0, 32) : String(data).slice(0, 32), ...rest);
+    const err = new Error('ENOSPC: no space left on device, write'); err.code = 'ENOSPC'; throw err;
+  };
+  let error = null;
+  try { writeZip(target, [{ name: 'a.md', data: 'x'.repeat(4096) }]); } catch (err) { error = err; } finally { fs.writeFileSync = real; }
+  assert.equal(error?.code, 'ENOSPC', 'the failure must still reach the caller');
+  assert.deepEqual(fs.readFileSync(target), previous, 'the bundle being replaced was damaged');
+  assert.deepEqual(fs.readdirSync(dir), ['audit.zip'], 'a scratch file was left behind');
+});
+
+test('a package write cut short leaves the file it was replacing untouched', () => {
+  const dir = tempDir('rk-atomic-');
+  const target = path.join(dir, 'package.zip');
+  const previous = Buffer.from('PREVIOUS PACKAGE\n'.repeat(200));
+  fs.writeFileSync(target, previous);
+  const root = collectedProject();          // built BEFORE the write is sabotaged
+  const real = fs.writeFileSync;
+  fs.writeFileSync = (file, data, ...rest) => {
+    real(file, Buffer.isBuffer(data) ? data.subarray(0, 32) : String(data).slice(0, 32), ...rest);
+    const err = new Error('ENOSPC: no space left on device, write'); err.code = 'ENOSPC'; throw err;
+  };
+  let error = null;
+  try { writeArtifact(target, { root, ...IDENTITY }); } catch (err) { error = err; } finally { fs.writeFileSync = real; }
+  assert.equal(error?.code, 'ENOSPC', 'the failure must still reach the caller');
+  assert.deepEqual(fs.readFileSync(target), previous, 'the package being replaced was damaged');
+  assert.ok(!fs.readdirSync(dir).some((name) => name.includes('.tmp-')), `a scratch file was left behind: ${fs.readdirSync(dir)}`);
+});
+
+// Found 2026-09-28 (break-test): `node bin/selftest.mjs | head -1` killed the run. The
+// suite prints ~99 KB (measured), the pipe buffer is 64 KB, and Node turns the write that
+// no longer fits into an unhandled 'error' event: a raw stack, exit 1, and the result file
+// never written - a green run reporting itself as broken, which is the confusion this kit
+// refuses everywhere else. Every other entrypoint was measured under the buffer.
+test('tolerateClosedStdout drops writes after EPIPE and lets other errors through', async () => {
+  const { EventEmitter } = await import('node:events');
+  const stream = new EventEmitter();
+  const written = [];
+  stream.write = (chunk) => { written.push(String(chunk)); return true; };
+  tolerateClosedStdout(stream);
+  stream.write('first');
+  stream.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }));
+  stream.write('second');
+  assert.deepEqual(written, ['first'], 'a write after EPIPE must be dropped, not thrown');
+  assert.throws(
+    () => stream.emit('error', Object.assign(new Error('bad descriptor'), { code: 'EBADF' })),
+    /bad descriptor/,
+    'a real write failure must still reach the caller',
+  );
+});
+
+test('a command whose reader quits keeps its own exit code', async () => {
+  // The kernel's EPIPE arrives as an 'error' event carrying code EPIPE on the REAL
+  // process.stdout, so the child emits exactly that and then keeps writing. A parent
+  // cannot close a child's pipe portably (`destroy()` on the readable side leaves the
+  // fd open on Linux, measured), and the shape of the event is the whole mechanism.
+  const href = pathToFileURL(resolve(KIT_ROOT, 'lib/core.mjs')).href;
+  const script = [
+    `import { tolerateClosedStdout } from ${JSON.stringify(href)};`,
+    'tolerateClosedStdout();',
+    "process.stdout.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }));",
+    "process.stdout.write('x'.repeat(400000));",
+    "process.stderr.write('still running\\n');",
+    'process.exit(3);',                            // the verdict it means to report
+  ].join('\n');
+  const child = spawn(process.execPath, ['--input-type=module', '-e', script], { stdio: ['ignore', 'pipe', 'pipe'] });
+  let stderr = '';
+  child.stderr.on('data', (b) => { stderr += b; });
+  child.stdout.resume();
+  const code = await new Promise((done) => child.on('close', done));
+  assert.equal(/EPIPE/.test(stderr), false, `a raw EPIPE crash reached stderr: ${stderr.slice(0, 200)}`);
+  assert.match(stderr, /still running/, 'the command stopped writing when its reader went away');
+  assert.equal(code, 3, 'the command lost its own exit code when the reader went away');
+});
+
+test('the suite installs the guard before it writes its first line', () => {
+  const source = readText(resolve(KIT_ROOT, 'bin/selftest.mjs'));
+  const call = source.indexOf('tolerateClosedStdout()');
+  const firstWrite = source.indexOf('process.stdout.write');
+  assert.ok(call !== -1, 'selftest.mjs no longer tolerates a closed stdout (2026-09-28)');
+  assert.ok(call < firstWrite, `the guard is installed after the first write (write at ${firstWrite}, guard at ${call})`);
 });

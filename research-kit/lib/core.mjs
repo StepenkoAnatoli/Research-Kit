@@ -145,6 +145,25 @@ export function ensureDir(p) {
  * written directly, as before. The scratch file never outlives a failure.
  */
 export function writeText(p, text) {
+  return writeBytes(p, text, 'utf8');
+}
+
+/**
+ * The same promise for BYTES, because the two files that matter most are not text.
+ *
+ * `writeText` is used for the corpus, the map and the config. The audit bundle and the
+ * artifact package - the two things this kit hands to somebody else - are written as
+ * Buffers by `lib/archive.mjs` and `lib/artifact.mjs`, and they went on calling
+ * `fs.writeFileSync` directly until 2026-09-28. The same failure the text path was fixed
+ * for therefore still applied to them: a full disk, a quota, EFBIG or a killed CI job
+ * emptied the target before writing a byte, so a package that already existed was
+ * destroyed and replaced by a truncated one. Measured, not supposed: a 2,679,013-byte
+ * package re-created under a 512 KB file-size limit was left as 524,288 bytes of the new
+ * one, with the package it replaced gone.
+ *
+ * Bytes and text share one implementation so the promise cannot drift between them.
+ */
+export function writeBytes(p, data, encoding = null) {
   ensureDir(path.dirname(p));
   let target = p;
   let mode = null;
@@ -153,13 +172,18 @@ export function writeText(p, text) {
     mode = fs.statSync(target).mode & 0o7777;
   } catch {
     try {
-      if (fs.lstatSync(p).isSymbolicLink()) { fs.writeFileSync(p, text, 'utf8'); return p; }   // dangling link
+      if (fs.lstatSync(p).isSymbolicLink()) {                       // dangling link
+        if (encoding === null) fs.writeFileSync(p, data);
+        else fs.writeFileSync(p, data, encoding);
+        return p;
+      }
     } catch { /* p does not exist yet: a new file */ }
     target = p;
   }
   const scratch = path.join(path.dirname(target), `.${path.basename(target)}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`);
   try {
-    fs.writeFileSync(scratch, text, 'utf8');
+    if (encoding === null) fs.writeFileSync(scratch, data);
+    else fs.writeFileSync(scratch, data, encoding);
     if (mode !== null) fs.chmodSync(scratch, mode);
     fs.renameSync(scratch, target);
   } catch (err) {
@@ -168,6 +192,24 @@ export function writeText(p, text) {
     throw err;
   }
   return p;
+}
+
+/**
+ * A stdout whose reader has gone away is not a failure of the command.
+ *
+ * `node bin/selftest.mjs | head -1` - or `| grep -m1`, or a pager somebody quits - closes
+ * the pipe, and Node turns the next write into an unhandled 'error' event: the process
+ * died with a raw stack and exit 1 while the suite was still running, so a healthy run
+ * reported itself as broken and the result file was never written (found 2026-09-28,
+ * break-test; the suite is the only entrypoint measured large enough to hit it - 99 KB of
+ * output against a 64 KB pipe buffer). Dropping the writes lets the run finish with its
+ * own verdict, which is the only exit code that means anything here.
+ */
+export function tolerateClosedStdout(stream = process.stdout) {
+  stream.on('error', (err) => {
+    if (err?.code !== 'EPIPE') throw err;
+    stream.write = () => true;
+  });
 }
 
 /** Why a write was refused, in words, by error code (2026-09-28). */

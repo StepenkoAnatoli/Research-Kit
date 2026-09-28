@@ -313,3 +313,31 @@ test('fetchCorpus refuses an out_dir it cannot write BEFORE it downloads anythin
     assert.equal(doFetch.calls.length, 0, 'the run was queried before the folder was checked');
   } finally { cleanup(dir); }
 });
+
+// Found 2026-09-28 (Arena break test 10, its R-2): writeZip and writeArtifact were moved to
+// the whole-or-nothing write, but fetchCorpus - which writes the package it DOWNLOADED -
+// still called fs.writeFileSync on the target. A failed write (full disk, quota, a killed
+// job) emptied a package already sitting at that name before failing.
+test('a downloaded package whose write fails leaves the package already there untouched', async () => {
+  const dir = tempDir('rk-fetch-atomic-');
+  const name = 'research-kit-corpus-v1-probe';
+  const target = path.join(dir, `${name}.zip`);
+  const previous = Buffer.from('PREVIOUS PACKAGE\n'.repeat(200));
+  fs.writeFileSync(target, previous);
+  const doFetch = stubFetch([
+    jsonResponse(200, { artifacts: [{ id: 7, name, expired: false }] }),
+    { ok: true, status: 200, arrayBuffer: async () => new TextEncoder().encode('NEW BYTES, NOT A ZIP').buffer },
+  ]);
+  const real = fs.writeFileSync;
+  fs.writeFileSync = (file, data, ...rest) => {
+    real(file, Buffer.isBuffer(data) ? data.subarray(0, 4) : String(data).slice(0, 4), ...rest);
+    const err = new Error('ENOSPC: no space left on device, write'); err.code = 'ENOSPC'; throw err;
+  };
+  let error = null;
+  try {
+    await fetchCorpus({ repository: REPO, runId: 1, token: TOKEN, outDir: dir, fetch: doFetch });
+  } catch (err) { error = err; } finally { fs.writeFileSync = real; }
+  assert.equal(error?.code, 'ENOSPC', `the failure must still reach the caller: ${error?.message}`);
+  assert.deepEqual(fs.readFileSync(target), previous, 'the package already there was damaged');
+  assert.ok(!fs.readdirSync(dir).some((f) => f.includes('.tmp-')), `a scratch file was left behind: ${fs.readdirSync(dir)}`);
+});

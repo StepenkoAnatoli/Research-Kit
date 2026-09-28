@@ -29,9 +29,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  PATHS, resolve, exists, isDirectory, readText, sha256, canonicalJson, nowIso, listFiles, homeCommand, realInside,
+  PATHS, resolve, exists, isDirectory, readText, sha256, canonicalJson, nowIso, listFiles, homeCommand, realInside, writeBytes,
 } from './core.mjs';
 import { buildZip } from './archive.mjs';
+import { checkEntryName } from './artifact-zip.mjs';
 import { readCorpus, parseCapture } from './corpus.mjs';
 import { verifyHandoff } from './handoff.mjs';
 import { runPreflight } from './preflight.mjs';
@@ -127,6 +128,17 @@ export function collectProjectFiles(root) {
   // Links that land outside the project (ADR-0076). Refused, not skipped: a package that
   // silently lacks a file the project has is its own kind of lie.
   const outside = [];
+  // Names the ARCHIVE cannot carry faithfully, refused before a byte is written.
+  //
+  // `lib/archive.mjs` translates a backslash into a path separator, so a file named
+  // `a\b.md` was stored as `a/b.md` - a directory invented out of a name - while the
+  // manifest went on declaring `a\b.md`. The package contradicted itself, was written,
+  // and was refused by its own read-back: in CI that is the collect job failing at the
+  // last step, after the credits are spent (found 2026-09-28, break-test). The rule applied
+  // here is the CONSUMER's (`checkEntryName`), asked at collection time, for the same reason
+  // `writeArtifact` reads its own package back: a package this kit calls good has to be
+  // good by the standard of the thing that receives it.
+  const refused = [];
   const walk = (dir, rel) => {
     for (const name of listFiles(dir).sort()) {
       const childRel = rel ? `${rel}/${name}` : name;
@@ -134,6 +146,8 @@ export function collectProjectFiles(root) {
       if (EXCLUDED.includes(childRel)) continue;
       if (EXCLUDED_NAME.test(childRel)) continue;
       if (name === '.gitkeep') continue;
+      const verdict = checkEntryName(`project/${childRel}`);
+      if (!verdict.ok) { refused.push({ rel: childRel, detail: verdict.detail }); continue; }
       if (!realInside(root, abs)) { outside.push(childRel); continue; }
       if (isDirectory(abs)) { walk(abs, childRel); continue; }
       out.push(childRel);
@@ -150,6 +164,24 @@ export function collectProjectFiles(root) {
     if (!isDirectory(abs)) continue;
     if (!realInside(root, abs)) { outside.push(top); continue; }
     walk(abs, top);
+  }
+  // Two files differing only in case are one file on Windows and macOS. The reader refuses
+  // such a package (ZIP-CASE-COLLISION, the same lowercase comparison), but only after it
+  // was written - in CI, at the collect job's last step, after the credits were spent
+  // (Arena break test 10, 2026-09-28). Asked here, before a byte is written.
+  const folded = new Map();
+  for (const rel of out) {
+    const first = folded.get(rel.toLowerCase());
+    if (first === undefined) folded.set(rel.toLowerCase(), rel);
+    else if (first !== rel) refused.push({ rel: `${first} and ${rel}`, detail: 'they differ only in case, and on a case-insensitive filesystem one silently overwrites the other' });
+  }
+  if (refused.length) {
+    const err = new Error(`${refused.map((r) => r.rel).join(', ')} cannot travel in a package faithfully: `
+      + `${refused.map((r) => r.detail).join('; ')}. `
+      + 'Rename the file, then package again - the name is part of what the manifest declares, '
+      + 'so the kit refuses rather than substituting another.');
+    err.code = 'UNPACKAGEABLE_NAME';
+    throw err;
   }
   if (outside.length) {
     const err = new Error(`${outside.join(', ')} ${outside.length === 1 ? 'is a link' : 'are links'} to somewhere outside the project; `
@@ -615,7 +647,10 @@ function nextActionsFor(derived) {
 export function writeArtifact(outFile, options) {
   const built = createArtifact(options);
   fs.mkdirSync(path.dirname(path.resolve(outFile)), { recursive: true });
-  fs.writeFileSync(outFile, built.bytes);
+  // Whole or not at all (ADR-0079), and it matters more here than anywhere: this is the
+  // package a workflow uploads and a builder consumes, and re-creating it at a name that
+  // already holds one must never trade a good package for a truncated one (2026-09-28).
+  writeBytes(outFile, built.bytes);
   const validation = validateArtifact({ file: outFile, expectedClientRef: built.manifest.clientRef ?? null });
   return { ...built, file: outFile, validation };
 }
