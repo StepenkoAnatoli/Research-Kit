@@ -152,6 +152,22 @@ test('the python check accepts the floor (3.11+) and rejects older, reading eith
   assertEqual(checkPython({ run: () => ({ error: new Error('ENOENT'), status: null }) }).ok, false);
 });
 
+// Arena break test 13 (residual risk, 2026-09-28): an interpreter whose --version prints
+// no version was ACCEPTED ("version not parsed; proceeding"), so a stub or a wrapper that
+// exits 0 reached the conformance tests and failed there, far from the cause. It is now
+// treated like an old interpreter: the search goes on to the next name, and if nothing
+// usable is found the refusal quotes what was printed.
+test('a python whose --version prints no version is not accepted, and is named', () => {
+  const hosts = (outputs) => (exe) => (exe in outputs ? { status: 0, stdout: outputs[exe], stderr: '' } : { error: new Error('ENOENT'), status: null });
+  const onlyGarbage = checkPython({ run: hosts({ python3: 'hello from a wrapper' }) });
+  assertEqual(onlyGarbage.ok, false, 'an interpreter that reports no version was accepted');
+  assert(/hello from a wrapper/.test(onlyGarbage.detail), `the refusal does not quote what was printed: ${onlyGarbage.detail}`);
+  const fallback = checkPython({ run: hosts({ python3: 'hello from a wrapper', python: 'Python 3.12.1' }) });
+  assertEqual(fallback.ok, true, 'a usable python one name away was not found');
+  assertEqual(fallback.exe, 'python');
+  assertEqual(checkPython({ run: hosts({ python3: 'Python 3.13' }) }).ok, true, 'a two-part version is still a version');
+});
+
 test('git is reported missing rather than failing three layers down', () => {
   assertEqual(checkGit({ run: () => ({ error: new Error('ENOENT'), status: null }) }).ok, false);
   assertEqual(checkGit({ run: () => ({ status: 0, stdout: 'git version 2.44.0' }) }).ok, true);

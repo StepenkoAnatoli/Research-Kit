@@ -296,8 +296,18 @@ export function checkPython({ run = spawnSync } = {}) {
     const probe = run(exe, ['--version'], { encoding: 'utf8', timeout: 20_000, windowsHide: true });
     if (probe.error || probe.status !== 0) continue;
     const text = `${probe.stdout ?? ''}${probe.stderr ?? ''}`.trim();   // 3.x prints to stdout, 2.x to stderr
-    const match = text.match(/(\d+)\.(\d+)\.(\d+)/);
-    if (!match) return { ok: true, exe, detail: `${exe}: ${text} (version not parsed; proceeding)` };
+    const match = text.match(/(\d+)\.(\d+)(?:\.(\d+))?/);
+    // No version in the output is not a usable interpreter: it was accepted ("proceeding")
+    // until 2026-09-28, so a stub or wrapper that exits 0 failed later, in the conformance
+    // tests, far from the cause (Arena break test 13). It is remembered like an old one.
+    if (!match) {
+      rejected ??= {
+        ok: false,
+        detail: `${exe} --version printed ${JSON.stringify(text.slice(0, 80))}, which is not a version`,
+        fix: `check what \`${exe}\` on PATH is, or install Python ${PYTHON_FLOOR}+ from python.org`,
+      };
+      continue;
+    }
     const [major, minor] = [Number(match[1]), Number(match[2])];
     if (major > REQUIRED_PYTHON.major || (major === REQUIRED_PYTHON.major && minor >= REQUIRED_PYTHON.minor)) {
       return { ok: true, exe, detail: `${exe} ${match[0]}` };
