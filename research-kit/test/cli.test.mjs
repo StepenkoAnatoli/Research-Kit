@@ -15,7 +15,7 @@ import { pathToFileURL } from 'node:url';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT, makePassingProject } from './harness.mjs';
 import { renderBrief } from '../lib/brief.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
-import { spellCommand, documentCommand } from '../lib/core.mjs';
+import { spellCommand, documentCommand, parseFlags } from '../lib/core.mjs';
 
 describe('cli');
 
@@ -462,6 +462,18 @@ test('a real flag is still accepted after the refusal was added', () => {
     const r = run(bin, [flag], { root });
     assert.doesNotMatch(r.err ?? '', /unknown option/, `${bin} refused its own ${flag}`);
   }
+});
+
+// Found 2026-09-28 (Arena break test 7): `--` did not end the options. parseFlags read it
+// as a flag named "" and every argument after it as a flag too, so `prior.mjs -- "--my
+// prior"` was refused with "unknown option --", and no positional could start with a dash.
+test('-- ends the options: everything after it is positional', () => {
+  const { flags, positional } = parseFlags(['--topic', 't', '--', '--not-a-flag', 'x']);
+  assert.deepEqual({ ...flags }, { topic: 't' });
+  assert.deepEqual(positional, ['--not-a-flag', 'x']);
+  const r = run('bundle.mjs', ['--'], { root: project() });
+  assert.doesNotMatch(r.err ?? '', /unknown option/, `bundle.mjs refused --:\n${r.err}`);
+  assert.equal(r.status, 0, r.err);
 });
 
 test('no workflow passes a flag its entrypoint does not accept', () => {
