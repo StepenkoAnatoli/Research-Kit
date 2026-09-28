@@ -189,7 +189,9 @@ a flag-driven failure with the policy name told a reader the policy had failed t
 binding, role-aware next steps), `install-hooks.mjs` (`--fail-closed`, `--role`),
 `new-project.mjs` (its first next step omits `--topic` once the project has one, ADR-0056), `decompose.mjs` (phase 0 CLI, refused on a builder by role),
 `timeline.mjs`, `audit.mjs` (lists and resolves versions through the manifest's
-reader), `brief.mjs` (drafts the handoff and reports the brief's state),
+reader), `brief.mjs` (drafts the handoff and reports the brief's state; it and
+`timeline.mjs` refuse with exit 2, writing nothing, in a folder holding none of the gate
+markers - they wrote `research/` into any folder until 2026-09-28),
 `path-authority.mjs` (offline Git-origin/path-authority snapshot validation and
 schema conformance),
 `researcher-release.mjs` (ported 2026-09-20, ADR-0029 — three subcommands over the two

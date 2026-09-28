@@ -807,3 +807,18 @@ test('the suite runs from any cwd, and a relative result file lands in the calle
   const result = JSON.parse(fs.readFileSync(path.join(root, 'result.json'), 'utf8'));
   assert.equal(result.exit, 0);
 });
+
+// Found 2026-09-28 (gap sweep): run from a folder that is not a research project, brief.mjs
+// drafted research/BRIEF.md about nothing and timeline.mjs wrote research/TIMELINE.md, both
+// exiting 0. A later new-project in that folder KEPT the stray brief. preflight already says
+// "not gated - nothing to judge"; the two writers now refuse there and write nothing.
+test('brief and timeline refuse a folder that is not a research project, and write nothing', () => {
+  for (const bin of ['brief.mjs', 'timeline.mjs']) {
+    const root = tempDir('rk-not-a-project-');
+    const r = run(bin, [], { root });
+    assert.equal(r.status, 2, `${bin} exited ${r.status} outside a project:\n${r.all.slice(0, 400)}`);
+    assert.match(r.err, /not a research project/, `${bin} did not say why:\n${r.all.slice(0, 400)}`);
+    assert.match(r.err, /new-project\.mjs/, `${bin} did not name the way to make one`);
+    assert.deepEqual(fs.readdirSync(root), [], `${bin} wrote into a folder that is not a project`);
+  }
+});

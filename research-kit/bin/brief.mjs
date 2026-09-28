@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // bin/brief.mjs - draft the phase-1 -> phase-2 handoff, and report the brief's state.
 
-import { parseFlags, PATHS, refuseUnknownFlags } from '../lib/core.mjs';
+import { parseFlags, PATHS, refuseUnknownFlags, kitCommand } from '../lib/core.mjs';
 import { renderBrief, briefState, JUDGED_SECTIONS, judgedSection } from '../lib/brief.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { runPreflight } from '../lib/preflight.mjs';
+import { isGated } from '../lib/gate.mjs';
+import { GATE_MARKERS } from '../lib/scaffold.mjs';
 
 const { flags } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['force', 'help', 'state']);
@@ -33,6 +35,15 @@ if (flags.state) {
     process.stdout.write(`  ${key.padEnd(16)}${section?.answered ? 'answered' : 'still TODO'}\n`);
   }
   process.exit(0);
+}
+
+// Outside a research project there is nothing to draft a brief from, and writing research/ there
+// litters a folder that is not a project - a later new-project in it kept the stray file
+// (found 2026-09-28). preflight already says "not gated"; a writer refuses instead.
+if (!isGated(root)) {
+  process.stderr.write(`brief: ${root} is not a research project - it holds none of ${GATE_MARKERS.join(', ')}. Nothing was written.\n`
+    + `Run this from the project folder, or make one: ${kitCommand('new-project.mjs', '<dir> --topic "<topic>"')}\n`);
+  process.exit(2);
 }
 
 const verdict = runPreflight(root, { corpus });
