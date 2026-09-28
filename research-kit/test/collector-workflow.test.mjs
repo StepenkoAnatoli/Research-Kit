@@ -446,11 +446,26 @@ test('the collector runs on both supported platforms', () => {
 });
 
 test('every third-party action is pinned to a commit SHA', () => {
-  const uses = body.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('- uses:') || l.startsWith('uses:'));
-  assert.ok(uses.length >= 3, `expected the checkout, setup-node and upload actions, found ${uses.length}`);
-  for (const line of uses) {
-    assert.ok(/@[0-9a-f]{40}\b/.test(line),
-      `a tag is mutable, and whoever can move it runs code in this workflow: ${line}`);
+  // Every workflow, not only the collector. This test read collect.yml alone, and
+  // replacing all eight action pins in offline-suite.yml and live-collection.yml with
+  // mutable tags left the suite green (found 2026-09-28, break-test). offline-suite.yml
+  // runs on every pull request with read access to the repository, so a moved tag
+  // executes code there first - and its own header states the pin policy this scan did
+  // not enforce. Same shape as the injection scan below: the class of defect, across
+  // every workflow, because the next workflow added is the one that reintroduces it.
+  for (const name of fs.readdirSync(WORKFLOWS)) {
+    if (!name.endsWith('.yml') && !name.endsWith('.yaml')) continue;
+    const text = executable(fs.readFileSync(path.join(WORKFLOWS, name), 'utf8'));
+    const uses = text.split('\n').map((l) => l.trim())
+      .filter((l) => l.startsWith('- uses:') || l.startsWith('uses:'))
+      .filter((l) => !/uses:\s*\.\//.test(l));   // local actions are paths, not third-party refs
+    if (name === 'collect.yml') {
+      assert.ok(uses.length >= 3, `expected the checkout, setup-node and upload actions, found ${uses.length}`);
+    }
+    for (const line of uses) {
+      assert.ok(/@[0-9a-f]{40}\b/.test(line),
+        `a tag is mutable, and whoever can move it runs code in this workflow (${name}): ${line}`);
+    }
   }
 });
 
