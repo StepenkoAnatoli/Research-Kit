@@ -11,7 +11,8 @@ import { PassThrough } from 'node:stream';
 import { spawnSync } from 'node:child_process';
 import { test, describe, assert, tempDir, cleanup, fs, path, KIT_ROOT } from './harness.mjs';
 import {
-  handle, versionProblem, validateArgs, resourceLink, createStdioLoop, MAX_LINE,
+  handle, versionProblem, validateArgs, resourceLink, createStdioLoop, exitWhenSettled,
+  END_GRACE_MS, MAX_LINE,
   TOOLS, ERRORS, SUPPORTED_VERSIONS, SERVER_INFO, MODERN_VERSION, LEGACY_VERSION,
 } from '../lib/mcp.mjs';
 
@@ -418,6 +419,66 @@ test('the loop has a default line cap', () => {
   assert.ok(Number.isInteger(MAX_LINE) && MAX_LINE >= 1024 * 1024, `MAX_LINE is ${MAX_LINE}`);
 });
 
+// Found 2026-09-29 (break-test). `process.stdin.on('end', () => process.exit(0))` won the
+// race against every call still in flight: a tool call is async, so the client that wrote a
+// request and closed stdin - a shell pipeline, a harness sending one request - got a clean
+// exit and NO reply. That is indistinguishable from a server that never saw the request,
+// and it cost the answer to `collect` and `fetch_corpus`, the two calls that take time.
+test('a client that closes stdin still gets the answer to a call already in flight', async () => {
+  const input = new PassThrough();
+  // `process.exit` ends the process, and with it every write that has not happened yet -
+  // so the stub has to model that, or it asserts nothing about the race at all.
+  const lines = [];
+  let alive = true;
+  const output = {
+    write: (text) => {
+      if (alive) lines.push(...String(text).split('\n').filter(Boolean));
+      return true;
+    },
+  };
+
+  const loop = createStdioLoop({
+    input,
+    output,
+    onMessage: async (m) => {
+      await new Promise((r) => setTimeout(r, 30));   // the part that used to lose the race
+      return { jsonrpc: '2.0', id: m.id, result: {} };
+    },
+  });
+  let exited = null;
+  exitWhenSettled({
+    input,
+    settled: loop.settled,
+    graceMs: 5000,
+    exit: (code) => { exited = code; alive = false; },
+  });
+
+  input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 11, method: 'ping' })}\n`);
+  input.end();
+  await new Promise((r) => setTimeout(r, 250));
+
+  assert.equal(lines.length, 1, `the reply to an in-flight call was dropped when stdin closed: ${lines.join(' | ')}`);
+  assert.equal(JSON.parse(lines[0]).id, 11);
+  assert.equal(exited, 0, 'the server did not stop once its last answer was written');
+});
+
+test('a closed stdin does not keep the server alive for a call that never settles', async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const loop = createStdioLoop({ input, output, onMessage: () => new Promise(() => {}) });
+
+  let exited = null;
+  exitWhenSettled({ input, settled: loop.settled, graceMs: 20, exit: (code) => { exited = code; } });
+  input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 12, method: 'ping' })}\n`);
+  input.end();
+  await new Promise((r) => setTimeout(r, 150));
+
+  // The caller has gone; an answer with nowhere to land must not hold the process open for
+  // the half hour a `fetch_corpus` wait can take.
+  assert.equal(exited, 0, 'the grace is a ceiling on the drain, not a reason to linger');
+  assert.ok(END_GRACE_MS > 0 && END_GRACE_MS <= 60_000, `the default grace is ${END_GRACE_MS}`);
+});
+
 test('a message split across chunks is still one message', async () => {
   const input = new PassThrough();
   const output = new PassThrough();
@@ -433,6 +494,66 @@ test('a message split across chunks is still one message', async () => {
 
   assert.equal(lines.length, 1, 'a stream is not a message boundary; only a newline is');
   assert.equal(JSON.parse(lines[0]).id, 9);
+});
+
+// The framing is newline-delimited, but nothing obliges a client to end its LAST message
+// with a newline - `printf '{"jsonrpc":"2.0",...}' | node bin/mcp-server.mjs` does not,
+// and neither does a harness that writes one request and ends the stream. `drain` served
+// only what a newline terminated, so that message sat in the buffer for ever: the client
+// saw a clean exit and no reply, indistinguishable from a server that never received the
+// request. F-2 fixed that loss for calls already IN FLIGHT and left it standing here
+// (found 2026-09-29, break-test).
+test('the last request is answered even when the stream ends without a newline', async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const lines = [];
+  output.on('data', (c) => lines.push(...String(c).split('\n').filter(Boolean)));
+
+  createStdioLoop({ input, output, onMessage: (m) => handle(m, deps()) });
+  input.write(JSON.stringify({ jsonrpc: '2.0', id: 13, method: 'ping' }));   // no trailing newline
+  input.end();
+  await new Promise((r) => setTimeout(r, 80));
+
+  assert.equal(lines.length, 1, `an unterminated final request was never answered: [${lines.join(' | ')}]`);
+  assert.equal(JSON.parse(lines[0]).id, 13, 'the tail is served to the client that sent it');
+});
+
+// The flush is a second way in, so it reads the same cap. Unbounded, a client that ended
+// an over-long line without a newline would be served a message a terminated one is refused.
+test('an unterminated tail longer than the cap is refused, not served', async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const lines = [];
+  output.on('data', (c) => lines.push(...String(c).split('\n').filter(Boolean)));
+
+  createStdioLoop({ input, output, onMessage: (m) => handle(m, deps()), maxLine: 120 });
+  const pad = 'x'.repeat(400);
+  input.write(JSON.stringify({ jsonrpc: '2.0', id: 14, method: 'ping', params: { pad } }));
+  input.end();
+  await new Promise((r) => setTimeout(r, 80));
+
+  assert.equal(lines.length, 1, 'the cap applies to the flushed tail as it does to a terminated line');
+  const reply = JSON.parse(lines[0]);
+  assert.equal(reply.id, null);
+  assert.equal(reply.error.code, -32600, 'an over-long tail is an invalid request, not a served one');
+});
+
+// The flush must be silent when there is nothing to flush: `end` also fires for a client
+// that terminated every message, and a stray write there would be a reply to no request.
+test('a stream that ends on a newline produces no extra reply', async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const lines = [];
+  output.on('data', (c) => lines.push(...String(c).split('\n').filter(Boolean)));
+
+  createStdioLoop({ input, output, onMessage: (m) => handle(m, deps()) });
+  input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 15, method: 'ping' })}\n`);
+  await new Promise((r) => setTimeout(r, 40));
+  input.end();
+  await new Promise((r) => setTimeout(r, 40));
+
+  assert.equal(lines.length, 1, `the flush answered a request that was already served: [${lines.join(' | ')}]`);
+  assert.equal(JSON.parse(lines[0]).id, 15);
 });
 
 // ---------------------------------------------------------------- arguments

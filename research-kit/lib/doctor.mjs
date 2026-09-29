@@ -9,7 +9,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { PATHS, resolve, exists, isDirectory, readText } from './core.mjs';
+import { PATHS, resolve, exists, isDirectory, readText, tempBase } from './core.mjs';
 import { verdictContext, runPreflight } from './preflight.mjs';
 import { isGated } from './gate.mjs';
 import { verifyHandoff, handoffRemedy } from './handoff.mjs';
@@ -17,7 +17,7 @@ import { validateProject, hookExecutability, GATE_MARKERS, KIT_ROOT } from './sc
 import { settingsState, deployedDrift, driftNote } from './installer.mjs';
 import { recordOverride } from './provenance.mjs';
 import { probeFirecrawl, selectTransport } from './transport.mjs';
-import { loadConfig } from './machine.mjs';
+import { loadConfig, configPath } from './machine.mjs';
 import { cliInstallSpec } from './firecrawl.mjs';
 import { nodeLine, nodeHonoursEnvProxy, proxyVariable, unusableProxy, proxySpelling } from './runtime.mjs';
 import { verifyBundle, bundleSummary } from './bundle.mjs';
@@ -98,6 +98,9 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
   const chosen = env.RESEARCH_KIT_TRANSPORT || loadConfig(env).transport || '';
   const keylessByChoice = role !== 'builder' && chosen && chosen !== 'firecrawl-cli';
   const firecrawlSeverity = role === 'builder' || keylessByChoice ? 'pass' : 'fail';
+  // The no-account route is named beside the Firecrawl fix, as the SETTING that makes this
+  // check pass (ADR-0095) - a per-run --transport flag would leave doctor red next time.
+  const keylessRoute = `or collect without an account: set "transport": "http-keyless" in ${configPath(env)}`;
   if (!state.installed) {
     out.push(f(firecrawlSeverity, 'firecrawl-cli',
       role === 'builder'
@@ -105,7 +108,7 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
         : keylessByChoice
           ? `the Firecrawl CLI is absent, and ${chosen} was chosen - this collector does not need it`
           : 'the Firecrawl CLI is not on PATH',
-      role === 'builder' || keylessByChoice ? '' : `npm install -g ${cliInstallSpec()}   (or run with --transport http-keyless)`));
+      role === 'builder' || keylessByChoice ? '' : `npm install -g ${cliInstallSpec()}   (${keylessRoute})`));
   } else {
     out.push(f('pass', 'firecrawl-cli', `${state.version}`));
     if (!state.authenticated) {
@@ -115,7 +118,7 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
           : keylessByChoice
             ? `not authenticated, and ${chosen} was chosen - this collector does not need it`
             : 'not authenticated - a collector that cannot collect is broken',
-        role === 'builder' || keylessByChoice ? '' : 'firecrawl login'));
+        role === 'builder' || keylessByChoice ? '' : `firecrawl login   (${keylessRoute})`));
     } else {
       out.push(f('pass', 'firecrawl-auth', `authenticated${state.credits === null ? '' : `, ${state.credits} credits`}`));
     }
@@ -297,6 +300,13 @@ export function scanForSecrets(root, { maxFiles = 2000 } = {}) {
   const hits = [];
   let scanned = 0;
   let skippedLarge = 0;
+  // The machine's scratch folder is not the project, and it is skipped by ABSOLUTE path
+  // rather than by name. It usually sits outside the tree being scanned, so this costs
+  // nothing - but a RELATIVE TMPDIR is legal, and then the scratch folder resolves INSIDE
+  // the checkout. The kit's own temporary files were reported as credentials committed to
+  // the repository, which is a scanner crying wolf about itself (found 2026-09-29).
+  let temp = null;
+  try { temp = fs.realpathSync(tempBase()); } catch { /* no temp folder to skip */ }
 
   const walk = (dir, rel) => {
     if (scanned >= maxFiles) return;
@@ -304,7 +314,13 @@ export function scanForSecrets(root, { maxFiles = 2000 } = {}) {
       const childRel = rel ? `${rel}/${name.name}` : name.name;
       if (SECRET_SKIP_DIRS.has(name.name) || SECRET_SKIP_DIRS.has(childRel)) continue;
       const abs = path.join(dir, name.name);
-      if (name.isDirectory()) { walk(abs, childRel); continue; }
+      if (name.isDirectory()) {
+        if (temp !== null) {
+          try { if (fs.realpathSync(abs) === temp) continue; } catch { /* unreadable: fall through and walk it */ }
+        }
+        walk(abs, childRel);
+        continue;
+      }
       if (scanned >= maxFiles) return;
       let size = 0;
       try { size = fs.statSync(abs).size; } catch { continue; }

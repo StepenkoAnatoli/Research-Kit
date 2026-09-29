@@ -14,11 +14,18 @@ describe('harness');
 
 const HARNESS = pathToFileURL(path.join(KIT_ROOT, 'test', 'harness.mjs')).href;
 
-function runChild(source) {
+// `env` is merged over this process's own, so a probe can be run under a hostile
+// environment (a TMPDIR pointing into the checkout) without losing PATH or HOME.
+function runChild(source, env = null) {
   const dir = tempDir('research-kit-harness-');
   const file = path.join(dir, 'child.mjs');
   fs.writeFileSync(file, source, 'utf8');
-  const result = spawnSync(process.execPath, [file], { encoding: 'utf8', timeout: 30_000 });
+  const result = spawnSync(process.execPath, [file], {
+    encoding: 'utf8',
+    timeout: 30_000,
+    windowsHide: true,
+    ...(env ? { env: { ...process.env, ...env } } : {}),
+  });
   return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
 }
 
@@ -180,6 +187,33 @@ console.log(dir);
   assert.ok(path.isAbsolute(dir) && dir.includes('rk-leakprobe-'), `the probe child did not report its scratch dir: ${child.stdout}`);
   assert.equal(fs.existsSync(dir), false,
     `the scratch dir ${dir} outlived the process that made it - every run leaks its scratch`);
+});
+
+// Found 2026-09-29 (break-test). A TMPDIR that resolves INSIDE the checkout - `TMPDIR=.`
+// is the plainest spelling - put the suite's scratch in the tree the suite JUDGES, and
+// `doctor`'s own secret scan then reported the credential-shaped fixtures every test
+// writes: F26 went red on a machine that had merely exported an unusual temp folder. The
+// suite's scratch cannot live in the thing being judged, so it moves to the platform
+// default and says so.
+test('scratch never lands inside the checkout, whatever TMPDIR points at', () => {
+  const repoRoot = path.resolve(KIT_ROOT, '..');
+  const child = runChild(`
+import { tempDir, fs } from ${JSON.stringify(HARNESS)};
+const dir = tempDir('rk-inside-probe-');
+fs.writeFileSync(dir + '/proof.txt', 'scratch');
+console.log(dir);
+`, { TMPDIR: repoRoot, TEMP: repoRoot, TMP: repoRoot });
+
+  assert.equal(child.status, 0, `the probe child failed:\n${child.stderr}`);
+  const dir = child.stdout.trim().split(/\r?\n/).pop();
+  assert.ok(path.isAbsolute(dir) && dir.includes('rk-inside-probe-'), `the probe child did not report its scratch dir: ${child.stdout}`);
+  // Not realpath'd: the child takes its scratch with it when it ends, so the directory is
+  // already gone by now. mkdtemp hands back an absolute path with no symlink in it, and the
+  // question is only whether it sits under the checkout.
+  const rel = path.relative(repoRoot, dir);
+  const inside = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+  assert.equal(inside, false, `scratch went to ${dir}, inside the checkout the suite judges`);
+  assert.match(child.stderr, /inside this checkout/, 'the move was silent, so nobody learns why their TMPDIR was not used');
 });
 
 // Found 2026-09-28 (Arena break test 7): findPython took the first of `python`, `python3`

@@ -12,6 +12,21 @@ import crypto from 'node:crypto';
 
 // ---------------------------------------------------------------- paths
 
+/**
+ * Where this process stood when it started, and the names of the environment variables
+ * that can move the temp folder. Both exist for `tempBase()` below.
+ *
+ * The cwd is read once, here, at module load - which is process start for every bin that
+ * imports this file - because a relative TMPDIR means "relative to where I was when I
+ * typed the command", and a later `chdir` must not change what it resolves to.
+ */
+const START_CWD = (() => {
+  try { return process.cwd(); } catch { return '.'; }   // a deleted cwd makes process.cwd() throw
+})();
+
+/** TMPDIR is the POSIX name; TEMP and TMP are what Windows reads. */
+const TEMP_ENV_NAMES = Object.freeze(['TMPDIR', 'TEMP', 'TMP']);
+
 /** Every artifact the kit knows, project-relative and POSIX-spelled. */
 export const PATHS = Object.freeze({
   agents: 'AGENTS.md',
@@ -93,6 +108,44 @@ export function homeDir() {
 export function isInside(root, abs) {
   const rel = path.relative(root, abs);
   return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
+}
+
+/**
+ * The temp folder, ABSOLUTE.
+ *
+ * `os.tmpdir()` hands back TMPDIR verbatim, and node accepts a RELATIVE one - `TMPDIR=.`,
+ * `TMPDIR=./tmp`, a Makefile that exports the folder before it creates it. `fs.mkdtemp`
+ * then resolves it against the cwd at the moment of the call, so a relative TMPDIR plus a
+ * `process.chdir()` scatters scratch directories: each is created relative to whichever
+ * directory was current at that call, and the path handed back is relative to a cwd that
+ * has since moved.
+ *
+ * Worse, it disagrees across processes. Every child this kit spawns - git, sh, python, the
+ * kit's own CLIs - re-resolves the same relative TMPDIR against ITS cwd, so the folder the
+ * parent just made is not the folder the child looks in. On this kit that was 21 red tests,
+ * and one worse than red: `materializeIndex` threw
+ * `ENOENT: mkdtemp 'reltmp/research-kit-index-XXXXXX'`, which the commit gate reports as an
+ * internal error and FAILS OPEN on - a machine exporting a relative TMPDIR quietly stopped
+ * being gated (found 2026-09-29, break-test).
+ *
+ * So: resolve against the cwd this process STARTED in, which is what the operator meant and
+ * does not drift as the process moves; and publish the absolute answer back through the
+ * environment, which is the only channel every descendant reads. With the platform default,
+ * or any absolute TMPDIR, this is exactly what `os.tmpdir()` returned.
+ *
+ * Deliberately not memoised: tests legitimately repoint TMPDIR at a private folder mid-run
+ * to count what a verdict leaves behind, and a cached answer would quietly judge a
+ * directory nobody was looking at.
+ */
+export function tempBase() {
+  const raw = os.tmpdir();
+  if (path.isAbsolute(raw)) return path.resolve(raw);
+
+  const abs = path.resolve(START_CWD, raw);
+  for (const name of TEMP_ENV_NAMES) {
+    if (process.env[name] !== undefined && !path.isAbsolute(process.env[name])) process.env[name] = abs;
+  }
+  return abs;
 }
 
 /**
@@ -245,10 +298,31 @@ export function writeBytes(p, data, encoding = null) {
  * output against a 64 KB pipe buffer). Dropping the writes lets the run finish with its
  * own verdict, which is the only exit code that means anything here.
  */
-export function tolerateClosedStdout(stream = process.stdout) {
+export function tolerateClosedStdout(stream = process.stdout, { exit = (code) => process.exit(code) } = {}) {
+  let reported = false;
   stream.on('error', (err) => {
-    if (err?.code !== 'EPIPE') throw err;
+    if (err?.code === 'EPIPE') {
+      stream.write = () => true;
+      return;
+    }
+    // The ENVIRONMENT refusing the OUTPUT - a full disk, a quota, a read-only mount - is
+    // not a verdict either. Throwing here surfaces as an uncaught exception in the middle
+    // of the report: exit 1 and a raw stack trace, so a healthy run reads as a red suite
+    // and the reader goes looking for a failure that is not there (found 2026-09-29,
+    // break-test). Named in words instead, and exit 2 - the code that means "this was not
+    // a verdict" - exactly as a refused FILE write is reported.
+    //
+    // An error the kit does NOT recognise is still thrown. Swallowing one nobody can name
+    // is how a real defect goes quiet; the difference here is a code this table explains.
+    const reason = WRITE_REFUSALS[err?.code];
+    if (!reason) throw err;
+    if (reported) return;                 // every later write fails the same way
+    reported = true;
     stream.write = () => true;
+    try {
+      process.stderr.write(`research-kit: could not write its output: ${err.code} (${reason}).\n`);
+    } catch { /* stderr is gone too, and there is nothing left to say it with */ }
+    exit(2);
   });
 }
 

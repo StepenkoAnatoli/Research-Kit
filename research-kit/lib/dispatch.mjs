@@ -22,9 +22,8 @@
 // idea which one" is the failure a caller is least equipped to diagnose from a status code.
 
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { writeBytes } from './core.mjs';
+import { writeBytes, tempBase } from './core.mjs';
 import { openZip } from './artifact-zip.mjs';
 import { validateArtifact } from './artifact-validator.mjs';
 
@@ -338,7 +337,7 @@ export async function fetchCorpus({
 } = {}) {
   // The folder is checked first: the download is the slow, rate-limited part, and an
   // unusable folder found after it would waste it and surface as a raw ENOTDIR.
-  const dir = usableOutDir(outDir ?? os.tmpdir());
+  const dir = usableOutDir(outDir ?? tempBase());
 
   const artifacts = await listArtifacts({ repository, runId, token, fetch: doFetch, api });
   const wanted = artifacts.filter((a) => !a.expired && a.name.startsWith('research-kit-corpus-v1-'));

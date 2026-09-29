@@ -2,6 +2,9 @@
 
 For me, the operator. Not for the AI.
 
+New to the kit? The five-minute first run, with no account, is "Try it in five minutes" on
+the front page: https://github.com/StepenkoAnatoli/Research-Kit#try-it-in-five-minutes
+
 ---
 
 ## Where things live

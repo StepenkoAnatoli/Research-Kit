@@ -9,15 +9,90 @@ actually permits, whether a platform can do the thing you are planning around.
 
 ---
 
+## Try it in five minutes
+
+No account, no key, nothing to sign up for. This runs the whole loop once on your own
+machine: collect one page, say what it proves, and get a verdict from the gate. It uses the
+keyless transport, which fetches pages directly. You need Node 22+ and Git.
+
+```bash
+git clone https://github.com/StepenkoAnatoli/Research-Kit.git
+node Research-Kit/research-kit/bin/install.mjs           # copies the kit to ~/.agents/research-kit
+mkdir try-it && cd try-it && git init -q
+node "$HOME/.agents/research-kit/bin/new-project.mjs" . --topic "Is fetch a global in Node.js?"
+```
+
+**Name the page to read.** Open `research/plan.json` and set its `urls`:
+
+```json
+"urls": [{ "url": "https://nodejs.org/api/globals.html", "type": "P", "why": "U-01" }]
+```
+
+**Collect it.** This writes the page under `research/raw/`, a row `E-01` in
+`research/EVIDENCE.md`, and an entry in the hash-chained ledger that proves it was fetched.
+
+```bash
+node "$HOME/.agents/research-kit/bin/research.mjs" --transport http-keyless
+```
+
+**Ask the gate.**
+
+```bash
+node "$HOME/.agents/research-kit/bin/preflight.mjs"
+```
+
+It prints `FAIL` with `discovery-contract/no-unknowns`, because the contract does not yet say
+what you need to know. Add one row under the table in `research/DISCOVERY.md`:
+
+```
+| U-01 | Is `fetch` a global in Node.js? | Decides whether the code needs a dependency | CLOSED | E-01 |
+```
+
+Run `preflight` again. It prints `PASS`, with three honest warnings:
+- the page came through the keyless transport, not the metered one;
+- there is no subtopic map yet;
+- one source is carrying the claim.
+
+That is the whole loop: **decide what you need to know, fetch the page that owns it, and
+let the gate check that the claim points at a real capture.**
+
+**How to read an exit code:**
+- `0` PASS;
+- `1` FAIL, checked and wrong;
+- `2` INCOMPLETE, which **could not be checked** and is not the same as wrong;
+- `3` BLOCKED, which refused to start.
+
+The full table is in [Reading a verdict](#reading-a-verdict).
+
+`doctor` will still report a missing Firecrawl login. To keep this machine keyless, put
+`{ "transport": "http-keyless" }` in `~/.agents/research-kit.config.json` and it reports
+READY.
+
+Where to go from here:
+- **Real research** captures more of each page through Firecrawl: see
+  [Start here](#start-here-if-this-is-new-to-you) (on GitHub, nothing installed) or
+  [Your first 30 minutes](#your-first-30-minutes) (on your machine, every step).
+- **Collector and builder roles, nested decision projects, MCP and the commit gates** can
+  all wait until you need them.
+
+---
+
 ## Start here if this is new to you
 
-Five steps. You need a GitHub account and this repository. You do **not** need to install
-anything for steps 1-4.
+Five steps. You need a GitHub account. You do **not** need to install anything for steps
+0-4.
 
 > **Two ways in, and this is the easier one.** These steps run everything on GitHub, from
 > the website. If you would rather install the kit and run it on your own machine, skip to
 > [Your first 30 minutes](#your-first-30-minutes) instead - same kit, same gate, more
 > control and more setup.
+
+### 0. Make your own copy of this repository
+
+The collector runs as a GitHub Actions workflow in **your** repository, so it needs a copy
+there. Press **Fork** at the top of this page. Then open your fork's **Actions** tab and press
+the button that enables workflows: GitHub turns them off in a new fork until you say
+otherwise, and until then the `collect` workflow of step 3 does not appear.
 
 ### 1. Get a Firecrawl key
 
@@ -149,12 +224,19 @@ instead of a command:
   "mcpServers": {
     "research-kit": {
       "command": "node",
-      "args": ["<path>/research-kit/bin/mcp-server.mjs"],
+      "args": ["/home/you/.agents/research-kit/bin/mcp-server.mjs"],
       "env": { "RESEARCH_KIT_GITHUB_TOKEN": "github_pat_..." }
     }
   }
 }
 ```
+
+Write the **absolute** path of the installed copy that `install.mjs` made:
+- `~/.agents/research-kit` on Linux or macOS;
+- `%USERPROFILE%\.agents\research-kit` on Windows, written `C:\\Users\\you\\...` inside
+  JSON.
+
+An MCP client does not expand `$HOME` or `~` in `args`.
 
 Two tools: `collect` starts a run and returns its id; `fetch_corpus` takes that id and
 returns a link to the validated package. The server speaks **both** protocol eras -
