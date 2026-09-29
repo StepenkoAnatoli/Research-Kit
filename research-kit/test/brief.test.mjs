@@ -98,6 +98,24 @@ test('two unknowns closed by the same row make ONE verified row that names both'
   assert.match(rows[0], /U-1, U-2/, 'the row does not say which unknowns it closes');
 });
 
+test('every row an unknown cites reaches the verified table, not only the first', () => {
+  // Found 2026-09-29 on MoonAliza's Ollama /v1 corpus: U-01 cited E-03 and E-06, U-03 cited
+  // E-03, E-04 and E-02, and the brief showed E-03 alone - the row saying how Ollama numbers
+  // parallel calls, which the closure rested on, never reached the builder.
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/^(\| E-01 \|.*\| )([^|]*) \|$/m,
+    (line, head, raw) => `${line}\n| E-02 | 2026-09-29 | P | https://example.invalid/limits | The limit is counted per API key, not per account. | ${raw} |`));
+  corrupt(dir, PATHS.discovery, (text) => text.replace('| CLOSED | E-01: 10 requests per minute, 1,000 credits |',
+    '| CLOSED | E-01: 10 requests per minute, 1,000 credits; E-02: counted per key |'));
+  renderBrief(dir, { force: true });
+  const verified = briefSection(readText(resolve(dir, PATHS.brief)), 'verified');
+  assert.match(verified, /10 requests per minute/);
+  const second = verified.split('\n').filter((line) => /\| E-02/.test(line));
+  assert.equal(second.length, 1, verified);
+  assert.match(second[0], /counted per API key/);
+  assert.match(second[0], /\(U-1\)/);
+});
+
 test('a claim resting on a partial capture says so in the brief', () => {
   const dir = makePassingProject();
   corrupt(dir, `research/raw/${fs.readdirSync(resolve(dir, PATHS.raw)).find((n) => n.endsWith('.md'))}`,

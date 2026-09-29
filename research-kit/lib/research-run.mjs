@@ -229,7 +229,8 @@ const RELEVANCE_STOPWORDS = new Set(['with', 'what', 'when', 'which', 'does', 'f
 const plain = (text) => String(text ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 export function queryTerms(query) {
   return [...new Set(String(query ?? '').toLowerCase().split(/\s+/)
-    .map((word) => plain(word))
+    // "Ollama's" is the word "ollama": a possessive read as "ollama s" matched no page.
+    .map((word) => plain(word.replace(/['\u2019]s(?=[^a-z0-9]*$)/, '')))
     .filter((term) => term.replace(/ /g, '').length >= 4 && !RELEVANCE_STOPWORDS.has(term)))];
 }
 export function matchesQuery(row, query) {

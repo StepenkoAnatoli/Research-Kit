@@ -11,7 +11,10 @@
 /** A quote shorter than this proves almost nothing: "free plan" occurs on every pricing page. */
 export const MIN_QUOTE_WORDS = 3;
 
-const QUOTE_RE = /\[quote:\s*([^\]]*)\]/gi;
+// The marker may hold balanced brackets one level deep - a code subscript (`calls[i].id`) or a
+// Markdown link (`[v0.4.7](url)`). It ended at the first `]` until 2026-09-29, which cut such a
+// quote short and then checked only the stub.
+const QUOTE_RE = /\[quote:\s*((?:[^[\]]|\[[^[\]]*\])*)\]/gi;
 
 /**
  * The quote markers in a Finding cell, each split into fragments on an ellipsis (`...` or

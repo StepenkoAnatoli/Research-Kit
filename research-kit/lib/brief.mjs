@@ -128,26 +128,33 @@ function verifiedTable(corpus) {
   // One row per claim and source, naming every unknown it closes. Two unknowns that lead
   // with the same E-row have the same claim (`claimOf`), and listing it once per unknown
   // printed it twice, word for word, with nothing saying which copy closed what.
+  // Every E-row an unknown cites gets its row, not only the first: a closure resting on two
+  // rows showed one, and the second (MoonAliza 2026-09-29: how Ollama numbers calls) never
+  // reached the builder. The first keeps `claimOf`'s fallback to the unknown's own text.
   const rows = [];
   const byKey = new Map();
   for (const unknown of corpus.unknowns) {
     if (unknown.status !== 'CLOSED') continue;
-    const claim = claimOf(corpus, unknown);
-    const cited = unknown.cites.find((id) => /^E-\d+$/i.test(id)) ?? '';
-    const key = `${cited.toUpperCase()}\u0000${claim}`;
-    if (byKey.has(key)) { byKey.get(key).closes.push(unknown.id); continue; }
-    const row = corpus.evidence.find((e) => e.id.toUpperCase() === cited.toUpperCase());
-    const capture = row ? captureOf(corpus, row) : null;
-    const entry = {
-      claim: claim.replace(/\|/g, '\\|'),
-      cited,
-      host: row ? ` \`${hostOfUrl(row.url)}\`` : '',
-      closes: [unknown.id],
-      type: row?.type ?? '',
-      partial: capture?.completeness === 'partial',
-    };
-    byKey.set(key, entry);
-    rows.push(entry);
+    const ids = unknown.cites.filter((id) => /^E-\d+$/i.test(id));
+    for (const [n, cited] of (ids.length ? ids : ['']).entries()) {
+      const row = corpus.evidence.find((e) => e.id.toUpperCase() === cited.toUpperCase());
+      if (n > 0 && !row?.finding) continue;
+      const claim = n === 0 ? claimOf(corpus, unknown) : row.finding;
+      const key = `${cited.toUpperCase()}\u0000${claim}`;
+      const seen = byKey.get(key);
+      if (seen) { if (!seen.closes.includes(unknown.id)) seen.closes.push(unknown.id); continue; }
+      const capture = row ? captureOf(corpus, row) : null;
+      const entry = {
+        claim: claim.replace(/\|/g, '\\|'),
+        cited,
+        host: row ? ` \`${hostOfUrl(row.url)}\`` : '',
+        closes: [unknown.id],
+        type: row?.type ?? '',
+        partial: capture?.completeness === 'partial',
+      };
+      byKey.set(key, entry);
+      rows.push(entry);
+    }
   }
   for (const r of rows) r.source = `${r.cited}${r.host} (${r.closes.join(', ')})`;
   if (!rows.length) return '_No closed unknowns yet - nothing is verified._';
