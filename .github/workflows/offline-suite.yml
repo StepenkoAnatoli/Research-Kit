@@ -205,6 +205,15 @@ jobs:
       # contradiction, and this repository has shipped that defect twice: a tracked
       # .diagnostics.jsonl, and __pycache__ appearing the moment the Python runners began
       # importing a shared module. Both were invisible until someone looked at git.
+      # Found 2026-09-29 (break-test PR #140): running the command research/TIMELINE.md names
+      # rewrote it with the machine's absolute path, and export-warc dropped an un-ignored
+      # 400 KB file in the root. Both are fixed; this proves it on every platform. The step
+      # below then fails if either changed a tracked file or left an untracked one.
+      - name: the corpus's derived files regenerate to their committed bytes
+        run: |
+          node research-kit/bin/timeline.mjs
+          node research-kit/bin/export-warc.mjs
+
       - name: the suite left the working tree clean
         run: |
           if [ -n "$(git status --porcelain)" ]; then

@@ -17,6 +17,7 @@ import { validateProject, hookExecutability, GATE_MARKERS, KIT_ROOT } from './sc
 import { settingsState, deployedDrift, driftNote } from './installer.mjs';
 import { recordOverride } from './provenance.mjs';
 import { probeFirecrawl, selectTransport } from './transport.mjs';
+import { loadConfig } from './machine.mjs';
 import { cliInstallSpec } from './firecrawl.mjs';
 import { nodeLine, nodeHonoursEnvProxy, proxyVariable, unusableProxy, proxySpelling } from './runtime.mjs';
 import { verifyBundle, bundleSummary } from './bundle.mjs';
@@ -92,21 +93,29 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
     : f('fail', 'git', 'git is not on PATH - the commit gate cannot install', 'install git 2.9 or newer'));
 
   const state = probe();
-  const firecrawlSeverity = role === 'builder' ? 'pass' : 'fail';
+  // A collector that CHOSE a route without Firecrawl is configured, not broken (ADR-0095).
+  // Nothing chosen stays a fail: that is the silent degradation this check exists to catch.
+  const chosen = env.RESEARCH_KIT_TRANSPORT || loadConfig(env).transport || '';
+  const keylessByChoice = role !== 'builder' && chosen && chosen !== 'firecrawl-cli';
+  const firecrawlSeverity = role === 'builder' || keylessByChoice ? 'pass' : 'fail';
   if (!state.installed) {
     out.push(f(firecrawlSeverity, 'firecrawl-cli',
       role === 'builder'
         ? 'the Firecrawl CLI is absent, which is expected on a builder - this machine does not collect'
-        : 'the Firecrawl CLI is not on PATH',
-      role === 'builder' ? '' : `npm install -g ${cliInstallSpec()}   (or run with --transport http-keyless)`));
+        : keylessByChoice
+          ? `the Firecrawl CLI is absent, and ${chosen} was chosen - this collector does not need it`
+          : 'the Firecrawl CLI is not on PATH',
+      role === 'builder' || keylessByChoice ? '' : `npm install -g ${cliInstallSpec()}   (or run with --transport http-keyless)`));
   } else {
     out.push(f('pass', 'firecrawl-cli', `${state.version}`));
     if (!state.authenticated) {
       out.push(f(firecrawlSeverity, 'firecrawl-auth',
         role === 'builder'
           ? 'not authenticated, which is expected on a builder - this machine does not collect'
-          : 'not authenticated - a collector that cannot collect is broken',
-        role === 'builder' ? '' : 'firecrawl login'));
+          : keylessByChoice
+            ? `not authenticated, and ${chosen} was chosen - this collector does not need it`
+            : 'not authenticated - a collector that cannot collect is broken',
+        role === 'builder' || keylessByChoice ? '' : 'firecrawl login'));
     } else {
       out.push(f('pass', 'firecrawl-auth', `authenticated${state.credits === null ? '' : `, ${state.credits} credits`}`));
     }
