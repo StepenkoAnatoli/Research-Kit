@@ -386,7 +386,15 @@ export function driftNote(drift) {
  * kit files a past version shipped, because a copy-over deploy never removes anything.
  */
 export function deploy({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env, dryRun = false, into = '' } = {}) {
-  if (dryRun) return { dryRun: true, from, to: kitHome, prune: [...RETIRED_KIT_FILES] };
+  // What the deploy below would prune, computed the same way: retired files that are there, and
+  // the mirror's extras. It listed every retired name whether or not it existed, and none of the
+  // extras (2026-09-29, Arena break test: "would prune" three files on a machine never installed).
+  if (dryRun) {
+    const shipped = new Set(listTree(from));
+    const retired = RETIRED_KIT_FILES.filter((rel) => exists(path.join(kitHome, ...rel.split('/'))));
+    const extra = listTree(kitHome).filter((rel) => !shipped.has(rel) && !retired.includes(rel));
+    return { dryRun: true, from, to: kitHome, prune: [...retired, ...extra] };
+  }
 
   const copied = copyTree(from, kitHome, { prune: RETIRED_KIT_FILES, mirror: true });
   const skills = [];

@@ -377,6 +377,30 @@ test('deploy MIRRORS: a file the source no longer ships is removed from the depl
   assert.ok(result.pruned.includes('recipes/retired-recipe.md'));
 });
 
+// Found 2026-09-29 (Arena break test): `install --dry-run` on a machine with no prior install
+// said "would prune" three retired files that were not there, and never named a stale file a
+// real deploy's mirror would remove. A preview names what the deploy would actually do.
+test('deploy --dry-run names exactly what a real deploy would prune, and nothing else', async () => {
+  const { deploy } = await import('../lib/installer.mjs');
+  const { RETIRED_KIT_FILES } = await import('../lib/machine.mjs');
+  const source = tempDir('research-kit-src-');
+  writeText(path.join(source, 'lib', 'core.mjs'), 'export const a = 1;\n');
+  const env = { ...process.env, RESEARCH_KIT_INSTALL_STATE: path.join(tempDir(), 'install.json') };
+
+  const fresh = path.join(tempDir('research-kit-dst-'), 'never-installed');
+  assert.deepEqual(deploy({ from: source, kitHome: fresh, env, dryRun: true }).prune, [],
+    'nothing is deployed there, so nothing would be pruned');
+
+  const stale = tempDir('research-kit-dst-');
+  writeText(path.join(stale, 'lib', 'core.mjs'), 'export const a = 0;\n');
+  writeText(path.join(stale, 'lib', 'gone.mjs'), 'old\n');
+  writeText(path.join(stale, ...RETIRED_KIT_FILES[0].split('/')), 'retired\n');
+  const preview = deploy({ from: source, kitHome: stale, env, dryRun: true }).prune.sort();
+  assert.ok(fs.existsSync(path.join(stale, 'lib', 'gone.mjs')), 'a dry run removes nothing');
+  const real = deploy({ from: source, kitHome: stale, env }).pruned.sort();
+  assert.deepEqual(preview, real, 'the preview and the deploy disagree about what is pruned');
+});
+
 test('deploy does NOT mirror a skill root - it holds other people\'s skills too', async () => {
   const { deploy } = await import('../lib/installer.mjs');
   const source = tempDir('research-kit-src2-');
