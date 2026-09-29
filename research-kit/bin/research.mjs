@@ -212,13 +212,25 @@ function budgetCap({ depth, budget, maxScrapes }) {
     + (deeper ? ` - --depth ${deeper[0]} allows ${Math.min(deeper[1], maxScrapes)}` : '') + '\n';
 }
 
+/**
+ * The most a dry run's plan could spend, in the units each meter counts (2026-09-29): it listed
+ * each search and page and the budget, never the sum an operator on a free tier previews for.
+ * Pages are bounded by the budget - search results fill whatever the named pages leave.
+ */
+function dryRunTotal(run) {
+  const credits = /^firecrawl/.test(run.transport)
+    ? ' - on Firecrawl at least 1 credit a page' + (/^firecrawl/.test(run.searchTransport) ? ', about 2 a search' : '')
+    : '';
+  return `at most    ${run.budget} page fetch(es) and ${run.wouldSearch ?? 0} search(es) on ${run.searchTransport}${credits}; a cached page costs nothing`;
+}
+
 process.stdout.write(`${heading('run')}
 depth      ${run.depth} (budget ${run.budget} scrapes)
 ${run.fellBack ? `fell back  ${run.fellBack.from} -> ${run.fellBack.to} (${run.fellBack.reason}); pages after that were fetched by ${run.fellBack.to}, and the ledger says which\n` : ''}collected  ${run.collected}
 cached     ${run.cached}
 failed     ${run.failed}
 spent      ${run.spent} (budget consumed: collected + failed)
-${run.overBudget ? `left       ${run.overBudget} over the budget - run again to fetch them; a page already fetched costs nothing\n${budgetCap(run)}` : ''}`);
+${flags['dry-run'] ? `${dryRunTotal(run)}\n` : ''}${run.overBudget ? `left       ${run.overBudget} over the budget - run again to fetch them; a page already fetched costs nothing\n${budgetCap(run)}` : ''}`);
 
 // The topic signal, printed at the one moment it helps: the pages are on disk and nobody
 // has read them yet. It decides nothing - see `topicMatch` for the two thresholds that were
