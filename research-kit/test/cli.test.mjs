@@ -671,6 +671,22 @@ test('a command written into a project file spells the standard install from $HO
     'a kit outside the standard install has only its real path');
 });
 
+test('a kit inside the project it writes into is spelled from the project root', () => {
+  // Found 2026-09-29 (break-test, PR #140 notes): in the kit's own repository, running the
+  // command research/TIMELINE.md names rewrote that tracked file with this machine's absolute
+  // path - `node /tmp/clone3/research-kit/bin/timeline.mjs`. The kit sat INSIDE the project, so
+  // the project-relative spelling is the one that travels with it, and it is what was committed.
+  const repo = path.resolve(KIT_ROOT, '..');
+  assert.equal(documentCommand('timeline.mjs', '', { root: repo, home: tempDir('rk-home-') }),
+    'node research-kit/bin/timeline.mjs');
+  assert.equal(documentCommand('brief.mjs', '--force', { root: repo, home: tempDir('rk-home-') }),
+    'node research-kit/bin/brief.mjs --force');
+  // A project the kit is NOT inside keeps the real path: nothing relative reaches it.
+  const elsewhere = tempDir('rk-elsewhere-');
+  assert.equal(documentCommand('brief.mjs', '', { root: elsewhere, home: tempDir('rk-home-') }),
+    spellCommand(path.join(KIT_ROOT, 'bin', 'brief.mjs')));
+});
+
 test('every command the kit tells you to run, runs from where you are', () => {
   // Found 2026-09-27 following the README on a fresh machine: from a project folder, the
   // remedies printed by preflight, doctor and research named "node research-kit/bin/...",

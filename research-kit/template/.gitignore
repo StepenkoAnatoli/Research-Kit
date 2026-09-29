@@ -22,6 +22,10 @@ research/raw/.fetches.lock
 # The gate's override log is this machine's record of a bypass (ADR-0081); doctor reads it here.
 research/overrides.log
 
+# export-warc's default output (ADR-0090): a copy of the corpus for archive tools, not
+# evidence - the captures and the ledger are. A WARC written elsewhere with --out is yours.
+research-corpus.warc.gz
+
 # The chain IS evidence and must travel. The explicit negation is here so a broader
 # dotfile rule added later cannot silently exclude it - this repository lost its ledger
 # exactly that way once.

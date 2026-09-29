@@ -30,6 +30,11 @@ research/overrides.log
 **/research/raw/.fetches.lock
 **/research/overrides.log
 
+# export-warc's default output (ADR-0090), at any depth: a copy of a corpus for archive
+# tools, not evidence. Written into the project root by `export-warc.mjs` with no --out, and
+# found un-ignored on 2026-09-29 (break-test PR #140).
+**/research-corpus.warc.gz
+
 # CPython bytecode. New as of 2026-09-20: the three Python conformance runners now
 # IMPORT a shared module (bin/conformance_common.py) instead of each carrying its own
 # copy, and importing a sibling is what makes CPython write a cache directory. Before
@@ -43,3 +48,6 @@ __pycache__/
 # gate, which is exactly what happened when this project was uploaded without its
 # dotfiles. If you copy this project by hand, copy research/raw/.* too.
 !research/raw/.fetches.jsonl
+
+# export-warc's default output (ADR-0090): a copy of the corpus, not evidence.
+research-corpus.warc.gz

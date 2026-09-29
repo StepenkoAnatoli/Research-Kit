@@ -26,3 +26,6 @@ research/overrides.log
 # dotfile rule added later cannot silently exclude it - this repository lost its ledger
 # exactly that way once.
 !research/raw/.fetches.jsonl
+
+# export-warc's default output (ADR-0090): a copy of the corpus, not evidence.
+research-corpus.warc.gz

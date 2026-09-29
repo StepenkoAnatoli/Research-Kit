@@ -649,6 +649,17 @@ export function documentCommand(script, args = '', { kit = fileURLToPath(new URL
   const recorded = root ? projectKitPath(root) : null;
   if (recorded) return `node "${recorded}/bin/${script}"${args ? ` ${args}` : ''}`;
   const real = (p) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
+  // A kit INSIDE the project - the kit's own repository, or a project that vendors it - travels
+  // with the file, so it is spelled from the project root, where the kit's commands are run.
+  // The absolute path made the committed research/TIMELINE.md unreproducible on any other
+  // checkout (found 2026-09-29, break-test).
+  if (root) {
+    const inside = path.relative(real(root), real(kit));
+    if (inside && !inside.startsWith('..') && !path.isAbsolute(inside)) {
+      const rel = [...inside.split(path.sep), 'bin', script].join('/');
+      return `node ${/\s/.test(rel) ? `"${rel}"` : rel}${args ? ` ${args}` : ''}`;
+    }
+  }
   if (real(kit) === real(path.join(home, '.agents', 'research-kit'))) return homeCommand(script, args);
   return spellCommand(path.join(kit, 'bin', script), args);
 }
