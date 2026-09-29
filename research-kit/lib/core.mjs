@@ -149,6 +149,35 @@ export function tempBase() {
 }
 
 /**
+ * How much room the temp folder actually has, in words.
+ *
+ * The probe in `bin/selftest.mjs` answers "can this folder be used at all". A volume that
+ * is writable and full answers YES and then fails every test that writes anything - so
+ * when a red suite is dominated by ENOSPC this is the number the reader needs, and
+ * `statfsSync` is the only way to get it without writing until the disk says stop.
+ *
+ * It lives here, beside `tempBase()`, because this is the module that owns the temp folder
+ * and the only one that already imports `node:os`. It was first written inside
+ * `bin/selftest.mjs`, which does NOT - so the branch it exists for threw
+ * `ReferenceError: os is not defined` and took the red summary down with it, leaving a
+ * stack trace where the diagnosis belonged (found 2026-09-29, break-test, reproduced with
+ * a 1 MiB TMPDIR: 659 of 671 failures ENOSPC, then the crash). A function whose whole job
+ * is to explain a failure must not be able to fail.
+ */
+export function tempFreeSpace() {
+  const base = tempBase();
+  const measured = 'a green run of this suite peaked at 52 MiB of scratch, measured 2026-09-29';
+  try {
+    const stat = fs.statfsSync(base);
+    const mib = (stat.bavail * stat.bsize) / 1048576;
+    return `the temp folder ${base} has ${mib < 10 ? mib.toFixed(1) : Math.round(mib)} MiB free, and ${measured}. `
+      + 'Point TMPDIR (TEMP and TMP on Windows) at a folder with room, and run again.';
+  } catch {
+    return `check the free space on the volume holding ${base}; ${measured}.`;
+  }
+}
+
+/**
  * Does `abs` REALLY land inside `root`, with every symlink on both sides resolved?
  * (ADR-0076.) `isInside` compares spellings; git stores symlinks, so a cloned corpus can
  * spell research/raw/x.md and land on ~/.ssh/id_rsa. Anything that cannot be resolved -

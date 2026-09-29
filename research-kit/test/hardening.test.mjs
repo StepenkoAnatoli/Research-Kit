@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import os from 'node:os';
 import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, appendLine, KIT_ROOT } from './harness.mjs';
-import { PATHS, HEADERS, resolve, readText, writeText, writeJson, tolerateClosedStdout, canonicalJson, sha256, tempBase } from '../lib/core.mjs';
+import { PATHS, HEADERS, resolve, readText, writeText, writeJson, tolerateClosedStdout, canonicalJson, sha256, tempBase, tempFreeSpace } from '../lib/core.mjs';
 import { readCorpus, appendRow, upsertRow, alignToHeader } from '../lib/corpus.mjs';
 import { writeAudit, zipAudit, readManifest, readManifestState, fingerprintOf } from '../lib/audit.mjs';
 import { renderBrief } from '../lib/brief.mjs';
@@ -24,6 +24,7 @@ import { runCheck } from '../lib/checks.mjs';
 import { writeZip } from '../lib/archive.mjs';
 import { writeArtifact } from '../lib/artifact.mjs';
 import { collectedProject, IDENTITY } from './artifact-fixtures.mjs';
+import { deployedDrift } from '../lib/installer.mjs';
 
 describe('hardening');
 
@@ -763,4 +764,215 @@ console.log(canonicalJson({ p: shared, q: [shared, shared] }));`;
   assert.equal(status, 0, `the child did not finish (killed after 10s, or crashed):\n${out.slice(0, 300)}`);
   assert.match(out, /REFUSED .*cycl/, `a cyclic value was not refused by name:\n${out.slice(0, 300)}`);
   assert.match(out, /\{"p":\{"x":1\},"q":\[\{"x":1\},\{"x":1\}\]\}/, 'a value seen twice but not cyclic must still render');
+});
+
+// --- the runner's own diagnostic must not be able to fail ---------------------------
+//
+// Found 2026-09-29 (break-test, reproduced with a 1 MiB TMPDIR). `tempFreeSpace()` was
+// written inside bin/selftest.mjs, which imports `node:fs` and `node:path` but NOT
+// `node:os` - and it is called on exactly one branch, "a red suite whose failures open
+// with ENOSPC", so it had never once run. On the run that needed it:
+//
+//   605 passed, 671 failed
+//   Likely single cause: 659 of 671 failures (98%) open with ENOSPC.
+//   ReferenceError: os is not defined
+//       at tempFreeSpace (research-kit/bin/selftest.mjs:97:16)
+//
+// The `catch` meant to make it total then referenced `base`, which the throw had left
+// uninitialised, so the guard threw too and the uncaught error ended the process: the one
+// message that says "your temp volume is full" was replaced by a stack trace, and the run
+// left through an exception instead of its own verdict. The function now lives in
+// core.mjs beside `tempBase()` - the module that owns the temp folder and already imports
+// `node:os` - and is reachable from a test, which it was not before.
+
+test('the temp folder is measured in words, and measuring it cannot fail', () => {
+  const words = tempFreeSpace();
+  assert.match(words, /the temp folder .+ has [\d.]+ MiB free/,
+    `the free space was not reported in words: ${words.slice(0, 200)}`);
+  assert.match(words, /TMPDIR/, 'the reader is not told which setting to change');
+  // It must not depend on the volume being measurable: a statfs that refuses is a
+  // sentence, not a throw. The 1 MiB reproduction above is the case that bit.
+  const measured = readText(resolve(KIT_ROOT, 'lib/core.mjs'));
+  assert.ok(measured.includes('export function tempFreeSpace'),
+    'tempFreeSpace moved out of core.mjs, so nothing can hold it to this');
+});
+
+/**
+ * Node builtins that are NOT globals. `process` and `console` need no import and are
+ * deliberately absent; everything here throws `ReferenceError` the first time a line
+ * that names it runs.
+ */
+const BUILTINS_NEEDING_AN_IMPORT = Object.freeze([
+  'assert', 'buffer', 'child_process', 'cluster', 'crypto', 'dgram', 'dns', 'events', 'fs',
+  'http', 'http2', 'https', 'module', 'net', 'os', 'path', 'perf_hooks', 'punycode',
+  'querystring', 'readline', 'repl', 'stream', 'string_decoder', 'timers', 'tls',
+  'trace_events', 'tty', 'url', 'util', 'v8', 'vm', 'wasi', 'worker_threads', 'zlib',
+]);
+
+/**
+ * Comments removed, and with `dropStrings` the string and template literals too, keeping
+ * `${...}` substitutions. Both halves are load-bearing:
+ *
+ *   - prose swallows imports. `import of \`release-validator.mjs\`` in a header comment
+ *     is the first `import` a raw scan meets, and its match runs to the next `from '...'`
+ *     - past `import fs from 'node:fs'`, which is then recorded as never imported.
+ *   - strings are not code. `https://nodejs.org/api/fs.html` inside a quoted URL is not a
+ *     use of `fs`, and a page of HTML inside a template literal is not either.
+ */
+function withoutCommentsAndStrings(src, dropStrings) {
+  let out = '';
+  const stack = [];                       // 'template' / 'expr', for nested `${ }`
+  for (let i = 0; i < src.length; i += 1) {
+    const c = src[i];
+    if (!stack.length && c === '/' && src[i + 1] === '/') {
+      while (i < src.length && src[i] !== '\n') i += 1;
+      continue;
+    }
+    if (!stack.length && c === '/' && src[i + 1] === '*') {
+      i += 2;
+      while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i += 1;
+      i += 1;
+      continue;
+    }
+    if (dropStrings && (c === "'" || c === '"')) {
+      const quote = c;
+      i += 1;
+      while (i < src.length && src[i] !== quote) { if (src[i] === '\\') i += 1; i += 1; }
+      out += ' ';
+      continue;
+    }
+    if (c === '`') {
+      out += ' ';
+      if (stack.length && stack[stack.length - 1] === 'template') stack.pop();
+      else stack.push('template');
+      continue;
+    }
+    if (c === '$' && src[i + 1] === '{' && stack.length) { out += ' '; i += 1; stack.push('expr'); continue; }
+    if (c === '}' && stack.length && stack[stack.length - 1] === 'expr') { out += ' '; stack.pop(); continue; }
+    if (c === '}' && stack.length && stack[stack.length - 1] === 'template') { out += ' '; stack.pop(); continue; }
+    out += c;
+  }
+  return out;
+}
+
+/** Every name an `import`/`export ... from`/`require()` clause binds. */
+function boundBy(src, into) {
+  const clause = src.trim();
+  if (!clause) return;
+  let m;
+  if ((m = clause.match(/^\*\s+as\s+([A-Za-z_$][\w$]*)$/))) return void into.add(m[1]);
+  if ((m = clause.match(/^([A-Za-z_$][\w$]*)$/))) return void into.add(m[1]);   // default import
+  const braced = clause.match(/\{([^}]*)\}/);
+  if (braced) {
+    for (const part of braced[1].split(',')) {
+      const t = part.trim();
+      if (!t) continue;
+      const as = t.split(/\s+as\s+/);
+      into.add((as.length === 2 ? as[1] : as[0]).trim());
+    }
+  }
+  const rest = clause.replace(/\{[^}]*\}/, '').replace(/,/g, ' ').trim();
+  if (rest && !rest.startsWith('*')) {
+    const d = rest.match(/^([A-Za-z_$][\w$]*)/);
+    if (d) into.add(d[1]);
+  }
+}
+
+/** Every name the file binds, by import or by declaration. A local shadows a builtin. */
+function namesInScope(src) {
+  const names = new Set();
+  for (const m of src.matchAll(/\bimport\s+([\s\S]*?)\s+from\s*['"][^'"]+['"]/g)) boundBy(m[1], names);
+  for (const m of src.matchAll(/\bexport\s+\{([^}]*)\}\s+from\s*['"][^'"]+['"]/g)) boundBy(`{${m[1]}}`, names);
+  for (const m of src.matchAll(/\b(?:const|let|var)\s+(\{[\s\S]*?\}|[A-Za-z_$][\w$]*)\s*=\s*require\(\s*['"][^'"]+['"]\s*\)/g)) boundBy(m[1], names);
+  const add = (raw) => {
+    for (const part of String(raw).split(',')) {
+      const t = part.trim();
+      if (!t) continue;
+      names.add(t.split('=')[0].trim().split(':').pop().trim());
+    }
+  };
+  for (const m of src.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
+  for (const m of src.matchAll(/\b(?:const|let|var)\s*\{([^}]*)\}/g)) add(m[1]);
+  for (const m of src.matchAll(/\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)?\s*\(([^)]*)\)/g)) { if (m[1]) names.add(m[1]); add(m[2]); }
+  for (const m of src.matchAll(/\(([^()]*)\)\s*=>/g)) add(m[1]);
+  for (const m of src.matchAll(/\bcatch\s*\(\s*\{?([A-Za-z_$][\w$]*)\s*\}?\s*\)/g)) names.add(m[1]);
+  for (const m of src.matchAll(/\bclass\s+([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
+  for (const m of src.matchAll(/\bfor\s*\(\s*(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g)) names.add(m[1]);
+  return names;
+}
+
+/** Every .mjs under `dir`, recursively, skipping nothing the kit does not ship. */
+function mjsUnder(dir, out = []) {
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return out; }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== 'node_modules' && entry.name !== '.git') mjsUnder(full, out);
+    } else if (entry.name.endsWith('.mjs')) out.push(full);
+  }
+  return out;
+}
+
+// The same defect class, wherever else it hides: a module that names `fs.`, `os.`,
+// `path.` ... without importing it. The reference throws the first time the line RUNS,
+// and the lines that run last are the diagnostics and the error paths - the two places
+// where a crash costs the most, because it replaces the explanation of the failure with
+// a stack trace. `node --check` parses a file without executing it and says nothing
+// about an undeclared global, and this kit has no linter and no dependencies to add one,
+// so the check is written here.
+//
+// It is deliberately a TEXT check over the whole kit: the alternative is waiting for the
+// next `os is not defined`, which by construction arrives on the run that is already red.
+test('no module names a Node builtin it never imported', () => {
+  const files = [
+    ...mjsUnder(KIT_ROOT),
+    ...mjsUnder(path.resolve(KIT_ROOT, '..', '.github')),
+  ];
+  assert.ok(files.length > 100, `only ${files.length} modules found - the walk is not reaching the kit`);
+  const undeclared = [];
+  for (const file of files) {
+    const raw = readText(file);
+    const scope = namesInScope(withoutCommentsAndStrings(raw, false));
+    const code = withoutCommentsAndStrings(raw, true);
+    const used = new Set();
+    for (const m of code.matchAll(/(?<![.\w$])([a-z_][a-z0-9_]*)\s*\./g)) used.add(m[1]);
+    for (const name of used) {
+      if (BUILTINS_NEEDING_AN_IMPORT.includes(name) && !scope.has(name)) {
+        undeclared.push(`${path.relative(path.resolve(KIT_ROOT, '..'), file)} uses '${name}.' and never imports node:${name}`);
+      }
+    }
+  }
+  assert.deepEqual(undeclared, [],
+    'these modules reference a builtin they never import, so the line throws ReferenceError '
+    + 'the first time it runs:\\n  ' + undeclared.join('\\n  '));
+});
+
+// Found 2026-09-29 (break-test): `RESEARCH_KIT_HOME` naming a regular FILE - a leftover
+// `research-kit` tarball, an env var left pointing at the wrong thing - took `doctor` down
+// with a raw ENOTDIR stack trace out of `listTree`, because `exists()` is true for a file
+// and `readdirSync` is not. `doctor` is the command an operator runs when something looks
+// broken; it has to name a problem rather than become one. `install.mjs` already named the
+// same shape in words ("a file is where a folder should be"), so the two disagreed about
+// one machine state.
+test('deployedDrift survives a kit home that is a file, and a dangling link in the tree', () => {
+  const from = tempDir('rk-drift-src-');
+  const dest = tempDir('rk-drift-dest-');
+  fs.mkdirSync(path.join(from, 'bin'));
+  fs.mkdirSync(path.join(dest, 'bin'));
+  const body = 'export const x = 1;\n';
+  writeText(path.join(from, 'bin', 'x.mjs'), body);
+  writeText(path.join(dest, 'bin', 'x.mjs'), body);
+  // An entry `readdirSync` lists but `statSync` cannot follow: a link whose target moved.
+  fs.symlinkSync(path.join(from, 'vanished.mjs'), path.join(from, 'dangling.mjs'));
+  const asFile = path.join(tempDir('rk-kit-home-'), 'research-kit');
+  fs.writeFileSync(asFile, 'a file where the deployed kit should be\n');
+
+  const absent = deployedDrift({ from, kitHome: asFile });
+  assert.equal(absent.kit.absent, true, 'a file at kitHome must read as "not deployed here", not as a crash');
+  assert.deepEqual(absent.kit.missing, ['bin/x.mjs'], 'the tree it should have shipped is still listed');
+
+  const mirrored = deployedDrift({ from, kitHome: dest });
+  assert.equal(mirrored.drifted, 0,
+    `a mirrored tree reported drift, so the guard changed the answer and not just the crash: ${JSON.stringify(mirrored.kit)}`);
 });
