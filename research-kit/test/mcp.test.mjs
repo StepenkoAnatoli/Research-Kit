@@ -11,7 +11,8 @@ import { PassThrough } from 'node:stream';
 import { spawnSync } from 'node:child_process';
 import { test, describe, assert, tempDir, cleanup, fs, path, KIT_ROOT } from './harness.mjs';
 import {
-  handle, versionProblem, validateArgs, resourceLink, createStdioLoop, MAX_LINE,
+  handle, versionProblem, validateArgs, resourceLink, createStdioLoop, exitWhenSettled,
+  END_GRACE_MS, MAX_LINE,
   TOOLS, ERRORS, SUPPORTED_VERSIONS, SERVER_INFO, MODERN_VERSION, LEGACY_VERSION,
 } from '../lib/mcp.mjs';
 
@@ -416,6 +417,66 @@ test('a line over the cap is refused at once, dropped, and the next message is s
 
 test('the loop has a default line cap', () => {
   assert.ok(Number.isInteger(MAX_LINE) && MAX_LINE >= 1024 * 1024, `MAX_LINE is ${MAX_LINE}`);
+});
+
+// Found 2026-09-29 (break-test). `process.stdin.on('end', () => process.exit(0))` won the
+// race against every call still in flight: a tool call is async, so the client that wrote a
+// request and closed stdin - a shell pipeline, a harness sending one request - got a clean
+// exit and NO reply. That is indistinguishable from a server that never saw the request,
+// and it cost the answer to `collect` and `fetch_corpus`, the two calls that take time.
+test('a client that closes stdin still gets the answer to a call already in flight', async () => {
+  const input = new PassThrough();
+  // `process.exit` ends the process, and with it every write that has not happened yet -
+  // so the stub has to model that, or it asserts nothing about the race at all.
+  const lines = [];
+  let alive = true;
+  const output = {
+    write: (text) => {
+      if (alive) lines.push(...String(text).split('\n').filter(Boolean));
+      return true;
+    },
+  };
+
+  const loop = createStdioLoop({
+    input,
+    output,
+    onMessage: async (m) => {
+      await new Promise((r) => setTimeout(r, 30));   // the part that used to lose the race
+      return { jsonrpc: '2.0', id: m.id, result: {} };
+    },
+  });
+  let exited = null;
+  exitWhenSettled({
+    input,
+    settled: loop.settled,
+    graceMs: 5000,
+    exit: (code) => { exited = code; alive = false; },
+  });
+
+  input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 11, method: 'ping' })}\n`);
+  input.end();
+  await new Promise((r) => setTimeout(r, 250));
+
+  assert.equal(lines.length, 1, `the reply to an in-flight call was dropped when stdin closed: ${lines.join(' | ')}`);
+  assert.equal(JSON.parse(lines[0]).id, 11);
+  assert.equal(exited, 0, 'the server did not stop once its last answer was written');
+});
+
+test('a closed stdin does not keep the server alive for a call that never settles', async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const loop = createStdioLoop({ input, output, onMessage: () => new Promise(() => {}) });
+
+  let exited = null;
+  exitWhenSettled({ input, settled: loop.settled, graceMs: 20, exit: (code) => { exited = code; } });
+  input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 12, method: 'ping' })}\n`);
+  input.end();
+  await new Promise((r) => setTimeout(r, 150));
+
+  // The caller has gone; an answer with nowhere to land must not hold the process open for
+  // the half hour a `fetch_corpus` wait can take.
+  assert.equal(exited, 0, 'the grace is a ceiling on the drain, not a reason to linger');
+  assert.ok(END_GRACE_MS > 0 && END_GRACE_MS <= 60_000, `the default grace is ${END_GRACE_MS}`);
 });
 
 test('a message split across chunks is still one message', async () => {

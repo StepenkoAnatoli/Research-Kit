@@ -27,7 +27,7 @@
 // holding the collector workflow. See the front-page README.
 
 import { requireRuntime, honourEnvProxy } from '../lib/runtime.mjs';
-import { createStdioLoop, handle, SUPPORTED_VERSIONS, SERVER_INFO, TOOLS } from '../lib/mcp.mjs';
+import { createStdioLoop, exitWhenSettled, handle, SUPPORTED_VERSIONS, SERVER_INFO, TOOLS } from '../lib/mcp.mjs';
 import { tokenFromEnv, TOKEN_VARS, redact } from '../lib/dispatch.mjs';
 
 if (process.argv.includes('--help')) {
@@ -99,12 +99,14 @@ process.stderr.write(token
 // is the whole of the session state the legacy handshake establishes.
 const session = { version: null };
 
-createStdioLoop({
+const loop = createStdioLoop({
   input: process.stdin,
   output: process.stdout,
   onMessage: (message) => handle(message, { session }),
   onError: (error) => process.stderr.write(`research-kit mcp: ${redact(error.stack ?? error.message)}\n`),
 });
 
-process.stdin.on('end', () => process.exit(0));
+// stdin closing is not a cancellation: what was already sent still has to be ANSWERED,
+// and a tool call is async, so exiting on 'end' dropped the reply to anything in flight.
+exitWhenSettled({ input: process.stdin, settled: loop.settled });
 process.stderr.write(`research-kit mcp: ${SERVER_INFO.name} ready\n`);

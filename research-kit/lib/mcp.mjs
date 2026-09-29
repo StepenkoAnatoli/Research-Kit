@@ -492,4 +492,48 @@ export function createStdioLoop({ input, output, onMessage, onError = () => {}, 
     // server must outlive a single bad message.
     queue = queue.then(drain).catch((error) => onError(error));
   });
+
+  /**
+   * Resolves when every chunk read so far has been handled - which is the moment it is
+   * safe to stop the process. Read through the closure, so it is always the CURRENT tail
+   * of the chain and not the one that existed when this object was returned.
+   */
+  return { settled: () => Promise.resolve(queue).catch(() => {}) };
+}
+
+/**
+ * How long a closed stdin waits for answers that are still in flight before the server
+ * goes anyway.
+ *
+ * The wait has to be bounded, because the client is GONE by then. `fetch_corpus` waits on
+ * a workflow run for up to half an hour, and an answer with nowhere to land must not keep
+ * this process alive for it.
+ */
+export const END_GRACE_MS = 10 * 1000;
+
+/**
+ * Stop the process when stdin closes - but only once everything already read has been
+ * ANSWERED.
+ *
+ * `process.stdin.on('end', () => process.exit(0))` truncated the response to any call
+ * still in flight. A tool call is async, so 'end' fires while its promise is pending and
+ * `exit` wins the race: the client sees a clean exit and no reply at all, which is
+ * indistinguishable from a server that never received the request (found 2026-09-29,
+ * break-test). A half-closing client - a shell pipeline, a harness that writes one
+ * request and closes - lost every async tool result this way.
+ */
+export function exitWhenSettled({
+  input, settled, graceMs = END_GRACE_MS,
+  exit = (code) => process.exit(code), onDraining = () => {},
+}) {
+  input.on('end', () => {
+    onDraining();
+    const timer = setTimeout(() => exit(0), graceMs);
+    // Unref'd: the grace is a ceiling on the wait, not a reason to stay alive. Nothing
+    // else pending means the loop drains on its own and exits without the timer.
+    if (typeof timer?.unref === 'function') timer.unref();
+    // Injected `exit` may throw to end a test; a rejected `settled` must not become an
+    // unhandled rejection that takes the server down on its way out.
+    settled().then(() => exit(0), () => exit(0));
+  });
 }
