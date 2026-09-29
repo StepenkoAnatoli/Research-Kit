@@ -391,11 +391,12 @@ process.on('exit', () => {
 // the signal away from Node's default disposition, so the handler must do what the default
 // did as well: take the scratch, then die with 128+signal.
 //
-// SIGBREAK is in the list for Windows, and it is not decoration. There, Node maps a
-// programmatic `kill('SIGINT')` to TerminateProcess - no handler runs at all, which is the
-// same leak reproduced on Linux with SIGKILL. A real Ctrl-C in a console DOES reach
-// 'SIGINT' on Windows, and Ctrl-Break reaches 'SIGBREAK'; that is the one a test can send
-// there. Listening for it on POSIX is inert - it cannot be sent on those platforms.
+// SIGBREAK is in the list for Windows, and it is not decoration. A console Ctrl-C or
+// Ctrl-Break there arrives as a real 'SIGINT'/'SIGBREAK' event, and an interrupted run on
+// Windows leaks exactly as an interrupted one on Linux does. What no program can do on that
+// platform is SEND such a signal: Node turns `kill` of any name into TerminateProcess, so
+// the handler cannot be exercised from a test there - only from a console. Listening for it
+// on POSIX is inert, since it cannot be sent on those platforms.
 for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129], ['SIGBREAK', 149]]) {
   process.on(signal, () => {
     for (const dir of scratchDirs) {

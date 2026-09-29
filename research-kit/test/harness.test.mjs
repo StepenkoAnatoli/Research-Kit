@@ -195,22 +195,39 @@ console.log(dir);
 // 58 MB from an afternoon of them; where /tmp is tmpfs that growth is RAM. The signal
 // handler now takes the scratch and then dies with 128+signal, as the default did.
 //
-// WHICH SIGNAL. On POSIX, SIGINT. On Windows, SIGBREAK: Node maps a programmatic
-// `kill('SIGINT')` there to TerminateProcess, where no handler runs - the identical leak is
-// reproduced on Linux by sending SIGKILL instead - while a console Ctrl-Break does reach a
-// listener. So the test sends the signal that platform can actually catch, and the child is
-// bounded well inside the watchdog so the assertion holds whether or not it arrives.
+// WHICH SIGNAL, and HOW IT IS DELIVERED. This is where the first attempt at this test was
+// wrong, and CI said so. Node maps a programmatic `kill('SIGINT')` on Windows to
+// TerminateProcess, where no handler runs at all - the identical leak is reproduced on
+// Linux by sending SIGKILL instead (measured: SIGINT/SIGTERM/SIGHUP all take their scratch,
+// SIGKILL leaves it). Sending SIGBREAK there is no better: run 36615465192 on
+// windows-latest failed this very test with the scratch still behind, because `kill` of any
+// name is a kill on that platform and cannot reach a listener. Only a console Ctrl-C or
+// Ctrl-Break arrives as a signal on Windows, and no child can be handed one from a test.
+//
+// So the test does what the platform allows, and is explicit about the difference. On POSIX
+// the parent sends a real SIGINT, which proves the OS delivers it to the handler. On Windows
+// the child raises the very event the handler is registered for, which proves the handler is
+// wired and does the work - everything except the delivery, which that platform cannot do.
 test('an interrupted run takes its scratch too', async () => {
+  const windows = process.platform === 'win32';
+  const signal = windows ? 'SIGBREAK' : 'SIGINT';
   const source = `
 import { tempDir, fs } from ${JSON.stringify(HARNESS)};
 const dir = tempDir('rk-signalprobe-');
 fs.writeFileSync(dir + '/proof.txt', 'scratch');
 console.log(dir);
-setTimeout(() => {}, 10000);
+${windows
+    ? `// Windows: raise the event in-process, on a word from the parent, instead of asking the
+// platform to deliver a signal it will only deliver as a kill.
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => { if (chunk.includes('raise')) process.emit(${JSON.stringify(signal)}); });`
+    : `setTimeout(() => {}, 10000);`}
 `;
   const file = path.join(tempDir('rk-signal-child-'), 'child.mjs');
   fs.writeFileSync(file, source, 'utf8');
-  const child = spawn(process.execPath, [file], { stdio: ['ignore', 'pipe', 'ignore'] });
+  const child = spawn(process.execPath, [file], {
+    stdio: [windows ? 'pipe' : 'ignore', 'pipe', 'ignore'],
+  });
 
   // Wait for the scratch directory to be announced, so the signal arrives after it exists.
   const dir = await new Promise((resolve, reject) => {
@@ -225,9 +242,14 @@ setTimeout(() => {}, 10000);
   });
   assert.ok(path.isAbsolute(dir), `the probe child did not report its scratch dir: ${dir}`);
 
-  child.kill(process.platform === 'win32' ? 'SIGBREAK' : 'SIGINT');
+  if (windows) child.stdin.write('raise\n');
+  else child.kill(signal);
   const status = await new Promise((resolve) => child.on('exit', (code, signal) => resolve(code ?? signal)));
   assert.ok(status !== null, 'the child did not exit');
+  // The exit CODE is what proves the handler ran: a process killed without one dies of the
+  // signal, and this suite's handler exits with 128+signal on purpose, as the default did.
+  assert.equal(status, windows ? 149 : 130,
+    `the interrupted run exited ${status}, not with the code its handler takes`);
   assert.equal(fs.existsSync(dir), false,
     `the interrupted run left its scratch at ${dir} behind - an interrupted run is the one that leaks`);
 });
