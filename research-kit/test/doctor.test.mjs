@@ -631,3 +631,25 @@ test('the edit gate is not registered when its hook is not deployed', () => {
   assert.match(result.reason, /install\.mjs/);
   assert.deepEqual(readJson(settingsFile), { model: 'x' }, 'the settings file was changed');
 });
+
+// ADR-0095. Found 2026-09-29 (break-test PR #140, risk 6): a collector that works keyless was
+// reported "3 blockers" because the Firecrawl CLI is absent. Absent by the operator's CHOICE
+// is configuration, not breakage; absent with nothing chosen is still the silent degradation
+// this check exists to catch.
+test('a collector that CHOSE a keyless or browser transport is not broken for lacking the CLI', () => {
+  for (const transport of ['http-keyless', 'browser']) {
+    const { env } = machine({ config: { role: 'collector', transport } });
+    const cli = find(machineHealth({ env, probe: ABSENT }), 'firecrawl-cli');
+    assert.equal(cli.severity, 'pass', `${transport}: ${cli.detail}`);
+    assert.match(cli.detail, new RegExp(`${transport} was chosen`));
+    assert.equal(cli.fix, undefined, 'a pass prints no fix');
+  }
+  const byEnv = machine({ config: { role: 'collector' } });
+  const cli = find(machineHealth({ env: { ...byEnv.env, RESEARCH_KIT_TRANSPORT: 'http-keyless' }, probe: ABSENT }), 'firecrawl-cli');
+  assert.equal(cli.severity, 'pass', 'RESEARCH_KIT_TRANSPORT is a choice too');
+
+  const { env } = machine({ config: { role: 'collector' } });
+  assert.equal(find(machineHealth({ env, probe: ABSENT }), 'firecrawl-cli').severity, 'fail', 'nothing chosen is still broken');
+  const firecrawl = machine({ config: { role: 'collector', transport: 'firecrawl-cli' } });
+  assert.equal(find(machineHealth({ env: firecrawl.env, probe: ABSENT }), 'firecrawl-cli').severity, 'fail', 'choosing Firecrawl and lacking it is broken');
+});
