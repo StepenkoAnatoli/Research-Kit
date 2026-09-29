@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  exists, readText, writeText, ensureDir, readJson, today, sha256File, parseJson,
+  exists, readText, writeText, ensureDir, readJson, today, sha256File, parseJson, isDirectory,
 } from './core.mjs';
 import {
   KIT_HOME, EDIT_GATE_HOOK, RETIRED_EDIT_GATE_HOOKS, RETIRED_KIT_FILES,
@@ -216,17 +216,33 @@ export function registeredPath(command) {
 
 // ---------------------------------------------------------------- deploy
 
+/**
+ * Every file under `root`, relative and POSIX-spelled.
+ *
+ * Both reads are guarded, and both guards are for a shape that exists on real machines:
+ * `readdirSync` on a path that is a FILE (ENOTDIR - a leftover `research-kit` tarball, an
+ * env var pointing at the wrong thing) and `statSync` on an entry that vanished or
+ * dangles (ENOENT - a symlink whose target moved, a file deleted between the readdir and
+ * the stat). `doctor` is the command an operator runs when something looks broken, so it
+ * must name a problem rather than become one; `deployedDrift` reaching it with
+ * `RESEARCH_KIT_HOME` naming a regular file printed a raw ENOTDIR stack trace instead
+ * (found 2026-09-29, break-test).
+ */
 function listTree(root) {
   const out = [];
   const walk = (dir) => {
-    for (const name of fs.readdirSync(dir)) {
+    let names;
+    try { names = fs.readdirSync(dir); } catch { return; }        // a file, a refusal, a vanished folder
+    for (const name of names) {
       if (name === 'node_modules' || name === '.git') continue;
       const abs = path.join(dir, name);
-      if (fs.statSync(abs).isDirectory()) { walk(abs); continue; }
+      let stat;
+      try { stat = fs.statSync(abs); } catch { continue; }        // a dangling symlink, or a race
+      if (stat.isDirectory()) { walk(abs); continue; }
       out.push(path.relative(root, abs).split(path.sep).join('/'));
     }
   };
-  if (exists(root)) walk(root);
+  if (isDirectory(root)) walk(root);
   return out;
 }
 
@@ -323,10 +339,14 @@ export function deployedDrift({ from = KIT_ROOT, kitHome = KIT_HOME, env = proce
     return { missing, changed, extra };
   };
 
-  const kit = exists(kitHome) ? compare(from, kitHome) : { missing: listTree(from), changed: [], extra: [], absent: true };
+  // `isDirectory`, not `exists`: a FILE at kitHome is not a deployment, and `exists` is
+  // true for one - which sent `listTree` into `readdirSync` on a regular file and took
+  // `doctor` down with an ENOTDIR stack trace. Absent means "not deployed here", which is
+  // what the operator is told and what `install.mjs` fixes.
+  const kit = isDirectory(kitHome) ? compare(from, kitHome) : { missing: listTree(from), changed: [], extra: [], absent: true };
   const skillSource = path.join(from, 'skill');
   const skills = exists(skillSource)
-    ? skillLocations(env).filter((l) => exists(l)).map((location) => ({ location, ...compare(skillSource, location) }))
+    ? skillLocations(env).filter((l) => isDirectory(l)).map((location) => ({ location, ...compare(skillSource, location) }))
     : [];
 
   const total = (d) => d.missing.length + d.changed.length + d.extra.length;

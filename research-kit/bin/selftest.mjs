@@ -8,7 +8,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseFlags, listFiles, refuseUnknownFlags, exists, kitCommand, tolerateClosedStdout, tempBase } from '../lib/core.mjs';
+import { parseFlags, listFiles, refuseUnknownFlags, exists, kitCommand, tolerateClosedStdout, tempBase, tempFreeSpace } from '../lib/core.mjs';
 import { runPending, TEST_TIMEOUT, importTestFiles, describe, test, dominantFailureCause } from '../test/harness.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 
@@ -86,25 +86,14 @@ const tempProblem = (() => {
 if (tempProblem) process.stderr.write(`\n${tempProblem}\n\n`);
 
 /**
- * How much room the temp folder actually has, in words.
+ * How much room the temp folder actually has, in words - `tempFreeSpace()` in core.mjs,
+ * beside `tempBase()`, which owns the folder and already imports `node:os`.
  *
- * The probe above answers "can this folder be used at all". A volume that is writable and
- * full answers YES and then fails every test that writes anything - so when a red suite
- * is dominated by ENOSPC this is the number the reader needs, and `statfsSync` is the only
- * way to get it without writing until the disk says stop.
+ * It was written here, and this file does not import `node:os`, so the ENOSPC branch it
+ * was written for threw `ReferenceError: os is not defined` and took the red summary down
+ * with it: a stack trace where the diagnosis belonged, on the one run that needed a
+ * diagnosis (found 2026-09-29, break-test). See the note on the function itself.
  */
-function tempFreeSpace() {
-  const base = os.tmpdir();
-  const measured = 'a green run of this suite peaked at 52 MiB of scratch, measured 2026-09-29';
-  try {
-    const stat = fs.statfsSync(base);
-    const mib = (stat.bavail * stat.bsize) / 1048576;
-    return `the temp folder ${base} has ${mib < 10 ? mib.toFixed(1) : Math.round(mib)} MiB free, and ${measured}. `
-      + 'Point TMPDIR (TEMP and TMP on Windows) at a folder with room, and run again.';
-  } catch {
-    return `check the free space on the volume holding ${base}; ${measured}.`;
-  }
-}
 
 const started = Date.now();
 // A file that throws while loading is a named FAIL, not the end of the run.
