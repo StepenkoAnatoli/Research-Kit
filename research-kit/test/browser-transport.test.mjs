@@ -118,3 +118,16 @@ test('a crash names Chromium\'s FATAL line, not the stack trace\'s last line', (
   assert.match(r.error, /killed by SIGABRT: .*FATAL.*No usable sandbox/);
   assert.doesNotMatch(r.error, /end of stack trace/);
 });
+
+test('a FATAL line outranks the ERROR noise the crash handler prints after it', () => {
+  // Live run 36519057831: after the FATAL, crashpad logged "ERROR: ... open /sys/devices/
+  // system/cpu/cpu0/cpufreq/scaling_max_freq: No such file", and that noise was reported as
+  // the cause. A FATAL is the cause when there is one; ERROR only stands in when there is not.
+  const r = browser.scrape('https://x.invalid/a', {
+    spawn: () => ({ status: null, signal: 'SIGABRT', stdout: '',
+      stderr: '[1:1:FATAL:some_file.cc(9)] Check failed: the real cause\n#0 0x1 frame\n[end of stack trace]\n[2:2:ERROR:crashpad/file_io_posix.cc:145] open /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq: No such file or directory (2)\n' }),
+    browserPath: '/opt/chrome', env: {},
+  });
+  assert.match(r.error, /FATAL.*the real cause/);
+  assert.doesNotMatch(r.error, /cpufreq/);
+});
