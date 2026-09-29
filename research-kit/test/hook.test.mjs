@@ -105,6 +105,21 @@ test('a staged change confined to research/ is ALLOWED while the verdict fails',
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 });
 
+test('a tampered capture is BLOCKED by the real hook even when nothing outside research/ is staged', () => {
+  // The break-test repro (PR #140 item 1, 2026-09-29), through the real hook and a real index:
+  // appending a typed line to a tracked capture was allowed alone and blocked only beside code.
+  requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
+  const dir = makeRepo();
+  const capture = fs.readdirSync(resolve(dir, PATHS.raw)).find((f) => f.endsWith('.md'));
+  const rel = `${PATHS.raw}/${capture}`;
+  corrupt(dir, rel, (t) => `${t}\nA line typed after the fetch.\n`);
+  git(dir, ['add', rel]);
+
+  const result = runHook(dir);
+  assert.notEqual(result.status, 0, `a tampered capture was committed: ${result.stdout}${result.stderr}`);
+  assert.match(`${result.stdout}${result.stderr}`, /body-unmodified/);
+});
+
 test('a fresh project\'s first commit - scaffold and corpus together - is ALLOWED while the verdict fails', () => {
   requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
   const dir = tempDir('rk-fresh-');

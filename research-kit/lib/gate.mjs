@@ -340,6 +340,25 @@ export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = n
   };
   const outsideResearch = Array.isArray(stagedPaths) ? stagedPaths.filter((p) => !phaseOne(p)) : null;
 
+  // Integrity is not completeness (ADR-0093). ADR-0048 lets unfinished evidence be committed -
+  // an open unknown, a gap, a missing brief are the normal state of phase 1. Evidence whose
+  // bytes or chain no longer match what was fetched is not unfinished, it is altered, and it
+  // never enters history: whether it did used to depend on what else was staged.
+  const altered = preflight.failures.filter((f) => f.check === 'provenance' && INTEGRITY_RULES.includes(f.rule));
+  if (gate === 'commit' && altered.length) {
+    return {
+      ...base,
+      verdict: 'block',
+      allow: false,
+      preflight,
+      reason: `the evidence was altered after it was fetched (${altered.slice(0, 3).map((f) => `${f.check}/${f.rule}`).join(', ')}) - an integrity failure is never committable, whatever else is staged`,
+      fix: 'restore the capture or the ledger from git (git restore --staged --worktree <file>), or re-collect the page; '
+        + 'a capture you typed is not evidence - cite a fetched one',
+      findings: preflight.failures,
+      staged: outsideResearch,
+    };
+  }
+
   if (gate === 'commit' && Array.isArray(outsideResearch) && outsideResearch.length === 0) {
     return {
       ...base, verdict: 'pass', allow: true, preflight,
@@ -359,5 +378,14 @@ export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = n
   };
   }
 }
+
+/**
+ * Provenance findings that mean the evidence is not what was fetched (ADR-0093): a capture
+ * edited after its fetch, a broken or unparseable chain, a cited capture no fetch produced.
+ * Each has a remedy - restore from git, or re-collect. Deliberately NOT here: a missing
+ * ledger or capture (a corpus mid-collection or part-staged), and the prior's order rules
+ * (a claim recorded in an immutable chain; holding it would lock the project out for good).
+ */
+export const INTEGRITY_RULES = Object.freeze(['body-unmodified', 'chain-intact', 'ledger-unparsed', 'fetch-entry-exists']);
 
 export { GATE_MARKERS, fixCommand };

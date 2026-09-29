@@ -175,7 +175,11 @@ The sequence is decompose -> contract -> collect -> gate -> brief.
    `git commit` refuses any staged change outside `research/` while the gate fails -
    except the project's own scaffolding (`.gitattributes`, `.gitignore`, `AGENTS.md`,
    `START_HERE.md`, and `docs/ARCHITECTURE.md` while it is still the empty template,
-   ADR-0048) - and the edit-time hook interrupts the agent's edits in the same state. A
+   ADR-0048) - and the edit-time hook interrupts the agent's edits in the same state.
+   Altered evidence is refused even inside `research/`: a capture edited after its fetch,
+   a broken or unparseable chain, or a cited capture no fetch produced blocks every
+   commit, whatever is staged (ADR-0093) - unfinished evidence is committable, altered
+   evidence is not. A
    project is gated when any of `research/DISCOVERY.md`, `research/plan.json`,
    `research/EVIDENCE.md`, or `research/raw/` exists. There are exactly three
    overrides: `git commit --no-verify`, a deliberate `research/GATE_OFF` file
