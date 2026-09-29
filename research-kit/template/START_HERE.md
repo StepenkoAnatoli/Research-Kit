@@ -2,6 +2,9 @@
 
 For me, the operator. Not for the AI.
 
+New to the kit? The five-minute first run, with no account, is "Try it in five minutes"
+in `{{KIT}}/README.md`.
+
 ---
 
 ## Where things live
