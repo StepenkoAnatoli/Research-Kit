@@ -84,13 +84,17 @@ export function scrape(url, { spawn = spawnSync, browserPath = null, env = proce
   const result = spawn(binary, browserArgs(target, { env, ...(uid === undefined ? {} : { uid }) }), {
     encoding: 'utf8', timeout, maxBuffer: CHILD_OUTPUT_LIMIT, windowsHide: true,
   });
-  if (result.error?.code === 'ETIMEDOUT' || result.signal) {
+  // The browser's own last word, which is where Chromium says why it stopped.
+  const said = result.stderr ? `: ${String(result.stderr).trim().split('\n').slice(-1)[0].slice(0, 200)}` : '';
+  if (result.error?.code === 'ETIMEDOUT') {
     return { ok: false, url: target, transport: name, cmd, error: `the browser did not finish rendering ${target} within ${Math.round(timeout / 1000)}s` };
   }
+  // A signal that is not the timeout's is a crash, and says so (found 2026-09-29: a SIGTRAP
+  // 21 seconds in was reported as the 60-second timeout).
+  if (result.signal) return { ok: false, url: target, transport: name, cmd, error: `the browser was killed by ${result.signal}${said}` };
   if (result.error) return { ok: false, url: target, transport: name, cmd, error: `the browser could not start: ${result.error.message}` };
   if (result.status !== 0) {
-    return { ok: false, url: target, transport: name, cmd,
-      error: `the browser exited ${result.status}${result.stderr ? `: ${String(result.stderr).trim().split('\n').slice(-1)[0].slice(0, 200)}` : ''}` };
+    return { ok: false, url: target, transport: name, cmd, error: `the browser exited ${result.status}${said}` };
   }
   const html = String(result.stdout ?? '');
   const chromeError = chromeErrorOf(html);

@@ -92,3 +92,17 @@ test('with a SerpAPI key, the browser is never asked to search: keyless searches
   assert.deepEqual(chosen.search.adapters.map((one) => one.name), ['serpapi', 'http-keyless']);
   assert.match(chosen.search.why, /AND with http-keyless/);
 });
+
+test('a browser killed by a signal is not reported as a timeout', () => {
+  // Found 2026-09-29 by the live run: Chrome died 21 seconds into a 60-second budget and the
+  // failure read "did not finish rendering within 60s" - any signal was taken for the
+  // timeout, so the one line that could name the cause named the wrong one.
+  const trapped = browser.scrape('https://x.invalid/a', {
+    spawn: () => ({ status: null, signal: 'SIGTRAP', stdout: '', stderr: 'noise\n[FATAL:zygote_host_impl_linux.cc] No usable sandbox!\n' }),
+    browserPath: '/opt/chrome', env: {},
+  });
+  assert.equal(trapped.ok, false);
+  assert.doesNotMatch(trapped.error, /did not finish/);
+  assert.match(trapped.error, /killed by SIGTRAP/);
+  assert.match(trapped.error, /No usable sandbox/);
+});
