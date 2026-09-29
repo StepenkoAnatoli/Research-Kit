@@ -393,6 +393,47 @@ test('the map shows the outlines of the pages phase 0 captured, and no verdict o
   assert.ok(findings.every((f) => !/unparsed|malformed/.test(f.rule ?? '')));
 });
 
+// ADR-0097. Found 2026-09-29 using the kit on MoonAliza: the map ranked docs.ollama.com the
+// likely owner, and phase 0 skipped its "OpenAI compatibility - Ollama documentation" page
+// because a terse title carried one term of a long topic. Trusting the owner past the floor
+// brought back RR-9's postgresql.org home page, so the page is NAMED for the reviewer instead.
+test('a floor-skipped page on the top likely owner is named in the map, not scraped', () => {
+  const dir = makeProject();
+  const results = [
+    { url: 'https://blog.elsewhere.com/widget', title: 'Example widget throttling behaviour explained' },
+    { url: 'https://docs.example.com/reference/a', title: 'Reference' },
+    { url: 'https://docs.example.com/reference/b', title: 'Overview' },
+  ];
+  const result = decompose(dir, { topic: 'Example widget throttling behaviour', adapter: stubAdapter(results), maxScrapes: 1 });
+  assert.equal(result.spent, 1);
+  assert.deepEqual(readCorpus(dir).captures.entries.map((e) => e.url), ['https://blog.elsewhere.com/widget']);
+  const map = readText(resolve(dir, PATHS.map));
+  const section = map.slice(map.indexOf('Skipped on the likely owner'));
+  assert.ok(map.includes('Skipped on the likely owner'), map);
+  assert.match(section, /\[Reference\]\(https:\/\/docs\.example\.com\/reference\/a\) - `docs\.example\.com`/);
+  assert.match(section, /research\/plan\.json/);
+});
+
+test('the floor holds for every page, the top owner\'s included', () => {
+  const dir = makeProject();
+  const results = [
+    { url: 'https://docs.example.com/reference/a', title: 'Reference' },
+    { url: 'https://docs.example.com/reference/b', title: 'Overview' },
+    { url: 'https://unrelated.org/cats', title: 'Cats' },
+  ];
+  decompose(dir, { topic: 'Example widget throttling behaviour', adapter: stubAdapter(results), maxScrapes: 3 });
+  const captured = readCorpus(dir).captures.entries.map((e) => e.url);
+  assert.ok(!captured.includes('https://unrelated.org/cats'), captured.join(', '));
+  assert.ok(!captured.some((u) => u.startsWith('https://docs.example.com/')), 'the owner is named, never scraped past the floor');
+  // Every host at score 1 is not an owner at all: the floor holds for all of them.
+  const flat = makeProject();
+  decompose(flat, { topic: 'Example widget throttling behaviour', adapter: stubAdapter([
+    { url: 'https://unrelated.org/cats', title: 'Cats' }, { url: 'https://other.net/dogs', title: 'Dogs' },
+  ]), maxScrapes: 2 });
+  assert.deepEqual(readCorpus(flat).captures.entries.map((e) => e.url), []);
+  assert.ok(!readText(resolve(flat, PATHS.map)).includes('Skipped on the likely owner'), 'a flat ranking names no owner');
+});
+
 test('with nothing captured, the outline section says how to get one', () => {
   const dir = makeProject();
   decompose(dir, { topic: 'Example limits', adapter: stubAdapter([{ url: 'https://docs.example.com/limits', title: 'Limits' }]) });

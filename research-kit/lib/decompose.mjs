@@ -188,6 +188,9 @@ export function outlineOf(body, { max = 12 } = {}) {
  * (2026-09-29) search order spent both scrapes on a third-party spec and a forum thread while
  * the map named docs.ollama.com the likely owner.
  */
+/** The score a top owner needs before its floor-skipped pages are named in the map: one docs host, or three mentions. */
+export const MIN_NAMED_OWNER_SCORE = 3;
+
 export function scrapeOrder(material, hosts) {
   const score = new Map(hosts.map(({ host, score: s }) => [host, s]));
   return material
@@ -216,7 +219,7 @@ function outlinesOf(root, captures, material) {
   return { outlines: out, captured };
 }
 
-function mapBody({ topic, rows, hosts, material, date, recipe, failures = [], dryRun = false, outlines = null }) {
+function mapBody({ topic, rows, hosts, material, date, recipe, failures = [], dryRun = false, outlines = null, ownerSkipped = [] }) {
   const lines = [
     '# MAP - topic decomposition',
     '',
@@ -253,6 +256,13 @@ function mapBody({ topic, rows, hosts, material, date, recipe, failures = [], dr
   if (material.length) {
     lines.push('Candidate pages:', '');
     for (const row of material) lines.push(`- [${row.title || row.url}](${row.url})`);
+    lines.push('');
+  }
+  if (ownerSkipped.length) {
+    lines.push('Skipped on the likely owner - the relevance floor passed these over, because a terse',
+      'title and an off-topic page look the same to it. If one is the page that owns the fact,',
+      'name it in `research/plan.json` `urls` (ADR-0097):', '');
+    for (const row of ownerSkipped) lines.push(`- [${row.title || row.url}](${row.url}) - \`${row.owner}\``);
     lines.push('');
   }
   // Three different empty maps, and they must not read alike: a dry run gathered nothing on
@@ -388,6 +398,7 @@ export function decompose(root, {
 
   let material = [];
   let hosts = [];
+  let ownerSkipped = [];
   let spent = 0;
   let searches = 0;
   let searchesUsed = 0;
@@ -481,12 +492,25 @@ export function decompose(root, {
 
     // The budget bounds SCRAPES, not candidates: a cache hit is not an attempt, so a
     // second pass reaches further down the list instead of re-reading the same two.
+    // A page on the top likely owner that the floor skips is NAMED, not scraped (ADR-0097):
+    // the owner's terse "OpenAI compatibility" page and postgresql.org's home page look the
+    // same to the floor, so the choice goes to the reviewer. Only an owner that earned it
+    // - a docs host, or repeated mentions - so a flat ranking names nothing.
+    const topScore = hosts[0]?.score ?? 0;
+    const topOwners = new Set(topScore >= MIN_NAMED_OWNER_SCORE
+      ? hosts.filter((h) => h.score === topScore).map((h) => h.host) : []);
+    ownerSkipped = [];
     for (const row of scrapeOrder(material, hosts)) {
       if (spent >= maxScrapes) break;
       // The relevance floor research.mjs applies (ADR-0067, ADR-0068), for the query that
       // found this page. It stays in the map's candidate list - that is for a person to read -
       // but it is not worth a scrape (found 2026-09-27: this loop never applied the floor).
-      if (!matchesQuery(row, row.foundBy)) { log(`  skipped   ${row.url} - it does not carry "${row.foundBy}"`); continue; }
+      if (!matchesQuery(row, row.foundBy)) {
+        const owner = ownerOf(row.url);
+        if (topOwners.has(owner)) ownerSkipped.push({ ...row, owner });
+        log(`  skipped   ${row.url} - it does not carry "${row.foundBy}"${topOwners.has(owner) ? ` (on the likely owner ${owner} - named in the map)` : ''}`);
+        continue;
+      }
       const decision = cacheDecision(corpus.captures, row.url, { refreshDays, now });
       if (decision.hit) { cached += 1; log(`  cached    ${row.url}`); continue; }
       const outcome = collectOne(root, row.url, {
@@ -529,7 +553,7 @@ export function decompose(root, {
   // Read after the scrapes, so the pages this run captured are outlined too. No fetch: only
   // what is already on disk.
   const outlines = material.length ? outlinesOf(root, corpus.captures, material) : null;
-  writeText(file, mapBody({ topic, rows, hosts, material: material.slice(0, 20), date, recipe: loaded.name || recipe, failures, dryRun: dryRun || !adapter, outlines }));
+  writeText(file, mapBody({ topic, rows, hosts, material: material.slice(0, 20), date, recipe: loaded.name || recipe, failures, dryRun: dryRun || !adapter, outlines, ownerSkipped }));
   return {
     written: true,
     outlines: outlines?.outlines.length ?? 0,
