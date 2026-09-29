@@ -220,6 +220,44 @@ test('a leaked GIT_DIR does not make the edit gate judge another repository', ()
   assert.equal(out.permissionDecision, 'ask', `code edited from src/ was not judged: ${out.permissionDecisionReason}`);
 });
 
+// The payload is the RUNTIME's, so its shape is not this kit's to guarantee. Found
+// 2026-09-29 (break-test): `payload.cwd` read straight into `path.resolve` threw
+// `TypeError [ERR_INVALID_ARG_TYPE]` and exited 1 the moment the field was not a string,
+// and `JSON.parse('null')` threw on `payload.cwd` and again on `payload.tool_input`. Both
+// printed a raw stack trace where the gate's own "did not judge this call" answer belonged.
+// A hook that crashes on every Edit is a hook the operator learns to ignore.
+test('the edit gate survives a payload whose shape is not the documented one', () => {
+  const dir = makeProject();
+  const hostile = [
+    ['a literal null', 'null'],
+    ['a number', '42'],
+    ['a string', '"PreToolUse"'],
+    ['an array', '[]'],
+    ['no cwd at all', '{}'],
+    ['cwd is a number', JSON.stringify({ cwd: 42, tool_name: 'Edit', tool_input: {} })],
+    ['cwd is an object', JSON.stringify({ cwd: { path: dir }, tool_input: {} })],
+    ['tool_input is a string', JSON.stringify({ cwd: dir, tool_input: 'research/MAP.md' })],
+    ['file_path is a number', JSON.stringify({ cwd: dir, tool_input: { file_path: 7 } })],
+    ['empty stdin', ''],
+    ['not json', 'PreToolUse'],
+  ];
+  for (const [name, payload] of hostile) {
+    const r = spawnSync(process.execPath, [path.join(KIT_ROOT, 'hooks', 'edit-gate.mjs')], {
+      input: payload, encoding: 'utf8',
+      env: { ...process.env, RESEARCH_KIT_CONFIG: path.join(tempDir(), 'absent.json') },
+    });
+    assert.equal(r.status, 0, `${name}: the hook exited ${r.status} with a stack trace instead of answering\n${r.stderr}`);
+    assert.doesNotMatch(r.stderr ?? '', /\n\s+at /, `${name}: the hook printed a raw stack trace\n${r.stderr}`);
+    const out = JSON.parse(r.stdout).hookSpecificOutput;
+    // A DECISION, whichever it is: the point is that the hook answered instead of dying.
+    assert.ok(['allow', 'ask', 'deny'].includes(out.permissionDecision),
+      `${name}: the hook answered with ${JSON.stringify(out.permissionDecision)}`);
+    assert.ok(out.permissionDecisionReason, `${name}: the decision carried no reason`);
+  }
+  // And the payload that IS documented is still judged, so the guard is not a blanket refusal.
+  assert.equal(editGate(dir, { file_path: path.join(dir, 'src', 'app.js') }).permissionDecision, 'ask');
+});
+
 test('undeclared code paths fall back to the documented defaults', () => {
   const dir = makeProject();
   assert.deepEqual(loadGateConfig(dir).codePaths, [...DEFAULT_CODE_PATHS]);

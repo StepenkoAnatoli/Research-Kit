@@ -631,6 +631,32 @@ test('collect-remote documents --url', () => {
   assert.match(r.out, /--url/);
 });
 
+test('collect-remote refuses a bad --max-pages before it dispatches a paid run', () => {
+  // Found 2026-09-29 (break-test): every other caller typo is refused locally, but the one
+  // flag that bounds how many credits a run spends was passed through as a string. The
+  // workflow's own guard caught it - AFTER the dispatch, as a failed run rather than as an
+  // answer. Same for `--depth` and `--runner`, which GitHub answers with a 422 that names
+  // nothing useful.
+  for (const [args, want] of [
+    [['--max-pages', 'abc'], /--max-pages must be a whole number between 1 and 25/],
+    [['--max-pages', '0'], /between 1 and 25/],
+    [['--max-pages', '26'], /between 1 and 25/],
+    [['--max-pages', '1.5'], /whole number/],
+    [['--max-pages'], /--max-pages needs a value/],
+    [['--depth', 'thorough'], /--depth must be one of probe, quick, normal/],
+    [['--runner', 'macos-latest'], /--runner must be one of ubuntu-latest, windows-latest/],
+    [['--timeout', 'abc'], /--timeout must be a whole number of at least 1/],
+  ]) {
+    const r = run('collect-remote.mjs', ['--repository', 'o/r', '--topic', 't', ...args], { root: project() });
+    assert.equal(r.status, 2, `${args.join(' ')}: ${r.all}`);
+    assert.match(r.all, want);
+  }
+  // A value inside the range still gets as far as the token it does not have.
+  const ok = run('collect-remote.mjs', ['--repository', 'o/r', '--topic', 't', '--max-pages', '8'], { root: project() });
+  assert.equal(ok.status, 3, ok.all);
+  assert.doesNotMatch(ok.all, /must be a whole number/, 'a legal page budget is not refused');
+});
+
 test('new-project prints next steps that run from the project it just made', () => {
   // Found 2026-09-27 by following the README on a fresh machine: from a project folder,
   // the printed "node research-kit/bin/decompose.mjs" crashes with MODULE_NOT_FOUND - that

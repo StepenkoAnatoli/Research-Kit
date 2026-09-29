@@ -386,7 +386,15 @@ export function driftNote(drift) {
  * kit files a past version shipped, because a copy-over deploy never removes anything.
  */
 export function deploy({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env, dryRun = false, into = '' } = {}) {
-  if (dryRun) return { dryRun: true, from, to: kitHome, prune: [...RETIRED_KIT_FILES] };
+  // Only what is ACTUALLY there. The real deploy prunes `RETIRED_KIT_FILES` that exist at
+  // the destination; the dry run used to print the whole list whatever was on disk, so a
+  // fresh machine was told it "would prune" three files no previous install had ever
+  // written (found 2026-09-29, break-test). A dry run that misreports what it would do is
+  // worse than none: it is the answer the operator is trusting instead of running it.
+  if (dryRun) {
+    const prune = RETIRED_KIT_FILES.filter((rel) => exists(path.join(kitHome, ...rel.split('/'))));
+    return { dryRun: true, from, to: kitHome, prune };
+  }
 
   const copied = copyTree(from, kitHome, { prune: RETIRED_KIT_FILES, mirror: true });
   const skills = [];

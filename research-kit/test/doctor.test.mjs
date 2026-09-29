@@ -377,6 +377,29 @@ test('deploy MIRRORS: a file the source no longer ships is removed from the depl
   assert.ok(result.pruned.includes('recipes/retired-recipe.md'));
 });
 
+// The dry run used to print the whole RETIRED list whatever was on disk, so a machine with
+// no previous install was told it "would prune" three files no install had ever written
+// (found 2026-09-29, break-test). A dry run is the answer the operator trusts INSTEAD of
+// running it, so it has to describe the run that would happen.
+test('a dry run prunes only what is actually there', async () => {
+  const { deploy } = await import('../lib/installer.mjs');
+  const source = tempDir('research-kit-src3-');
+  writeText(path.join(source, 'lib', 'core.mjs'), 'export const a = 1;\n');
+  const env = { ...process.env, RESEARCH_KIT_INSTALL_STATE: path.join(tempDir(), 'install.json') };
+
+  const fresh = tempDir('research-kit-dst3-');
+  assert.deepEqual(deploy({ from: source, kitHome: fresh, env, dryRun: true }).prune, [],
+    'nothing has been deployed here, so nothing would be pruned');
+
+  const target = tempDir('research-kit-dst4-');
+  writeText(path.join(target, 'hooks', 'claude-pretooluse.mjs'), '// a kit that was replaced\n');
+  const dry = deploy({ from: source, kitHome: target, env, dryRun: true });
+  assert.deepEqual(dry.prune, ['hooks/claude-pretooluse.mjs'], 'and the retired file that IS there is named');
+  assert.equal(dry.dryRun, true);
+  assert.equal(fs.existsSync(path.join(target, 'hooks', 'claude-pretooluse.mjs')), true,
+    'a dry run writes nothing');
+});
+
 test('deploy does NOT mirror a skill root - it holds other people\'s skills too', async () => {
   const { deploy } = await import('../lib/installer.mjs');
   const source = tempDir('research-kit-src2-');

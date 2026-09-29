@@ -545,6 +545,12 @@ export function ageInDays(value, now = new Date()) {
  * dangling - which is why every audit file in this repository is named
  * `…-metered-primary--d-1-access-model-…`, with a double hyphen nobody chose. Order
  * matters: slice, then trim.
+ *
+ * The FALLBACK is capped too. `slug || fallback` returned the fallback whole whatever the
+ * limit was, so `makeSlug('', 'fallback', 5)` answered "fallback" - eight characters, three
+ * over the cap the caller asked for (found 2026-09-29, break-test, fuzzing the documented
+ * contract that a slug never exceeds its limit). No caller in the kit passes a limit
+ * shorter than its fallback today; the invariant is the thing worth keeping.
  */
 export function makeSlug(text, fallback = 'topic', limit = 60) {
   const slug = String(text ?? '')
@@ -553,7 +559,7 @@ export function makeSlug(text, fallback = 'topic', limit = 60) {
     .replace(/^-+|-+$/g, '')
     .slice(0, limit)
     .replace(/-+$/g, '');
-  return slug || fallback;
+  return String(slug || fallback || '').slice(0, limit).replace(/-+$/g, '');
 }
 
 /** A short, stable id for a URL - used in capture filenames. */
@@ -687,10 +693,15 @@ export function refuseUnknownFlags(flags, known, { help = '', exit = 2, note = n
  * Refuse a flag given a bad value, or none, instead of replacing it with a default.
  *
  * `specs` maps a flag name to `'value'` (it must carry one), `{ choices: [...] }` or
- * `{ int: true, min }`. parseFlags reads a flag with no value as `true`, and each CLI
+ * `{ int: true, min, max }`. parseFlags reads a flag with no value as `true`, and each CLI
  * then fell back to its default in silence: `research --depth thorough` ran on quick's
  * budget, `install-hooks --mode block` saved a mode the edit gate reads as "ask", and
  * `new-project --topic` scaffolded "Untitled topic" (found 2026-09-27).
+ *
+ * `max` was added 2026-09-29 (break-test) for `collect-remote --max-pages`, the one flag
+ * that bounds a run which spends real credits. The workflow refuses an out-of-range value
+ * on the runner - after the dispatch, as a failed run rather than as an answer - so the
+ * ceiling is worth stating where the operator typed the number.
  */
 export function checkFlagValues(flags, specs, { exit = 2 } = {}) {
   const problems = [];
@@ -700,8 +711,19 @@ export function checkFlagValues(flags, specs, { exit = 2 } = {}) {
       if (value === true || value === '') { problems.push(`--${name} needs a value`); continue; }
       if (spec?.choices && !spec.choices.includes(value)) {
         problems.push(`--${name} must be one of ${spec.choices.join(', ')}, not "${value}"`);
-      } else if (spec?.int && !(/^-?\d+$/.test(String(value)) && Number(value) >= (spec.min ?? -Infinity))) {
-        problems.push(`--${name} must be a whole number${spec.min !== undefined ? ` of at least ${spec.min}` : ''}, not "${value}"`);
+      } else if (spec?.int) {
+        const whole = /^-?\d+$/.test(String(value));
+        const number = Number(value);
+        const low = spec.min ?? -Infinity;
+        const high = spec.max ?? Infinity;
+        if (!whole || number < low || number > high) {
+          const bound = spec.min !== undefined && spec.max !== undefined
+            ? ` between ${spec.min} and ${spec.max}`
+            : spec.min !== undefined
+              ? ` of at least ${spec.min}`
+              : spec.max !== undefined ? ` of at most ${spec.max}` : '';
+          problems.push(`--${name} must be a whole number${bound}, not "${value}"`);
+        }
       }
     }
   }

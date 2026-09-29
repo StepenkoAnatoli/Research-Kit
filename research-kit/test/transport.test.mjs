@@ -178,6 +178,27 @@ test('normalizeSearch and normalizeMap drop what has no URL', () => {
   assert.deepEqual(firecrawl.normalizeMap('{"links":["https://a.invalid",{"url":"https://b.invalid"},{}]}'), ['https://a.invalid', 'https://b.invalid']);
 });
 
+test('a malformed row in the CLI output is dropped, not thrown (break-test)', () => {
+  // One null row threw `Cannot read properties of null (reading 'url')` and took every
+  // valid result with it. The CLI's stdout is a binary the kit does not own; the vendor
+  // can change the shape without telling this repository. serpapi.normalizeSearch was
+  // hardened against exactly this on 2026-09-28 (Arena break test 9); this is the parser
+  // for the other provider, which had not been.
+  assert.deepEqual(
+    firecrawl.normalizeSearch('{"data":{"web":[{"url":"https://a.invalid","title":"A"},null]}}').map((r) => r.url),
+    ['https://a.invalid'],
+  );
+  assert.deepEqual(firecrawl.normalizeSearch('{"data":[null]}'), []);
+  assert.deepEqual(firecrawl.normalizeSearch('{"data":{"web":[null]}}'), []);
+  assert.deepEqual(firecrawl.normalizeMap('{"links":[null,{"url":"https://b.invalid"}]}'), ['https://b.invalid']);
+  assert.deepEqual(firecrawl.normalizeMap('{"data":[null]}'), []);
+  // The rows that are well formed still come through, so the guard is not a blanket refusal.
+  assert.deepEqual(
+    firecrawl.normalizeSearch('{"data":{"web":[{"url":"https://a.invalid","title":"A"},{"url":"https://b.invalid","title":"B"}]}}').map((r) => r.url),
+    ['https://a.invalid', 'https://b.invalid'],
+  );
+});
+
 test('parseStatus reads what it can and reports null for what is not there', () => {
   // This invented sample is what the parser was written against before a key existed:
   // a number BEFORE the word "credits". The real CLI prints "Credits: 949 / 1,000", so

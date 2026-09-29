@@ -6,7 +6,7 @@
 // old runner standing beside the new one so the difference is demonstrated, not asserted
 // from memory.
 
-import { spawnSync } from 'node:child_process';
+import { spawnSync, spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT, importTestFiles, LEAKED_GIT_CONTEXT, stripLeakedGitContext, findPython, errorCodeOf, dominantFailureCause } from './harness.mjs';
 
@@ -187,6 +187,43 @@ console.log(dir);
   assert.ok(path.isAbsolute(dir) && dir.includes('rk-leakprobe-'), `the probe child did not report its scratch dir: ${child.stdout}`);
   assert.equal(fs.existsSync(dir), false,
     `the scratch dir ${dir} outlived the process that made it - every run leaks its scratch`);
+});
+
+// Found 2026-09-29 (break-test): the cleanup above is registered on 'exit', which does NOT
+// run when the process is killed. A Ctrl-C at the terminal - or `kill` on a hung run, or a
+// CI job cancelled mid-suite - left 110 scratch directories from ONE interrupted run, and
+// 58 MB from an afternoon of them; where /tmp is tmpfs that growth is RAM. The signal
+// handler now takes the scratch and then dies with 128+signal, as the default did.
+test('an interrupted run takes its scratch too', async () => {
+  const source = `
+import { tempDir, fs } from ${JSON.stringify(HARNESS)};
+const dir = tempDir('rk-signalprobe-');
+fs.writeFileSync(dir + '/proof.txt', 'scratch');
+console.log(dir);
+setTimeout(() => {}, 60000);
+`;
+  const file = path.join(tempDir('rk-signal-child-'), 'child.mjs');
+  fs.writeFileSync(file, source, 'utf8');
+  const child = spawn(process.execPath, [file], { stdio: ['ignore', 'pipe', 'ignore'] });
+
+  // Wait for the scratch directory to be announced, so the signal arrives after it exists.
+  const dir = await new Promise((resolve, reject) => {
+    let out = '';
+    const timer = setTimeout(() => reject(new Error(`the child never announced its scratch dir: ${out}`)), 20_000);
+    child.stdout.on('data', (chunk) => {
+      out += chunk;
+      const line = out.trim().split(/\r?\n/).pop();
+      if (line && line.includes('rk-signalprobe-')) { clearTimeout(timer); resolve(line); }
+    });
+    child.on('exit', () => { clearTimeout(timer); reject(new Error('the child exited before it made its scratch')); });
+  });
+  assert.ok(path.isAbsolute(dir), `the probe child did not report its scratch dir: ${dir}`);
+
+  child.kill('SIGINT');
+  const status = await new Promise((resolve) => child.on('exit', (code, signal) => resolve(code ?? signal)));
+  assert.ok(status !== null, 'the child did not exit');
+  assert.equal(fs.existsSync(dir), false,
+    `the interrupted run left its scratch at ${dir} behind - an interrupted run is the one that leaks`);
 });
 
 // Found 2026-09-29 (break-test). A TMPDIR that resolves INSIDE the checkout - `TMPDIR=.`

@@ -37,7 +37,17 @@ try {
   emit('allow', 'the edit gate could not read this payload and did not judge it');
 }
 
-const cwd = path.resolve(payload.cwd || payload.project_dir || process.cwd());
+// The payload is the RUNTIME's, not this kit's: whatever it sends is untrusted input, and a
+// shape that changes upstream must not crash the gate. `payload.cwd` read straight into
+// `path.resolve` threw a raw `TypeError [ERR_INVALID_ARG_TYPE]` and exited 1 the moment the
+// field was not a string (a number, an object), and `JSON.parse('null')` - a literal null
+// payload - threw `Cannot read properties of null (reading 'cwd')` at that line and again
+// on `payload.tool_input` further down (break-test, 2026-09-29). Both printed a stack trace
+// where the gate's own "did not judge this call" answer belonged. So: a payload that is not
+// an object is read as no payload at all, and only a STRING is a path.
+if (!payload || typeof payload !== 'object' || Array.isArray(payload)) payload = {};
+const asPath = (value) => (typeof value === 'string' && value ? value : '');
+const cwd = path.resolve(asPath(payload.cwd) || asPath(payload.project_dir) || process.cwd());
 
 // A cwd in a subfolder is judged by the repository it is in: that top level is where git runs
 // the commit gate. Looking only at the cwd found no markers in src/ and allowed every edit

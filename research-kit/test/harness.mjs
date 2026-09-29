@@ -383,6 +383,22 @@ process.on('exit', () => {
   }
 });
 
+// ...and on a SIGNAL, which 'exit' never sees. `process.on('exit')` does not run when the
+// process is killed: a Ctrl-C at the terminal, `kill` on a hung run, a CI job cancelled
+// mid-suite. So the interrupted run was the one that leaked - 110 scratch directories from
+// a single interrupted run of this suite, 58 MB from an afternoon of them, and where /tmp
+// is tmpfs that growth is RAM (found 2026-09-29, break-test). Registering a listener takes
+// the signal away from Node's default disposition, so the handler must do what the default
+// did as well: take the scratch, then die with 128+signal.
+for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]]) {
+  process.on(signal, () => {
+    for (const dir of scratchDirs) {
+      try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* as above */ }
+    }
+    process.exit(code);
+  });
+}
+
 /** The fixture and the scaffolder are the same call, which is what stops them drifting. */
 export function makeProject(dir = tempDir(), { topic = 'Fixture topic', content = false } = {}) {
   if (content) scaffoldProject(dir, { topic, kit: KIT_ROOT });

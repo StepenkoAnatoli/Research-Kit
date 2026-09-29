@@ -23,7 +23,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseFlags, flagList, canonicalJson } from '../lib/core.mjs';
+import { parseFlags, flagList, canonicalJson, checkFlagValues } from '../lib/core.mjs';
 import { requireRuntime, honourEnvProxy } from '../lib/runtime.mjs';
 import {
   dispatchCollection, waitForRun, fetchCorpus, queriesInput, usableOutDir,
@@ -114,6 +114,19 @@ if (missing.length) {
   process.stdout.write(HELP);
   process.exit(EXIT.CANNOT_START);
 }
+
+// And the caller's own TYPO in a value that bounds a paid run, refused here rather than on
+// the runner. `--max-pages 8o` used to reach `collect.yml` as a string, dispatch cleanly,
+// and fail in the workflow's own guard - after the dispatch, as a failed run rather than as
+// an answer, on the one flag that decides how many credits this costs (found 2026-09-29,
+// break-test). `depth` and `runner` are `choice` inputs, so GitHub refuses those with a
+// 422 that names nothing useful; the ceiling on max_pages is 1..25, the workflow's own.
+checkFlagValues(flags, {
+  'max-pages': { int: true, min: 1, max: 25 },
+  depth: { choices: ['probe', 'quick', 'normal'] },
+  runner: { choices: ['ubuntu-latest', 'windows-latest'] },
+  timeout: { int: true, min: 1 },
+});
 
 // The caller's own typo is refused before anything else is asked of them - a missing
 // token would otherwise hide it, and a dispatched bad URL would be searched as text.

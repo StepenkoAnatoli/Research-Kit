@@ -364,6 +364,22 @@ test('makeSlug honours an explicit limit and keeps its old default', () => {
   assert.equal(makeSlug('!!!', 'fallback'), 'fallback', 'a slug of pure punctuation must fall back');
 });
 
+// The fallback used to be returned WHOLE, so a caller whose limit was shorter than its own
+// fallback got a slug over the cap: makeSlug('', 'fallback', 5) answered "fallback", eight
+// characters. Found 2026-09-29 (break-test) by fuzzing the documented contract.
+test('makeSlug caps the fallback too', () => {
+  assert.equal(makeSlug('', 'fallback', 5), 'fallb');
+  assert.equal(makeSlug('!!!', 'row', 2), 'ro');
+  assert.equal(makeSlug('x', 'topic', 1), 'x');
+  for (const limit of [1, 2, 3, 5, 8, 28, 60]) {
+    for (const text of ['', '!!!', 'a', 'a b', 'the research kits own protocol']) {
+      const slug = makeSlug(text, 'fallback', limit);
+      assert.ok(slug.length <= limit, `${JSON.stringify(text)} at limit ${limit} produced ${JSON.stringify(slug)}`);
+      assert.ok(!/-$/.test(slug), 'never a separator at the end');
+    }
+  }
+});
+
 test('a generated audit path stays inside the budget, however long the inputs', () => {
   const dir = makePassingProject();
   // Names far longer than anything a person would type.

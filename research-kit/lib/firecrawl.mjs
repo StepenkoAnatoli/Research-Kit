@@ -244,12 +244,21 @@ export function normalizeSearch(stdout) {
   else if (Array.isArray(payload?.results)) rows = payload.results;
   else if (Array.isArray(payload)) rows = payload;
 
-  return rows.map((row) => ({
-    url: row.url ?? row.link ?? '',
-    title: row.title ?? '',
-    description: row.description ?? row.snippet ?? '',
-    position: row.position ?? null,
-  })).filter((row) => row.url);
+  // A malformed row is DROPPED, not mapped through. One null row threw
+  // `Cannot read properties of null (reading 'url')` and took every valid result with it -
+  // the same defect `serpapi.normalizeSearch` was hardened against on 2026-09-28 (Arena
+  // break test 9), in the parser that carries the same shape for the OTHER provider. The
+  // CLI's stdout is untrusted: it is a binary the kit does not own, over a protocol the
+  // vendor can change without telling this repository.
+  return rows
+    .filter((row) => row && typeof row === 'object' && !Array.isArray(row))
+    .map((row) => ({
+      url: row.url ?? row.link ?? '',
+      title: row.title ?? '',
+      description: row.description ?? row.snippet ?? '',
+      position: row.position ?? null,
+    }))
+    .filter((row) => row.url);
 }
 
 /** What the vendor says this call cost. Recorded rather than inferred from a tier table. */
@@ -262,7 +271,9 @@ export function normalizeMap(stdout) {
   const payload = parsePayload(stdout);
   const links = payload?.links ?? payload?.data ?? payload ?? [];
   if (!Array.isArray(links)) return [];
-  return links.map((link) => (typeof link === 'string' ? link : link.url)).filter(Boolean);
+  // `link.url`, not `link?.url`, threw on a null entry in the CLI's own output; the same
+  // untrusted-stdout reasoning as normalizeSearch above.
+  return links.map((link) => (typeof link === 'string' ? link : link?.url)).filter(Boolean);
 }
 
 /**
