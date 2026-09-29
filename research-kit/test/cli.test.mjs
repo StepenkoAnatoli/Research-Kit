@@ -626,6 +626,22 @@ test('collect-remote refuses an --out it cannot write, before it asks for a toke
   assert.ok(!/token/i.test(r.err.split('\n')[0] ?? ''), 'the folder refusal must come first');
 });
 
+// Found 2026-09-29 (Arena break test): `--max-pages 8o` was sent as it was, and the paid run it
+// dispatched failed on the runner's own check - the flag that bounds spend was the unchecked one.
+test('collect-remote refuses a bad --max-pages, --depth, --runner or --timeout before it asks for a token', () => {
+  for (const [flag, value, says] of [
+    ['--max-pages', '8o', /--max-pages/], ['--max-pages', '0', /--max-pages/], ['--max-pages', '26', /--max-pages.*25/],
+    ['--depth', 'deep', /--depth must be one of probe, quick, normal/],
+    ['--runner', 'macos-latest', /--runner must be one of/],
+    ['--search-transport', 'tavily', /--search-transport must be one of/],
+    ['--timeout', 'soon', /--timeout/],
+  ]) {
+    const r = run('collect-remote.mjs', ['--repository', 'o/r', '--topic', 't', flag, value], { root: project() });
+    assert.equal(r.status, 3, `${flag} ${value}: ${r.all}`);
+    assert.match(r.err.split('\n')[0] ?? '', says, `${flag} ${value} was not refused by name first:\n${r.all}`);
+  }
+});
+
 test('collect-remote documents --url', () => {
   const r = run('collect-remote.mjs', ['--help'], { root: project() });
   assert.match(r.out, /--url/);

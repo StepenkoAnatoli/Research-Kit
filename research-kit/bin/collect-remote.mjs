@@ -23,7 +23,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseFlags, flagList, canonicalJson } from '../lib/core.mjs';
+import { parseFlags, flagList, canonicalJson, checkFlagValues } from '../lib/core.mjs';
 import { requireRuntime, honourEnvProxy } from '../lib/runtime.mjs';
 import {
   dispatchCollection, waitForRun, fetchCorpus, queriesInput, usableOutDir,
@@ -114,6 +114,17 @@ if (missing.length) {
   process.stdout.write(HELP);
   process.exit(EXIT.CANNOT_START);
 }
+
+// Every value the workflow checks is checked here first, against the same ranges and choices
+// (collect.yml): `--max-pages 8o` was dispatched as it was and the paid run failed on the
+// runner (found 2026-09-29, Arena break test) - on the one flag that bounds spend.
+checkFlagValues(flags, {
+  'max-pages': { int: true, min: 1, max: 25 },
+  depth: { choices: ['probe', 'quick', 'normal'] },
+  runner: { choices: ['ubuntu-latest', 'windows-latest'] },
+  'search-transport': { choices: ['auto', 'serpapi', 'firecrawl-cli'] },
+  timeout: { int: true, min: 1 },
+}, { exit: EXIT.CANNOT_START });
 
 // The caller's own typo is refused before anything else is asked of them - a missing
 // token would otherwise hide it, and a dispatched bad URL would be searched as text.

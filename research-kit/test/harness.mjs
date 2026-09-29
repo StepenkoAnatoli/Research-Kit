@@ -377,11 +377,18 @@ export function tempDir(prefix = 'research-kit-') {
 // On 'exit', not at the end of the test list: an import-time throw, a red run and a
 // process.exit(1) all pass through here too, and none of those should leak either.
 const scratchDirs = [];
-process.on('exit', () => {
-  for (const dir of scratchDirs) {
+function removeScratch() {
+  for (const dir of scratchDirs.splice(0)) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* a scratch dir that cannot be removed must not fail the run's own exit */ }
   }
-});
+}
+process.on('exit', removeScratch);
+// 'exit' does not run when a signal ends the process, so one Ctrl-C left every scratch dir the
+// run had made (found 2026-09-29, Arena break test: 110 directories). A listener replaces the
+// default action, so it exits with the code the shell would have reported: 128 + the signal.
+for (const [signal, number] of [['SIGINT', 2], ['SIGTERM', 15], ['SIGHUP', 1]]) {
+  process.once(signal, () => { removeScratch(); process.exit(128 + number); });
+}
 
 /** The fixture and the scaffolder are the same call, which is what stops them drifting. */
 export function makeProject(dir = tempDir(), { topic = 'Fixture topic', content = false } = {}) {

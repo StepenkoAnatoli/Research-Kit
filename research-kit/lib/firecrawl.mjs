@@ -244,7 +244,9 @@ export function normalizeSearch(stdout) {
   else if (Array.isArray(payload?.results)) rows = payload.results;
   else if (Array.isArray(payload)) rows = payload;
 
-  return rows.map((row) => ({
+  // A row that is not an object is dropped, not read: one null among the results had thrown
+  // and taken every valid row in the payload with it (2026-09-29, Arena break test).
+  return rows.filter((row) => row && typeof row === 'object').map((row) => ({
     url: row.url ?? row.link ?? '',
     title: row.title ?? '',
     description: row.description ?? row.snippet ?? '',
@@ -262,7 +264,7 @@ export function normalizeMap(stdout) {
   const payload = parsePayload(stdout);
   const links = payload?.links ?? payload?.data ?? payload ?? [];
   if (!Array.isArray(links)) return [];
-  return links.map((link) => (typeof link === 'string' ? link : link.url)).filter(Boolean);
+  return links.map((link) => (typeof link === 'string' ? link : link?.url)).filter((url) => typeof url === 'string' && url);
 }
 
 /**

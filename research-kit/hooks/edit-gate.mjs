@@ -37,7 +37,12 @@ try {
   emit('allow', 'the edit gate could not read this payload and did not judge it');
 }
 
-const cwd = path.resolve(payload.cwd || payload.project_dir || process.cwd());
+// Valid JSON that is not an object (`null`, a number, an array) is no payload, and only a
+// string is a path: either had crashed the hook with a raw stack on every Edit (2026-09-29,
+// Arena break test), where an unparsable payload is allowed with a note.
+if (!payload || typeof payload !== 'object' || Array.isArray(payload)) payload = {};
+const pathOf = (value) => (typeof value === 'string' && value ? value : '');
+const cwd = path.resolve(pathOf(payload.cwd) || pathOf(payload.project_dir) || process.cwd());
 
 // A cwd in a subfolder is judged by the repository it is in: that top level is where git runs
 // the commit gate. Looking only at the cwd found no markers in src/ and allowed every edit
@@ -84,7 +89,7 @@ if (!isGated(root)) emit('allow', 'not a gated project');
 
 // The file this call edits. Every target must be phase-1 work to pass unjudged; a call that
 // names no file is judged as it always was.
-const input = payload.tool_input ?? {};
+const input = payload.tool_input && typeof payload.tool_input === 'object' ? payload.tool_input : {};
 const targets = [input.file_path, input.notebook_path].filter((t) => typeof t === 'string' && t);
 
 // research/raw/ is written by the collector and nothing else: captures and the ledger are

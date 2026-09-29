@@ -283,3 +283,28 @@ test('one code behind most of a red suite is named; a minority of one is not', (
     errorCodes: [{ code: 'EACCES', count: 2 }, { code: 'ENOSPC', count: 8 }],
   }).code, 'ENOSPC');
 });
+
+// Found 2026-09-29 (Arena break test): scratch cleanup ran on 'exit' only, and 'exit' does not
+// run when the process is killed by a signal - one Ctrl-C left 110 scratch directories behind.
+test('a run stopped by SIGTERM or SIGINT still removes its scratch, and exits 128+signal', async () => {
+  if (process.platform === 'win32') return; // Windows has no catchable SIGTERM: kill() is TerminateProcess
+  const { spawn } = await import('node:child_process');
+  const { pathToFileURL } = await import('node:url');
+  const harnessUrl = pathToFileURL(path.join(KIT_ROOT, 'test', 'harness.mjs')).href;
+  for (const [signal, code] of [['SIGTERM', 143], ['SIGINT', 130]]) {
+    const child = spawn(process.execPath, ['--input-type=module', '-e',
+      `const h = await import(${JSON.stringify(harnessUrl)}); console.log(h.tempDir('rk-signal-')); setInterval(() => {}, 1000);`],
+    { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    const dir = await new Promise((resolveDir, reject) => {
+      child.stdout.on('data', (d) => { out += d; if (out.includes('\n')) resolveDir(out.trim()); });
+      child.on('exit', () => reject(new Error(`child exited before printing its scratch dir: ${out}`)));
+    });
+    assert.ok(fs.existsSync(dir), `the child did not create ${dir}`);
+    const exited = new Promise((r) => child.on('exit', (status, sig) => r({ status, sig })));
+    child.kill(signal);
+    const { status, sig } = await exited;
+    assert.equal(fs.existsSync(dir), false, `${signal} left ${dir} behind`);
+    assert.equal(status, code, `${signal}: exit ${status} (signal ${sig}), expected ${code}`);
+  }
+});
