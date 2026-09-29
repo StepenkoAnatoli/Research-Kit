@@ -7,10 +7,9 @@
 // arrives as DATA ON A PIPE, because argv was O(n^2) to build and bounded besides.
 
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { PATHS, resolve, exists, isDirectory, readJson, readText } from './core.mjs';
+import { PATHS, resolve, exists, isDirectory, readJson, readText, tempBase } from './core.mjs';
 import { GATE_MARKERS, TEMPLATE_DIR } from './scaffold.mjs';
 import { runPreflight, verdictContext, readGateState, fixCommand } from './preflight.mjs';
 import { readCorpus } from './corpus.mjs';
@@ -152,7 +151,7 @@ export function stagedPathsFromStdin(readSync) {
  * gate keeps reading it - an interactive research check is about what you have in front
  * of you, which is exactly the opposite question.
  */
-export function materializeIndex(root, { run = gitCapture, tmp = os.tmpdir() } = {}) {
+export function materializeIndex(root, { run = gitCapture, tmp = tempBase() } = {}) {
   if (!isGitRepo(root)) {
     return { ok: false, reason: 'not-a-repository', detail: 'no .git here, so there is no index to read' };
   }

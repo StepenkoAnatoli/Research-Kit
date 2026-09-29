@@ -7,9 +7,8 @@
 // cwd-sensitive and a red without a cwd is a failure that cannot be localised.
 
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import { parseFlags, listFiles, refuseUnknownFlags, exists, kitCommand, tolerateClosedStdout } from '../lib/core.mjs';
+import { parseFlags, listFiles, refuseUnknownFlags, exists, kitCommand, tolerateClosedStdout, tempBase } from '../lib/core.mjs';
 import { runPending, TEST_TIMEOUT, importTestFiles, describe, test, dominantFailureCause } from '../test/harness.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 
@@ -74,7 +73,7 @@ if (missingAnchors.length) {
 // and name it at the top and again under a red summary. The run still happens, so the
 // count and the result file stay honest.
 const tempProblem = (() => {
-  const base = os.tmpdir();
+  const base = tempBase();
   try {
     fs.mkdirSync(base, { recursive: true });
     fs.rmSync(fs.mkdtempSync(path.join(base, 'rk-selftest-')), { recursive: true, force: true });
