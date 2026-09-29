@@ -230,7 +230,14 @@ export function registeredPath(command) {
  */
 function listTree(root) {
   const out = [];
+  // Each real folder once: a link back to an ancestor otherwise re-lists the tree on every
+  // lap until ELOOP ends it, ~40 copies of each file (found 2026-09-29, break-test).
+  const seen = new Set();
   const walk = (dir) => {
+    let real;
+    try { real = fs.realpathSync(dir); } catch { return; }
+    if (seen.has(real)) return;
+    seen.add(real);
     let names;
     try { names = fs.readdirSync(dir); } catch { return; }        // a file, a refusal, a vanished folder
     for (const name of names) {

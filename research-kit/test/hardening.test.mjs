@@ -976,3 +976,16 @@ test('deployedDrift survives a kit home that is a file, and a dangling link in t
   assert.equal(mirrored.drifted, 0,
     `a mirrored tree reported drift, so the guard changed the answer and not just the crash: ${JSON.stringify(mirrored.kit)}`);
 });
+
+// Found 2026-09-29 (break-test report, F2): a folder link pointing back at an ancestor. The
+// walk did not overflow the stack - the ELOOP guard above ends it about 40 levels down - but
+// every lap listed the same files again, so doctor reported 41 "extra" files for one.
+test('deployedDrift walks a folder link that loops back to an ancestor once', () => {
+  const from = tempDir('rk-drift-src-');
+  const dest = tempDir('rk-drift-dest-');
+  for (const root of [from, dest]) writeText(path.join(root, 'x.mjs'), 'export const x = 1;\n');
+  fs.mkdirSync(path.join(dest, 'sub'));
+  fs.symlinkSync(dest, path.join(dest, 'sub', 'loop'), 'junction'); // junction: no privilege needed on Windows
+  const drift = deployedDrift({ from, kitHome: dest });
+  assert.deepEqual(drift.kit.extra, [], `a loop was walked more than once: ${drift.kit.extra.length} extra files`);
+});
