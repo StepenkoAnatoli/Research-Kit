@@ -56,6 +56,41 @@ test('diff-scope: a commit confined to research/ is allowed while the verdict fa
   assert.equal(both.allow, false, 'code and research together still blocks');
 });
 
+// ADR-0093. Found 2026-09-29 (break-test, PR #140 item 1): a line typed into a tracked capture
+// was committable on its own - "confined to research/ ... committing evidence is the workflow" -
+// and blocked only when the same commit also touched a file elsewhere. Whether altered evidence
+// enters history cannot depend on what else is staged.
+test('diff-scope: altered evidence blocks even when the commit is confined to research/', () => {
+  const dir = makePassingProject();
+  const capture = fs.readdirSync(resolve(dir, PATHS.raw)).find((f) => f.endsWith('.md'));
+  const rel = `${PATHS.raw}/${capture}`;
+  corrupt(dir, rel, (t) => `${t}\nA line typed after the fetch.\n`);
+
+  const verdict = evaluate(dir, { gate: 'commit', stagedPaths: [rel] });
+  assert.equal(verdict.allow, false, 'a tampered capture was committed because nothing outside research/ was staged');
+  assert.ok(verdict.findings.some((f) => f.rule === 'body-unmodified'));
+  assert.match(verdict.reason, /altered|integrity/i);
+  assert.match(verdict.fix, /restore|git checkout|git restore/i);
+});
+
+test('diff-scope: a hand-written capture cited by a row blocks even when confined to research/', () => {
+  const dir = makePassingProject();
+  writeText(resolve(dir, `${PATHS.raw}/typed.md`), '---\nurl: https://example.invalid/typed\nretrieved: 2026-09-29\n---\nI typed this.\n');
+  corrupt(dir, PATHS.evidence, (t) => `${t.trimEnd()}\n| E-99 | 2026-09-29 | P | https://example.invalid/typed | typed | research/raw/typed.md |\n`);
+  const verdict = evaluate(dir, { gate: 'commit', stagedPaths: [PATHS.evidence, `${PATHS.raw}/typed.md`] });
+  assert.equal(verdict.allow, false);
+  assert.ok(verdict.findings.some((f) => f.rule === 'fetch-entry-exists'));
+});
+
+test('diff-scope: unfinished evidence is still committable - only integrity findings are held', () => {
+  // The workflow ADR-0048 protects: an open unknown, a missing brief, a gap - all normal
+  // mid-research, all committable while confined to research/.
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace('CLOSED', 'OPEN'));
+  const verdict = evaluate(dir, { gate: 'commit', stagedPaths: [PATHS.discovery] });
+  assert.equal(verdict.allow, true, verdict.reason);
+});
+
 // Found 2026-09-27, on a fresh collector and on a builder that unpacked a remote package: after
 // new-project, `git add -A && git commit` was refused. The scaffold's own .gitattributes,
 // .gitignore, AGENTS.md, START_HERE.md and docs/ARCHITECTURE.md sit outside research/. So for

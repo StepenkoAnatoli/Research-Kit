@@ -127,7 +127,12 @@ export const OUTLINE_FURNITURE = Object.freeze([
   'table of contents', 'contents', 'on this page', 'related posts', 'additional resources',
   'subscribe to our developer newsletter', 'navigation menu', 'footer', 'provide feedback',
   'saved searches', 'clone this wiki locally',
+  // GitHub's file view and a Discourse forum's footer (2026-09-29, on MoonAliza's captures).
+  'collapse file tree', 'files', 'file metadata and controls', 'related topics',
 ]);
+
+/** Furniture with a name or a date in it: a Discourse forum's heading on every post. */
+const OUTLINE_FURNITURE_PATTERNS = Object.freeze([/^post by .+ on [a-z]{3} \d{1,2}, \d{4}$/i]);
 
 /**
  * A page's outline: its `##` and `###` headings, in order, as plain text. STORM's
@@ -153,11 +158,26 @@ export function outlineOf(body, { max = 12 } = {}) {
       .trim();
     const key = text.toLowerCase();
     if (text.length < 2 || text.length > 120 || /^permalink\b/i.test(text)) continue;
-    if (furniture.has(key) || seen.has(key)) continue;
+    if (furniture.has(key) || seen.has(key) || OUTLINE_FURNITURE_PATTERNS.some((p) => p.test(text))) continue;
     seen.add(key);
     all.push(text);
   }
   return { headings: all.slice(0, max), more: Math.max(0, all.length - max) };
+}
+
+/**
+ * The order phase 0 spends its scrape budget in (ADR-0094): pages on the likely owners first,
+ * by their host's score, then everything else - each group in search order. The map's
+ * candidate list keeps search order; only what gets captured changes. On MoonAliza
+ * (2026-09-29) search order spent both scrapes on a third-party spec and a forum thread while
+ * the map named docs.ollama.com the likely owner.
+ */
+export function scrapeOrder(material, hosts) {
+  const score = new Map(hosts.map(({ host, score: s }) => [host, s]));
+  return material
+    .map((row, rank) => ({ row, rank, score: score.get(hostOf(row.url)) ?? 0 }))
+    .sort((a, b) => b.score - a.score || a.rank - b.rank)
+    .map(({ row }) => row);
 }
 
 /** At most this many pages have their outline shown, so the map stays a page to read. */
@@ -445,7 +465,7 @@ export function decompose(root, {
 
     // The budget bounds SCRAPES, not candidates: a cache hit is not an attempt, so a
     // second pass reaches further down the list instead of re-reading the same two.
-    for (const row of material) {
+    for (const row of scrapeOrder(material, hosts)) {
       if (spent >= maxScrapes) break;
       // The relevance floor research.mjs applies (ADR-0067, ADR-0068), for the query that
       // found this page. It stays in the map's candidate list - that is for a person to read -

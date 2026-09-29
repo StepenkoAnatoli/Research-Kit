@@ -175,9 +175,19 @@ function knownUnknowns(corpus) {
     if (!secondhand.length) return none;
     return `${none} ${secondhand.join(', ')} ${secondhand.length === 1 ? 'rests' : 'rest'} on no primary (P) source; the Type column above shows what carries ${secondhand.length === 1 ? 'it' : 'them'}.`;
   }
-  // The cell is often written "Day one: ..." already; the label is added once.
-  const step = (cell) => String(cell ?? '').replace(/^\s*day[- ]one(?:\s+verification)?\s*[:-]\s*/i, '').trim();
-  return rows.map((u) => `- **${u.id}** - ${u.text}\n  - Day-one verification: ${step(u.evidence) || '_not stated_'}`).join('\n');
+  // The cell is often written "Day one: ..." already; the label is added once. A cell may
+  // also say what IS known and label its step mid-sentence (found 2026-09-29 on MoonAliza):
+  // the text before the label is kept, as what is known so far, and the label is not doubled.
+  const LABEL = /\bday[- ]one(?:\s+verification)?\s*[:-]\s*/i;
+  const lines = (cell) => {
+    const text = String(cell ?? '').trim();
+    const at = text.search(LABEL);
+    if (at < 0) return [`Day-one verification: ${text || '_not stated_'}`];
+    const known = text.slice(0, at).trim();
+    const stepText = text.slice(at).replace(LABEL, '').trim();
+    return [...(known ? [`Known so far: ${known}`] : []), `Day-one verification: ${stepText || '_not stated_'}`];
+  };
+  return rows.map((u) => `- **${u.id}** - ${u.text}\n${lines(u.evidence).map((l) => `  - ${l}`).join('\n')}`).join('\n');
 }
 
 /**

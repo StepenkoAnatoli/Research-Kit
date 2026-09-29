@@ -207,6 +207,20 @@ test('a known unknown\'s day-one step is not labelled twice', () => {
   assert.doesNotMatch(text, /Day-one verification: Day one/i);
 });
 
+// Found 2026-09-29 using the kit on MoonAliza: a cell that says what IS known and then labels
+// its step mid-sentence ("E-05 says X. Day-one verification: do Y") was rendered with the
+// label twice - "Day-one verification: E-05 says X. Day-one verification: do Y".
+test('a day-one label inside the cell splits what is known from the step, and appears once', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace(/^(\| U-1 \|.*)$/m,
+    '$1\n| U-2 | How is it chunked? | Picks the parser | KNOWN-UNKNOWN | E-05 says streaming is supported but shows no chunk. Day-one verification: log every delta against a local server. |'));
+  renderBrief(dir, { force: true });
+  const text = readText(resolve(dir, PATHS.brief));
+  assert.equal((text.match(/Day-one verification:/g) ?? []).length, 1, text.slice(text.indexOf('## Known unknowns'), text.indexOf('## Decision')));
+  assert.match(text, /Day-one verification: log every delta against a local server\./);
+  assert.match(text, /Known so far: E-05 says streaming is supported but shows no chunk\./);
+});
+
 // Found 2026-09-28 running the kit from a repository checkout on MoonAliza: the project was
 // scaffolded with --kit '$HOME/.agents/research-kit' so it could travel, and every scaffolded
 // file said so - but the drafted brief named this machine's checkout path, which exists

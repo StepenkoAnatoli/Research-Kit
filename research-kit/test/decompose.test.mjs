@@ -332,6 +332,11 @@ test('outlineOf keeps a page\'s section headings and drops what a site prints ar
   // Found on real captures: Mintlify docs put a zero-width space before every heading, and a
   // GitHub wiki ends with its clone box.
   assert.deepEqual(outlineOf('## \u200B Credits\n## Clone this wiki locally').headings, ['Credits']);
+  // Found 2026-09-29 using the kit on MoonAliza: a GitHub file view's chrome and a Discourse
+  // forum's per-post bylines were shown as the "outline" of the pages phase 0 captured.
+  const chrome = ['## Collapse file tree', '## Files', '## File metadata and controls', '## Model selection',
+    '## post by antmannacho on Feb 14, 2024', '## post by \\_j on Feb 15, 2024', '## Related topics'].join('\n');
+  assert.deepEqual(outlineOf(chrome).headings, ['Model selection']);
   const many = Array.from({ length: 20 }, (_, i) => `## Part ${i}`).join('\n');
   const capped = outlineOf(many, { max: 5 });
   assert.equal(capped.headings.length, 5);
@@ -368,4 +373,24 @@ test('with nothing captured, the outline section says how to get one', () => {
   decompose(dir, { topic: 'Example limits', adapter: stubAdapter([{ url: 'https://docs.example.com/limits', title: 'Limits' }]) });
   const text = readText(resolve(dir, PATHS.map));
   assert.match(text, /## Outlines seen in the material\n\n_No outlines - none of these pages is captured yet\. `--max-scrapes <n>`/);
+});
+
+// ADR-0094. Found 2026-09-29 using the kit on MoonAliza: the map ranked docs.ollama.com the
+// likely owner (8), and --max-scrapes 2 spent both scrapes on the first two search results -
+// a third-party spec on GitHub and a forum thread - because the budget followed search rank.
+test('the scrape budget goes to the likely owners first, not to whatever ranked first', () => {
+  const dir = makeProject();
+  const results = [
+    { url: 'https://blog.elsewhere.com/example-limits', title: 'Example limits, a blog' },
+    { url: 'https://forum.other.org/t/example-limits', title: 'Example limits thread' },
+    { url: 'https://docs.example.com/limits', title: 'Example limits' },
+    { url: 'https://docs.example.com/api/limits', title: 'Example limits API' },
+  ];
+  const result = decompose(dir, { topic: 'Example limits', adapter: stubAdapter(results), maxScrapes: 1 });
+  assert.equal(result.spent, 1);
+  const captured = readCorpus(dir).captures.entries.map((e) => e.url);
+  assert.deepEqual(captured, ['https://docs.example.com/limits'], `scraped ${captured.join(', ')}`);
+  const map = readText(resolve(dir, PATHS.map));
+  assert.ok(map.indexOf('blog.elsewhere.com/example-limits') < map.indexOf('docs.example.com/limits'),
+    'the candidate list keeps search order - only the scrape budget is re-ordered');
 });
