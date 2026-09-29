@@ -8,7 +8,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { test, describe, assert, tempDir, fs, path, KIT_ROOT, importTestFiles, LEAKED_GIT_CONTEXT, stripLeakedGitContext, findPython } from './harness.mjs';
+import { test, describe, assert, tempDir, fs, path, KIT_ROOT, importTestFiles, LEAKED_GIT_CONTEXT, stripLeakedGitContext, findPython, errorCodeOf, dominantFailureCause } from './harness.mjs';
 
 describe('harness');
 
@@ -197,4 +197,55 @@ test('findPython picks the interpreter checkPython would, and none too old', () 
   assert.equal(findPython({ run: hosts({ python: '3.12.1' }) }), 'python', 'a Windows host has only `python`');
   assert.equal(findPython({ run: hosts({ python: '3.8.10' }) }), null, 'an interpreter too old for the runners was chosen');
   assert.equal(findPython({ run: hosts({}) }), null);
+});
+
+// Found 2026-09-29 (break-test): with TMPDIR on a 1 MiB volume - a full disk, a small
+// tmpfs, a CI runner that ran out of space - the suite printed `585 passed, 653 failed`,
+// 646 of those failures `ENOSPC: no space left on device`, and NOTHING named the cause.
+// stderr was empty and the runner's own temp probe passed, because that probe only
+// creates and removes an EMPTY directory, which fits in no room at all. This is the same
+// defect the read-only-TMPDIR fix closed on 2026-09-28 (541 x EACCES, one cause, never
+// stated), reached by capacity rather than by permission. The runner now tallies the
+// error code each failure opens with, so a red suite can say which machine is broken.
+test('failures are tallied by the error code they open with, and nothing else is', () => {
+  const child = runChild(`
+import { test, runPending } from ${JSON.stringify(HARNESS)};
+test('the disk is full', () => { throw new Error('ENOSPC: no space left on device, write'); });
+test('still full', () => { throw new Error('ENOSPC: no space left on device, write'); });
+test('a genuine assertion', () => { throw new Error('expected 1 to equal 2'); });
+const { failures, errorCodes } = await runPending({ log: () => {} });
+console.log(JSON.stringify({ failures, errorCodes }));
+process.exit(1);
+`);
+  const out = JSON.parse(child.stdout.trim().split(/\r?\n/).pop());
+  assert.equal(out.failures, 3, 'all three failures still count, whatever their shape');
+  assert.deepEqual(out.errorCodes, [{ code: 'ENOSPC', count: 2 }],
+    'a failure with no error code must not be invented one');
+});
+
+test('errorCodeOf reads the code a libuv message opens with, and nothing else', () => {
+  assert.equal(errorCodeOf(new Error('ENOSPC: no space left on device, write')), 'ENOSPC');
+  assert.equal(errorCodeOf(new Error("EACCES: permission denied, mkdir '/tmp/x'")), 'EACCES');
+  assert.equal(errorCodeOf(new Error('expected 1 to equal 2')), null, 'an assertion is prose, not a code');
+  assert.equal(errorCodeOf(new Error('test timed out after 60000ms')), null, 'the watchdog message is not a code');
+  assert.equal(errorCodeOf(new Error('')), null);
+  assert.equal(errorCodeOf(null), null, 'a failure with no error at all must not throw here');
+});
+
+test('one code behind most of a red suite is named; a minority of one is not', () => {
+  // The measured case: a 1 MiB TMPDIR, 646 of 653 failures ENOSPC.
+  assert.deepEqual(
+    dominantFailureCause({ failures: 653, errorCodes: [{ code: 'ENOSPC', count: 646 }] }),
+    { code: 'ENOSPC', count: 646, share: 646 / 653 });
+  assert.equal(dominantFailureCause({ failures: 653, errorCodes: [{ code: 'ENOSPC', count: 3 }] }), null,
+    'three of 653 is not one cause, and saying so would send the reader to the wrong place');
+  assert.equal(dominantFailureCause({ failures: 2, errorCodes: [{ code: 'ENOSPC', count: 2 }] }), null,
+    'two failures are not a pattern');
+  assert.equal(dominantFailureCause({ failures: 0, errorCodes: [] }), null);
+  assert.equal(dominantFailureCause({}), null, 'an absent tally must not throw');
+  // Unsorted input is answered by the largest code, not whichever arrived first.
+  assert.equal(dominantFailureCause({
+    failures: 10,
+    errorCodes: [{ code: 'EACCES', count: 2 }, { code: 'ENOSPC', count: 8 }],
+  }).code, 'ENOSPC');
 });

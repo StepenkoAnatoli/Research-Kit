@@ -201,11 +201,48 @@ function watchdog(name, promise) {
   return Promise.race([promise, bound]).finally(() => clearTimeout(timer));
 }
 
+/**
+ * The error code a failure message opens with, or null.
+ *
+ * A libuv/Node system error renders as `CODE: message, syscall 'path'` - `ENOSPC: no space
+ * left on device, write`. An assertion renders as prose. Telling the two apart is what
+ * lets a red suite say whether it found 653 broken behaviours or one broken machine.
+ */
+export function errorCodeOf(err) {
+  const match = /^([A-Z][A-Z0-9]{2,}): /.exec(String(err?.message ?? ''));
+  return match ? match[1] : null;
+}
+
+/**
+ * When one error code sits behind most of a red suite, name it - otherwise null.
+ *
+ * Found 2026-09-29 (break-test): with TMPDIR on a 1 MiB volume - a full disk, a small
+ * tmpfs, a CI runner out of space - the suite printed `585 passed, 653 failed`, 646 of
+ * those failures `ENOSPC`, and NOTHING named the cause. stderr was empty and the temp
+ * probe passed, because it only created and removed an EMPTY directory, which fits in no
+ * room at all. That is the same defect the read-only-TMPDIR fix closed on 2026-09-28
+ * (541 x EACCES, one cause, never stated), reached by capacity instead of permission.
+ *
+ * So the failures are grouped by the code they open with and the runner can say which one
+ * dominates. Thresholds are deliberately high: two failures are not a pattern, and three
+ * of 653 are not one cause. A shared code is evidence, never a verdict - the failures
+ * still print, and the suite is still red.
+ */
+export function dominantFailureCause({ failures = 0, errorCodes = [] } = {}) {
+  if (!Array.isArray(errorCodes) || !errorCodes.length) return null;
+  const [top] = [...errorCodes].sort((a, b) => b.count - a.count);
+  if (failures < 3 || top.count < 3) return null;
+  const share = top.count / failures;
+  if (share < 0.5) return null;
+  return { code: top.code, count: top.count, share };
+}
+
 /** Runs every queued test, awaiting each. Returns the failure count. */
 export async function runPending({ log = (line) => process.stdout.write(`${line}\n`) } = {}) {
   let failures = 0;
   let passed = 0;
   const unsupported = [];
+  const codes = new Map();
   for (const entry of pending.splice(0)) {
     const label = entry.file ? `${entry.file} > ${entry.name}` : entry.name;
     let settled;
@@ -225,10 +262,15 @@ export async function runPending({ log = (line) => process.stdout.write(`${line}
         continue;
       }
       failures += 1;
+      const code = errorCodeOf(err);
+      if (code) codes.set(code, (codes.get(code) ?? 0) + 1);
       log(`FAIL  ${label}\n        ${String(err.message).split('\n').join('\n        ')}`);
     }
   }
-  return { failures, passed, unsupported, blocking: failures + unsupported.length };
+  return {
+    failures, passed, unsupported, blocking: failures + unsupported.length,
+    errorCodes: [...codes].map(([code, count]) => ({ code, count })).sort((a, b) => b.count - a.count),
+  };
 }
 
 export { assert };

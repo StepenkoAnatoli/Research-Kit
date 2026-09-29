@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parseFlags, listFiles, refuseUnknownFlags, exists, kitCommand, tolerateClosedStdout } from '../lib/core.mjs';
-import { runPending, TEST_TIMEOUT, importTestFiles, describe, test } from '../test/harness.mjs';
+import { runPending, TEST_TIMEOUT, importTestFiles, describe, test, dominantFailureCause } from '../test/harness.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 
 // Before the first write: a reader that quits early (`| head -1`) must not turn this run
@@ -86,6 +86,27 @@ const tempProblem = (() => {
 })();
 if (tempProblem) process.stderr.write(`\n${tempProblem}\n\n`);
 
+/**
+ * How much room the temp folder actually has, in words.
+ *
+ * The probe above answers "can this folder be used at all". A volume that is writable and
+ * full answers YES and then fails every test that writes anything - so when a red suite
+ * is dominated by ENOSPC this is the number the reader needs, and `statfsSync` is the only
+ * way to get it without writing until the disk says stop.
+ */
+function tempFreeSpace() {
+  const base = os.tmpdir();
+  const measured = 'a green run of this suite peaked at 52 MiB of scratch, measured 2026-09-29';
+  try {
+    const stat = fs.statfsSync(base);
+    const mib = (stat.bavail * stat.bsize) / 1048576;
+    return `the temp folder ${base} has ${mib < 10 ? mib.toFixed(1) : Math.round(mib)} MiB free, and ${measured}. `
+      + 'Point TMPDIR (TEMP and TMP on Windows) at a folder with room, and run again.';
+  } catch {
+    return `check the free space on the volume holding ${base}; ${measured}.`;
+  }
+}
+
 const started = Date.now();
 // A file that throws while loading is a named FAIL, not the end of the run.
 for (const { file, error } of await importTestFiles(dir, files)) {
@@ -95,7 +116,7 @@ for (const { file, error } of await importTestFiles(dir, files)) {
   });
 }
 
-const { failures, passed, unsupported, blocking } = await runPending();
+const { failures, passed, unsupported, blocking, errorCodes } = await runPending();
 
 /**
  * Write the result as DATA, when asked.
@@ -148,6 +169,15 @@ if (blocking) {
   writeResultFile(1);
   process.stdout.write(`\nA red suite stops work. cwd: ${process.cwd()} (started in ${invokedFrom})\n`);
   if (tempProblem) process.stdout.write(`Likely cause: ${tempProblem}\n`);
+  // 653 failures with one cause behind them is one broken machine, not 653 broken tests,
+  // and a reader told only the count goes looking in 653 places (found 2026-09-29:
+  // a 1 MiB TMPDIR, 646 of 653 failures ENOSPC, no cause named anywhere).
+  const cause = dominantFailureCause({ failures, errorCodes });
+  if (cause) {
+    const percent = Math.round(cause.share * 100);
+    process.stdout.write(`Likely single cause: ${cause.count} of ${failures} failures (${percent}%) open with ${cause.code}.\n`);
+    process.stdout.write(`  ${cause.code === 'ENOSPC' || cause.code === 'EDQUOT' ? tempFreeSpace() : `one code behind most of a red suite points at one broken thing, not ${failures} broken tests.`}\n`);
+  }
   process.exit(1);
 }
 
