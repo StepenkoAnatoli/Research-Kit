@@ -50,6 +50,13 @@ const wanted = flags.all
   ? corpus.unknowns.map((u) => u.id)
   : [flags.unknown ?? positional[0]].filter(Boolean);
 
+// --all over a contract with no unknowns yet is an answer, not a usage error: it had exited 2
+// asking for the --all it was given (2026-09-29, break-test). --json keeps its list shape.
+if (flags.all && !wanted.length) {
+  process.stdout.write(flags.json ? '[]\n' : 'no unknowns in research/DISCOVERY.md yet - nothing to explain.\n');
+  process.exit(0);
+}
+
 if (!wanted.length) {
   process.stderr.write('name an unknown: --unknown U-5, or --all\n'
     + `known: ${corpus.unknowns.map((u) => u.id).join(', ') || '(none)'}\n`);
