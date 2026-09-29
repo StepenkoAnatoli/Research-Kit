@@ -39,6 +39,11 @@ test('a collector without a key is a FAIL - a collector that cannot collect is b
   const findings = machineHealth({ env, probe: KEYLESS });
   assert.equal(find(findings, 'firecrawl-auth').severity, 'fail');
   assert.match(find(findings, 'firecrawl-auth').fix, /firecrawl login/);
+  // Found 2026-09-29 walking a newcomer's first run: the only fix named was `firecrawl login`,
+  // though a no-account route exists and install.mjs itself offers it. The fix names both,
+  // and the keyless one as the setting that makes this check pass (ADR-0095), not a per-run flag.
+  assert.match(find(findings, 'firecrawl-auth').fix, /"transport": "http-keyless"/);
+  assert.match(find(findings, 'firecrawl-auth').fix, /research-kit\.config\.json/);
 });
 
 // Found 2026-09-27: without the CLI, doctor said "install the Firecrawl CLI" and nothing said how

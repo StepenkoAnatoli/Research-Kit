@@ -17,7 +17,7 @@ import { validateProject, hookExecutability, GATE_MARKERS, KIT_ROOT } from './sc
 import { settingsState, deployedDrift, driftNote } from './installer.mjs';
 import { recordOverride } from './provenance.mjs';
 import { probeFirecrawl, selectTransport } from './transport.mjs';
-import { loadConfig } from './machine.mjs';
+import { loadConfig, configPath } from './machine.mjs';
 import { cliInstallSpec } from './firecrawl.mjs';
 import { nodeLine, nodeHonoursEnvProxy, proxyVariable, unusableProxy, proxySpelling } from './runtime.mjs';
 import { verifyBundle, bundleSummary } from './bundle.mjs';
@@ -98,6 +98,9 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
   const chosen = env.RESEARCH_KIT_TRANSPORT || loadConfig(env).transport || '';
   const keylessByChoice = role !== 'builder' && chosen && chosen !== 'firecrawl-cli';
   const firecrawlSeverity = role === 'builder' || keylessByChoice ? 'pass' : 'fail';
+  // The no-account route is named beside the Firecrawl fix, as the SETTING that makes this
+  // check pass (ADR-0095) - a per-run --transport flag would leave doctor red next time.
+  const keylessRoute = `or collect without an account: set "transport": "http-keyless" in ${configPath(env)}`;
   if (!state.installed) {
     out.push(f(firecrawlSeverity, 'firecrawl-cli',
       role === 'builder'
@@ -105,7 +108,7 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
         : keylessByChoice
           ? `the Firecrawl CLI is absent, and ${chosen} was chosen - this collector does not need it`
           : 'the Firecrawl CLI is not on PATH',
-      role === 'builder' || keylessByChoice ? '' : `npm install -g ${cliInstallSpec()}   (or run with --transport http-keyless)`));
+      role === 'builder' || keylessByChoice ? '' : `npm install -g ${cliInstallSpec()}   (${keylessRoute})`));
   } else {
     out.push(f('pass', 'firecrawl-cli', `${state.version}`));
     if (!state.authenticated) {
@@ -115,7 +118,7 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
           : keylessByChoice
             ? `not authenticated, and ${chosen} was chosen - this collector does not need it`
             : 'not authenticated - a collector that cannot collect is broken',
-        role === 'builder' || keylessByChoice ? '' : 'firecrawl login'));
+        role === 'builder' || keylessByChoice ? '' : `firecrawl login   (${keylessRoute})`));
     } else {
       out.push(f('pass', 'firecrawl-auth', `authenticated${state.credits === null ? '' : `, ${state.credits} credits`}`));
     }
