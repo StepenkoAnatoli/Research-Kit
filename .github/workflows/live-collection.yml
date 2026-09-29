@@ -215,7 +215,8 @@ jobs:
             echo "Add it under Settings > Environments > live-collection, or run with transport=http-keyless."
             exit 1
           fi
-          echo "credential present: ${FIRECRAWL_API_KEY:+yes}${FIRECRAWL_API_KEY:-no (keyless route)}"
+          # Tested, never expanded: `${KEY:-no}` is the key itself whenever it is set.
+          if [ -n "${FIRECRAWL_API_KEY:-}" ]; then echo "credential present: yes"; else echo "credential present: no (keyless route)"; fi
 
       # The browser transport renders with a local Chromium (ADR-0088); GitHub's Ubuntu image
       # ships Google Chrome. Named before collecting, so a missing browser fails here in

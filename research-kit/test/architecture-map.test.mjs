@@ -400,3 +400,21 @@ test('the live workflow can exercise every fetch transport the kit registers', (
   }
   assert(/lib\/browser-transport\.mjs/.test(text), 'the header does not say to run it after changing lib/browser-transport.mjs');
 });
+
+test('no workflow prints a secret\'s value, even to say whether it is set', () => {
+  // Found 2026-09-29: `echo "credential present: ${FIRECRAWL_API_KEY:+yes}${FIRECRAWL_API_KEY:-no}"`
+  // expands the second form to the key itself when it IS set - GitHub's log masking turned it
+  // into "yes***", so the step titled "never printed" relied on the masker to keep its word.
+  // A presence check tests the variable; it never expands it where output goes.
+  const dir = path.join(REPO, '.github', 'workflows');
+  if (!fs.existsSync(dir)) return;
+  for (const name of fs.readdirSync(dir).filter((f) => f.endsWith('.yml'))) {
+    const lines = fs.readFileSync(path.join(dir, name), 'utf8').split('\n');
+    lines.forEach((line, i) => {
+      const at = line.search(/\b(echo|printf)\b/);
+      if (at === -1) return;
+      const leaked = line.slice(at).match(/\$\{?(\w*(?:API_KEY|TOKEN|SECRET)\w*)(?![:]\+)(?:\}|:-|\b)/);
+      assert(!leaked, `${name}:${i + 1} prints ${leaked?.[1]}: ${line.trim()}`);
+    });
+  }
+});
