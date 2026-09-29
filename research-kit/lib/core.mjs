@@ -12,6 +12,21 @@ import crypto from 'node:crypto';
 
 // ---------------------------------------------------------------- paths
 
+/**
+ * Where this process stood when it started, and the names of the environment variables
+ * that can move the temp folder. Both exist for `tempBase()` below.
+ *
+ * The cwd is read once, here, at module load - which is process start for every bin that
+ * imports this file - because a relative TMPDIR means "relative to where I was when I
+ * typed the command", and a later `chdir` must not change what it resolves to.
+ */
+const START_CWD = (() => {
+  try { return process.cwd(); } catch { return '.'; }   // a deleted cwd makes process.cwd() throw
+})();
+
+/** TMPDIR is the POSIX name; TEMP and TMP are what Windows reads. */
+const TEMP_ENV_NAMES = Object.freeze(['TMPDIR', 'TEMP', 'TMP']);
+
 /** Every artifact the kit knows, project-relative and POSIX-spelled. */
 export const PATHS = Object.freeze({
   agents: 'AGENTS.md',
@@ -93,6 +108,44 @@ export function homeDir() {
 export function isInside(root, abs) {
   const rel = path.relative(root, abs);
   return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
+}
+
+/**
+ * The temp folder, ABSOLUTE.
+ *
+ * `os.tmpdir()` hands back TMPDIR verbatim, and node accepts a RELATIVE one - `TMPDIR=.`,
+ * `TMPDIR=./tmp`, a Makefile that exports the folder before it creates it. `fs.mkdtemp`
+ * then resolves it against the cwd at the moment of the call, so a relative TMPDIR plus a
+ * `process.chdir()` scatters scratch directories: each is created relative to whichever
+ * directory was current at that call, and the path handed back is relative to a cwd that
+ * has since moved.
+ *
+ * Worse, it disagrees across processes. Every child this kit spawns - git, sh, python, the
+ * kit's own CLIs - re-resolves the same relative TMPDIR against ITS cwd, so the folder the
+ * parent just made is not the folder the child looks in. On this kit that was 21 red tests,
+ * and one worse than red: `materializeIndex` threw
+ * `ENOENT: mkdtemp 'reltmp/research-kit-index-XXXXXX'`, which the commit gate reports as an
+ * internal error and FAILS OPEN on - a machine exporting a relative TMPDIR quietly stopped
+ * being gated (found 2026-09-29, break-test).
+ *
+ * So: resolve against the cwd this process STARTED in, which is what the operator meant and
+ * does not drift as the process moves; and publish the absolute answer back through the
+ * environment, which is the only channel every descendant reads. With the platform default,
+ * or any absolute TMPDIR, this is exactly what `os.tmpdir()` returned.
+ *
+ * Deliberately not memoised: tests legitimately repoint TMPDIR at a private folder mid-run
+ * to count what a verdict leaves behind, and a cached answer would quietly judge a
+ * directory nobody was looking at.
+ */
+export function tempBase() {
+  const raw = os.tmpdir();
+  if (path.isAbsolute(raw)) return path.resolve(raw);
+
+  const abs = path.resolve(START_CWD, raw);
+  for (const name of TEMP_ENV_NAMES) {
+    if (process.env[name] !== undefined && !path.isAbsolute(process.env[name])) process.env[name] = abs;
+  }
+  return abs;
 }
 
 /**

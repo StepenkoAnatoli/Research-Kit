@@ -23,7 +23,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createEmptyProject, scaffoldProject, KIT_ROOT } from '../lib/scaffold.mjs';
 import { appendFetch } from '../lib/provenance.mjs';
 import { writeRaw } from '../lib/collect.mjs';
-import { PATHS, resolve, writeText, appendLine, today } from '../lib/core.mjs';
+import { PATHS, resolve, writeText, appendLine, today, tempBase } from '../lib/core.mjs';
 import { checkPython } from '../lib/runtime.mjs';
 
 // --- this suite does not inherit the git context it was started in -----------------
@@ -307,7 +307,11 @@ export function tempDir(prefix = 'research-kit-') {
   // throws ENOENT, and where that call sits at module scope it aborts the RUNNER rather
   // than failing a test: no result file, no count, just a stack trace. Creating the
   // parent first costs one syscall and turns a suite-wide abort into nothing at all.
-  const base = os.tmpdir();
+  //
+  // tempBase(), not os.tmpdir(): a RELATIVE TMPDIR is legal and, resolved per call against
+  // whichever cwd is current, scatters scratch directories across the filesystem - and it
+  // made the COMMIT GATE's index snapshot throw ENOENT and fail open (2026-09-29).
+  const base = tempBase();
   fs.mkdirSync(base, { recursive: true });
   const dir = fs.mkdtempSync(path.join(base, prefix));
   scratchDirs.push(dir);

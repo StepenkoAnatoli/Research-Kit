@@ -9,7 +9,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { PATHS, resolve, exists, isDirectory, readText } from './core.mjs';
+import { PATHS, resolve, exists, isDirectory, readText, tempBase } from './core.mjs';
 import { verdictContext, runPreflight } from './preflight.mjs';
 import { isGated } from './gate.mjs';
 import { verifyHandoff, handoffRemedy } from './handoff.mjs';
@@ -297,6 +297,13 @@ export function scanForSecrets(root, { maxFiles = 2000 } = {}) {
   const hits = [];
   let scanned = 0;
   let skippedLarge = 0;
+  // The machine's scratch folder is not the project, and it is skipped by ABSOLUTE path
+  // rather than by name. It usually sits outside the tree being scanned, so this costs
+  // nothing - but a RELATIVE TMPDIR is legal, and then the scratch folder resolves INSIDE
+  // the checkout. The kit's own temporary files were reported as credentials committed to
+  // the repository, which is a scanner crying wolf about itself (found 2026-09-29).
+  let temp = null;
+  try { temp = fs.realpathSync(tempBase()); } catch { /* no temp folder to skip */ }
 
   const walk = (dir, rel) => {
     if (scanned >= maxFiles) return;
@@ -304,7 +311,13 @@ export function scanForSecrets(root, { maxFiles = 2000 } = {}) {
       const childRel = rel ? `${rel}/${name.name}` : name.name;
       if (SECRET_SKIP_DIRS.has(name.name) || SECRET_SKIP_DIRS.has(childRel)) continue;
       const abs = path.join(dir, name.name);
-      if (name.isDirectory()) { walk(abs, childRel); continue; }
+      if (name.isDirectory()) {
+        if (temp !== null) {
+          try { if (fs.realpathSync(abs) === temp) continue; } catch { /* unreadable: fall through and walk it */ }
+        }
+        walk(abs, childRel);
+        continue;
+      }
       if (scanned >= maxFiles) return;
       let size = 0;
       try { size = fs.statSync(abs).size; } catch { continue; }

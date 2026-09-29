@@ -5,7 +5,7 @@
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, appendLine, KIT_ROOT } from './harness.mjs';
-import { PATHS, HEADERS, resolve, readText, writeText, writeJson, tolerateClosedStdout, canonicalJson, sha256 } from '../lib/core.mjs';
+import { PATHS, HEADERS, resolve, readText, writeText, writeJson, tolerateClosedStdout, canonicalJson, sha256, tempBase } from '../lib/core.mjs';
 import { readCorpus, appendRow, upsertRow, alignToHeader } from '../lib/corpus.mjs';
 import { writeAudit, zipAudit, readManifest, readManifestState, fingerprintOf } from '../lib/audit.mjs';
 import { renderBrief } from '../lib/brief.mjs';
@@ -350,6 +350,66 @@ test('F26: several credential shapes are recognised, and the coverage is stated'
 test('F26: the kit does not trip its own scan - the fixtures are assembled, not written', () => {
   const scan = scanForSecrets(process.cwd());
   assert.deepEqual(scan.hits, [], `a scanner that is always red about itself is one nobody reads: ${JSON.stringify(scan.hits)}`);
+});
+
+// Found 2026-09-29 (break-test): a RELATIVE TMPDIR - `TMPDIR=.`, a Makefile that exports
+// the folder before it creates it - is legal to node and was resolved by `fs.mkdtemp`
+// against whichever cwd was current at the call. Scratch directories scattered, and the
+// COMMIT GATE's index snapshot threw `ENOENT: mkdtemp 'reltmp/research-kit-index-XXXXXX'`,
+// which the gate reports as an internal error and FAILS OPEN on: the machine stopped
+// being gated and nothing said so. 21 tests were red for the same one-line cause.
+const restoreTempEnv = (saved) => {
+  for (const [key, value] of Object.entries(saved)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+};
+
+test('F29: a relative TMPDIR is answered absolutely, so mkdtemp cannot scatter scratch', () => {
+  const saved = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
+  delete process.env.TEMP;
+  delete process.env.TMP;
+  process.env.TMPDIR = './reltmp';
+  try {
+    const base = tempBase();
+    assert.ok(path.isAbsolute(base), `a relative TMPDIR stayed relative: ${base}`);
+    assert.equal(path.basename(base), 'reltmp');
+    // Published, because every child - git, sh, python, the kit's own CLIs - re-resolves a
+    // relative TMPDIR against ITS cwd, and the folder made here is not the one it looks in.
+    assert.equal(process.env.TMPDIR, base, 'the absolute answer was not published for child processes');
+    // Stable: a later call, after any chdir, must not move the answer.
+    assert.equal(tempBase(), base, 'the temp folder moved between two calls in one process');
+  } finally {
+    restoreTempEnv(saved);
+  }
+});
+
+test('F29: an absolute TMPDIR is used as it stands, and left alone', () => {
+  const scratch = tempDir('rk-abs-tmp-');
+  const saved = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
+  process.env.TMPDIR = scratch;
+  try {
+    assert.equal(tempBase(), path.resolve(scratch));
+    assert.equal(process.env.TMPDIR, scratch, 'an absolute TMPDIR was rewritten');
+  } finally {
+    restoreTempEnv(saved);
+  }
+});
+
+test('F29: the secret scan skips the temp folder, which a relative TMPDIR puts inside the tree', () => {
+  const parent = tempDir('rk-scan-parent-');
+  const scratch = path.join(parent, 'scratch');
+  fs.mkdirSync(scratch);
+  // Credential-shaped, assembled rather than written as a literal (F26).
+  writeText(path.join(scratch, 'notes.md'), `gh${'p'}_0123456789abcdefghij0123456789abcd\n`);
+  const saved = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
+  process.env.TMPDIR = scratch;
+  try {
+    const scan = scanForSecrets(parent);
+    assert.deepEqual(scan.hits, [], `the machine's own scratch folder was reported as a committed credential: ${JSON.stringify(scan.hits)}`);
+  } finally {
+    restoreTempEnv(saved);
+  }
 });
 
 test('F26: a clean tree reports what was scanned rather than implying completeness', () => {

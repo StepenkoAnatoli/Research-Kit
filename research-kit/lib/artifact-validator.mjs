@@ -26,10 +26,9 @@
 // verification, and the second one would be the one nobody tested against a real corpus.
 
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sha256 } from './core.mjs';
+import { sha256, tempBase } from './core.mjs';
 import { openZip, ZipError, ZIP_LIMITS } from './artifact-zip.mjs';
 import { parseJsonNoDuplicates } from './release/json.mjs';
 import { validateJsonSchema } from './release/schema.mjs';
@@ -95,7 +94,7 @@ export function validateArtifact({
   expectedClientRef = null,
   limits = ZIP_LIMITS,
   schema = null,
-  tempRoot = os.tmpdir(),
+  tempRoot = tempBase(),
 } = {}) {
   const errors = [];
   const warnings = [];
