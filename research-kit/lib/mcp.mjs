@@ -448,6 +448,28 @@ export function createStdioLoop({ input, output, onMessage, onError = () => {}, 
   // behind a tool call is a network round trip that would not go faster interleaved.
   let queue = Promise.resolve();
 
+  /** Parse one line and answer it. Shared by the newline-driven drain and the end-of-stream flush. */
+  async function serve(raw) {
+    const line = raw.trim();
+    if (!line) return;
+    let parsed;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      output.write(`${JSON.stringify(err(null, ERRORS.PARSE, 'invalid JSON'))}\n`);
+      return;
+    }
+    try {
+      const response = await onMessage(parsed);
+      if (response) output.write(`${JSON.stringify(response)}\n`);
+    } catch (error) {
+      onError(error);
+      if (parsed?.id !== undefined && parsed?.id !== null) {
+        output.write(`${JSON.stringify(err(parsed.id, ERRORS.INTERNAL, error.message))}\n`);
+      }
+    }
+  }
+
   async function drain() {
     let index = buffer.indexOf('\n');
     while (index !== -1) {
@@ -458,24 +480,7 @@ export function createStdioLoop({ input, output, onMessage, onError = () => {}, 
       index = buffer.indexOf('\n');
       if (wasDiscarding) continue;
       if (raw.length > maxLine) { tooLong(); continue; }
-      const line = raw.trim();
-      if (!line) continue;
-      let parsed;
-      try {
-        parsed = JSON.parse(line);
-      } catch {
-        output.write(`${JSON.stringify(err(null, ERRORS.PARSE, 'invalid JSON'))}\n`);
-        continue;
-      }
-      try {
-        const response = await onMessage(parsed);
-        if (response) output.write(`${JSON.stringify(response)}\n`);
-      } catch (error) {
-        onError(error);
-        if (parsed?.id !== undefined && parsed?.id !== null) {
-          output.write(`${JSON.stringify(err(parsed.id, ERRORS.INTERNAL, error.message))}\n`);
-        }
-      }
+      await serve(raw);
     }
     // What is left has no newline yet. Past the cap, refuse it now and drop it.
     if (buffer.length > maxLine || (discarding && buffer)) {
@@ -491,6 +496,25 @@ export function createStdioLoop({ input, output, onMessage, onError = () => {}, 
     // A rejection here would be an unhandled one and would take the process down; the
     // server must outlive a single bad message.
     queue = queue.then(drain).catch((error) => onError(error));
+  });
+
+  // THE TAIL. `drain` serves only what a newline terminates, so a client that wrote one
+  // request and then closed the stream without one - `printf '{"jsonrpc":"2.0",...}' |
+  // node bin/mcp-server.mjs`, a harness that ends stdin as soon as the bytes are written -
+  // left its message in `buffer` for ever. It saw a clean exit and no reply, which is
+  // indistinguishable from a server that never received the request: the same silent loss
+  // F-2 fixed for calls already IN FLIGHT, and left standing for the unterminated one
+  // (found 2026-09-29, break-test).
+  //
+  // Registered before `exitWhenSettled`'s own 'end' listener, which is what makes the
+  // answer land - this enqueues the flush, and only afterwards does that one read the
+  // current tail of `queue` and wait for it.
+  input.on('end', () => {
+    const tail = buffer;
+    buffer = '';
+    if (discarding || !tail.trim()) return;
+    if (tail.length > maxLine) { tooLong(); return; }
+    queue = queue.then(() => serve(tail)).catch((error) => onError(error));
   });
 
   /**

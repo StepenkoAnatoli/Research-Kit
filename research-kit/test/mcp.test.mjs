@@ -496,6 +496,66 @@ test('a message split across chunks is still one message', async () => {
   assert.equal(JSON.parse(lines[0]).id, 9);
 });
 
+// The framing is newline-delimited, but nothing obliges a client to end its LAST message
+// with a newline - `printf '{"jsonrpc":"2.0",...}' | node bin/mcp-server.mjs` does not,
+// and neither does a harness that writes one request and ends the stream. `drain` served
+// only what a newline terminated, so that message sat in the buffer for ever: the client
+// saw a clean exit and no reply, indistinguishable from a server that never received the
+// request. F-2 fixed that loss for calls already IN FLIGHT and left it standing here
+// (found 2026-09-29, break-test).
+test('the last request is answered even when the stream ends without a newline', async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const lines = [];
+  output.on('data', (c) => lines.push(...String(c).split('\n').filter(Boolean)));
+
+  createStdioLoop({ input, output, onMessage: (m) => handle(m, deps()) });
+  input.write(JSON.stringify({ jsonrpc: '2.0', id: 13, method: 'ping' }));   // no trailing newline
+  input.end();
+  await new Promise((r) => setTimeout(r, 80));
+
+  assert.equal(lines.length, 1, `an unterminated final request was never answered: [${lines.join(' | ')}]`);
+  assert.equal(JSON.parse(lines[0]).id, 13, 'the tail is served to the client that sent it');
+});
+
+// The flush is a second way in, so it reads the same cap. Unbounded, a client that ended
+// an over-long line without a newline would be served a message a terminated one is refused.
+test('an unterminated tail longer than the cap is refused, not served', async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const lines = [];
+  output.on('data', (c) => lines.push(...String(c).split('\n').filter(Boolean)));
+
+  createStdioLoop({ input, output, onMessage: (m) => handle(m, deps()), maxLine: 120 });
+  const pad = 'x'.repeat(400);
+  input.write(JSON.stringify({ jsonrpc: '2.0', id: 14, method: 'ping', params: { pad } }));
+  input.end();
+  await new Promise((r) => setTimeout(r, 80));
+
+  assert.equal(lines.length, 1, 'the cap applies to the flushed tail as it does to a terminated line');
+  const reply = JSON.parse(lines[0]);
+  assert.equal(reply.id, null);
+  assert.equal(reply.error.code, -32600, 'an over-long tail is an invalid request, not a served one');
+});
+
+// The flush must be silent when there is nothing to flush: `end` also fires for a client
+// that terminated every message, and a stray write there would be a reply to no request.
+test('a stream that ends on a newline produces no extra reply', async () => {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const lines = [];
+  output.on('data', (c) => lines.push(...String(c).split('\n').filter(Boolean)));
+
+  createStdioLoop({ input, output, onMessage: (m) => handle(m, deps()) });
+  input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 15, method: 'ping' })}\n`);
+  await new Promise((r) => setTimeout(r, 40));
+  input.end();
+  await new Promise((r) => setTimeout(r, 40));
+
+  assert.equal(lines.length, 1, `the flush answered a request that was already served: [${lines.join(' | ')}]`);
+  assert.equal(JSON.parse(lines[0]).id, 15);
+});
+
 // ---------------------------------------------------------------- arguments
 //
 // Found 2026-09-28 (Arena break test 12). The server took no options and therefore
