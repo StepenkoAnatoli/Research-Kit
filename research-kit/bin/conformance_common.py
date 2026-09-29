@@ -249,7 +249,8 @@ def read_packet(
 
     A packet that drifts is refused whole rather than partly executed. Runners add their
     own further checks; this is the floor, and it is shared so a runner cannot quietly
-    have a lower one -- `property_vector_conformance.py` had no BOM check at all.
+    have a lower one -- `property_vector_conformance.py` had no BOM check at all, and
+    since it still reads its own packet it carries the BOM check itself (2026-09-29).
     """
     raw = Path(path).read_bytes()
     if raw.startswith(b"\xef\xbb\xbf"):

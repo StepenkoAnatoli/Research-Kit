@@ -176,3 +176,21 @@ test('an integer too large for a double is refused alike by Node and Python', ()
     assert.match(JSON.stringify(reports[1].errors), /non-finite number/, `${digits} digits: Python did not say why`);
   }
 });
+
+// Found 2026-09-29 (break-test report, F1): a packet opening with a UTF-8 BOM got "UTF-8
+// BOM is not permitted" from two Python runners and CPython's own "Unexpected UTF-8 BOM
+// (decode using utf-8-sig)" from the third - `property_vector_conformance.py` reads its
+// packet itself instead of through `read_packet`, and had no BOM check of its own.
+test('a packet opening with a BOM is refused by name in every runner, both languages', () => {
+  const python = requirePython('the Python runners on a BOM packet');
+  const packet = path.join(tempDir('rk-bom-packet-'), 'bom.json');
+  fs.writeFileSync(packet, Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{}')]));
+  for (const [nodeRunner, pythonRunner] of RUNNERS) {
+    for (const [who, cmd, script] of [[nodeRunner, process.execPath, nodeRunner], [pythonRunner, python, pythonRunner]]) {
+      const r = spawnSync(cmd, [path.join(BIN, script), '--vectors', packet, '--json'], { encoding: 'utf8' });
+      assert.equal(r.status, 1, `${who} exited ${r.status}`);
+      const message = JSON.parse(r.stdout).errors?.[0]?.message ?? '';
+      assert.match(message, /UTF-8 BOM is not permitted/, `${who} said: ${message}`);
+    }
+  }
+});

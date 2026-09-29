@@ -165,6 +165,26 @@ test('the CLI is read-only and its exit codes distinguish the cases', () => {
   } finally { cleanup(root); }
 });
 
+// Found 2026-09-29 (break-test report, F3): on a contract with no unknowns yet, --all exited
+// 2 with "name an unknown: --unknown U-5, or --all" - asking for the flag it was given.
+test('--all on a contract with no unknowns says so, and is not a usage error', () => {
+  const root = tempDir('research-kit-evidence-context-empty-');
+  try {
+    fs.mkdirSync(path.join(root, 'research'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'research', 'DISCOVERY.md'), '# Discovery\n\n## Build intent\n\nNothing yet.\n');
+    const run = (args) => spawnSync(process.execPath, [CLI, ...args], {
+      cwd: root, encoding: 'utf8', timeout: 60_000, windowsHide: true,
+    });
+    const text = run(['--all']);
+    assertEqual(text.status, 0, `--all with nothing to explain exited ${text.status}: ${text.stderr}`);
+    assert.doesNotMatch(text.stderr + text.stdout, /or --all/, 'it asked for the flag it was given');
+    assert.match(text.stdout, /no unknowns/i);
+    const json = run(['--all', '--json']);
+    assertEqual(json.status, 0);
+    assert.deepEqual(JSON.parse(json.stdout), [], '--all --json is a list, and an empty one here');
+  } finally { cleanup(root); }
+});
+
 test('--json is byte-deterministic across runs', () => {
   // The report is meant to be pasteable into a review and diffable between sessions.
   const root = fixture();
