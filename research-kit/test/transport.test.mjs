@@ -178,6 +178,17 @@ test('normalizeSearch and normalizeMap drop what has no URL', () => {
   assert.deepEqual(firecrawl.normalizeMap('{"links":["https://a.invalid",{"url":"https://b.invalid"},{}]}'), ['https://a.invalid', 'https://b.invalid']);
 });
 
+// Found 2026-09-29 (Arena break test): one null or non-object row in the CLI's stdout threw on
+// `row.url` and took every valid result in the same payload with it. serpapi.normalizeSearch
+// was hardened against this shape on 2026-09-28; this parser, the same shape, was not.
+test('a malformed row in a Firecrawl payload is dropped, not fatal to the rows beside it', () => {
+  assert.deepEqual(
+    firecrawl.normalizeSearch('{"data":{"web":[null,7,"x",{"url":"https://a.invalid","title":"A"}]}}').map((r) => r.url),
+    ['https://a.invalid'],
+  );
+  assert.deepEqual(firecrawl.normalizeMap('{"links":[null,7,{"url":"https://b.invalid"},"https://a.invalid"]}'), ['https://b.invalid', 'https://a.invalid']);
+});
+
 test('parseStatus reads what it can and reports null for what is not there', () => {
   // This invented sample is what the parser was written against before a key existed:
   // a number BEFORE the word "credits". The real CLI prints "Credits: 949 / 1,000", so
