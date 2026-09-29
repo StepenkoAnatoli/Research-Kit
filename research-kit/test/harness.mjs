@@ -390,7 +390,13 @@ process.on('exit', () => {
 // is tmpfs that growth is RAM (found 2026-09-29, break-test). Registering a listener takes
 // the signal away from Node's default disposition, so the handler must do what the default
 // did as well: take the scratch, then die with 128+signal.
-for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]]) {
+//
+// SIGBREAK is in the list for Windows, and it is not decoration. There, Node maps a
+// programmatic `kill('SIGINT')` to TerminateProcess - no handler runs at all, which is the
+// same leak reproduced on Linux with SIGKILL. A real Ctrl-C in a console DOES reach
+// 'SIGINT' on Windows, and Ctrl-Break reaches 'SIGBREAK'; that is the one a test can send
+// there. Listening for it on POSIX is inert - it cannot be sent on those platforms.
+for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129], ['SIGBREAK', 149]]) {
   process.on(signal, () => {
     for (const dir of scratchDirs) {
       try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* as above */ }

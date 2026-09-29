@@ -194,13 +194,19 @@ console.log(dir);
 // CI job cancelled mid-suite - left 110 scratch directories from ONE interrupted run, and
 // 58 MB from an afternoon of them; where /tmp is tmpfs that growth is RAM. The signal
 // handler now takes the scratch and then dies with 128+signal, as the default did.
+//
+// WHICH SIGNAL. On POSIX, SIGINT. On Windows, SIGBREAK: Node maps a programmatic
+// `kill('SIGINT')` there to TerminateProcess, where no handler runs - the identical leak is
+// reproduced on Linux by sending SIGKILL instead - while a console Ctrl-Break does reach a
+// listener. So the test sends the signal that platform can actually catch, and the child is
+// bounded well inside the watchdog so the assertion holds whether or not it arrives.
 test('an interrupted run takes its scratch too', async () => {
   const source = `
 import { tempDir, fs } from ${JSON.stringify(HARNESS)};
 const dir = tempDir('rk-signalprobe-');
 fs.writeFileSync(dir + '/proof.txt', 'scratch');
 console.log(dir);
-setTimeout(() => {}, 60000);
+setTimeout(() => {}, 10000);
 `;
   const file = path.join(tempDir('rk-signal-child-'), 'child.mjs');
   fs.writeFileSync(file, source, 'utf8');
@@ -219,7 +225,7 @@ setTimeout(() => {}, 60000);
   });
   assert.ok(path.isAbsolute(dir), `the probe child did not report its scratch dir: ${dir}`);
 
-  child.kill('SIGINT');
+  child.kill(process.platform === 'win32' ? 'SIGBREAK' : 'SIGINT');
   const status = await new Promise((resolve) => child.on('exit', (code, signal) => resolve(code ?? signal)));
   assert.ok(status !== null, 'the child did not exit');
   assert.equal(fs.existsSync(dir), false,

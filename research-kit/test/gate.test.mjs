@@ -247,7 +247,7 @@ test('the edit gate survives a payload whose shape is not the documented one', (
       env: { ...process.env, RESEARCH_KIT_CONFIG: path.join(tempDir(), 'absent.json') },
     });
     assert.equal(r.status, 0, `${name}: the hook exited ${r.status} with a stack trace instead of answering\n${r.stderr}`);
-    assert.doesNotMatch(r.stderr ?? '', /\n\s+at /, `${name}: the hook printed a raw stack trace\n${r.stderr}`);
+    assert.doesNotMatch(r.stderr ?? '', /^\s+at .+:\d+:\d+\)?$/m, `${name}: the hook printed a raw stack trace\n${r.stderr}`);
     const out = JSON.parse(r.stdout).hookSpecificOutput;
     // A DECISION, whichever it is: the point is that the hook answered instead of dying.
     assert.ok(['allow', 'ask', 'deny'].includes(out.permissionDecision),
