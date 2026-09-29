@@ -305,6 +305,9 @@ An integer literal too large for a double is refused at parse as `non-finite num
 A packet nested too deep to parse is refused like any unparseable one (2026-09-28): the
 parse sites catch `RecursionError`, which is not a `JSONDecodeError`, and each runner had
 printed a traceback where its Node twin reported FAIL (`test/conformance-hostile.test.mjs`).
+A packet opening with a UTF-8 BOM is refused by name in all six runners (2026-09-29):
+`property_vector_conformance.py` reads its own packet rather than through `read_packet`, so it
+lacked the BOM floor and relayed CPython's "Unexpected UTF-8 BOM (decode using utf-8-sig)".
 Two packets that PARSE crashed the Python runners while canonicalising (2026-09-28): an
 unpaired-surrogate object key raised `UnicodeEncodeError` in the key sort before `json_string`
 could refuse it (the sort now encodes with `surrogatepass`), and a packet a few hundred levels

@@ -47,6 +47,9 @@ def canonical_json(value):
 
 def load_vectors(path: str | Path) -> dict[str, Any]:
     raw = Path(path).read_bytes()
+    # read_packet's floor, which this reader does not go through (its profile checks differ).
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raise PacketError("UTF-8 BOM is not permitted")
     try:
         packet = parse_json_no_duplicates(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError, ConformanceError, RecursionError) as error:
