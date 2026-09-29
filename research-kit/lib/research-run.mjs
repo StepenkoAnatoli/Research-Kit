@@ -9,7 +9,7 @@
 import { PATHS, resolve, readJson, readText, today, hostOf, uniq, sleepSync, urlKey, operatorPath } from './core.mjs';
 import * as firecrawl from './firecrawl.mjs';
 import { readCorpus, cacheDecision, appendJsonLine } from './corpus.mjs';
-import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
+import { collectOne, recentlyGone, DEFAULT_SOURCE_TYPE } from './collect.mjs';
 
 /** The budget tiers, in credits of scrape. Tuned for a ~1,000-credit free month. */
 export const DEPTH_SCRAPES = Object.freeze({
@@ -580,6 +580,15 @@ ${compatibility.remedy}`);
   for (const target of targets) {
     seen.add(urlKey(target.url));
     const decision = cacheDecision(corpus.captures, target.url, { refreshDays: freshness, force, now });
+    // A page that answered 404/410 within the window is not fetched and takes no budget slot:
+    // the slot is for a page that may exist (found 2026-09-29, a remembered 404 had crowded out
+    // the one real page a maxScrapes 1 run had room for).
+    const gone = decision.hit ? null : recentlyGone(root, target.url, { refreshDays: freshness, force, now });
+    if (gone) {
+      results.push({ ...target, ...gone });
+      log(`  gone      ${target.url} - ${gone.reason}`);
+      continue;
+    }
     // The budget binds in a DRY RUN too. A preview that ignores it answers a different
     // question from the one execution will answer - it shows work that would never
     // happen, and hides the cap the operator is previewing against.
