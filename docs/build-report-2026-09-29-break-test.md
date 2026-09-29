@@ -132,9 +132,11 @@ RAM.
 default disposition, so the handler must do what the default did as well.
 
 **Fix.** Clean up on `SIGINT`/`SIGTERM`/`SIGHUP` and exit with 128+signal, so the exit code
-a caller sees is unchanged (130 for Ctrl-C, verified).
+a caller sees is unchanged (130 for Ctrl-C, verified). `SIGBREAK` is registered too, which
+is Windows' catchable console signal — see the rejected fix below for why the *test* cannot
+send it there.
 **Tests:** `harness > an interrupted run takes its scratch too`.
-**Status: applied.** Suite green.
+**Status: applied.** Suite green on Linux, and on all three CI platforms.
 
 ### 4. `install --dry-run` reported prunes that were not there
 
@@ -203,9 +205,8 @@ today; the invariant was what was broken.
 
 ## Rejected fixes
 
-None. Every fix above kept the suite green on the first full run after it was applied, so
-nothing was reverted. Two changes were considered and *not* made, because they were not
-fixes:
+None of the six was reverted: every fix kept the suite green on the first full run after it
+was applied. Three changes were considered and *not* made:
 
 - **The ENOSPC cascade.** Under a full temp volume, 12 of 675 failures are not ENOSPC
   (`git init -q` failing because the scratch folder could not be created, a row reading as
@@ -213,6 +214,14 @@ fixes:
   cause line; papering over them would hide the one cause.
 - **`check-action-pins.mjs` exiting 1 without network.** That is the designed fail-closed
   behaviour, not a defect.
+- **Sending `SIGBREAK` from the test on Windows.** The first cut of the interrupted-run
+  test reasoned that a console Ctrl-Break reaches a `SIGBREAK` listener on Windows, so a
+  programmatic `kill('SIGBREAK')` must too. It does not. CI run 36615465192 went red on
+  `windows-latest` with `1288 passed, 1 failed`, and the failure was this test with the
+  scratch still behind: on that platform `kill` of *any* name is `TerminateProcess`, and no
+  handler runs. Reverted, and replaced by the split described below — POSIX sends a real
+  `SIGINT`, Windows has the child raise the event the handler is registered for. The
+  product fix was never wrong; only the test's claim about what it could prove was.
 
 ---
 
@@ -229,14 +238,18 @@ fixes:
    `serpapi.normalizeAccount`, the browser transport's extraction and the keyless adapters
    carry the same untrusted-input assumption and were fuzzed without a finding, but the
    class does not close by inspection.
-4. **`SIGKILL` cannot be caught**, so a `kill -9`'d run still leaks its scratch. Bounded by
-   the machine's tmp reaper.
+4. **`SIGKILL` cannot be caught**, so a `kill -9`'d run still leaks its scratch — and on
+   Windows a *programmatic* signal of any name behaves the same way, because `kill` there is
+   `TerminateProcess`. Only a real console Ctrl-C/Ctrl-Break reaches a handler on that
+   platform. Bounded by the machine's tmp reaper.
 5. **A tight `RLIMIT_AS` kills the runner before it reports** — Node's own undici/llhttp
    wasm allocation fails first. The result file is absent, which CI names correctly ("the
    runner produced no result file"), but it is a raw stack rather than a diagnosis.
-6. **Windows behaviour is reasoned about, not executed here.** This pass ran on Linux with
-   Node 22 only; the CRLF, `.cmd` shim and executable-bit paths are covered by CI's matrix
-   and by tests that assert them, but they were not run.
+6. **The Windows leg of CI was only fully exercised by this pass's own failure.** Before it,
+   no local run had ever been made on Windows, and the leg had never been observed green or
+   red for a change of this kind. It is green now (run 36617124678: `1289 passed, 0 failed`
+   in 131.3s, and steps 11–16 pass), but the lesson is that a platform nobody runs is a
+   platform nobody has tested.
 7. **The corpus's own labelling.** Three corpora mark every row `S`, including pages that
    are primary for the question asked. The closure check does not catch it.
 
@@ -256,15 +269,21 @@ fixes:
   and worth keeping as the pattern for any future bounded flag.
 - **A dry run should describe the run that would happen.** Any `--dry-run` path that
   reports a list is worth diffing against the real path's list.
+- **Run the platform you claim to support, at least once per change class.** The Windows leg
+  of CI existed and was green before this pass, but no local run had ever been made on
+  Windows, so a test that was wrong *only* on Windows passed everywhere it was written and
+  only CI caught it. Where a test cannot be made honest on a platform — `kill` there is
+  `TerminateProcess` — say so in the test, and assert the part that is still true.
 
 ---
 
 ## Summary
 
 Six defects found and fixed, none rejected, no test ever left red: the suite is green at
-**1288 passed, 0 failed** (from 1282; the six new tests each pin one fix), and the whole
+**1289 passed, 0 failed** (from 1282; the six new tests each pin one fix), and the whole
 CI sequence — selftest, preflight, release examples, Node/Python conformance, derived-file
-regeneration, clean tree — passes.
+regeneration, clean tree — passes on all three platforms in the matrix (run
+36617124678: ubuntu-latest, ubuntu-26.04 and windows-latest all SUCCESS).
 
 The build's resilience after this pass is high where it matters most and unchanged where it
 is structurally limited: every realistic way to break the *suite* has been probed and holds,
