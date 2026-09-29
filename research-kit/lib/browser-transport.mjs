@@ -22,7 +22,11 @@ export const VIRTUAL_TIME_MS = 8_000;
 
 /** Where a browser usually lives, per platform. The first that exists is used. */
 const USUAL = {
-  linux: ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/opt/pw-browsers/chromium'],
+  // Chrome stable first: Ubuntu 23.10+ lets only binaries with an AppArmor userns profile
+  // start Chromium's sandbox, and it ships one for /opt/google/chrome/chrome - the path the
+  // google-chrome launchers exec (ADR-0092). Other builds come after.
+  linux: ['/opt/google/chrome/chrome', '/usr/bin/google-chrome', '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium', '/usr/bin/chromium-browser', '/opt/pw-browsers/chromium'],
   darwin: ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/Applications/Chromium.app/Contents/MacOS/Chromium'],
   win32: [
     'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -97,7 +101,17 @@ export function scrape(url, { spawn = spawnSync, browserPath = null, env = proce
   }
   // A signal that is not the timeout's is a crash, and says so (found 2026-09-29: a SIGTRAP
   // 21 seconds in was reported as the 60-second timeout).
-  if (result.signal) return { ok: false, url: target, transport: name, cmd, error: `the browser was killed by ${result.signal}${said}` };
+  if (result.signal) {
+    // The sandbox denied, as on Ubuntu 23.10+: the remedies that KEEP it, in the order
+    // Chromium ranks them (ADR-0092). Never --no-sandbox - Chromium says it must never be
+    // used on the open web, which is all this transport renders.
+    const denied = /No usable sandbox/.test(cause ?? '')
+      ? ' - Chromium\'s sandbox was denied (Ubuntu 23.10+ restricts user namespaces by AppArmor profile).'
+        + ' Use Chrome stable at /opt/google/chrome/chrome, which Ubuntu allows (set browserPath to it),'
+        + ' or, for another build, set CHROME_DEVEL_SANDBOX=/opt/google/chrome/chrome-sandbox'
+      : '';
+    return { ok: false, url: target, transport: name, cmd, error: `the browser was killed by ${result.signal}${said}${denied}` };
+  }
   if (result.error) return { ok: false, url: target, transport: name, cmd, error: `the browser could not start: ${result.error.message}` };
   if (result.status !== 0) {
     return { ok: false, url: target, transport: name, cmd, error: `the browser exited ${result.status}${said}` };

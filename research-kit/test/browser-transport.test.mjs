@@ -131,3 +131,26 @@ test('a FATAL line outranks the ERROR noise the crash handler prints after it', 
   assert.match(r.error, /FATAL.*the real cause/);
   assert.doesNotMatch(r.error, /cpufreq/);
 });
+
+// ADR-0092. Research: docs/decisions/2026-09-29-chromium-sandbox-userns.
+test('on Linux, Chrome stable - the binary Ubuntu lets sandbox itself - is preferred', () => {
+  // Found by live run 36519301132: on ubuntu-latest the kit picked a Chromium build that
+  // AppArmor denies user namespaces, while Ubuntu's own profile allows Chrome stable (E-02).
+  const all = () => true;
+  assert.equal(findBrowser({ config: {}, env: {}, exists: all, platform: 'linux' }), '/opt/google/chrome/chrome');
+  const onlyChromium = (p) => p === '/usr/bin/chromium';
+  assert.equal(findBrowser({ config: {}, env: {}, exists: onlyChromium, platform: 'linux' }), '/usr/bin/chromium');
+});
+
+test('a denied sandbox names the remedies that keep it, never --no-sandbox', () => {
+  const r = browser.scrape('https://x.invalid/a', {
+    spawn: () => ({ status: null, signal: 'SIGTRAP', stdout: '',
+      stderr: '[1:1:0929/035552.424135:FATAL:content/browser/zygote_host/zygote_host_impl_linux.cc:129] No usable sandbox! If you are running on Ubuntu 23.10+ or another Linux distro that has disabled unprivileged user namespaces with AppArmor, see https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md\n' }),
+    browserPath: '/usr/bin/chromium', env: {}, uid: 1001,
+  });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /No usable sandbox/);
+  assert.match(r.error, /\/opt\/google\/chrome\/chrome/);
+  assert.match(r.error, /CHROME_DEVEL_SANDBOX=\/opt\/google\/chrome\/chrome-sandbox/);
+  assert.doesNotMatch(r.error, /--no-sandbox/);
+});
