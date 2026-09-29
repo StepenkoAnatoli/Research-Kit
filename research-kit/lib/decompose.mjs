@@ -165,6 +165,21 @@ export function outlineOf(body, { max = 12 } = {}) {
   return { headings: all.slice(0, max), more: Math.max(0, all.length - max) };
 }
 
+/**
+ * The order phase 0 spends its scrape budget in (ADR-0094): pages on the likely owners first,
+ * by their host's score, then everything else - each group in search order. The map's
+ * candidate list keeps search order; only what gets captured changes. On MoonAliza
+ * (2026-09-29) search order spent both scrapes on a third-party spec and a forum thread while
+ * the map named docs.ollama.com the likely owner.
+ */
+export function scrapeOrder(material, hosts) {
+  const score = new Map(hosts.map(({ host, score: s }) => [host, s]));
+  return material
+    .map((row, rank) => ({ row, rank, score: score.get(hostOf(row.url)) ?? 0 }))
+    .sort((a, b) => b.score - a.score || a.rank - b.rank)
+    .map(({ row }) => row);
+}
+
 /** At most this many pages have their outline shown, so the map stays a page to read. */
 export const MAX_OUTLINES = 8;
 
@@ -450,7 +465,7 @@ export function decompose(root, {
 
     // The budget bounds SCRAPES, not candidates: a cache hit is not an attempt, so a
     // second pass reaches further down the list instead of re-reading the same two.
-    for (const row of material) {
+    for (const row of scrapeOrder(material, hosts)) {
       if (spent >= maxScrapes) break;
       // The relevance floor research.mjs applies (ADR-0067, ADR-0068), for the query that
       // found this page. It stays in the map's candidate list - that is for a person to read -

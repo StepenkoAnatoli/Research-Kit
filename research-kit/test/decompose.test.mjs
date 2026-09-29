@@ -374,3 +374,23 @@ test('with nothing captured, the outline section says how to get one', () => {
   const text = readText(resolve(dir, PATHS.map));
   assert.match(text, /## Outlines seen in the material\n\n_No outlines - none of these pages is captured yet\. `--max-scrapes <n>`/);
 });
+
+// ADR-0094. Found 2026-09-29 using the kit on MoonAliza: the map ranked docs.ollama.com the
+// likely owner (8), and --max-scrapes 2 spent both scrapes on the first two search results -
+// a third-party spec on GitHub and a forum thread - because the budget followed search rank.
+test('the scrape budget goes to the likely owners first, not to whatever ranked first', () => {
+  const dir = makeProject();
+  const results = [
+    { url: 'https://blog.elsewhere.com/example-limits', title: 'Example limits, a blog' },
+    { url: 'https://forum.other.org/t/example-limits', title: 'Example limits thread' },
+    { url: 'https://docs.example.com/limits', title: 'Example limits' },
+    { url: 'https://docs.example.com/api/limits', title: 'Example limits API' },
+  ];
+  const result = decompose(dir, { topic: 'Example limits', adapter: stubAdapter(results), maxScrapes: 1 });
+  assert.equal(result.spent, 1);
+  const captured = readCorpus(dir).captures.entries.map((e) => e.url);
+  assert.deepEqual(captured, ['https://docs.example.com/limits'], `scraped ${captured.join(', ')}`);
+  const map = readText(resolve(dir, PATHS.map));
+  assert.ok(map.indexOf('blog.elsewhere.com/example-limits') < map.indexOf('docs.example.com/limits'),
+    'the candidate list keeps search order - only the scrape budget is re-ordered');
+});
