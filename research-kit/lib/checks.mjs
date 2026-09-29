@@ -479,7 +479,19 @@ function captureCompleteness(corpus) {
   //
   // Detecting emptiness itself was attempted and abandoned; ADR-0037 records the
   // measurements, because both obvious heuristics fail in opposite directions.
+  // Only a capture some unknown cites (through its EVIDENCE row) gets the instruction: on a
+  // context-only row there is no cited text to confirm, and every phase-0 map collects
+  // such pages (ADR-0099). An uncited capture is hygiene's to report, not this check's.
+  const citedFiles = new Set();
+  for (const unknown of corpus.unknowns) {
+    for (const id of unknown.cites ?? []) {
+      const row = corpus.evidence.find((e) => e.id.toUpperCase() === String(id).toUpperCase());
+      const file = row ? captureOf(corpus, row)?.file : null;
+      if (file) citedFiles.add(file);
+    }
+  }
   for (const capture of corpus.captures.entries) {
+    if (!citedFiles.has(capture.file)) continue;
     const hits = renderFailureMarkers(corpus, capture);
     if (!hits) continue;
 

@@ -171,6 +171,18 @@ test('capture-completeness: a page that SAYS it failed to render is flagged, tho
   assert.equal(readCorpus(dir).captures.entries[0].completeness, 'full');
 });
 
+test('capture-completeness: a render warning is for captures a closure cites, not context-only rows', () => {
+  // Found 2026-09-29 on MoonAliza's secret-masking corpus: a phase-0 GitHub Discussion, kept
+  // as a context-only row that no unknown cites, drew the render warning - whose instruction,
+  // "confirm the text you cite is present", has no cited text to confirm (ADR-0099).
+  const dir = makePassingProject();
+  const capture = readCorpus(dir).captures.entries[0];
+  corrupt(dir, capture.file, (text) => `${text}\n\nThere was an error while loading. Please reload this page.\n`);
+  corrupt(dir, PATHS.discovery, (text) => text.replace('| CLOSED | E-01: 10 requests per minute, 1,000 credits |', '| CLOSED | settled by the owner in person |'));
+  const findings = runCheck('capture-completeness', snapshot(dir));
+  assert.ok(!findings.some((f) => f.rule === 'partial-render'), JSON.stringify(findings));
+});
+
 test('capture-completeness: an ordinary capture is not accused of failing to render', () => {
   // The false-positive guard. This rule matches sentences a page PRINTS, so a corpus of
   // normal pages must stay silent - otherwise the warning becomes noise and gets ignored,
