@@ -301,6 +301,56 @@ export function cleanup(dir) {
 
 // ---------------------------------------------------------------- fixtures
 
+/**
+ * The folder this run's scratch goes in. Computed once, and never inside the checkout.
+ *
+ * A TMPDIR that resolves INSIDE the repository - `TMPDIR=.` is the plainest spelling -
+ * puts the suite's scratch in the tree it is JUDGING. That is not a tidy point:
+ * `doctor`'s secret scan, which F26 asserts stays clean about the kit itself, then
+ * reports the credential-shaped fixtures every test writes, and the suite goes red on a
+ * machine that simply exports an unusual temp folder (found 2026-09-29, break-test).
+ *
+ * The product must not second-guess TMPDIR - an operator who points it at a folder means
+ * it - but the suite's scratch is the suite's own business, and it cannot live in the
+ * thing being judged. It moves to the platform default, and says so once: a variable
+ * silently ignored is a variable nobody learns to unset.
+ */
+let scratchRoot;
+function scratchBase() {
+  if (scratchRoot !== undefined) return scratchRoot;
+
+  const repoRoot = path.resolve(KIT_ROOT, '..');
+  const real = (p) => { try { return fs.realpathSync(p); } catch { return p; } };
+  const asked = tempBase();
+  const rel = path.relative(real(repoRoot), real(asked));
+  const insideRepo = rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
+
+  if (!insideRepo) {
+    scratchRoot = asked;
+    return asked;
+  }
+
+  // The platform default: whatever os.tmpdir() answers with the temp variables unset.
+  const saved = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
+  for (const name of Object.keys(saved)) delete process.env[name];
+  let fallback;
+  try { fallback = path.resolve(os.tmpdir()); } finally {
+    for (const [name, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+  // Published, so every child agrees - the same reason tempBase() does it.
+  for (const name of Object.keys(saved)) {
+    if (saved[name] !== undefined) process.env[name] = fallback;
+  }
+  process.stderr.write(
+    `the temp folder ${asked} is inside this checkout, so this run's scratch goes to ${fallback} instead. `
+    + 'Point TMPDIR outside the repository and this stops.\n');
+  scratchRoot = fallback;
+  return fallback;
+}
+
 export function tempDir(prefix = 'research-kit-') {
   // TMPDIR is allowed to name a directory that does not exist yet - a container with a
   // cleaned /tmp, a CI job that exports RUNNER_TEMP before creating it. `mkdtemp` then
@@ -311,7 +361,7 @@ export function tempDir(prefix = 'research-kit-') {
   // tempBase(), not os.tmpdir(): a RELATIVE TMPDIR is legal and, resolved per call against
   // whichever cwd is current, scatters scratch directories across the filesystem - and it
   // made the COMMIT GATE's index snapshot throw ENOENT and fail open (2026-09-29).
-  const base = tempBase();
+  const base = scratchBase();
   fs.mkdirSync(base, { recursive: true });
   const dir = fs.mkdtempSync(path.join(base, prefix));
   scratchDirs.push(dir);
