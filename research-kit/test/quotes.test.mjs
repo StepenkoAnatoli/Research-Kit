@@ -16,6 +16,18 @@ test('quote markers are read from a Finding cell, fragments split on an ellipsis
   assert.deepEqual(quoteAnchors('[quote: one … two]')[0].fragments, ['one', 'two']);
 });
 
+// Found 2026-09-29, real use on MoonAliza: the marker ended at the first `]`, so a quote of
+// code (`toolCalls[i].Index = ...`) was cut to "toolCalls[i" - which the capture did contain,
+// so a quote nobody had checked in full passed - and a quoted Markdown link failed on its `[`.
+test('a quote may contain balanced brackets: code subscripts and Markdown links', () => {
+  assert.deepEqual(quoteAnchors('Claim. [quote: toolCalls[i].Index = tc.Function.Index] rest').map((q) => q.quote),
+    ['toolCalls[i].Index = tc.Function.Index']);
+  assert.deepEqual(quoteAnchors('[quote: just released - [v0.4.7](https://x.invalid/v0.4.7)] and [quote: a b c]').map((q) => q.quote),
+    ['just released - [v0.4.7](https://x.invalid/v0.4.7)', 'a b c']);
+  assert.equal(anchorFound(quoteAnchors('[quote: just released - [v0.4.7](https://x.invalid/v0.4.7)]')[0].fragments,
+    'we just released - [v0.4.7](https://x.invalid/v0.4.7) today'), true);
+});
+
 test('matching survives what a capture does to text, and nothing looser', () => {
   const body = 'The **ﬁrst** plan — see [the docs](https://x.invalid/a) — says \\*“don’t   stop”\\*.';
   assert.equal(normalizeForMatch('The FIRST plan - see the docs - says "don\'t stop".'), normalizeForMatch(body));
