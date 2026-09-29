@@ -25,8 +25,11 @@ owner's bonus. So `prefer` learned to accept a host with a path.
 
 ## Decision
 
-- **`ownerOf(url)`:** on a shared host the owner is the host plus the first path segment
-  (`github.com/ollama`). Everywhere else it is the host.
+- **`ownerOf(url)`:** on a shared host the owner is the host plus the account, the first path
+  segment (`github.com/ollama`). Everywhere else it is the host.
+  - `orgs/` and `users/` are skipped, so the account is the segment after them.
+  - The host's own sections (`topics`, `marketplace`, `features` and similar) belong to the
+    host. The same day's secret-masking map had ranked "github.com/orgs" as an owner.
 - **The shared hosts (`SHARED_HOSTS`):**
   - code hosts: github.com, gitlab.com, bitbucket.org, codeberg.org,
     raw.githubusercontent.com, gist.github.com;

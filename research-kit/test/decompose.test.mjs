@@ -110,6 +110,13 @@ test('on a shared host the owner is the account, so strangers do not pool into o
   assert.equal(ownerOf('https://raw.githubusercontent.com/ollama/ollama/main/x.go'), 'raw.githubusercontent.com/ollama');
   assert.equal(ownerOf('https://www.docs.ollama.com/api'), 'docs.ollama.com');
   assert.equal(ownerOf('https://github.com/'), 'github.com');
+  // Found the same day on the secret-masking map: github.com/orgs/community/... ranked as the
+  // owner "github.com/orgs". The account is the segment after orgs/ or users/; GitHub's own
+  // sections (topics, marketplace, ...) belong to GitHub.
+  assert.equal(ownerOf('https://github.com/orgs/community/discussions/13082'), 'github.com/community');
+  assert.equal(ownerOf('https://github.com/users/octocat/projects/1'), 'github.com/octocat');
+  assert.equal(ownerOf('https://github.com/topics/secrets'), 'github.com');
+  assert.equal(ownerOf('https://github.com/marketplace/actions/x'), 'github.com');
   const material = [
     'https://github.com/jetelain/OllamaRouter',
     'https://www.reddit.com/r/ollama/comments/1j0pls3/x/',

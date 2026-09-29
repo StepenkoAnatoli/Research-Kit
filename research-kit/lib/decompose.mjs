@@ -63,13 +63,20 @@ export function loadRecipe(nameOrPath) {
 export const SHARED_HOSTS = new Set(['github.com', 'gitlab.com', 'bitbucket.org', 'codeberg.org',
   'raw.githubusercontent.com', 'gist.github.com', 'huggingface.co', 'medium.com', 'dev.to']);
 
+/** Path segments that name the account (`/orgs/<org>`) or the host's own section (`/topics`). */
+const ACCOUNT_PREFIXES = new Set(['orgs', 'users']);
+const HOST_SECTIONS = new Set(['topics', 'marketplace', 'features', 'collections', 'sponsors', 'apps',
+  'settings', 'explore', 'trending', 'search', 'about', 'pricing', 'enterprise', 'security', 'site', 'login']);
+
 /** Who owns the page, for ranking: the host, or host/account on a shared host. */
 export function ownerOf(url) {
   const host = hostOf(url);
   if (!host || !SHARED_HOSTS.has(host)) return host;
-  let first = '';
-  try { first = new URL(url).pathname.split('/').filter(Boolean)[0] ?? ''; } catch { /* host only */ }
-  return first ? `${host}/${first.toLowerCase()}` : host;
+  let segments = [];
+  try { segments = new URL(url).pathname.split('/').filter(Boolean).map((s) => s.toLowerCase()); } catch { /* host only */ }
+  if (ACCOUNT_PREFIXES.has(segments[0])) segments = segments.slice(1);
+  const account = segments[0] ?? '';
+  return account && !HOST_SECTIONS.has(account) ? `${host}/${account}` : host;
 }
 
 export function docsHosts(results, { limit = 6 } = {}) {
