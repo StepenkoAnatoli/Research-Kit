@@ -1,8 +1,8 @@
-# Deep-Research-Agent
+# Research-Kit
 
 **Research first, build second.** This is a research kit that collects evidence from real
 sources, keeps a tamper-evident record of where every claim came from, and then *refuses to
-let a build start* until a person has reviewed it.
+let a build start* until the evidence has been reviewed - by an agent or a person.
 
 It is for the case where an AI would otherwise guess: API limits, pricing, what a licence
 actually permits, whether a platform can do the thing you are planning around.
@@ -255,7 +255,8 @@ from research that passed the gate first.
 
 Read `buildAuthorized` and stop if it is `false`. **It will be `false` for everything this
 command returns**, because a freshly collected corpus has not been reviewed by anyone. An
-agent treating exit 0 as permission to build has skipped the only part that needed a person.
+agent treating exit 0 as permission to build has skipped the only part that needed a
+reviewer - an agent or a person.
 
 ---
 
