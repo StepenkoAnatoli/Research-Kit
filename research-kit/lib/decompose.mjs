@@ -56,10 +56,26 @@ export function loadRecipe(nameOrPath) {
 }
 
 /** Where the facts probably live: the official hosts a search keeps pointing at. */
+/**
+ * Hosts where many unrelated owners publish side by side (ADR-0096): there the owner is the
+ * account, the first path segment. As ADR-0044 found for `prefer`, github.com is not one owner.
+ */
+export const SHARED_HOSTS = new Set(['github.com', 'gitlab.com', 'bitbucket.org', 'codeberg.org',
+  'raw.githubusercontent.com', 'gist.github.com', 'huggingface.co', 'medium.com', 'dev.to']);
+
+/** Who owns the page, for ranking: the host, or host/account on a shared host. */
+export function ownerOf(url) {
+  const host = hostOf(url);
+  if (!host || !SHARED_HOSTS.has(host)) return host;
+  let first = '';
+  try { first = new URL(url).pathname.split('/').filter(Boolean)[0] ?? ''; } catch { /* host only */ }
+  return first ? `${host}/${first.toLowerCase()}` : host;
+}
+
 export function docsHosts(results, { limit = 6 } = {}) {
   const counts = new Map();
   for (const row of results) {
-    const host = hostOf(row.url);
+    const host = ownerOf(row.url);
     if (!host) continue;
     let weight = 1;
     if (/^docs?\.|^developer\./.test(host)) weight += 2;
@@ -175,7 +191,7 @@ export function outlineOf(body, { max = 12 } = {}) {
 export function scrapeOrder(material, hosts) {
   const score = new Map(hosts.map(({ host, score: s }) => [host, s]));
   return material
-    .map((row, rank) => ({ row, rank, score: score.get(hostOf(row.url)) ?? 0 }))
+    .map((row, rank) => ({ row, rank, score: score.get(ownerOf(row.url)) ?? 0 }))
     .sort((a, b) => b.score - a.score || a.rank - b.rank)
     .map(({ row }) => row);
 }

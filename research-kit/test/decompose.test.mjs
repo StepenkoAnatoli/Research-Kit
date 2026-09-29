@@ -3,7 +3,7 @@
 
 import { test, describe, assert, makeProject, makePassingProject, fs } from './harness.mjs';
 import { PATHS, resolve, readText, listFiles } from '../lib/core.mjs';
-import { decompose, parseRecipe, loadRecipe, docsHosts, RECIPE_DIR, searchSummary, outlineOf } from '../lib/decompose.mjs';
+import { decompose, parseRecipe, loadRecipe, docsHosts, scrapeOrder, ownerOf, RECIPE_DIR, searchSummary, outlineOf } from '../lib/decompose.mjs';
 import { UNIVERSAL_DIMENSIONS, seedRows, coverageOfUniversals } from '../lib/dimensions.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { searchUsage } from '../lib/research-run.mjs';
@@ -100,6 +100,31 @@ test('docsHosts ranks the hosts that keep owning the facts', () => {
   ]);
   assert.equal(hosts[0].host, 'docs.example.com');
   assert.ok(hosts[0].score > hosts[1].score);
+});
+
+// Found 2026-09-29 on MoonAliza's context-overflow map: github.com scored 7 as one "owner",
+// so all three phase-0 scrapes went to strangers' repositories and issues, and the owner's
+// docs host (docs.ollama.com, 4) got none. On a shared code host the owner is the account.
+test('on a shared host the owner is the account, so strangers do not pool into one owner', () => {
+  assert.equal(ownerOf('https://github.com/ollama/ollama/issues/2204'), 'github.com/ollama');
+  assert.equal(ownerOf('https://raw.githubusercontent.com/ollama/ollama/main/x.go'), 'raw.githubusercontent.com/ollama');
+  assert.equal(ownerOf('https://www.docs.ollama.com/api'), 'docs.ollama.com');
+  assert.equal(ownerOf('https://github.com/'), 'github.com');
+  const material = [
+    'https://github.com/jetelain/OllamaRouter',
+    'https://www.reddit.com/r/ollama/comments/1j0pls3/x/',
+    'https://docs.openwebui.com/troubleshooting/context-window/',
+    'https://github.com/continuedev/continue/issues/9797',
+    'https://community.openai.com/t/context-limit-token-issue/901481',
+    'https://github.com/open-webui/computer/blob/main/CHANGELOG.md',
+    'https://docs.ollama.com/api/openai-compatibility',
+    'https://github.com/earendil-works/pi/issues/2626',
+    'https://github.com/ollama/ollama/issues/2204',
+  ].map((url) => ({ url }));
+  const hosts = docsHosts(material);
+  assert.ok(!hosts.some((h) => h.host === 'github.com'), JSON.stringify(hosts));
+  const order = scrapeOrder(material, hosts).map((r) => r.url);
+  assert.ok(order.indexOf('https://docs.ollama.com/api/openai-compatibility') < order.indexOf('https://github.com/jetelain/OllamaRouter'), order.join('\n'));
 });
 
 test('a dry run gathers nothing and spends nothing', () => {
