@@ -106,3 +106,15 @@ test('a browser killed by a signal is not reported as a timeout', () => {
   assert.match(trapped.error, /killed by SIGTRAP/);
   assert.match(trapped.error, /No usable sandbox/);
 });
+
+test('a crash names Chromium\'s FATAL line, not the stack trace\'s last line', () => {
+  // Found 2026-09-29, live run 36518843676: "killed by SIGABRT: [end of stack trace]" - the
+  // last stderr line of a Chromium crash is the dump's footer; the cause is the FATAL line.
+  const r = browser.scrape('https://x.invalid/a', {
+    spawn: () => ({ status: null, signal: 'SIGABRT', stdout: '',
+      stderr: '[123:123:FATAL:zygote_host_impl_linux.cc(127)] No usable sandbox! See https://x/y\n#0 0x55 base::debug::StackTrace\n#1 0x56 logging::LogMessage\n[end of stack trace]\n' }),
+    browserPath: '/opt/chrome', env: {},
+  });
+  assert.match(r.error, /killed by SIGABRT: .*FATAL.*No usable sandbox/);
+  assert.doesNotMatch(r.error, /end of stack trace/);
+});

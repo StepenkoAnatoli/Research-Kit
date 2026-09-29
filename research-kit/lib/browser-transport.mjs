@@ -84,8 +84,12 @@ export function scrape(url, { spawn = spawnSync, browserPath = null, env = proce
   const result = spawn(binary, browserArgs(target, { env, ...(uid === undefined ? {} : { uid }) }), {
     encoding: 'utf8', timeout, maxBuffer: CHILD_OUTPUT_LIMIT, windowsHide: true,
   });
-  // The browser's own last word, which is where Chromium says why it stopped.
-  const said = result.stderr ? `: ${String(result.stderr).trim().split('\n').slice(-1)[0].slice(0, 200)}` : '';
+  // Why the browser stopped, in its own words: the last FATAL or ERROR line when there is one
+  // (a crash ends its stderr with a stack dump whose last line is "[end of stack trace]",
+  // live run 2026-09-29), else the last line.
+  const lines = String(result.stderr ?? '').trim().split('\n').filter(Boolean);
+  const cause = [...lines].reverse().find((line) => /FATAL|ERROR:/.test(line)) ?? lines.slice(-1)[0];
+  const said = cause ? `: ${cause.trim().slice(0, 200)}` : '';
   if (result.error?.code === 'ETIMEDOUT') {
     return { ok: false, url: target, transport: name, cmd, error: `the browser did not finish rendering ${target} within ${Math.round(timeout / 1000)}s` };
   }
