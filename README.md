@@ -68,6 +68,16 @@ The full table is in [Reading a verdict](#reading-a-verdict).
 `{ "transport": "http-keyless" }` in `~/.agents/research-kit.config.json` and it reports
 READY.
 
+**Keyless or Firecrawl?** Which one the gate accepts is set by `evidencePolicy` in that
+same machine config:
+- **`"pluralist"`, the default.** A keyless capture passes with a warning, and so does a
+  closed unknown resting only on `partial` captures. That is enough to map a topic, and to
+  close an unknown whose capture holds the claim; a `[quote: ...]` anchor proves the
+  sentence is in it.
+- **`"strict"`.** Those warnings fail. Any cited capture not fetched by the metered
+  Firecrawl CLI fails the gate. Use this when evidence must not rest on a best-effort
+  fetch. `preflight --strict` applies it to one run, and promotes every other warning too.
+
 Where to go from here:
 - **Real research** captures more of each page through Firecrawl: see
   [Start here](#start-here-if-this-is-new-to-you) (on GitHub, nothing installed) or
