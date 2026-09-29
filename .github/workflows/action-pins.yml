@@ -11,6 +11,11 @@ on:
   schedule:
     - cron: '17 6 * * 1'
   workflow_dispatch:
+  # And whenever a pin can change: a pull request that edits a workflow or this check.
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/scripts/check-action-pins.mjs'
 
 permissions:
   contents: read
