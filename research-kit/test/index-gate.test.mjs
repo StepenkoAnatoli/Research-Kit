@@ -6,7 +6,7 @@
 
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
-import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability, fixtureCommitArgs } from './harness.mjs';
+import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability, requireGit, fixtureCommitArgs } from './harness.mjs';
 import { PATHS, resolve, readText, writeText } from '../lib/core.mjs';
 import { evaluate, materializeIndex } from '../lib/gate.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
@@ -155,6 +155,10 @@ test('the scratch directory does not survive the verdict', () => {
 // from evaluate before the scratch variable was assigned, so the finally that removes
 // it never ran and every such verdict leaked one temp directory.
 test('the empty-index verdict takes its scratch with it too', () => {
+  // Declared, not assumed: the test spawns git through the fixture helper, and on a host
+  // without it the failure was a raw `spawnSync git ENOENT` rather than the UNSUP this
+  // harness exists to report (found 2026-09-29, break-test).
+  requireGit('the empty-index verdict over an untracked corpus');
   const dir = makePassingProject();
   git(dir, ['init', '-q']);                 // a repository whose research/ is UNTRACKED
   git(dir, ['config', 'user.email', 'fixture@example.invalid']);

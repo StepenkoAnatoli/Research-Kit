@@ -1,7 +1,7 @@
 // ADR-0090: the corpus exported as WARC 1.1, a copy for archive tools.
 // Research: docs/decisions/2026-09-28-warc-export.
 
-import { test, describe, assert, makePassingProject, tempDir, corrupt } from './harness.mjs';
+import { test, describe, assert, makePassingProject, tempDir, corrupt, requireGit } from './harness.mjs';
 import { PATHS, sha256 } from '../lib/core.mjs';
 import { readLedger } from '../lib/corpus.mjs';
 import { exportWarc, readWarc } from '../lib/warc.mjs';
@@ -118,6 +118,10 @@ test('a refused write is named in words, and one record is "1 record"', () => {
 });
 
 test('the default export is ignored by git, in a scaffolded project and in this repository', () => {
+  // Declared, not assumed: every assertion below is a `git check-ignore` exit status, and
+  // on a host without git they were raw failures instead of the UNSUP this harness reports
+  // for a capability it cannot provide (found 2026-09-29, break-test).
+  requireGit('whether the default WARC export is git-ignored');
   // Found 2026-09-29 (break-test PR #140, item 3): export-warc with no arguments wrote a
   // 405 KB research-corpus.warc.gz into the project root that `git check-ignore` did not
   // cover - a copy of the corpus, one `git add -A` away from being committed beside it.
