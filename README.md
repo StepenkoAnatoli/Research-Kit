@@ -295,7 +295,8 @@ This is not a guess about where the code works — it is a statement about where
   **That one was never macOS-specific:** a symlinked `~/projects`, or `/home` → `/mnt/home`,
   reproduces it on Linux. It is fixed.
 
-macOS is excluded deliberately rather than accidentally. A CI leg nobody intends to fix
+macOS is excluded deliberately rather than accidentally
+([ADR-0101](docs/adr/0101-macos-is-best-effort-and-has-no-ci-leg.md)). A CI leg nobody intends to fix
 teaches people to ignore red, which costs more than the coverage is worth. If that
 changes, add `macos-latest` to the matrix in `offline-suite.yml` — there is a comment
 there saying so.
