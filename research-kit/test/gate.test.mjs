@@ -170,6 +170,24 @@ function editGate(dir, toolInput, cwd = dir, config = path.join(tempDir(), 'abse
   return JSON.parse(r.stdout).hookSpecificOutput;
 }
 
+// Found 2026-09-29 (Arena break test): a payload that is valid JSON but not an object (`null`,
+// a number, an array), or one whose cwd is not a string, crashed the hook with a raw stack and
+// exit 1 - on every Edit - where an unparsable payload is allowed with a note.
+test('the edit gate answers a non-object payload or a non-string cwd instead of crashing', () => {
+  const dir = makeProject();
+  const payloads = ['null', '5', '[]', '"x"',
+    JSON.stringify({ tool_name: 'Write', cwd: 5, tool_input: { file_path: 'src/app.js' } }),
+    JSON.stringify({ tool_name: 'Write', cwd: { a: 1 }, project_dir: 7, tool_input: { file_path: 'src/app.js' } })];
+  for (const input of payloads) {
+    const r = spawnSync(process.execPath, [path.join(KIT_ROOT, 'hooks', 'edit-gate.mjs')], {
+      input, cwd: dir, encoding: 'utf8', env: { ...process.env, RESEARCH_KIT_CONFIG: path.join(tempDir(), 'absent.json') },
+    });
+    assert.equal(r.status, 0, `payload ${input} exited ${r.status}:\n${r.stderr.slice(0, 300)}`);
+    const out = JSON.parse(r.stdout).hookSpecificOutput;
+    assert.ok(['allow', 'ask', 'deny'].includes(out.permissionDecision), `payload ${input}: ${r.stdout}`);
+  }
+});
+
 test('the edit gate lets phase-1 work through and still stops code', () => {
   const dir = makeProject();
   for (const rel of ['research/MAP.md', 'research/DISCOVERY.md', 'research/EVIDENCE.md', 'AGENTS.md']) {
