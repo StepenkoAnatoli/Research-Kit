@@ -700,8 +700,10 @@ export function checkFlagValues(flags, specs, { exit = 2 } = {}) {
       if (value === true || value === '') { problems.push(`--${name} needs a value`); continue; }
       if (spec?.choices && !spec.choices.includes(value)) {
         problems.push(`--${name} must be one of ${spec.choices.join(', ')}, not "${value}"`);
-      } else if (spec?.int && !(/^-?\d+$/.test(String(value)) && Number(value) >= (spec.min ?? -Infinity))) {
-        problems.push(`--${name} must be a whole number${spec.min !== undefined ? ` of at least ${spec.min}` : ''}, not "${value}"`);
+      } else if (spec?.int && !(/^-?\d+$/.test(String(value)) && Number(value) >= (spec.min ?? -Infinity) && Number(value) <= (spec.max ?? Infinity))) {
+        const range = spec.min !== undefined && spec.max !== undefined ? ` from ${spec.min} to ${spec.max}`
+          : spec.min !== undefined ? ` of at least ${spec.min}` : spec.max !== undefined ? ` of at most ${spec.max}` : '';
+        problems.push(`--${name} must be a whole number${range}, not "${value}"`);
       }
     }
   }
