@@ -95,3 +95,21 @@ test('the CLI writes the file, --out names it, and a non-project is refused', ()
   assert.match(r.stderr, /not a research project/);
   assert.ok(PATHS.ledger);
 });
+
+test('a refused write is named in words, and one record is "1 record"', () => {
+  // Found 2026-09-29: --out naming a folder reached the top as a Node stack trace.
+  const bin = fileURLToPath(new URL('../bin/export-warc.mjs', import.meta.url));
+  const dir = makePassingProject();
+  const folder = tempDir();
+  let r = spawnSync(process.execPath, [bin, '--out', folder], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 2, r.stderr);
+  assert.match(r.stderr, /could not write .*: EISDIR \(a folder is where the file should be\)/);
+  assert.doesNotMatch(`${r.stdout}${r.stderr}`, /node:fs|^\s+at /m);
+
+  const empty = tempDir();
+  fs.mkdirSync(path.join(empty, 'research'));
+  fs.writeFileSync(path.join(empty, 'research', 'DISCOVERY.md'), '# Discovery Contract\n');
+  r = spawnSync(process.execPath, [bin], { cwd: empty, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /wrote 1 record \(0 captures\)/);
+});

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // bin/export-warc.mjs - the corpus as one .warc.gz, a copy for archive tools (ADR-0090).
 
-import { parseFlags, refuseUnknownFlags, kitCommand, operatorPath, writeBytes } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, kitCommand, operatorPath, writeBytes, writeFailure } from '../lib/core.mjs';
 import { exportWarc, readWarc } from '../lib/warc.mjs';
 import { isGated } from '../lib/gate.mjs';
 import { GATE_MARKERS } from '../lib/scaffold.mjs';
@@ -38,6 +38,14 @@ if (flags.out === true || flags.out === '') {
 const out = operatorPath(root, typeof flags.out === 'string' ? flags.out : 'research-corpus.warc.gz');
 const { bytes, records, captures, skipped } = exportWarc(root);
 readWarc(bytes); // a self-check: an export this reader cannot split is never written
-writeBytes(out, bytes);
-process.stdout.write(`export-warc: wrote ${records.length} records (${captures} capture${captures === 1 ? '' : 's'}) to ${out}\n`);
+try {
+  writeBytes(out, bytes);
+} catch (err) {
+  const why = writeFailure(err);
+  if (!why) throw err;
+  process.stderr.write(`export-warc: ${why}\n`);
+  process.exit(2);
+}
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+process.stdout.write(`export-warc: wrote ${plural(records.length, 'record')} (${plural(captures, 'capture')}) to ${out}\n`);
 for (const s of skipped) process.stdout.write(`  left out ${s.file} (ledger seq ${s.seq}): ${s.reason}\n`);
