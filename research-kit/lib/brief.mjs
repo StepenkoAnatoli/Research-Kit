@@ -190,7 +190,8 @@ function knownUnknowns(corpus) {
     const text = String(cell ?? '').trim();
     const at = text.search(LABEL);
     if (at < 0) return [`Day-one verification: ${text || '_not stated_'}`];
-    const known = text.slice(0, at).trim();
+    // The author may have written the cell as the brief prints it: its own label is not doubled.
+    const known = text.slice(0, at).trim().replace(/^known so far\s*[:-]\s*/i, '');
     const stepText = text.slice(at).replace(LABEL, '').trim();
     return [...(known ? [`Known so far: ${known}`] : []), `Day-one verification: ${stepText || '_not stated_'}`];
   };

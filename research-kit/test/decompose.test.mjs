@@ -3,7 +3,7 @@
 
 import { test, describe, assert, makeProject, makePassingProject, fs } from './harness.mjs';
 import { PATHS, resolve, readText, listFiles } from '../lib/core.mjs';
-import { decompose, parseRecipe, loadRecipe, docsHosts, RECIPE_DIR, searchSummary, outlineOf } from '../lib/decompose.mjs';
+import { decompose, parseRecipe, loadRecipe, docsHosts, scrapeOrder, ownerOf, topicQueries, RECIPE_DIR, searchSummary, outlineOf } from '../lib/decompose.mjs';
 import { UNIVERSAL_DIMENSIONS, seedRows, coverageOfUniversals } from '../lib/dimensions.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { searchUsage } from '../lib/research-run.mjs';
@@ -100,6 +100,52 @@ test('docsHosts ranks the hosts that keep owning the facts', () => {
   ]);
   assert.equal(hosts[0].host, 'docs.example.com');
   assert.ok(hosts[0].score > hosts[1].score);
+});
+
+// Found 2026-09-29 on MoonAliza's context-overflow map: github.com scored 7 as one "owner",
+// so all three phase-0 scrapes went to strangers' repositories and issues, and the owner's
+// docs host (docs.ollama.com, 4) got none. On a shared code host the owner is the account.
+test('on a shared host the owner is the account, so strangers do not pool into one owner', () => {
+  assert.equal(ownerOf('https://github.com/ollama/ollama/issues/2204'), 'github.com/ollama');
+  assert.equal(ownerOf('https://raw.githubusercontent.com/ollama/ollama/main/x.go'), 'raw.githubusercontent.com/ollama');
+  assert.equal(ownerOf('https://www.docs.ollama.com/api'), 'docs.ollama.com');
+  assert.equal(ownerOf('https://github.com/'), 'github.com');
+  // Found the same day on the secret-masking map: github.com/orgs/community/... ranked as the
+  // owner "github.com/orgs". The account is the segment after orgs/ or users/; GitHub's own
+  // sections (topics, marketplace, ...) belong to GitHub.
+  assert.equal(ownerOf('https://github.com/orgs/community/discussions/13082'), 'github.com/community');
+  assert.equal(ownerOf('https://github.com/users/octocat/projects/1'), 'github.com/octocat');
+  assert.equal(ownerOf('https://github.com/topics/secrets'), 'github.com');
+  assert.equal(ownerOf('https://github.com/marketplace/actions/x'), 'github.com');
+  const material = [
+    'https://github.com/jetelain/OllamaRouter',
+    'https://www.reddit.com/r/ollama/comments/1j0pls3/x/',
+    'https://docs.openwebui.com/troubleshooting/context-window/',
+    'https://github.com/continuedev/continue/issues/9797',
+    'https://community.openai.com/t/context-limit-token-issue/901481',
+    'https://github.com/open-webui/computer/blob/main/CHANGELOG.md',
+    'https://docs.ollama.com/api/openai-compatibility',
+    'https://github.com/earendil-works/pi/issues/2626',
+    'https://github.com/ollama/ollama/issues/2204',
+  ].map((url) => ({ url }));
+  const hosts = docsHosts(material);
+  assert.ok(!hosts.some((h) => h.host === 'github.com'), JSON.stringify(hosts));
+  const order = scrapeOrder(material, hosts).map((r) => r.url);
+  assert.ok(order.indexOf('https://docs.ollama.com/api/openai-compatibility') < order.indexOf('https://github.com/jetelain/OllamaRouter'), order.join('\n'));
+});
+
+// Found 2026-09-29 on MoonAliza's secret-masking map: "... , and which encodings they also
+// mask" was searched alone, and "they" points at nothing - the search returned an IDL manual
+// on character encoding. A part that refers back to the subject carries it (ADR-0098).
+test('a topic part that refers back with a pronoun carries the subject; others stay alone', () => {
+  const parts = topicQueries('Masking secrets in streamed output: how CI runners mask a secret split across chunks, and which encodings they also mask');
+  assert.deepEqual(parts, [
+    'how CI runners mask a secret split across chunks',
+    'Masking secrets in streamed output which encodings they also mask',
+  ]);
+  // ADR-0085 unchanged: a long part with no back-reference is searched alone.
+  assert.deepEqual(topicQueries('MoonAliza: how Ollama streams tool calls, what OpenAI returns on overflow'),
+    ['how Ollama streams tool calls', 'what OpenAI returns on overflow']);
 });
 
 test('a dry run gathers nothing and spends nothing', () => {
@@ -366,6 +412,47 @@ test('the map shows the outlines of the pages phase 0 captured, and no verdict o
   assert.doesNotMatch(section, /\b(COVERED|DISMISSED|GAP)\b/);
   const findings = runCheck('subtopic-coverage', { ...readCorpus(dir), root: dir });
   assert.ok(findings.every((f) => !/unparsed|malformed/.test(f.rule ?? '')));
+});
+
+// ADR-0097. Found 2026-09-29 using the kit on MoonAliza: the map ranked docs.ollama.com the
+// likely owner, and phase 0 skipped its "OpenAI compatibility - Ollama documentation" page
+// because a terse title carried one term of a long topic. Trusting the owner past the floor
+// brought back RR-9's postgresql.org home page, so the page is NAMED for the reviewer instead.
+test('a floor-skipped page on the top likely owner is named in the map, not scraped', () => {
+  const dir = makeProject();
+  const results = [
+    { url: 'https://blog.elsewhere.com/widget', title: 'Example widget throttling behaviour explained' },
+    { url: 'https://docs.example.com/reference/a', title: 'Reference' },
+    { url: 'https://docs.example.com/reference/b', title: 'Overview' },
+  ];
+  const result = decompose(dir, { topic: 'Example widget throttling behaviour', adapter: stubAdapter(results), maxScrapes: 1 });
+  assert.equal(result.spent, 1);
+  assert.deepEqual(readCorpus(dir).captures.entries.map((e) => e.url), ['https://blog.elsewhere.com/widget']);
+  const map = readText(resolve(dir, PATHS.map));
+  const section = map.slice(map.indexOf('Skipped on the likely owner'));
+  assert.ok(map.includes('Skipped on the likely owner'), map);
+  assert.match(section, /\[Reference\]\(https:\/\/docs\.example\.com\/reference\/a\) - `docs\.example\.com`/);
+  assert.match(section, /research\/plan\.json/);
+});
+
+test('the floor holds for every page, the top owner\'s included', () => {
+  const dir = makeProject();
+  const results = [
+    { url: 'https://docs.example.com/reference/a', title: 'Reference' },
+    { url: 'https://docs.example.com/reference/b', title: 'Overview' },
+    { url: 'https://unrelated.org/cats', title: 'Cats' },
+  ];
+  decompose(dir, { topic: 'Example widget throttling behaviour', adapter: stubAdapter(results), maxScrapes: 3 });
+  const captured = readCorpus(dir).captures.entries.map((e) => e.url);
+  assert.ok(!captured.includes('https://unrelated.org/cats'), captured.join(', '));
+  assert.ok(!captured.some((u) => u.startsWith('https://docs.example.com/')), 'the owner is named, never scraped past the floor');
+  // Every host at score 1 is not an owner at all: the floor holds for all of them.
+  const flat = makeProject();
+  decompose(flat, { topic: 'Example widget throttling behaviour', adapter: stubAdapter([
+    { url: 'https://unrelated.org/cats', title: 'Cats' }, { url: 'https://other.net/dogs', title: 'Dogs' },
+  ]), maxScrapes: 2 });
+  assert.deepEqual(readCorpus(flat).captures.entries.map((e) => e.url), []);
+  assert.ok(!readText(resolve(flat, PATHS.map)).includes('Skipped on the likely owner'), 'a flat ranking names no owner');
 });
 
 test('with nothing captured, the outline section says how to get one', () => {

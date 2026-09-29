@@ -10,12 +10,12 @@
 import fs from 'node:fs';
 import {
   PATHS, HEADERS, resolve, today, sha256, titleFromUrl, hostOf, urlDigest, writeText, readText, exists,
-  sleepSync,
+  sleepSync, urlKey, ageInDays,
 } from './core.mjs';
 import { rateLimitWaitMs } from './firecrawl.mjs';
 import {
   captureEntry, cacheDecision, rememberCapture, appendRow, upsertRow, nextId,
-  readCaptures, parseTable,
+  readCaptures, parseTable, readLedger,
 } from './corpus.mjs';
 import { appendFetch, withLock } from './provenance.mjs';
 import { firstFinding } from './finding.mjs';
@@ -107,6 +107,31 @@ function whyFetched(decision) {
  */
 export const DEFAULT_SOURCE_TYPE = 'S';
 
+/** Statuses that say the page is not there, as opposed to a server that was busy. */
+const GONE = /answered HTTP (404|410)\b/;
+
+/**
+ * The ledger's last word on a URL, when it is "gone": a 404 or 410 within the refresh window.
+ * Such a page is not fetched again until the window passes or --force (found 2026-09-29: a plan
+ * URL that 404'd was fetched, and paid for, again ten minutes later). A 5xx, a timeout or a
+ * rate limit is transient and gets no such memory.
+ */
+export function recentlyGone(root, url, { refreshDays = 30, force = false, now = new Date() } = {}) {
+  if (force) return null;
+  const key = urlKey(url);
+  const last = readLedger(root).entries.filter((e) => (e.op === 'fail' || e.op === 'scrape') && e.url && urlKey(e.url) === key).pop();
+  if (!last || last.op !== 'fail') return null;
+  const status = GONE.exec(String(last.error ?? ''));
+  if (!status) return null;
+  const age = ageInDays(last.at, now);
+  if (age === null || (refreshDays >= 0 && age > refreshDays)) return null;
+  const on = String(last.at).slice(0, 10);
+  return { status: 'gone', url, entry: null, spent: 0,
+    reason: `answered HTTP ${status[1]} on ${on} - not fetched again for ${refreshDays} days; --force retries it` };
+}
+
+
+
 export function collectOne(root, url, {
   runScrape,
   corpus,
@@ -148,6 +173,8 @@ export function collectOne(root, url, {
     if (decision.hit) {
       return { status: 'cached', url, entry: decision.entry, reason: `fresh capture from ${decision.entry.retrieved}`, spent: 0 };
     }
+    const gone = recentlyGone(root, url, { refreshDays, force, now });
+    if (gone) return gone;
 
     // A rate limit is not a failure, it is an instruction to wait. Bounded, because a
     // vendor that keeps refusing is a different problem from a busy minute, and a

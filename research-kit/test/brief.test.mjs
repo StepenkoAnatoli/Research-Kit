@@ -239,6 +239,18 @@ test('a day-one label inside the cell splits what is known from the step, and ap
   assert.match(text, /Known so far: E-05 says streaming is supported but shows no chunk\./);
 });
 
+test('a "Known so far" label the author wrote in the cell appears once', () => {
+  // Found 2026-09-29 on MoonAliza's context-overflow corpus: the author wrote the cell the way
+  // the brief itself prints it, and the brief printed "Known so far: Known so far: ...".
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace(/^(\| U-1 \|.*)$/m,
+    '$1\n| U-2 | Is output reserved? | Sets the budget | KNOWN-UNKNOWN | Known so far: the docs say nothing. Day-one verification: send one oversized request. |'));
+  renderBrief(dir, { force: true });
+  const text = readText(resolve(dir, PATHS.brief));
+  assert.equal((text.match(/Known so far:/g) ?? []).length, 1, text.slice(text.indexOf('## Known unknowns'), text.indexOf('## Decision')));
+  assert.match(text, /Known so far: the docs say nothing\./);
+});
+
 // Found 2026-09-28 running the kit from a repository checkout on MoonAliza: the project was
 // scaffolded with --kit '$HOME/.agents/research-kit' so it could travel, and every scaffolded
 // file said so - but the drafted brief named this machine's checkout path, which exists

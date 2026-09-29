@@ -56,10 +56,33 @@ export function loadRecipe(nameOrPath) {
 }
 
 /** Where the facts probably live: the official hosts a search keeps pointing at. */
+/**
+ * Hosts where many unrelated owners publish side by side (ADR-0096): there the owner is the
+ * account, the first path segment. As ADR-0044 found for `prefer`, github.com is not one owner.
+ */
+export const SHARED_HOSTS = new Set(['github.com', 'gitlab.com', 'bitbucket.org', 'codeberg.org',
+  'raw.githubusercontent.com', 'gist.github.com', 'huggingface.co', 'medium.com', 'dev.to']);
+
+/** Path segments that name the account (`/orgs/<org>`) or the host's own section (`/topics`). */
+const ACCOUNT_PREFIXES = new Set(['orgs', 'users']);
+const HOST_SECTIONS = new Set(['topics', 'marketplace', 'features', 'collections', 'sponsors', 'apps',
+  'settings', 'explore', 'trending', 'search', 'about', 'pricing', 'enterprise', 'security', 'site', 'login']);
+
+/** Who owns the page, for ranking: the host, or host/account on a shared host. */
+export function ownerOf(url) {
+  const host = hostOf(url);
+  if (!host || !SHARED_HOSTS.has(host)) return host;
+  let segments = [];
+  try { segments = new URL(url).pathname.split('/').filter(Boolean).map((s) => s.toLowerCase()); } catch { /* host only */ }
+  if (ACCOUNT_PREFIXES.has(segments[0])) segments = segments.slice(1);
+  const account = segments[0] ?? '';
+  return account && !HOST_SECTIONS.has(account) ? `${host}/${account}` : host;
+}
+
 export function docsHosts(results, { limit = 6 } = {}) {
   const counts = new Map();
   for (const row of results) {
-    const host = hostOf(row.url);
+    const host = ownerOf(row.url);
     if (!host) continue;
     let weight = 1;
     if (/^docs?\.|^developer\./.test(host)) weight += 2;
@@ -172,10 +195,13 @@ export function outlineOf(body, { max = 12 } = {}) {
  * (2026-09-29) search order spent both scrapes on a third-party spec and a forum thread while
  * the map named docs.ollama.com the likely owner.
  */
+/** The score a top owner needs before its floor-skipped pages are named in the map: one docs host, or three mentions. */
+export const MIN_NAMED_OWNER_SCORE = 3;
+
 export function scrapeOrder(material, hosts) {
   const score = new Map(hosts.map(({ host, score: s }) => [host, s]));
   return material
-    .map((row, rank) => ({ row, rank, score: score.get(hostOf(row.url)) ?? 0 }))
+    .map((row, rank) => ({ row, rank, score: score.get(ownerOf(row.url)) ?? 0 }))
     .sort((a, b) => b.score - a.score || a.rank - b.rank)
     .map(({ row }) => row);
 }
@@ -200,7 +226,7 @@ function outlinesOf(root, captures, material) {
   return { outlines: out, captured };
 }
 
-function mapBody({ topic, rows, hosts, material, date, recipe, failures = [], dryRun = false, outlines = null }) {
+function mapBody({ topic, rows, hosts, material, date, recipe, failures = [], dryRun = false, outlines = null, ownerSkipped = [] }) {
   const lines = [
     '# MAP - topic decomposition',
     '',
@@ -237,6 +263,13 @@ function mapBody({ topic, rows, hosts, material, date, recipe, failures = [], dr
   if (material.length) {
     lines.push('Candidate pages:', '');
     for (const row of material) lines.push(`- [${row.title || row.url}](${row.url})`);
+    lines.push('');
+  }
+  if (ownerSkipped.length) {
+    lines.push('Skipped on the likely owner - the relevance floor passed these over, because a terse',
+      'title and an off-topic page look the same to it. If one is the page that owns the fact,',
+      'name it in `research/plan.json` `urls` (ADR-0097):', '');
+    for (const row of ownerSkipped) lines.push(`- [${row.title || row.url}](${row.url}) - \`${row.owner}\``);
     lines.push('');
   }
   // Three different empty maps, and they must not read alike: a dry run gathered nothing on
@@ -298,6 +331,9 @@ export const MAX_TOPIC_PARTS = 6;
  * subject ("Paris, France hotels") is not compound. Anything else keeps the four searches it
  * always had.
  */
+/** A part that leans on what came before it: a third-person pronoun, or "this"/"these"/"those". */
+const REFERS_BACK = /\b(they|them|their|theirs|it|its|this|these|those)\b/i;
+
 export function topicQueries(topic) {
   const text = String(topic ?? '').trim();
   const words = (s) => s.split(/\s+/).filter(Boolean).length;
@@ -306,7 +342,9 @@ export function topicQueries(topic) {
   const items = (colon > 0 ? text.slice(colon + 1) : text).split(/[,;]/)
     .map((item) => item.trim().replace(/^and\s+/i, '').trim()).filter(Boolean);
   if (items.length >= 2) {
-    const parts = items.map((item) => (subject && words(item) <= 2 ? `${subject} ${item}` : item));
+    // A short part carries the subject (ADR-0085), and so does a part that points back at it
+    // with a pronoun ("which encodings they also mask", ADR-0098): alone, it names nothing.
+    const parts = items.map((item) => (subject && (words(item) <= 2 || REFERS_BACK.test(item)) ? `${subject} ${item}` : item));
     if (parts.every((part) => words(part) >= 2)) return uniq(parts).slice(0, MAX_TOPIC_PARTS);
   }
   return uniq([text, `${text} documentation`, `${text} pricing limits`, `${text} terms of service`]);
@@ -372,6 +410,7 @@ export function decompose(root, {
 
   let material = [];
   let hosts = [];
+  let ownerSkipped = [];
   let spent = 0;
   let searches = 0;
   let searchesUsed = 0;
@@ -465,12 +504,25 @@ export function decompose(root, {
 
     // The budget bounds SCRAPES, not candidates: a cache hit is not an attempt, so a
     // second pass reaches further down the list instead of re-reading the same two.
+    // A page on the top likely owner that the floor skips is NAMED, not scraped (ADR-0097):
+    // the owner's terse "OpenAI compatibility" page and postgresql.org's home page look the
+    // same to the floor, so the choice goes to the reviewer. Only an owner that earned it
+    // - a docs host, or repeated mentions - so a flat ranking names nothing.
+    const topScore = hosts[0]?.score ?? 0;
+    const topOwners = new Set(topScore >= MIN_NAMED_OWNER_SCORE
+      ? hosts.filter((h) => h.score === topScore).map((h) => h.host) : []);
+    ownerSkipped = [];
     for (const row of scrapeOrder(material, hosts)) {
       if (spent >= maxScrapes) break;
       // The relevance floor research.mjs applies (ADR-0067, ADR-0068), for the query that
       // found this page. It stays in the map's candidate list - that is for a person to read -
       // but it is not worth a scrape (found 2026-09-27: this loop never applied the floor).
-      if (!matchesQuery(row, row.foundBy)) { log(`  skipped   ${row.url} - it does not carry "${row.foundBy}"`); continue; }
+      if (!matchesQuery(row, row.foundBy)) {
+        const owner = ownerOf(row.url);
+        if (topOwners.has(owner)) ownerSkipped.push({ ...row, owner });
+        log(`  skipped   ${row.url} - it does not carry "${row.foundBy}"${topOwners.has(owner) ? ` (on the likely owner ${owner} - named in the map)` : ''}`);
+        continue;
+      }
       const decision = cacheDecision(corpus.captures, row.url, { refreshDays, now });
       if (decision.hit) { cached += 1; log(`  cached    ${row.url}`); continue; }
       const outcome = collectOne(root, row.url, {
@@ -513,7 +565,7 @@ export function decompose(root, {
   // Read after the scrapes, so the pages this run captured are outlined too. No fetch: only
   // what is already on disk.
   const outlines = material.length ? outlinesOf(root, corpus.captures, material) : null;
-  writeText(file, mapBody({ topic, rows, hosts, material: material.slice(0, 20), date, recipe: loaded.name || recipe, failures, dryRun: dryRun || !adapter, outlines }));
+  writeText(file, mapBody({ topic, rows, hosts, material: material.slice(0, 20), date, recipe: loaded.name || recipe, failures, dryRun: dryRun || !adapter, outlines, ownerSkipped }));
   return {
     written: true,
     outlines: outlines?.outlines.length ?? 0,

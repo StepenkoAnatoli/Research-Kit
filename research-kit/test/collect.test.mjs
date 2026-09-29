@@ -720,3 +720,38 @@ test('a page that answers an HTTP error status is a failed fetch, not evidence',
   assert.equal(corpus.captures.entries.length, 0, 'no capture written');
   assert.deepEqual(corpus.ledger.entries.map((e) => e.op), ['fail'], 'the attempt is still on record');
 });
+
+// Found 2026-09-29 on MoonAliza's secret-masking corpus: a plan URL that answered 404 was
+// fetched again ten minutes later, and paid for again. A page that is gone stays gone within
+// the refresh window; a transient failure is still retried, and --force retries anything.
+test('a page that answered 404 is not fetched again within the refresh window', () => {
+  const dir = makeProject();
+  let calls = 0;
+  const answer = (statusCode) => (url) => { calls += 1; return { ok: true, url, title: 'x', markdown: 'gone', statusCode, transport: 'stub-transport', completeness: 'full', cmd: `stub scrape ${url}` }; };
+  const url = 'https://x.invalid/moved.go';
+  assert.equal(collectOne(dir, url, { runScrape: answer(404), corpus: readCorpus(dir), transportName: 'stub-transport' }).status, 'failed');
+  const again = collectOne(dir, url, { runScrape: answer(404), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.equal(again.status, 'gone', JSON.stringify(again));
+  assert.equal(again.spent, 0);
+  assert.match(again.reason, /HTTP 404 on \d{4}-\d{2}-\d{2}.*--force/);
+  assert.equal(calls, 1, 'the second attempt fetched nothing');
+  assert.equal(collectOne(dir, url, { runScrape: answer(404), corpus: readCorpus(dir), transportName: 'stub-transport', force: true }).status, 'failed');
+  assert.equal(calls, 2, '--force retries');
+  const flaky = 'https://x.invalid/busy';
+  collectOne(dir, flaky, { runScrape: answer(503), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  collectOne(dir, flaky, { runScrape: answer(503), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.equal(calls, 4, 'a 503 is transient and is retried');
+});
+
+test('a remembered 404 takes no slot of the scrape budget', () => {
+  const dir = makeProject();
+  const gone = 'https://x.example/moved';
+  collectOne(dir, gone, { runScrape: (url) => ({ ok: true, url, title: 'x', markdown: 'x', statusCode: 404, transport: 'stub-transport', completeness: 'full', cmd: 'stub' }), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  writeJson(resolve(dir, PATHS.plan), {
+    topic: 'Fixture', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 1, maxScrapes: 1,
+    urls: [{ url: gone, why: 'U-1', type: 'P' }, { url: 'https://x.example/page', why: 'U-1', type: 'P' }], queries: [],
+  });
+  const run = runResearch(dir, { adapter: stubAdapter() });
+  assert.deepEqual(run.results.map((r) => r.status), ['gone', 'collected'], JSON.stringify(run.results.map((r) => [r.url, r.status, r.reason])));
+  assert.equal(run.spent, 1);
+});
