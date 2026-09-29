@@ -58,6 +58,11 @@ export const EXPECTED_TO_DRIFT = Object.freeze([
   // and README.md above: documentation about behaviour cannot be pinned to a past state
   // without becoming wrong.
   'AGENTS.md',
+  // The operator's front door, AGENTS.md's human twin. Added 2026-09-29, when this check
+  // caught it drifting for the reason it should: the archived copy carried the author's
+  // own C:\Users\... paths, and a portable START_HERE is the template rendered with
+  // $HOME. Same argument as README.md: it tells a reader how to run the kit today.
+  'START_HERE.md',
   // The index cannot record its own digest and be correct about it.
   BUNDLE_INDEX,
 ]);
