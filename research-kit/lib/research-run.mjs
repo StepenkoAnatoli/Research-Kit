@@ -368,6 +368,8 @@ ${compatibility.remedy}`);
   // it makes them. `spent` is what it actually cost. A dry run has attempts and no
   // spend; conflating the two made a preview ignore the very cap it was previewing.
   let attempts = 0;
+  // Searches a dry run would make; a real run counts `searchesUsed` instead.
+  let wouldSearch = 0;
   let spent = 0;
   let cached = 0;
   let failed = 0;
@@ -450,6 +452,7 @@ ${compatibility.remedy}`);
     const prefer = uniq([...preferList(settings.prefer), ...preferList(typeof query === 'object' ? query?.prefer : null)]);
     if (dryRun) {
       discovered.push({ query: text, results: [], note: 'search not run under --dry-run' });
+      wouldSearch += 1;
       // Named, because a preview that omits the searches previews nothing for a plan made of
       // them (found 2026-09-27). Pages are not known until the search runs; the query and the
       // meter it would spend on are.
@@ -660,6 +663,7 @@ ${compatibility.remedy}`);
     // "collected" told the operator they had pages they did not have.
     collected: spent - failed,
     searchesUsed, searchesOn, searchCreditsEstimate, searchFailures, searchFailuresOn, degraded,
+    ...(dryRun ? { wouldSearch } : {}),
     // { from, to, reason } once the run switched transports (ADR-0086), else null.
     fellBack,
     results, discovered,

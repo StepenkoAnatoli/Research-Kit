@@ -179,6 +179,20 @@ test('a run capped by its depth below the plan\'s maxScrapes says which flag rai
   assert.match(both.out, /depth normal and the plan's maxScrapes both cap this run at 10 - raise maxScrapes and pass --depth deep/, both.out);
 });
 
+// Found 2026-09-29 (DeepSeek review): --dry-run listed each search and page it would make, and
+// the budget, but never the total - the one number an operator on a free tier previews for.
+test('a dry run says the most it could spend: page fetches and searches', () => {
+  const root = project('dry-total');
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({
+    topic: 'dry total', depth: 'quick', maxScrapes: 10, refreshDays: 30, limit: 8, perQuery: 3, prefer: [],
+    queries: [{ q: 'acme rate limits', why: 'U-1' }, { q: 'acme pricing', why: 'U-2' }],
+    urls: [{ url: 'https://x.invalid/limits', type: 'P', why: 'U-1' }],
+  }));
+  const dry = run('research.mjs', ['--plan', 'research/plan.json', '--dry-run', '--transport', 'http-keyless', '--search-transport', 'http-keyless'], { root });
+  assert.equal(dry.status, 0, dry.out + dry.err);
+  assert.match(dry.out, /at most\s+4 page fetch\(es\) and 2 search\(es\)/, `no total in the preview:\n${dry.out}`);
+});
+
 // ADR-0086: the fallback is announced before a run, and --no-fallback is a real flag. A
 // run already on http-keyless has nothing to fall back to, so nothing is announced.
 test('research names its credit fallback, and --no-fallback is accepted', () => {
