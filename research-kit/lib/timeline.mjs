@@ -11,6 +11,18 @@ export function recordDiagnostic(root, event) {
   return appendLine(resolve(root, PATHS.diagnostics), JSON.stringify({ at: nowIso(), ...event }));
 }
 
+/**
+ * One ledger entry in words. A fetch names its page and capture; a migration and a prior have
+ * neither, and rendered as "undefined -> undefined" (found 2026-09-29) - a migration says why
+ * the chain was rewritten, in its own reason or note, and a prior names its file.
+ */
+function detailOf(entry) {
+  if (entry.op === 'fail') return `${entry.url} - ${entry.error ?? 'unknown failure'}`;
+  if (entry.op === 'migration') return String(entry.reason || entry.note || 'no reason recorded').replace(/\s+/g, ' ').trim();
+  if (!entry.url) return entry.raw || '-';
+  return `${entry.url} -> ${entry.raw}${entry.transport ? ` (${entry.transport})` : ''}`;
+}
+
 export function buildTimeline(root, { corpus = null } = {}) {
   const snapshot = corpus ?? readCorpus(root);
   const events = [];
@@ -19,9 +31,7 @@ export function buildTimeline(root, { corpus = null } = {}) {
     events.push({
       at: entry.at ?? '',
       kind: entry.op === 'fail' ? 'fetch failed' : entry.op,
-      detail: entry.op === 'fail'
-        ? `${entry.url} - ${entry.error ?? 'unknown failure'}`
-        : `${entry.url} -> ${entry.raw}${entry.transport ? ` (${entry.transport})` : ''}`,
+      detail: detailOf(entry),
     });
   }
   for (const row of snapshot.evidence) {
