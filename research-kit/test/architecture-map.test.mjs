@@ -418,3 +418,17 @@ test('no workflow prints a secret\'s value, even to say whether it is set', () =
     });
   }
 });
+
+test('CI regenerates the derived files before it checks the tree is clean', () => {
+  // Found 2026-09-29 (break-test PR #140): timeline.mjs and export-warc.mjs dirtied the
+  // repository, and CI's clean-tree check never ran them, so it could not notice.
+  const file = path.join(REPO, '.github', 'workflows', 'offline-suite.yml');
+  if (!fs.existsSync(file)) return;
+  const text = fs.readFileSync(file, 'utf8');
+  const regen = text.indexOf("name: the corpus's derived files regenerate to their committed bytes");
+  const clean = text.indexOf('name: the suite left the working tree clean');
+  assert(regen !== -1, 'no step regenerates the derived files');
+  assert(clean > regen, 'the regeneration must run BEFORE the clean-tree check, or nothing checks it');
+  const step = text.slice(regen, clean);
+  assert(/bin\/timeline\.mjs/.test(step) && /bin\/export-warc\.mjs/.test(step), 'both writers must run');
+});
