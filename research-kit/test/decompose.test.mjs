@@ -3,7 +3,7 @@
 
 import { test, describe, assert, makeProject, makePassingProject, fs } from './harness.mjs';
 import { PATHS, resolve, readText, listFiles } from '../lib/core.mjs';
-import { decompose, parseRecipe, loadRecipe, docsHosts, scrapeOrder, ownerOf, RECIPE_DIR, searchSummary, outlineOf } from '../lib/decompose.mjs';
+import { decompose, parseRecipe, loadRecipe, docsHosts, scrapeOrder, ownerOf, topicQueries, RECIPE_DIR, searchSummary, outlineOf } from '../lib/decompose.mjs';
 import { UNIVERSAL_DIMENSIONS, seedRows, coverageOfUniversals } from '../lib/dimensions.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { searchUsage } from '../lib/research-run.mjs';
@@ -132,6 +132,20 @@ test('on a shared host the owner is the account, so strangers do not pool into o
   assert.ok(!hosts.some((h) => h.host === 'github.com'), JSON.stringify(hosts));
   const order = scrapeOrder(material, hosts).map((r) => r.url);
   assert.ok(order.indexOf('https://docs.ollama.com/api/openai-compatibility') < order.indexOf('https://github.com/jetelain/OllamaRouter'), order.join('\n'));
+});
+
+// Found 2026-09-29 on MoonAliza's secret-masking map: "... , and which encodings they also
+// mask" was searched alone, and "they" points at nothing - the search returned an IDL manual
+// on character encoding. A part that refers back to the subject carries it (ADR-0098).
+test('a topic part that refers back with a pronoun carries the subject; others stay alone', () => {
+  const parts = topicQueries('Masking secrets in streamed output: how CI runners mask a secret split across chunks, and which encodings they also mask');
+  assert.deepEqual(parts, [
+    'how CI runners mask a secret split across chunks',
+    'Masking secrets in streamed output which encodings they also mask',
+  ]);
+  // ADR-0085 unchanged: a long part with no back-reference is searched alone.
+  assert.deepEqual(topicQueries('MoonAliza: how Ollama streams tool calls, what OpenAI returns on overflow'),
+    ['how Ollama streams tool calls', 'what OpenAI returns on overflow']);
 });
 
 test('a dry run gathers nothing and spends nothing', () => {

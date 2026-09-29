@@ -331,6 +331,9 @@ export const MAX_TOPIC_PARTS = 6;
  * subject ("Paris, France hotels") is not compound. Anything else keeps the four searches it
  * always had.
  */
+/** A part that leans on what came before it: a third-person pronoun, or "this"/"these"/"those". */
+const REFERS_BACK = /\b(they|them|their|theirs|it|its|this|these|those)\b/i;
+
 export function topicQueries(topic) {
   const text = String(topic ?? '').trim();
   const words = (s) => s.split(/\s+/).filter(Boolean).length;
@@ -339,7 +342,9 @@ export function topicQueries(topic) {
   const items = (colon > 0 ? text.slice(colon + 1) : text).split(/[,;]/)
     .map((item) => item.trim().replace(/^and\s+/i, '').trim()).filter(Boolean);
   if (items.length >= 2) {
-    const parts = items.map((item) => (subject && words(item) <= 2 ? `${subject} ${item}` : item));
+    // A short part carries the subject (ADR-0085), and so does a part that points back at it
+    // with a pronoun ("which encodings they also mask", ADR-0098): alone, it names nothing.
+    const parts = items.map((item) => (subject && (words(item) <= 2 || REFERS_BACK.test(item)) ? `${subject} ${item}` : item));
     if (parts.every((part) => words(part) >= 2)) return uniq(parts).slice(0, MAX_TOPIC_PARTS);
   }
   return uniq([text, `${text} documentation`, `${text} pricing limits`, `${text} terms of service`]);
