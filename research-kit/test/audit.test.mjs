@@ -364,6 +364,14 @@ test('makeSlug honours an explicit limit and keeps its old default', () => {
   assert.equal(makeSlug('!!!', 'fallback'), 'fallback', 'a slug of pure punctuation must fall back');
 });
 
+// Found 2026-09-29 (Arena break test, latent): the fallback came back whole, past the limit the
+// caller asked for - a length contract the slug path kept and the fallback path did not.
+test('makeSlug keeps its limit when it falls back', () => {
+  assert.equal(makeSlug('', 'a-very-long-fallback-name', 6), 'a-very', 'the fallback exceeded the limit');
+  assert.equal(makeSlug('!!!', 'ab-cd', 3), 'ab', 'and a cut fallback does not end on a separator');
+  assert.equal(makeSlug('', 'topic'), 'topic');
+});
+
 test('a generated audit path stays inside the budget, however long the inputs', () => {
   const dir = makePassingProject();
   // Names far longer than anything a person would type.

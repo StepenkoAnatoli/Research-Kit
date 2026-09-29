@@ -553,7 +553,9 @@ export function makeSlug(text, fallback = 'topic', limit = 60) {
     .replace(/^-+|-+$/g, '')
     .slice(0, limit)
     .replace(/-+$/g, '');
-  return slug || fallback;
+  // The fallback keeps the same limit: it came back whole, longer than the caller allowed
+  // (2026-09-29, Arena break test).
+  return slug || String(fallback).slice(0, limit).replace(/-+$/g, '');
 }
 
 /** A short, stable id for a URL - used in capture filenames. */
