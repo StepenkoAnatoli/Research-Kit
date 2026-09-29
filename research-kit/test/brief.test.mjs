@@ -239,3 +239,22 @@ test('a new project records the spelling it was scaffolded with', async () => {
     assert.equal(JSON.parse(readText(resolve(dir, PATHS.kit))).kitPath, expected);
   }
 });
+
+// Found 2026-09-29 regenerating the root research/TIMELINE.md: a migration entry has no url
+// and no capture, and the row read "undefined -> undefined" - the one line that should say
+// why the chain was rewritten said nothing. A prior has a file but no url.
+test('the timeline says what a migration and a prior were, not "undefined -> undefined"', async () => {
+  const { buildTimeline } = await import('../lib/timeline.mjs');
+  const corpus = { evidence: [], overrides: [], ledger: { entries: [
+    { at: '2026-09-13T18:28:29Z', op: 'migration', reason: 'retro-record: seqs 1-5 were rebuilt to backfill transport' },
+    { at: '2026-09-17T11:44:16Z', op: 'migration', url: '', raw: '', note: 'adopt the kit canonical entry hash' },
+    { at: '2026-09-20T09:00:00Z', op: 'prior', url: '', raw: 'research/PRIOR.md' },
+    { at: '2026-09-21T09:00:00Z', op: 'scrape', url: 'https://x.invalid/a', raw: 'research/raw/a.md', transport: 'browser' },
+  ] } };
+  const details = buildTimeline('/nowhere', { corpus }).map((e) => e.detail);
+  assert.equal(details[0], 'retro-record: seqs 1-5 were rebuilt to backfill transport');
+  assert.equal(details[1], 'adopt the kit canonical entry hash');
+  assert.equal(details[2], 'research/PRIOR.md');
+  assert.equal(details[3], 'https://x.invalid/a -> research/raw/a.md (browser)');
+  for (const d of details) assert.doesNotMatch(d, /undefined|^ -> $/);
+});

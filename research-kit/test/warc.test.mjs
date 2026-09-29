@@ -116,3 +116,19 @@ test('a refused write is named in words, and one record is "1 record"', () => {
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /wrote 1 record \(0 captures\)/);
 });
+
+test('the default export is ignored by git, in a scaffolded project and in this repository', () => {
+  // Found 2026-09-29 (break-test PR #140, item 3): export-warc with no arguments wrote a
+  // 405 KB research-corpus.warc.gz into the project root that `git check-ignore` did not
+  // cover - a copy of the corpus, one `git add -A` away from being committed beside it.
+  const bin = fileURLToPath(new URL('../bin/export-warc.mjs', import.meta.url));
+  const dir = makePassingProject();
+  spawnSync('git', ['init', '-q'], { cwd: dir });
+  const r = spawnSync(process.execPath, [bin], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(spawnSync('git', ['check-ignore', '-q', 'research-corpus.warc.gz'], { cwd: dir }).status, 0,
+    'a scaffolded project does not ignore the default export');
+  const repo = fileURLToPath(new URL('../..', import.meta.url));
+  assert.equal(spawnSync('git', ['check-ignore', '-q', '--no-index', 'research-corpus.warc.gz'], { cwd: repo }).status, 0,
+    'the kit repository does not ignore the default export');
+});
