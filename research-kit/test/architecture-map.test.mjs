@@ -16,6 +16,7 @@
 
 import { test, describe, assert, assertEqual, fs, path, KIT_ROOT } from './harness.mjs';
 import { CHECKS } from '../lib/checks.mjs';
+import { TRANSPORT_NAMES } from '../lib/transport.mjs';
 
 describe('architecture-map');
 
@@ -381,4 +382,21 @@ test('the live workflow requires integrity, not research sufficiency', () => {
   for (const check of ['provenance', 'corpus-shape', 'citations']) {
     assert(yaml.includes(check), `the integrity predicate no longer names ${check}`);
   }
+});
+
+test('the live workflow can exercise every fetch transport the kit registers', () => {
+  // Found 2026-09-29: the browser transport (ADR-0088) shipped with no way to run it live -
+  // the dispatch offered firecrawl-cli and http-keyless only, and the header's "when to run
+  // it" list did not name lib/browser-transport.mjs. A transport nobody can run live is
+  // tested only against stubs, which is the gap this workflow exists to close.
+  const file = path.join(REPO, '.github', 'workflows', 'live-collection.yml');
+  if (!fs.existsSync(file)) return;
+  const text = fs.readFileSync(file, 'utf8');
+  const options = text.match(/transport:[\s\S]*?options:\s*\[([^\]]*)\]/);
+  assert(options, 'the transport input no longer lists its options');
+  const offered = options[1].split(',').map((o) => o.trim());
+  for (const name of TRANSPORT_NAMES) {
+    assert(offered.includes(name), `the live workflow cannot run the ${name} transport`);
+  }
+  assert(/lib\/browser-transport\.mjs/.test(text), 'the header does not say to run it after changing lib/browser-transport.mjs');
 });

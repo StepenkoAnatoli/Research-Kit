@@ -38,7 +38,8 @@ name: live-collection
 #
 # WHEN TO RUN IT
 #   - before trusting a Firecrawl CLI version this adapter has not seen
-#   - after changing lib/firecrawl.mjs, lib/http-transport.mjs, lib/serpapi.mjs, lib/collect.mjs
+#   - after changing lib/firecrawl.mjs, lib/http-transport.mjs, lib/browser-transport.mjs,
+#     lib/serpapi.mjs, lib/collect.mjs
 #   - when a real collection fails in a way the offline suite cannot reproduce
 
 on:
@@ -53,7 +54,7 @@ on:
         required: true
         default: 'firecrawl-cli'
         type: choice
-        options: [firecrawl-cli, http-keyless]
+        options: [firecrawl-cli, http-keyless, browser]
       cli_version:
         description: 'Firecrawl CLI version to install. "tested" pins the version the adapter was written against; "latest" is compatibility surveillance and may legitimately fail.'
         required: true
@@ -215,6 +216,19 @@ jobs:
             exit 1
           fi
           echo "credential present: ${FIRECRAWL_API_KEY:+yes}${FIRECRAWL_API_KEY:-no (keyless route)}"
+
+      # The browser transport renders with a local Chromium (ADR-0088); GitHub's Ubuntu image
+      # ships Google Chrome. Named before collecting, so a missing browser fails here in
+      # words rather than as an empty ledger two steps later.
+      - name: a browser is installed for the browser transport
+        if: inputs.transport == 'browser'
+        run: |
+          node --input-type=module -e '
+            const { findBrowser } = await import(process.cwd() + "/research-kit/lib/browser-transport.mjs");
+            const found = findBrowser();
+            if (!found) { console.error("::error::no Chromium or Chrome found for the browser transport"); process.exit(1); }
+            console.log("browser: " + found);
+          '
 
       # From here every step is REQUIRED. `set -e` is on and nothing is swallowed.
       - name: collect into a scratch project, never the repository's corpus
