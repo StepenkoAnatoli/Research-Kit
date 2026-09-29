@@ -1,0 +1,1 @@
+I expect STORM to discover perspectives by retrieving related Wikipedia articles and using their tables of contents, with an LLM turning those outlines into perspectives and questions. The headings-harvesting part needs no model; the question-asking part does, so only the outline harvest fits a kit whose tools contain no judgment.

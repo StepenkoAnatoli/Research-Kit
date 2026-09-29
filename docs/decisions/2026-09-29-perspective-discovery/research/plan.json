@@ -1,0 +1,9 @@
+{
+  "topic": "Perspective discovery for topic decomposition: how STORM finds perspectives from related articles' outlines, and whether it needs a language model",
+  "notes": "Phase 0 dry-run only (credits); owning pages named directly.",
+  "depth": "normal", "refreshDays": 30, "limit": 5, "perQuery": 2, "maxScrapes": 3, "prefer": [], "queries": [],
+  "urls": [
+    {"url": "https://arxiv.org/html/2402.14207v2", "type": "P", "why": "U-01, U-02: STORM's perspective discovery, and which steps use the LLM"},
+    {"url": "https://github.com/stanford-oval/storm", "type": "P", "why": "U-03: the released implementation and its pipeline stages"}
+  ]
+}
