@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
-import { runResearch, searchUsage, searchSummaryLine, matchesQuery, isPreferred, FREE_TIER_PER_HOUR, FREE_TIER_PER_MONTH } from '../lib/research-run.mjs';
+import { runResearch, searchUsage, searchSummaryLine, matchesQuery, queryTerms, isPreferred, FREE_TIER_PER_HOUR, FREE_TIER_PER_MONTH } from '../lib/research-run.mjs';
 import { decompose, searchSummary } from '../lib/decompose.mjs';
 import * as serpapi from '../lib/serpapi.mjs';
 import { readLedger, readCorpus } from '../lib/corpus.mjs';
@@ -793,6 +793,15 @@ test('RR-9: a long query does not reject the page that answers it', () => {
   assert.equal(matchesQuery({ url: 'https://example.invalid/eudr', title: 'EU Deforestation Regulation application postponed to 30 December 2026' }, query), true);
   assert.equal(matchesQuery({ url: 'https://www.postgresql.org/', title: 'PostgreSQL: The world\'s most advanced open source database' }, 'postgres pg_sync_replication_slots function'), false,
     'the case the floor exists for must still be caught');
+});
+
+// Found 2026-09-29, real use on MoonAliza: the topic "Ollama's OpenAI-compatible ..." made
+// the term "ollama s", which no page carries, so a product's own name in the possessive
+// stopped counting - the one term every page about that product shares.
+test('RR-9: a possessive counts as the word it belongs to', () => {
+  assert.ok(queryTerms("Ollama's OpenAI\u2019s streaming").includes('ollama'), queryTerms("Ollama's OpenAI\u2019s streaming").join('|'));
+  assert.ok(queryTerms("Ollama's OpenAI\u2019s streaming").includes('openai'));
+  assert.equal(matchesQuery({ url: 'https://docs.ollama.com/api/streaming', title: 'Streaming - Ollama' }, "Ollama's streaming responses"), true);
 });
 
 test('RR-9: every cited page a search found in this repository\'s corpora passes the floor', () => {
