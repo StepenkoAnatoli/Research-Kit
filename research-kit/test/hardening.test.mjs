@@ -609,6 +609,28 @@ test('tolerateClosedStdout drops writes after EPIPE and lets other errors throug
   );
 });
 
+// Found 2026-09-29 (break-test): the same handler threw on a stdout the ENVIRONMENT
+// refused - `selftest.mjs > /dev/full`, a full disk, a quota - so an uncaught exception
+// arrived in the middle of the report and the run exited 1. Exit 1 is "the suite is red",
+// so a healthy run reported itself as broken and sent the reader hunting for a failure
+// that did not exist. A code this kit can EXPLAIN is now named in words and exits 2; one
+// it cannot (EBADF above) is still thrown, because swallowing the unrecognised is how a
+// real defect goes quiet.
+test('a stdout the environment refuses is named in words and exits 2, not a raw stack', async () => {
+  const { EventEmitter } = await import('node:events');
+  const stream = new EventEmitter();
+  stream.write = () => true;
+  let exited = null;
+  tolerateClosedStdout(stream, { exit: (code) => { exited = code; } });
+
+  stream.emit('error', Object.assign(new Error('no space left on device'), { code: 'ENOSPC' }));
+
+  assert.equal(exited, 2, 'a refused output reported itself as a red run (exit 1) with a stack trace');
+  // Every later write fails the same way; the report must not be attempted once per line.
+  stream.emit('error', Object.assign(new Error('no space left on device'), { code: 'ENOSPC' }));
+  assert.equal(exited, 2);
+});
+
 test('a command whose reader quits keeps its own exit code', async () => {
   // The kernel's EPIPE arrives as an 'error' event carrying code EPIPE on the REAL
   // process.stdout, so the child emits exactly that and then keeps writing. A parent

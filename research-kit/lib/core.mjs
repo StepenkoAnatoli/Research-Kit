@@ -298,10 +298,31 @@ export function writeBytes(p, data, encoding = null) {
  * output against a 64 KB pipe buffer). Dropping the writes lets the run finish with its
  * own verdict, which is the only exit code that means anything here.
  */
-export function tolerateClosedStdout(stream = process.stdout) {
+export function tolerateClosedStdout(stream = process.stdout, { exit = (code) => process.exit(code) } = {}) {
+  let reported = false;
   stream.on('error', (err) => {
-    if (err?.code !== 'EPIPE') throw err;
+    if (err?.code === 'EPIPE') {
+      stream.write = () => true;
+      return;
+    }
+    // The ENVIRONMENT refusing the OUTPUT - a full disk, a quota, a read-only mount - is
+    // not a verdict either. Throwing here surfaces as an uncaught exception in the middle
+    // of the report: exit 1 and a raw stack trace, so a healthy run reads as a red suite
+    // and the reader goes looking for a failure that is not there (found 2026-09-29,
+    // break-test). Named in words instead, and exit 2 - the code that means "this was not
+    // a verdict" - exactly as a refused FILE write is reported.
+    //
+    // An error the kit does NOT recognise is still thrown. Swallowing one nobody can name
+    // is how a real defect goes quiet; the difference here is a code this table explains.
+    const reason = WRITE_REFUSALS[err?.code];
+    if (!reason) throw err;
+    if (reported) return;                 // every later write fails the same way
+    reported = true;
     stream.write = () => true;
+    try {
+      process.stderr.write(`research-kit: could not write its output: ${err.code} (${reason}).\n`);
+    } catch { /* stderr is gone too, and there is nothing left to say it with */ }
+    exit(2);
   });
 }
 
