@@ -4,6 +4,7 @@
 
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import os from 'node:os';
 import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, appendLine, KIT_ROOT } from './harness.mjs';
 import { PATHS, HEADERS, resolve, readText, writeText, writeJson, tolerateClosedStdout, canonicalJson, sha256, tempBase } from '../lib/core.mjs';
 import { readCorpus, appendRow, upsertRow, alignToHeader } from '../lib/corpus.mjs';
@@ -365,18 +366,34 @@ const restoreTempEnv = (saved) => {
   }
 };
 
-test('F29: a relative TMPDIR is answered absolutely, so mkdtemp cannot scatter scratch', () => {
+/**
+ * Point every temp variable at `value`, and put them back afterwards.
+ *
+ * ALL THREE, not just TMPDIR: TMPDIR is the POSIX name, TEMP and TMP are what Windows
+ * reads, and `os.tmpdir()` consults a different one per platform. A test that sets only
+ * the POSIX name passes on Linux and quietly asserts nothing on windows-latest - which is
+ * where this suite's Windows leg caught it (found 2026-09-29, break-test).
+ */
+const setTempEnv = (value) => {
   const saved = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
-  delete process.env.TEMP;
-  delete process.env.TMP;
-  process.env.TMPDIR = './reltmp';
+  Object.assign(process.env, { TMPDIR: value, TEMP: value, TMP: value });
+  return saved;
+};
+
+test('F29: a relative TMPDIR is answered absolutely, so mkdtemp cannot scatter scratch', () => {
+  const saved = setTempEnv('./reltmp');
   try {
     const base = tempBase();
     assert.ok(path.isAbsolute(base), `a relative TMPDIR stayed relative: ${base}`);
     assert.equal(path.basename(base), 'reltmp');
     // Published, because every child - git, sh, python, the kit's own CLIs - re-resolves a
     // relative TMPDIR against ITS cwd, and the folder made here is not the one it looks in.
-    assert.equal(process.env.TMPDIR, base, 'the absolute answer was not published for child processes');
+    for (const name of ['TMPDIR', 'TEMP', 'TMP']) {
+      if (saved[name] !== undefined) {
+        assert.equal(process.env[name], base, `the absolute answer was not published for ${name}`);
+      }
+    }
+    assert.equal(os.tmpdir(), base, 'the absolute answer was not published for child processes');
     // Stable: a later call, after any chdir, must not move the answer.
     assert.equal(tempBase(), base, 'the temp folder moved between two calls in one process');
   } finally {
@@ -386,8 +403,7 @@ test('F29: a relative TMPDIR is answered absolutely, so mkdtemp cannot scatter s
 
 test('F29: an absolute TMPDIR is used as it stands, and left alone', () => {
   const scratch = tempDir('rk-abs-tmp-');
-  const saved = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
-  process.env.TMPDIR = scratch;
+  const saved = setTempEnv(scratch);
   try {
     assert.equal(tempBase(), path.resolve(scratch));
     assert.equal(process.env.TMPDIR, scratch, 'an absolute TMPDIR was rewritten');
@@ -402,8 +418,7 @@ test('F29: the secret scan skips the temp folder, which a relative TMPDIR puts i
   fs.mkdirSync(scratch);
   // Credential-shaped, assembled rather than written as a literal (F26).
   writeText(path.join(scratch, 'notes.md'), `gh${'p'}_0123456789abcdefghij0123456789abcd\n`);
-  const saved = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
-  process.env.TMPDIR = scratch;
+  const saved = setTempEnv(scratch);
   try {
     const scan = scanForSecrets(parent);
     assert.deepEqual(scan.hits, [], `the machine's own scratch folder was reported as a committed credential: ${JSON.stringify(scan.hits)}`);
