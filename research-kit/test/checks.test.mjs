@@ -571,6 +571,22 @@ test('corroboration: a note left on an unknown that HAS been corroborated is rep
   assert.match(findings[0].detail, /remove the note or the claim is false/);
 });
 
+test('corroboration: the stale-note warning says it counts sites, not authors', () => {
+  // Found 2026-09-29: a paper on arxiv.org and its authors' repository on github.com are two
+  // sites and one voice. The note saying so was right, and the warning called it false - a
+  // claim the check cannot make, because it sees hosts, never who wrote the pages.
+  const dir = withEvidence(makePassingProject(), [
+    '| E-01 | 2026-09-14 | P | https://example.invalid/a | x | research/raw/x.md |',
+    '| E-02 | 2026-09-14 | P | https://other.invalid/b | x | research/raw/y.md |',
+  ], 'E-01 and E-02 [single-witness: the authors describing their own system, in the paper and in its repository]');
+
+  const findings = runCheck('corroboration', snapshot(dir));
+  assert.equal(findings[0].rule, 'single-witness-stale');
+  assert.equal(findings[0].severity, 'warn');
+  assert.match(findings[0].detail, /counts sites, not authors/);
+  assert.match(findings[0].detail, /if these pages share an author, the note stands/);
+});
+
 test('capture-completeness: a recorded render review closes partial-render', () => {
   const dir = makePassingProject();
   const capture = readCorpus(dir).captures.entries[0];
@@ -800,4 +816,30 @@ test('hygiene calls the brief stale when only the map has changed', () => {
   corrupt(dir, PATHS.map, (text) => text.replace(/\| (COVERED|DISMISSED) \|/, '| GAP |'));
   const stale = runCheck('hygiene', snapshot(dir)).filter((f) => f.rule === 'brief-stale');
   assert.equal(stale.length, 1, 'a map change left the brief current');
+});
+
+// Found 2026-09-28 by the first measurement (docs/measurement-2026-09-28.md): the registry
+// says unknown-closure checks that every CLOSED unknown rests on "a real, fresh, primary row",
+// but it only warned about L rows - three corpora closed everything on S rows and passed with
+// no warning. AGENTS.md Rule 4: P carries the design, S is context.
+test('a closure resting only on secondary rows is flagged', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (t) => t.replace(/\| P \| (https:\/\/example\.invalid)/, '| S | $1'));
+  const findings = runCheck('unknown-closure', readCorpus(dir));
+  const flagged = findings.find((f) => f.rule === 'secondary-only');
+  assert.equal(flagged?.severity, 'warn', JSON.stringify(findings));
+  assert.match(flagged.detail, /U-1 rests only on secondary \(S\) rows/);
+  assert.equal(runCheck('unknown-closure', readCorpus(makePassingProject())).find((f) => f.rule === 'secondary-only'), undefined);
+});
+
+// Found 2026-09-28: citing docs.firecrawl.dev (E-21) beside www.firecrawl.dev (E-13) turned
+// the root corpus's U-8 "independent" on hostname alone - the exact trap its own
+// [single-witness: ...] note warned about ("one company describing itself"). Independence is
+// judged by site, the registrable domain, and hosting platforms keep each owner apart.
+test('two subdomains of one company are one voice; two owners on one platform are not', async () => {
+  const { siteOf } = await import('../lib/core.mjs');
+  assert.equal(siteOf('https://docs.firecrawl.dev/billing'), siteOf('https://www.firecrawl.dev/'));
+  assert.equal(siteOf('https://api.example.co.uk/x'), 'example.co.uk');
+  assert.notEqual(siteOf('https://alice.github.io/a'), siteOf('https://bob.github.io/b'));
+  assert.notEqual(siteOf('https://firecrawl.dev/'), siteOf('https://serpapi.com/'));
 });

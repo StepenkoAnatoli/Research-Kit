@@ -162,7 +162,7 @@ The sequence is decompose -> contract -> collect -> gate -> brief.
    ```
 
    Prefer the page that *owns* the fact (official docs, repo, pricing page, statute) over any write-up about it. Raw page text is cached under `research/raw/`; rows are appended to `research/EVIDENCE.md`.
-4. Rewrite each auto-extracted `Finding` cell into a real claim, with the URL and retrieval date that support it. Keep the `Raw` cell pointing at the cached page - that is what makes the claim checkable.
+4. Rewrite each auto-extracted `Finding` cell into a real claim, with the URL and retrieval date that support it. Keep the `Raw` cell pointing at the cached page - that is what makes the claim checkable. Where a claim rests on one sentence, add it as `[quote: the sentence, copied from the capture]`: the gate checks the quote occurs in the capture (ADR-0087).
 5. Run the gate:
 
    ```

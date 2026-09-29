@@ -4,7 +4,7 @@
 // With no arguments it prints the prior on record, or says there is none. Registering is
 // the only thing it refuses to do twice, and the only thing it refuses to do late.
 
-import { parseFlags, refuseUnknownFlags, checkFlagValues, readText, resolve } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, checkFlagValues, readText, resolve, operatorPath } from '../lib/core.mjs';
 import { readLedger } from '../lib/corpus.mjs';
 import { readPrior, registerPrior, MIN_PRIOR, PRIOR_PATH } from '../lib/prior.mjs';
 import { heading } from '../lib/render.mjs';
@@ -48,7 +48,7 @@ if (!isGated(root)) {
 
 const entries = readLedger(root).entries;
 const source = typeof flags.file === 'string'
-  ? readText(resolve(root, flags.file), null)
+  ? readText(operatorPath(root, flags.file), null)
   : (positional.join(' ').trim() || null);
 
 if (source === null) {

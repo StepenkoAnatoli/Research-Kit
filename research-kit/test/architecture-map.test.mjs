@@ -16,6 +16,7 @@
 
 import { test, describe, assert, assertEqual, fs, path, KIT_ROOT } from './harness.mjs';
 import { CHECKS } from '../lib/checks.mjs';
+import { TRANSPORT_NAMES } from '../lib/transport.mjs';
 
 describe('architecture-map');
 
@@ -380,5 +381,40 @@ test('the live workflow requires integrity, not research sufficiency', () => {
     'the workflow should require named integrity checks rather than the overall verdict');
   for (const check of ['provenance', 'corpus-shape', 'citations']) {
     assert(yaml.includes(check), `the integrity predicate no longer names ${check}`);
+  }
+});
+
+test('the live workflow can exercise every fetch transport the kit registers', () => {
+  // Found 2026-09-29: the browser transport (ADR-0088) shipped with no way to run it live -
+  // the dispatch offered firecrawl-cli and http-keyless only, and the header's "when to run
+  // it" list did not name lib/browser-transport.mjs. A transport nobody can run live is
+  // tested only against stubs, which is the gap this workflow exists to close.
+  const file = path.join(REPO, '.github', 'workflows', 'live-collection.yml');
+  if (!fs.existsSync(file)) return;
+  const text = fs.readFileSync(file, 'utf8');
+  const options = text.match(/transport:[\s\S]*?options:\s*\[([^\]]*)\]/);
+  assert(options, 'the transport input no longer lists its options');
+  const offered = options[1].split(',').map((o) => o.trim());
+  for (const name of TRANSPORT_NAMES) {
+    assert(offered.includes(name), `the live workflow cannot run the ${name} transport`);
+  }
+  assert(/lib\/browser-transport\.mjs/.test(text), 'the header does not say to run it after changing lib/browser-transport.mjs');
+});
+
+test('no workflow prints a secret\'s value, even to say whether it is set', () => {
+  // Found 2026-09-29: `echo "credential present: ${FIRECRAWL_API_KEY:+yes}${FIRECRAWL_API_KEY:-no}"`
+  // expands the second form to the key itself when it IS set - GitHub's log masking turned it
+  // into "yes***", so the step titled "never printed" relied on the masker to keep its word.
+  // A presence check tests the variable; it never expands it where output goes.
+  const dir = path.join(REPO, '.github', 'workflows');
+  if (!fs.existsSync(dir)) return;
+  for (const name of fs.readdirSync(dir).filter((f) => f.endsWith('.yml'))) {
+    const lines = fs.readFileSync(path.join(dir, name), 'utf8').split('\n');
+    lines.forEach((line, i) => {
+      const at = line.search(/\b(echo|printf)\b/);
+      if (at === -1) return;
+      const leaked = line.slice(at).match(/\$\{?(\w*(?:API_KEY|TOKEN|SECRET)\w*)(?![:]\+)(?:\}|:-|\b)/);
+      assert(!leaked, `${name}:${i + 1} prints ${leaked?.[1]}: ${line.trim()}`);
+    });
   }
 });

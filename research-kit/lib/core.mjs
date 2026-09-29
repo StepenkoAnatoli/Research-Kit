@@ -55,6 +55,16 @@ export function resolve(root, rel) {
   return path.join(root, ...String(rel).split('/'));
 }
 
+/**
+ * A path the operator typed: absolute as it is, anything else inside the project. `resolve`
+ * joins its argument onto the root, so `--plan /tmp/x/plan.json` became `<root>/tmp/x/...`
+ * and "does not exist" (found 2026-09-28; `prior --file` had the same join).
+ */
+export function operatorPath(root, typed) {
+  const text = String(typed);
+  return path.isAbsolute(text) ? path.normalize(text) : resolve(root, text);
+}
+
 /** The inverse: an absolute path back to its POSIX project-relative name. */
 export function relative(root, abs) {
   return path.relative(root, abs).split(path.sep).join('/');
@@ -454,6 +464,31 @@ export function hostOf(url) {
   } catch {
     return '';
   }
+}
+
+/**
+ * Suffixes under which each label belongs to a different owner: `example.co.uk` is a site,
+ * `co.uk` is not; `alice.github.io` and `bob.github.io` are two people. A short list, not the
+ * Public Suffix List - the kit has no dependencies - covering the suffixes seen in corpora.
+ */
+const SHARED_SUFFIXES = new Set([
+  'co.uk', 'org.uk', 'ac.uk', 'gov.uk', 'com.au', 'net.au', 'org.au', 'co.nz', 'co.jp', 'co.in', 'com.br', 'com.cn',
+  'github.io', 'gitlab.io', 'pages.dev', 'netlify.app', 'vercel.app', 'herokuapp.com', 'blogspot.com', 'readthedocs.io',
+  'substack.com', 'medium.com', 'wordpress.com',
+]);
+
+/**
+ * The site a URL belongs to - its registrable domain - for judging independence. Hostnames
+ * were compared, so docs.firecrawl.dev beside www.firecrawl.dev counted as two witnesses: one
+ * company describing itself, "independent on hostname alone" (found 2026-09-28).
+ */
+export function siteOf(url) {
+  const host = hostOf(url).toLowerCase().replace(/\.$/, '');
+  if (!host || /^[\d.]+$/.test(host) || host.includes(':') && !host.includes('.')) return host;
+  const labels = host.replace(/:\d+$/, '').split('.');
+  if (labels.length <= 2) return labels.join('.');
+  const lastTwo = labels.slice(-2).join('.');
+  return SHARED_SUFFIXES.has(lastTwo) ? labels.slice(-3).join('.') : lastTwo;
 }
 
 export function titleFromUrl(url) {

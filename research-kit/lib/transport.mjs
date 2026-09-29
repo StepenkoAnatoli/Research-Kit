@@ -11,11 +11,14 @@
 import * as firecrawl from './firecrawl.mjs';
 import * as httpKeyless from './http-transport.mjs';
 import * as serpapi from './serpapi.mjs';
+import browser from './browser-transport.mjs';
 import { loadConfig } from './machine.mjs';
 
 export const TRANSPORTS = Object.freeze({
   'firecrawl-cli': firecrawl,
   'http-keyless': httpKeyless,
+  // Fetch only, chosen only by name (ADR-0088): a local Chromium rendering the page.
+  browser,
 });
 
 export const TRANSPORT_NAMES = Object.freeze(Object.keys(TRANSPORTS));
@@ -30,7 +33,8 @@ export const TRANSPORT_NAMES = Object.freeze(Object.keys(TRANSPORTS));
  * selection.
  */
 export const SEARCH_PROVIDERS = Object.freeze({
-  ...TRANSPORTS,
+  // Only the transports that search: the browser fetches and nothing else (ADR-0088).
+  ...Object.fromEntries(Object.entries(TRANSPORTS).filter(([, adapter]) => typeof adapter.search === 'function')),
   serpapi,
 });
 
@@ -200,16 +204,30 @@ export function selectSearch({ explicit = '', env = process.env, config = null, 
     //
     // `adapter` still names the provider that pays the separate meter, so every existing
     // caller and every status line keeps meaning what it meant.
+    // The partner must be able to search: a fetch-only transport (the browser) hands its
+    // share to the keyless route, as the no-key branch below does. Put on the search side,
+    // it crashed the first live browser run (2026-09-29).
+    const partner = typeof side.adapter?.search === 'function' ? side.adapter : httpKeyless;
+    const partnerName = partner === side.adapter ? side.name : httpKeyless.name;
     return {
       name: serpapi.name,
       adapter: serpapi,
-      adapters: [serpapi, side.adapter],
-      why: `a SerpAPI key is configured - searching on its own meter AND with ${side.name}, merged by rank`,
+      adapters: [serpapi, partner],
+      why: `a SerpAPI key is configured - searching on its own meter AND with ${partnerName}, merged by rank`,
       searchOnly: true,
       merged: true,
     };
   }
 
+  // A fetch-only transport has no search of its own; the keyless route searches for it.
+  if (typeof side.adapter?.search !== 'function') {
+    return {
+      name: httpKeyless.name,
+      adapter: httpKeyless,
+      why: `${side.name} does not search - searching with ${httpKeyless.name}`,
+      searchOnly: false,
+    };
+  }
   return {
     name: side.name,
     adapter: side.adapter,
@@ -272,4 +290,4 @@ function labelled(adapter, label) {
   };
 }
 
-export { firecrawl, httpKeyless, serpapi };
+export { firecrawl, httpKeyless, serpapi, browser };

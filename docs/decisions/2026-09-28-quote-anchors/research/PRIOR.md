@@ -1,0 +1,1 @@
+I expect prior art to verify quotes by exact substring after light normalization (whitespace, case, quote marks), sometimes with a fuzzy threshold; I expect NFKC to be the right Unicode form for matching, with the caveat that it folds compatibility characters, so it is for comparison only, never for storage.

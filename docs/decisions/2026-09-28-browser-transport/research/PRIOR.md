@@ -1,0 +1,1 @@
+I expect headless Chromium's --dump-dom to print the rendered DOM after load, with --virtual-time-budget to let scripts settle; Chromium on Linux to honour proxy environment variables only without a desktop environment, so --proxy-server is the safe route; and --no-sandbox to be needed when running as root.

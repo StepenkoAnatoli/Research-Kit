@@ -7,12 +7,13 @@
 // A check emits findings. It never decides what a finding MEANS for the build - that is
 // the verdict's single judgement, in lib/preflight.mjs.
 
-import { hostOf, PATHS, resolve, exists, ageInDays, urlKey, readText, kitCommand } from './core.mjs';
-import { captureOf, traceOf, citedIds } from './corpus.mjs';
+import { hostOf, siteOf, PATHS, resolve, exists, ageInDays, urlKey, readText, kitCommand } from './core.mjs';
+import { captureOf, traceOf, citedIds, parseCapture } from './corpus.mjs';
 import { documentGroups, closestPair } from './similarity.mjs';
 import { coverageOfUniversals } from './dimensions.mjs';
 import { verifyLedger } from './provenance.mjs';
 import { readPrior, PRIOR_PATH } from './prior.mjs';
+import { quoteAnchors, anchorFound, quoteWords, MIN_QUOTE_WORDS } from './quotes.mjs';
 import { draftStamp, briefInputsHash } from './brief.mjs';
 
 const VALID_STATUSES = ['CLOSED', 'KNOWN-UNKNOWN'];
@@ -55,6 +56,7 @@ function discoveryContract(corpus) {
 
 function citations(corpus) {
   const out = [];
+  let quoted = 0;
   for (const row of corpus.evidence) {
     if (!row.url) {
       out.push(finding('fail', 'citations', 'row-url', `${row.id} has no URL`, { row: row.id, line: row.line }));
@@ -88,9 +90,41 @@ function citations(corpus) {
       out.push(finding('warn', 'citations', 'raw-thin',
         `${row.id}'s capture is ${capture.bytes} bytes - too thin to carry a claim`, { row: row.id, line: row.line }));
     }
+    // A capture of an error page, from a corpus collected before collectOne refused them
+    // (2026-09-28). A warning, not a block: some corpora cite a 404 on purpose, as the record
+    // of a lookup that was attempted - and a row that names the status itself has said so,
+    // so it is not flagged (a string check, like a quote anchor: the row says "404").
+    const status = Number(capture.statusCode);
+    if (Number.isInteger(status) && status >= 400 && !new RegExp(`\\b${status}\\b`).test(row.finding)) {
+      out.push(finding('warn', 'citations', 'raw-error-status',
+        `${row.id}'s capture ${capture.file} is an HTTP ${status} page - it records that the page failed, not what the page says`,
+        { row: row.id, line: row.line }));
+    }
+    // Quote anchors (ADR-0087): `[quote: ...]` in the Finding must occur in this row's
+    // capture. A quote the capture refutes is a claim about the evidence that the evidence
+    // denies - the same class as an edited capture - so it blocks under every policy.
+    const anchors = quoteAnchors(row.finding);
+    if (anchors.length) {
+      const body = parseCapture(readText(resolve(corpus.root, capture.file)) ?? '').body;
+      for (const anchor of anchors) {
+        quoted += 1;
+        if (quoteWords(anchor) < MIN_QUOTE_WORDS) {
+          out.push(finding('warn', 'citations', 'quote-too-short',
+            `${row.id} quotes "${anchor.quote}" - under ${MIN_QUOTE_WORDS} words anchors almost nothing; quote the sentence the claim rests on`,
+            { row: row.id, line: row.line }));
+          continue;
+        }
+        if (!anchorFound(anchor.fragments, body)) {
+          out.push(finding('fail', 'citations', 'quote-not-found',
+            `${row.id} quotes "${anchor.quote}", which does not occur in ${capture.file} - copy the passage from the capture, or drop the marker and paraphrase`,
+            { row: row.id, line: row.line }));
+        }
+      }
+    }
   }
   if (!out.some((f) => f.severity !== 'pass')) {
-    out.push(finding('pass', 'citations', 'citations', `${corpus.evidence.length} evidence rows, each with a cached page`));
+    out.push(finding('pass', 'citations', 'citations', `${corpus.evidence.length} evidence rows, each with a cached page`
+      + (quoted ? `; ${quoted} quote${quoted === 1 ? '' : 's'} found in ${quoted === 1 ? 'its' : 'their'} capture` : '')));
   }
   return out;
 }
@@ -308,6 +342,17 @@ function unknownClosure(corpus, options = {}) {
           `${unknown.id} rests on ${id}, which is lead-only (L) - a hint, never proof`,
           { row: unknown.id, line: unknown.line }));
       }
+    }
+    // The registry promised "a primary row" and only L was checked (found 2026-09-28 by the
+    // first measurement: three corpora closed everything on S rows with no warning). Rule 4:
+    // P carries the design, S is context - so a closure with no P row at all is said. If the
+    // page owns the fact (a vendor's own terms, a spec), its row should be typed P.
+    const rows = cited.map((id) => byId.get(id.toUpperCase())).filter(Boolean);
+    if (rows.length && !rows.some((row) => row.type === 'P') && rows.some((row) => row.type === 'S')) {
+      out.push(finding('warn', 'unknown-closure', 'secondary-only',
+        `${unknown.id} rests only on secondary (S) rows - S is context, P carries the design; `
+        + 'collect the page that owns the fact, or type its row P if it already is that page',
+        { row: unknown.id, line: unknown.line }));
     }
   }
   if (!out.length) {
@@ -786,7 +831,8 @@ function corroboration(corpus) {
     if (rows.length === 1) {
       shape = { rule: 'single-source', detail: `rests on ${rows[0].id} alone - one reading, so a correct source and a lucky one look the same` };
     } else {
-      const hosts = new Set(rows.map((row) => hostOf(row.url)).filter(Boolean));
+      // By SITE, not hostname: two subdomains of one company are one voice (2026-09-28).
+      const hosts = new Set(rows.map((row) => siteOf(row.url)).filter(Boolean));
       if (hosts.size === 1) {
         shape = { rule: 'one-voice', detail: `cites ${rows.length} rows and all are ${[...hosts][0]} - a second reading of one source, which catches a misreading and not a source that is wrong about itself` };
       } else {
@@ -800,7 +846,7 @@ function corroboration(corpus) {
         } else {
           // Hosts that survive as DISTINCT documents. A three-row unknown where two rows
           // mirror each other still counts the third, so this reports what is independent.
-          const distinctHosts = new Set(groups.map((g) => hostOf(rows[g[0]].url)).filter(Boolean));
+          const distinctHosts = new Set(groups.map((g) => siteOf(rows[g[0]].url)).filter(Boolean));
           if (distinctHosts.size === 1) {
             shape = { rule: 'one-voice', detail: `cites ${rows.length} rows across ${hosts.size} hosts, but after grouping republished copies only ${[...distinctHosts][0]} remains - one voice` };
           } else {
@@ -828,11 +874,13 @@ function corroboration(corpus) {
     // An acknowledgement left on an unknown that has SINCE been corroborated is reported,
     // not silently ignored. It now claims no second witness exists while the corpus holds
     // one - which is a stale claim of exactly the kind this repository keeps finding in its
-    // own prose, and the only moment anything can notice is right here.
+    // own prose, and the only moment anything can notice is right here. It stays a warning
+    // that names its limit: sites are what it counts, and a paper beside its authors' own
+    // repository is two sites and one voice (found 2026-09-29).
     if (shape.corroborated) {
       if (note) {
         out.push(finding('warn', 'corroboration', 'single-witness-stale',
-          `${unknown.id} ${shape.detail}, but still carries a [single-witness: ...] note claiming it cannot be corroborated - remove the note or the claim is false`,
+          `${unknown.id} ${shape.detail}, but still carries a [single-witness: ...] note claiming it cannot be corroborated. This check counts sites, not authors: if these pages share an author, the note stands; if not, remove the note or the claim is false`,
           { row: unknown.id, line: unknown.line }));
         continue;
       }

@@ -1,0 +1,19 @@
+{
+  "topic": "Quote-anchored claims: how research tools verify quotations against cited sources, Unicode normalization for matching quoted text",
+  "notes": "Phase 0 dry-run only (credits at 296); owning pages named directly from the 2026-09-28 survey.",
+  "depth": "normal",
+  "refreshDays": 30,
+  "limit": 5,
+  "perQuery": 2,
+  "maxScrapes": 6,
+  "prefer": [],
+  "queries": [],
+  "urls": [
+    {"url": "https://github.com/open-source-legal/opencontracts/issues/2189", "type": "S", "why": "U-01: a real case of fabricated quotations on real citations"},
+    {"url": "https://github.com/open-source-legal/opencontracts/pull/2193", "type": "S", "why": "U-02: how that project verifies quotes at finalize"},
+    {"url": "https://github.com/vbcdng/claim-grounding", "type": "S", "why": "U-02: a citation-against-source checker"},
+    {"url": "https://arxiv.org/html/2605.06635v1", "type": "P", "why": "U-01, U-02: evaluating source attribution in deep research agents"},
+    {"url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize", "type": "P", "why": "U-03: String.prototype.normalize forms"},
+    {"url": "https://unicode.org/reports/tr15/", "type": "P", "why": "U-03: what NFKC folds, and that it is not for round-tripping"}
+  ]
+}

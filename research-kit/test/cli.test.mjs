@@ -194,6 +194,27 @@ test('research names its credit fallback, and --no-fallback is accepted', () => 
   assert.equal(off.status, 0, `--no-fallback was refused:\n${off.out}${off.err}`);
 });
 
+// Found 2026-09-28 collecting one page into the root corpus with a one-off plan in a scratch
+// folder: `--plan /tmp/.../plan.json` was joined onto the project folder and reported "does not
+// exist". `prior --file` had the same join. An absolute path is where the file is.
+test('--plan and prior --file take an absolute path as it is', () => {
+  const root = project('absolute paths');
+  const outside = path.join(tempDir('rk-plan-'), 'plan.json');
+  fs.writeFileSync(outside, JSON.stringify({
+    topic: 'absolute paths', depth: 'quick', maxScrapes: 4, refreshDays: 30, limit: 8, perQuery: 3, prefer: [], queries: [],
+    urls: [{ url: 'https://x.invalid/from-outside', type: 'P', why: 'outside plan' }],
+  }));
+  const dry = run('research.mjs', ['--plan', outside, '--dry-run', '--transport', 'http-keyless'], { root });
+  assert.equal(dry.status, 0, dry.out + dry.err);
+  assert.match(dry.out, /from-outside/, `the outside plan was not the one read:\n${dry.out}`);
+
+  const note = path.join(tempDir('rk-prior-'), 'prior.txt');
+  fs.writeFileSync(note, 'I expect the outside file to be read as it is, from its absolute path, and not joined onto the project folder.');
+  const prior = run('prior.mjs', ['--file', note], { root });
+  assert.equal(prior.status, 0, prior.out + prior.err);
+  assert.match(fs.readFileSync(path.join(root, 'research', 'PRIOR.md'), 'utf8'), /outside file to be read/);
+});
+
 test('pages left out by the budget are named, and --status states the budget the run will use', () => {
   const root = project('budget');
   fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({

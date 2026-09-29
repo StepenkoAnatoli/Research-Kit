@@ -21,10 +21,14 @@ test('both adapters hold the same seven-function shape', () => {
   }
 });
 
-test('the registry holds exactly the two adapters, and names no third vendor', () => {
-  assert.deepEqual(TRANSPORT_NAMES, ['firecrawl-cli', 'http-keyless']);
+// Three adapters since ADR-0088, still one vendor: `browser` runs a Chromium already on the
+// machine, with no key and no account, so it adds a transport and no third vendor.
+test('the registry holds exactly three adapters, and names no third vendor', () => {
+  assert.deepEqual(TRANSPORT_NAMES, ['firecrawl-cli', 'http-keyless', 'browser']);
   assert.equal(TRANSPORTS['firecrawl-cli'].name, 'firecrawl-cli');
   assert.equal(TRANSPORTS['http-keyless'].name, 'http-keyless');
+  assert.equal(TRANSPORTS.browser.name, 'browser');
+  assert.equal(TRANSPORTS.browser.creditsExhausted, undefined, 'no account, so nothing to run out of');
 });
 
 test('selection precedence: explicit, then env, then config, then a probe', () => {
@@ -731,4 +735,23 @@ test('the Firecrawl adapter recognises exhausted credits from the CLI\'s own wor
   for (const other of ['Error: Rate limit exceeded (429)', 'Error: Payment required', 'firecrawl exited 1', '', undefined]) {
     assert.equal(fc.creditsExhausted(other), false, String(other));
   }
+});
+
+// Found 2026-09-28 running the browser transport: nodejs.org/api/fs.html is 314 <section>
+// elements in a row, with no <main> or <article>. The extractor kept the single densest
+// section - 1,095 characters - and graded away ~40,500 words as "outside the densest block",
+// on both the keyless and the browser route. A run of sections that holds most of the page
+// is the content, not a set of rivals for it.
+test('a page built from a run of sections keeps the run, not the densest one', async () => {
+  const { mainContent: extract, htmlToMarkdown: toMd, gradeCompleteness: grade } = await import('../lib/http-transport.mjs');
+  const nav = `<div class="nav">${Array.from({ length: 30 }, (_, i) => `<a href="/x${i}">Link ${i}</a>`).join(' ')}</div>`;
+  // Each section carries a nested <div>, as the real page's stability notes do: the block
+  // regex then ends the wrapper <div> at the first inner </div>, so no block holds the run.
+  const sections = Array.from({ length: 40 }, (_, i) => `<section><h2>fs.method${i}()</h2><div class="api_stability">Stability: 2 - Stable</div><p>The fs.method${i}() call reads a file and returns its contents as a buffer, or as a string when an encoding is given. It fails when the path does not exist.</p></section>`).join('\n');
+  const html = `<html><head><title>File system</title></head><body>${nav}<div id="column">${sections}</div></body></html>`;
+  const extraction = extract(html);
+  const markdown = toMd(extraction.html);
+  for (const i of [0, 17, 39]) assert.match(markdown, new RegExp(`fs\\.method${i}\\(\\) call reads a file`), `section ${i} is missing`);
+  assert.equal(grade(markdown, extraction).completeness, 'full', grade(markdown, extraction).omitted);
+  assert.doesNotMatch(markdown, /Link 12/, 'the navigation stays out');
 });

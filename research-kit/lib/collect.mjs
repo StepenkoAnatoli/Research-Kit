@@ -168,6 +168,16 @@ export function collectOne(root, url, {
       sleepSync(wait);
     }
 
+    // An error page is not a capture (found 2026-09-28): Firecrawl answers ok with the page
+    // a server sent, and Google's "Error 503 (Service Unavailable)" arrived with statusCode
+    // 503 in its metadata and became an EVIDENCE row. The status was recorded and never
+    // read. The keyless transport already treated a non-2xx answer as a failure; this makes
+    // it the rule for every transport.
+    const status = Number(result?.statusCode);
+    if (result?.ok && Number.isInteger(status) && status >= 400) {
+      result = { ...result, ok: false, error: `the page answered HTTP ${status}${result.title ? ` (${String(result.title).slice(0, 80)})` : ''} - an error page is not evidence` };
+    }
+
     if (!result?.ok) {
       appendFetch(root, {
         op: 'fail', url, raw: '', bodySha256: '',

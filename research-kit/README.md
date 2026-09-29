@@ -84,11 +84,13 @@ node "$HOME/.agents/research-kit/bin/handoff.mjs"     # did the corpus arrive wh
 | `gate.mjs` | the verdict for a hook (`--gate commit\|edit`, `--staged-stdin`, `--posture`) |
 | `research.mjs` | collect (`--depth`, `--refresh-days`, `--force`, `--dry-run`, `--status`, `--transport`) |
 | `prior.mjs` | register what you expect **before** collecting, chained so it cannot be moved or rewritten afterwards; with no argument, prints the one on record |
-| `decompose.mjs` | phase 0 (`--topic`, `--recipe`, `--recipes`, `--max-scrapes`, `--dry-run`) |
+| `decompose.mjs` | phase 0 (`--topic`, `--recipe`, `--recipes`, `--max-scrapes`, `--dry-run`); the map shows the section headings of the pages it captured |
 | `handoff.mjs` | the arrival question, with the remedy picked from the cause |
 | `brief.mjs` | draft the handoff (`--state`, `--force`) |
 | `audit.mjs` | render, `--list`, `--show`, `--zip` |
 | `timeline.mjs` | regenerate the chronological review aid |
+| `measure.mjs` | how this project's citations hold up, without a judge (`--json`); a report, never a gate |
+| `export-warc.mjs` | this project's captures as one WARC 1.1 file for archive tools (`--out`); a copy, never a gate |
 | `new-project.mjs` | scaffold the shape (`--layout`, `--force`) |
 | `install.mjs` | deploy (`--dry-run`, `--into <project>`) |
 | `install-hooks.mjs` | the two gates and the machine's role and posture |
@@ -332,13 +334,14 @@ persist gets committed.
 
 ## Transports
 
-Two adapters behind one seam, chosen by `--transport`, `RESEARCH_KIT_TRANSPORT`, the machine
+Three adapters behind one seam, chosen by `--transport`, `RESEARCH_KIT_TRANSPORT`, the machine
 config, or a probe:
 
 - **`firecrawl-cli`** — metered, spawned as an argv array with no shell.
 - **`http-keyless`** — no key, no credits, grades its own capture completeness honestly.
+- **`browser`** — a local Chromium or Chrome renders the page (`--transport browser`); free, reads pages built by JavaScript or refused to non-browser clients; fetch only (ADR-0088).
 
-When Firecrawl's credits run out mid-run, the rest of the run switches to `http-keyless`
+When Firecrawl's credits run out mid-run, the rest of the run switches to `browser` when a browser is installed, else `http-keyless`,
 and says so; each capture's ledger entry names the transport that fetched it (ADR-0086).
 `--no-fallback` records those pages as failed instead. Tavily is not a fallback: its terms
 reserve training on what is sent (C-6, re-checked 2026-09-28).
@@ -346,7 +349,7 @@ reserve training on what is sent (C-6, re-checked 2026-09-28).
 ## What is built
 
 Everything the protocol needs: the corpus, the chain, the thirteen checks, the verdict,
-both gates, both transports, phase 0, the brief, the audit and its bundle.
+both gates, all three transports, phase 0, the brief, the audit and its bundle.
 
 And, since 2026-09-20, the **release-evidence validator layer** — which this file said
 was "not built, deliberately" until it was. It was deferred by
@@ -447,7 +450,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1203 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1238 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

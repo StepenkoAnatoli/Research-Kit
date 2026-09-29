@@ -6,7 +6,7 @@
 // Every scrape spends a credit, so the budget is a first-class input: a tier caps the
 // run, a cache hit is never an attempt, and `--dry-run` spends nothing.
 
-import { PATHS, resolve, readJson, readText, today, hostOf, uniq, sleepSync, urlKey } from './core.mjs';
+import { PATHS, resolve, readJson, readText, today, hostOf, uniq, sleepSync, urlKey, operatorPath } from './core.mjs';
 import * as firecrawl from './firecrawl.mjs';
 import { readCorpus, cacheDecision, appendJsonLine } from './corpus.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
@@ -79,7 +79,7 @@ export function planProblems(plan) {
 }
 
 export function readPlan(root, file = '') {
-  const plan = readJson(resolve(root, file || PATHS.plan), null);
+  const plan = readJson(file ? operatorPath(root, file) : resolve(root, PATHS.plan), null);
   if (!plan) return { topic: '', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 3, maxScrapes: 10, prefer: [], queries: [], urls: [] };
   return {
     topic: plan.topic ?? '',

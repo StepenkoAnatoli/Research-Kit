@@ -1,0 +1,28 @@
+{
+  "topic": "Chromium's sandbox on Ubuntu 23.10+: why it fails under AppArmor's unprivileged user namespace restriction, and the supported ways to run headless Chromium there",
+  "notes": "Phase 0 dry-run only (credits); owning pages named directly.",
+  "depth": "normal",
+  "refreshDays": 30,
+  "limit": 5,
+  "perQuery": 2,
+  "maxScrapes": 3,
+  "prefer": [],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md",
+      "type": "P",
+      "why": "U-01, U-02: the page Chromium's FATAL message points to - cause and remedies"
+    },
+    {
+      "url": "https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces",
+      "type": "P",
+      "why": "U-01: Ubuntu's own statement of the restriction and its sysctl"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/chromium/chromium/main/docs/security/apparmor-userns-restrictions.md",
+      "type": "P",
+      "why": "U-01, U-02: the same Chromium doc, from its GitHub mirror (googlesource answered 503)"
+    }
+  ]
+}
