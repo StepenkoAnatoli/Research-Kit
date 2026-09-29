@@ -332,6 +332,11 @@ test('outlineOf keeps a page\'s section headings and drops what a site prints ar
   // Found on real captures: Mintlify docs put a zero-width space before every heading, and a
   // GitHub wiki ends with its clone box.
   assert.deepEqual(outlineOf('## \u200B Credits\n## Clone this wiki locally').headings, ['Credits']);
+  // Found 2026-09-29 using the kit on MoonAliza: a GitHub file view's chrome and a Discourse
+  // forum's per-post bylines were shown as the "outline" of the pages phase 0 captured.
+  const chrome = ['## Collapse file tree', '## Files', '## File metadata and controls', '## Model selection',
+    '## post by antmannacho on Feb 14, 2024', '## post by \\_j on Feb 15, 2024', '## Related topics'].join('\n');
+  assert.deepEqual(outlineOf(chrome).headings, ['Model selection']);
   const many = Array.from({ length: 20 }, (_, i) => `## Part ${i}`).join('\n');
   const capped = outlineOf(many, { max: 5 });
   assert.equal(capped.headings.length, 5);
