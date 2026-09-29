@@ -1,210 +1,77 @@
-# Brief - Can Research-Kit ship as a Windows .exe yet?
+# Brief - Node.js single executable application bundling assets getAsset stability without virtual file system
 
-- **Date:** 2026-09-21
-- **Gate:** PASS - 0 blocking, **3 warnings**, 13 passing (`evidencePolicy=pluralist`).
-  All three are `capture-completeness/partial-render` and **none is a corroboration finding**:
-  both unknowns rest on two distinct documents across two hosts since the pass described at
-  the end. The corpus briefly reported 0 warnings and passed `--strict`; ADR-0037 then added
-  a rule that sees something real about these three captures, and it now fails `--strict` on
-  those. Stated rather than quietly re-rendered - see "A number in this brief changed under
-  it" below.
-- **Corpus:** 5 captures, 5 ledger entries, chain verifies
-- **Collected by:** `collect.yml` run `35623502540`, dispatched through `bin/collect-remote.mjs`
+_Auto-drafted 2026-09-29 by `bin/brief.mjs` from the corpus. Sections marked **TODO**
+require human/agent judgement; everything else is assembled from evidence already
+in `research/`. While a **TODO** remains, this brief is **not reviewed** and the
+handoff is **not approved** - a structurally valid corpus, a reviewed one, and an
+approved handoff are three different states._
 
-## The answer
+Reviewed by: agent
 
-**Yes, and the deferral that said otherwise rested on a false premise.**
+**This is the phase-1 to phase-2 handoff.** **Gate: PASS.** Every blocking unknown is closed with evidence, and every claim below
+traces to a cached page in `research/raw/`.
 
-ADR-0031 deferred the local Windows `.exe` on this reasoning: *"What defers it is the part
-the kit would actually need: reading its own bundled files through `useVfs`, added in
-v26.9.0 and carrying a weaker 'Stability: 1.0 — Early development'."*
+Whoever you are - another agent, a different model, or a person - read this file
+first. You should not need to re-research anything to start work. If something
+here is not enough to build from, say which fact is missing rather than guessing
+it: that is a phase-1 gap to close, not a phase-2 judgment call.
 
-Two claims are packed into that sentence. The stability reading is correct. The word
-**"need"** is not.
+## Intent
 
-Node's single-executable feature has carried an `assets` configuration key and a
-`sea.getAsset()` / `getAssetAsBlob()` / `getRawAsset()` / `getAssetKeys()` API since long
-before the VFS existed - E-02, a v20.19.2 mirror of the same page, documents the assets API
-in full and has no VFS section at all. Assets are bundled at build time and read back by key
-inside the executable. `useVfs` does not add the capability; it adds a *convenience*, letting
-existing `node:fs` calls keep working unchanged instead of being rewritten to `getAsset()`.
+ADR-0031 deferred the local Windows `.exe` with a dated trigger: "Revisit when that reaches
+1.1, or if artifact download proves too awkward in practice." The "that" was `useVfs`,
+Node's virtual file system for single-executable assets, which the ADR asserted was "the
+part the kit would actually need".
 
-The stability picture follows from that. The page carries **Stability: 1.1 - Active
-development** at its head, and the string `1.0 - Early development` appears **exactly once**
-in the entire document - under the heading `Virtual file system (VFS) for assets`. The assets
-API carries no separate marker, so it sits at the feature's 1.1. So the 1.0 the ADR cited is
-real, but it attaches to the route the kit can decline to take.
+This tests the premise as well as the trigger. The kit reads three sets of non-JavaScript
+files at runtime - `template/`, `recipes/` and `schemas/` - so it does need bundled assets.
+Whether it needs them through `useVfs` specifically is a different question, and the ADR
+assumed rather than checked.
 
-**A kit willing to branch on `sea.isSea()` and call `getAsset()` reaches its templates,
-recipes and schemas at Stability 1.1 throughout.** The documented trigger - "revisit when
-that reaches 1.1" - was waiting on something the decision never needed.
+"Done" is a yes or no a builder can act on: is there a path to a `.exe` that does not
+depend on a Stability 1.0 feature?
 
-## What this does and does not authorise
+## What we verified
 
-It does **not** authorise building the `.exe`. It removes the *stated technical* reason not
-to, which leaves the question that was never technical: whether a Windows binary is still
-wanted now that the agent path exists. The MCP server and `collect-remote.mjs` already reach
-the collector without one, and the `.exe` was argued for a person who does not use a
-terminal rather than for an agent. That is the single question carried to the human.
-
-> **Answered 2026-09-21: not wanted.** The operator rejected the `.exe` on scope once the
-> stability objection was gone. ADR-0031 records it as rejected rather than deferred, along
-> with what that costs — there is still no offline path — and the fact that reopening it
-> needs no new research, because this corpus is the research.
->
-> Worth noting what this brief did *not* do: it did not recommend building the thing it had
-> just unblocked. Removing an objection is not the same as making a case, and the corpus had
-> nothing to say about whether anyone wanted it.
-
-The cost is also now visible rather than assumed: taking the 1.1 route means the three
-runtime reads in `lib/scaffold.mjs`, `lib/decompose.mjs` and `lib/artifact-validator.mjs`
-need an asset-aware branch. That is real work, and it is a different objection from the one
-ADR-0031 recorded.
-
-## Two warnings accepted rather than cleared — and then cleared anyway
-
-> **Superseded 2026-09-21 by the corroboration pass at the end of this brief.** The section
-> below argued that U-1 and U-2 should stay single-sourced. The argument was sound about the
-> evidence in hand and **wrong about the evidence that existed.** Kept unedited, because the
-> way it was wrong is the most useful thing here.
-
-U-1 and U-2 both rest on E-01 alone, and `corroboration` says so on every run. **They are
-accepted deliberately, and the reason is the more interesting half of this cycle.**
-
-A second source was collected. `lira.epac.to` serves the same Node.js document on an
-unrelated host - and it documents **v20.19.2**, six major versions behind the v26.9.0 on
-nodejs.org, predating the VFS section entirely. Citing it beside E-01 would have cleared both
-warnings and reported `independent`: two hosts, apparently two witnesses.
-
-They are one document, one of them stale. So the row is kept in `EVIDENCE.md`, graded S, and
-**cited by no unknown**. Clearing a warning by citing a mirror would make the corpus read
-stronger while making it weaker, which is the failure the check exists to prevent.
-
-The remaining reason the warning is tolerable is narrower and worth stating rather than
-implying: on *what the Node.js project says the stability of its own API is*, the vendor's
-current documentation is not one source among several. Any second source can only report it.
-A `single-source` warning is the correct standing description of this claim, not a defect to
-be engineered away.
-
-## What the third capture contributes
-
-Nothing, and it is recorded anyway. `github.com/nodejs/single-executable/discussions/17`
-renders its body by script, so the capture holds page furniture, a sponsor block, a star
-count and the thread title - `Bundling of non-binary assets within the binaries` - and none
-of the discussion. It is graded S and cited by no unknown.
-
-It stays in the corpus because the fetch happened and the ledger records it. Deleting the row
-would leave a hash-chain entry with no evidence row, and a corpus that quietly drops its
-failures reports a better hit rate than it earned. **One in three captures in the FIRST
-collection returned nothing usable** - one authoritative page, one stale mirror, one empty
-shell - which is a fair sample of why the three human review steps exist. (Across both
-collections it is one in five: the two targeted pull-request pages both carried their bodies,
-because GitHub renders a PR server-side and a Discussion in the browser. Checking that before
-spending was the difference.)
-
-## Limits of this corpus
-
-- ~~**Three captures, one query, one collection.**~~ **Five captures, two collections**, the
-  second targeted at exactly the two unknowns the first left single-sourced. The original
-  line - "nothing here was searched for a second time" - was the limitation, and looking
-  again is what removed it.
-- **`completeness: full` on E-03 is honest about bytes and silent about meaning.** The fetch
-  returned a whole page; the page contained no content. The grade measures transport, and
-  nothing in the kit currently measures whether a capture said anything.
-- **The build cost is estimated, not measured.** No prototype was built. The claim that three
-  modules need an asset-aware branch comes from reading this repository, not from doing it.
-
-## The `--strict` claim this brief got wrong
-
-The first version of the line at the top said this corpus fails `--strict` *"because the
-delivery-architecture corpus passes `--strict` and a reader would otherwise assume parity"*.
-
-**That was false, and it was caught by sweeping for gaps rather than by any check.** Measured
-the same day, on `main`:
-
-| corpus | default policy | `--strict` |
+| Claim | Source | Type |
 |---|---|---|
-| repository root | PASS, 7 warnings | **FAIL, 7 blocking** |
-| `2026-09-21-delivery-architecture` | PASS, 8 warnings | **FAIL, 8 blocking** |
-| `2026-09-21-agent-interface` | PASS, 5 warnings | **FAIL, 5 blocking** |
-| `2026-09-21-public-run-visibility` | PASS, 4 warnings | **FAIL, 4 blocking** |
-| `2026-09-21-sea-assets` | PASS, 2 warnings | **FAIL, 2 blocking** |
+| **The deferral in ADR-0031 rested on a false premise, and this page says so plainly.** Assets can be bundled without `useVfs`: "Users can include assets by adding a key-path dictionary to the configuration as the `assets` field. At build time, Node.js would read the assets from the specified paths and bundle them into the preparation blob", retrieved in the executable through `sea.getAsset()`, `sea.getAssetAsBlob()`, `sea.getRawAsset()` and `sea.getAssetKeys()`. **The stability picture is the finding.** The page carries "Stability: 1.1 - Active development" at its head, and `1.0 - Early development` appears exactly once in the whole document - under "Virtual file system (VFS) for assets", added in v26.9.0. The assets API carries no separate marker and therefore sits at the feature's 1.1. So `useVfs` is a CONVENIENCE - it lets existing `node:fs` calls keep working unchanged - and not the only route. A kit willing to branch on `sea.isSea()` and call `getAsset()` reaches its templates, recipes and schemas at 1.1 throughout. Documents Node.js v26.9.0. | E-01 `nodejs.org` (U-1, U-2) | P |
 
-**At the time, nothing in this repository passed `--strict`.** The delivery corpus did before
-ADR-0036 added `corroboration` to `POLICY_CHECKS`, and the sentence was written from that
-memory instead of from a run - the exact failure mode this kit exists to prevent, committed
-inside a brief arguing against it. **This corpus passed `--strict` for about an hour**, between its
-corroboration pass and ADR-0037; the table above is kept as the measurement it was on the day,
-and so is that sentence.
+## Contradictions and how they were resolved
 
-Two distinct things are also easy to conflate, and the verdict line invites it. `--strict` is
-a CLI flag that promotes **every** warning. `evidencePolicy=strict` promotes only the three
-`POLICY_CHECKS`. They are not the same setting, and the summary line prints the project's
-*declared* policy either way - so a `--strict` run reads `FAIL ... [evidencePolicy=pluralist]`,
-which looks like the pluralist policy failed it. It did not; the flag did. That is a reporting
-weakness, recorded rather than fixed here.
+None between sources. The contradiction was with ADR-0031's own text.
 
-## The corroboration pass, and what it says about "accepted single-sourcing"
+- **The ADR said:** the kit "would actually need" `useVfs`, which is at Stability 1.0.
+- **The Node SEA page says:** the `assets` configuration key and `sea.getAsset()` bundle and
+  read files without it, at the feature's own 1.1.
+- **Which to trust:** the page (E-01), because it owns the API.
+- **Where the ADR's claim came from:** an inference sitting next to a citation, not something
+  any row said.
 
-Two more captures, into the same ledger - five entries, one unbroken chain. Both unknowns now
-report `independent`: two distinct documents across two hosts, each.
+## Known unknowns
 
-- **E-04**, [nodejs/node#50960](https://github.com/nodejs/node/pull/50960), opened
-  **2023-11-29** - the pull request that proposed the assets API, in the same words
-  nodejs.org carries today.
-- **E-05**, [nodejs/node#61478](https://github.com/nodejs/node/pull/61478), opened
-  **2026-01-22** - the pull request that added the VFS, describing `"useVfs": true` as a flag
-  (`kEnableVfs`, bit 5 of `SeaFlags`) beside the existing mechanism.
+None. Every blocking unknown was closed with cited evidence.
 
-**Two years and two months apart.** That is the claim U-1 and U-2 actually rest on, now
-stated by a different host, different documents and different authors from E-01.
+## Decision
 
-### The uncomfortable part
+**Written retroactively on 2026-09-29.** The decision was taken on 2026-09-21 and recorded as
+an amendment to ADR-0031. That amendment cites this file, which did not exist until now.
 
-This brief argued, at length and in good faith, that the two `single-source` warnings should
-stand - that on Node's own stability marker "any second source can only report it", and that
-a `single-source` warning was "the correct standing description of this claim, not a defect to
-be engineered away".
+- **The trigger is withdrawn.** ADR-0031 had deferred the `.exe` until `useVfs` reached 1.1.
+  The kit never depended on `useVfs`.
+- **The cost of reopening:**
+  - an asset-aware branch in the three modules that read non-JavaScript files at runtime:
+    `lib/scaffold.mjs`, `lib/decompose.mjs` and `lib/artifact-validator.mjs`;
+  - reading those files through `sea.getAsset()`, at Stability 1.1.
+- **Outcome:** the `.exe` was then rejected on scope, not stability. That was the operator's
+  call, in ADR-0031. Nothing is to be built from this brief unless that decision is reopened.
+  If it is, the route above needs no further research.
 
-**Half of that was true and half was an excuse.** The marker itself genuinely has no second
-witness, and E-05 does not pretend to be one. But U-1 was never about the marker - it asked
-whether the assets API exists independently of `useVfs`, and *that* had primary evidence on
-another host the entire time. The corpus did not lack a second source. **One search had been
-run, it returned a mirror, and the mirror's uselessness got generalised into a claim about
-the world.**
+## Next steps
 
-So the honest reading of a `single-source` warning is narrower than this brief first allowed:
-it sometimes means "this is a vendor being authoritative about itself", and it sometimes means
-**"nobody looked twice"**. The check cannot tell those apart. Neither could this brief, until
-someone looked.
+1. Read the Decision above; it records what was already decided, and when.
+2. Hand this file to the builder (phase 2). Re-running `node /home/user/Research-Kit/research-kit/bin/brief.mjs`
+   redrafts this file while it is unedited; after any edit it refuses without `--force`,
+   so your judgements are preserved.
 
-### What did not change
-
-The `merged=false` caveat on both new rows. Node.js lands changes by rebasing rather than
-through the merge button, so a pull-request page is evidence of what was **proposed**, not
-proof of what shipped. What shipped is E-01's job, and E-01 is still the only row that speaks
-to the current state of the documentation.
-
-## A number in this brief changed under it, and that is the point
-
-This brief said "0 warnings" and "passes `--strict`". Both were true when written and both
-are now false - not because the research changed, but because **the gate learned to see
-something it could not see before.**
-
-ADR-0037 added `capture-completeness/partial-render`, which reports a page that prints its
-own load-failure notice. Three of this corpus's five captures do: the GitHub Discussion that
-carried nothing, and **both Node.js pull requests that carried everything.** GitHub renders
-the main content while a side widget fails, so the marker appears on good captures too.
-
-So the three warnings are true and two of them sit on rows this brief relies on. The response
-is not to silence the rule or to re-word the finding until it goes quiet. It is to say what
-the number means:
-
-- **No corroboration warning remains.** U-1 and U-2 each rest on two distinct documents across
-  two hosts, which is what the pass at the end of this brief bought.
-- **Three `partial-render` warnings remain**, and each is a standing instruction rather than a
-  defect: confirm the text cited from that capture is actually present. It was, for all three
-  - checked by searching the captures before the rows were written, which is the same
-  procedure ADR-0037 says no check replaces.
-
-A corpus whose verdict never moves is a corpus whose gate never improved.
+<!-- research-kit:brief-draft body=c964967ac546cc94 inputs=8396e972c50be385 gate=pass -->
