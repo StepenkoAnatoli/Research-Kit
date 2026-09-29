@@ -103,7 +103,10 @@ test('a refused write is named in words, and one record is "1 record"', () => {
   const folder = tempDir();
   let r = spawnSync(process.execPath, [bin, '--out', folder], { cwd: dir, encoding: 'utf8' });
   assert.equal(r.status, 2, r.stderr);
-  assert.match(r.stderr, /could not write .*: EISDIR \(a folder is where the file should be\)/);
+  // The code is the platform's: EISDIR here, EPERM on Windows (found by the windows-latest
+  // leg, 2026-09-29). What the kit promises is the same on both - the file and a reason in words.
+  assert.match(r.stderr, /could not write .*: (EISDIR|EPERM) \(/);
+  assert.ok(r.stderr.includes(path.basename(folder)), r.stderr);
   assert.doesNotMatch(`${r.stdout}${r.stderr}`, /node:fs|^\s+at /m);
 
   const empty = tempDir();
