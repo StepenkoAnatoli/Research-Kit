@@ -31,7 +31,8 @@ if (flags.help || resolved?.error) {
                      a different one is refused (a different topic is a new project)
   --recipe <name>    ADD domain dimensions on top of the universal set
   --recipes          list the recipes this kit ships
-  --max-scrapes <n>  gather up to n pages while mapping (default 0 - search only)
+  --max-scrapes <n>  gather up to n pages while mapping (default 0 - search only);
+                     the map shows the section headings of every captured page
   --limit <n>        search results per query (default 8)
   --dry-run          write the seeded map with no gathering; spend nothing
   --force            redraft over a map that already holds judged rows
@@ -141,7 +142,7 @@ const searched = searchSummary(result);
 if (searched) process.stderr.write(`${searched}\n`);
 
 process.stdout.write(`
-wrote ${result.file}: ${result.rows} rows (${result.universal} universal${result.added ? ` + ${result.added} from recipe ${result.recipe}` : ''}), ${result.material} candidate pages.
+wrote ${result.file}: ${result.rows} rows (${result.universal} universal${result.added ? ` + ${result.added} from recipe ${result.recipe}` : ''}), ${result.material} candidate pages${result.outlines ? `, ${result.outlines} page outline${result.outlines === 1 ? '' : 's'} shown` : ''}.
 
 Next, and this part is yours: mark every row COVERED (cite the U-## rows that cover it),
 DISMISSED (reason required - dismissing is fine, omitting is not), or GAP, and add

@@ -3,7 +3,7 @@
 
 import { test, describe, assert, makeProject, makePassingProject, fs } from './harness.mjs';
 import { PATHS, resolve, readText, listFiles } from '../lib/core.mjs';
-import { decompose, parseRecipe, loadRecipe, docsHosts, RECIPE_DIR, searchSummary } from '../lib/decompose.mjs';
+import { decompose, parseRecipe, loadRecipe, docsHosts, RECIPE_DIR, searchSummary, outlineOf } from '../lib/decompose.mjs';
 import { UNIVERSAL_DIMENSIONS, seedRows, coverageOfUniversals } from '../lib/dimensions.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { searchUsage } from '../lib/research-run.mjs';
@@ -306,4 +306,66 @@ test('a compound topic is searched part by part; a plain one keeps its four sear
     assert.ok((listed.match(new RegExp(`${host}\\.example\\.com`, 'g')) ?? []).length >= 6, `${host} is under-represented:\n${listed}`);
   }
   assert.ok(lines.some((l) => /compound topic.*2 parts/.test(l)), lines.join('\n'));
+});
+
+// STORM's table-of-contents step, without the model (ADR-0091).
+// Research: docs/decisions/2026-09-29-perspective-discovery.
+
+test('outlineOf keeps a page\'s section headings and drops what a site prints around them', () => {
+  const body = [
+    '# Title is not a section',
+    '## Rate limits',
+    'text',
+    '### Per-minute caps ##',
+    '## [Pricing](https://example.com/pricing)',
+    '## rate limits',
+    '```',
+    '## not a heading, inside code',
+    '```',
+    '## Uh oh!',
+    '## Latest commit',
+    '## In this article',
+    '#### too deep',
+    '## Permalink: something',
+  ].join('\n');
+  assert.deepEqual(outlineOf(body).headings, ['Rate limits', 'Per-minute caps', 'Pricing']);
+  // Found on real captures: Mintlify docs put a zero-width space before every heading, and a
+  // GitHub wiki ends with its clone box.
+  assert.deepEqual(outlineOf('## \u200B Credits\n## Clone this wiki locally').headings, ['Credits']);
+  const many = Array.from({ length: 20 }, (_, i) => `## Part ${i}`).join('\n');
+  const capped = outlineOf(many, { max: 5 });
+  assert.equal(capped.headings.length, 5);
+  assert.equal(capped.more, 15);
+});
+
+test('the map shows the outlines of the pages phase 0 captured, and no verdict on them', () => {
+  const dir = makeProject();
+  const outlined = `# Limits\n\n## Requests per minute\n\n${PAGE}\n\n## Credits per plan\n\ntext\n\n## Uh oh!\n`;
+  const adapter = {
+    ...stubAdapter([
+      { url: 'https://docs.example.com/limits', title: 'Limits' },
+      { url: 'https://docs.example.com/other', title: 'Other' },
+    ]),
+    runScrape: (url) => ({ ok: true, url, title: 'Limits', markdown: outlined, statusCode: 200, transport: 'stub-transport', completeness: 'full', cmd: `stub scrape ${url}` }),
+  };
+  const result = decompose(dir, { topic: 'Example limits', adapter, maxScrapes: 1 });
+  assert.equal(result.outlines, 1);
+  const text = readText(resolve(dir, PATHS.map));
+  const section = text.slice(text.indexOf('## Outlines seen in the material'));
+  assert.ok(text.includes('## Outlines seen in the material'));
+  assert.match(section, /\[Limits\]\(https:\/\/docs\.example\.com\/limits\)/);
+  assert.match(section, /Requests per minute/);
+  assert.match(section, /Credits per plan/);
+  assert.doesNotMatch(section, /Uh oh/);
+  assert.doesNotMatch(section, /docs\.example\.com\/other/, 'a page not captured has no outline to show');
+  assert.doesNotMatch(section, /\b(COVERED|DISMISSED|GAP)\b/);
+  const findings = runCheck('subtopic-coverage', { ...readCorpus(dir), root: dir });
+  assert.ok(findings.every((f) => !/unparsed|malformed/.test(f.rule ?? '')));
+});
+
+test('with nothing captured, the outline section says how to get one', () => {
+  const dir = makeProject();
+  decompose(dir, { topic: 'Example limits', adapter: stubAdapter([{ url: 'https://docs.example.com/limits', title: 'Limits' }]) });
+  const text = readText(resolve(dir, PATHS.map));
+  assert.match(text, /## Outlines seen in the material\n\n_No outlines - none of these pages is captured yet\. `--max-scrapes <n>`/);
 });

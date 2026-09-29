@@ -11,7 +11,7 @@ import path from 'node:path';
 import {
   PATHS, HEADERS, resolve, exists, readText, writeText, today, hostOf, uniq, listFiles,
 } from './core.mjs';
-import { readCorpus, cacheDecision, tableRow, appendJsonLine } from './corpus.mjs';
+import { readCorpus, cacheDecision, tableRow, appendJsonLine, parseCapture } from './corpus.mjs';
 import { seedRows, UNIVERSAL_DIMENSIONS } from './dimensions.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
 import { urlKey, matchesQuery, mergeByRank } from './research-run.mjs';
@@ -112,7 +112,75 @@ export function resolveTopic(root, asked) {
   return { topic: own || given };
 }
 
-function mapBody({ topic, rows, hosts, material, date, recipe, failures = [], dryRun = false }) {
+// ---------------------------------------------------------------- outlines (ADR-0091)
+
+/**
+ * Headings a site prints around its content, not sections of it. Deliberately a list of
+ * things pages SAY, counted across this repository's captures on 2026-09-29 (GitHub's chrome
+ * and error banners, docs-site furniture) - not a guess about which sections matter.
+ */
+export const OUTLINE_FURNITURE = Object.freeze([
+  'uh oh!', 'sorry, something went wrong.', 'choose a reason for hiding this comment',
+  'latest commit', 'history', 'folders and files', 'repository files navigation',
+  'about', 'resources', 'stars', 'watchers', 'forks', 'releases', 'packages', 'used by',
+  'contributors', 'languages', 'no results found', 'feedback', 'in this article',
+  'table of contents', 'contents', 'on this page', 'related posts', 'additional resources',
+  'subscribe to our developer newsletter', 'navigation menu', 'footer', 'provide feedback',
+  'saved searches', 'clone this wiki locally',
+]);
+
+/**
+ * A page's outline: its `##` and `###` headings, in order, as plain text. STORM's
+ * table-of-contents step without the model: the outline is read, never interpreted.
+ * Code blocks are skipped, links are reduced to their text, repeats and furniture dropped.
+ */
+export function outlineOf(body, { max = 12 } = {}) {
+  const furniture = new Set(OUTLINE_FURNITURE);
+  const seen = new Set();
+  const all = [];
+  let fence = '';
+  for (const line of String(body ?? '').split(/\r?\n/)) {
+    const marker = line.match(/^\s*(```|~~~)/);
+    if (marker) { fence = fence ? (fence === marker[1] ? '' : fence) : marker[1]; continue; }
+    if (fence) continue;
+    const m = line.match(/^(#{2,3})\s+(.*?)\s*#*\s*$/);
+    if (!m) continue;
+    const text = m[2]
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/[*_`\u200B-\u200D\u2060\uFEFF]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const key = text.toLowerCase();
+    if (text.length < 2 || text.length > 120 || /^permalink\b/i.test(text)) continue;
+    if (furniture.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    all.push(text);
+  }
+  return { headings: all.slice(0, max), more: Math.max(0, all.length - max) };
+}
+
+/** At most this many pages have their outline shown, so the map stays a page to read. */
+export const MAX_OUTLINES = 8;
+
+/** The outlines of the material's pages that have a capture on disk, in material order. */
+function outlinesOf(root, captures, material) {
+  const byKey = new Map();
+  for (const entry of captures?.entries ?? []) if (entry.url) byKey.set(urlKey(entry.url), entry);
+  const out = [];
+  let captured = 0;
+  for (const row of material) {
+    const entry = captures?.byUrl?.get(row.url) ?? byKey.get(urlKey(row.url));
+    if (!entry?.file) continue;
+    captured += 1;
+    if (out.length >= MAX_OUTLINES) continue;
+    const { headings, more } = outlineOf(parseCapture(readText(resolve(root, entry.file), '')).body);
+    if (headings.length) out.push({ url: row.url, title: row.title || entry.url, headings, more });
+  }
+  return { outlines: out, captured };
+}
+
+function mapBody({ topic, rows, hosts, material, date, recipe, failures = [], dryRun = false, outlines = null }) {
   const lines = [
     '# MAP - topic decomposition',
     '',
@@ -167,6 +235,24 @@ function mapBody({ topic, rows, hosts, material, date, recipe, failures = [], dr
       lines.push(`- \`${scrubError(f.query)}\` on ${f.provider}: ${scrubError(f.error)}${fell}`);
     }
     lines.push('');
+  }
+  if (outlines && material.length) {
+    lines.push('## Outlines seen in the material', '');
+    if (outlines.outlines.length) {
+      lines.push('The section headings of the gathered pages that are captured - what related material',
+        'covers, as its own tables of contents say (STORM\'s perspective step, without the model).',
+        'Not a verdict: a heading worth a subtopic becomes a row by your hand.', '');
+      for (const page of outlines.outlines) {
+        lines.push(`- [${page.title}](${page.url})`);
+        for (const heading of page.headings) lines.push(`  - ${heading}`);
+        if (page.more) lines.push(`  - _and ${page.more} more_`);
+      }
+      lines.push('');
+    } else if (outlines.captured) {
+      lines.push('_No outlines - the captured pages have no section headings._', '');
+    } else {
+      lines.push('_No outlines - none of these pages is captured yet. `--max-scrapes <n>` captures the first n; their headings appear here._', '');
+    }
   }
   return `${lines.join('\n')}\n`;
 }
@@ -404,9 +490,13 @@ export function decompose(root, {
     }
   }
 
-  writeText(file, mapBody({ topic, rows, hosts, material: material.slice(0, 20), date, recipe: loaded.name || recipe, failures, dryRun: dryRun || !adapter }));
+  // Read after the scrapes, so the pages this run captured are outlined too. No fetch: only
+  // what is already on disk.
+  const outlines = material.length ? outlinesOf(root, corpus.captures, material) : null;
+  writeText(file, mapBody({ topic, rows, hosts, material: material.slice(0, 20), date, recipe: loaded.name || recipe, failures, dryRun: dryRun || !adapter, outlines }));
   return {
     written: true,
+    outlines: outlines?.outlines.length ?? 0,
     // "nothing was found" and "every attempt failed" are different answers.
     gathered: material.length > 0,
     failures,
