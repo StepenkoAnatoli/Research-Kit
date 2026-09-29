@@ -874,11 +874,13 @@ function corroboration(corpus) {
     // An acknowledgement left on an unknown that has SINCE been corroborated is reported,
     // not silently ignored. It now claims no second witness exists while the corpus holds
     // one - which is a stale claim of exactly the kind this repository keeps finding in its
-    // own prose, and the only moment anything can notice is right here.
+    // own prose, and the only moment anything can notice is right here. It stays a warning
+    // that names its limit: sites are what it counts, and a paper beside its authors' own
+    // repository is two sites and one voice (found 2026-09-29).
     if (shape.corroborated) {
       if (note) {
         out.push(finding('warn', 'corroboration', 'single-witness-stale',
-          `${unknown.id} ${shape.detail}, but still carries a [single-witness: ...] note claiming it cannot be corroborated - remove the note or the claim is false`,
+          `${unknown.id} ${shape.detail}, but still carries a [single-witness: ...] note claiming it cannot be corroborated. This check counts sites, not authors: if these pages share an author, the note stands; if not, remove the note or the claim is false`,
           { row: unknown.id, line: unknown.line }));
         continue;
       }

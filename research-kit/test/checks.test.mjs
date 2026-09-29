@@ -571,6 +571,22 @@ test('corroboration: a note left on an unknown that HAS been corroborated is rep
   assert.match(findings[0].detail, /remove the note or the claim is false/);
 });
 
+test('corroboration: the stale-note warning says it counts sites, not authors', () => {
+  // Found 2026-09-29: a paper on arxiv.org and its authors' repository on github.com are two
+  // sites and one voice. The note saying so was right, and the warning called it false - a
+  // claim the check cannot make, because it sees hosts, never who wrote the pages.
+  const dir = withEvidence(makePassingProject(), [
+    '| E-01 | 2026-09-14 | P | https://example.invalid/a | x | research/raw/x.md |',
+    '| E-02 | 2026-09-14 | P | https://other.invalid/b | x | research/raw/y.md |',
+  ], 'E-01 and E-02 [single-witness: the authors describing their own system, in the paper and in its repository]');
+
+  const findings = runCheck('corroboration', snapshot(dir));
+  assert.equal(findings[0].rule, 'single-witness-stale');
+  assert.equal(findings[0].severity, 'warn');
+  assert.match(findings[0].detail, /counts sites, not authors/);
+  assert.match(findings[0].detail, /if these pages share an author, the note stands/);
+});
+
 test('capture-completeness: a recorded render review closes partial-render', () => {
   const dir = makePassingProject();
   const capture = readCorpus(dir).captures.entries[0];
