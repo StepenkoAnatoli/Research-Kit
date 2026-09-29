@@ -78,3 +78,17 @@ test('it is a named transport with the fetch shape, chosen only when asked for',
   const auto = selectTransport({ env: {}, config: {}, probe: () => ({ installed: false }) });
   assert.equal(auto.name, 'http-keyless', 'auto-detection is unchanged');
 });
+
+test('with a SerpAPI key, the browser is never asked to search: keyless searches beside SerpAPI', () => {
+  // Found 2026-09-29 by the first live run of the browser transport: a SerpAPI key merged the
+  // search side as "serpapi AND browser", and research.mjs died with "provider.search is not
+  // a function" before collecting anything. The no-key route already swapped in keyless; the
+  // merged route did not, and no offline test combined a key with a fetch-only transport.
+  const chosen = selectTransport({ explicit: 'browser', env: { SERPAPI_API_KEY: 'test-key-not-real' }, config: {} });
+  assert.equal(chosen.search.merged, true);
+  for (const one of chosen.search.adapters) {
+    assert.equal(typeof one.search, 'function', `${one.name} was put on the search side and cannot search`);
+  }
+  assert.deepEqual(chosen.search.adapters.map((one) => one.name), ['serpapi', 'http-keyless']);
+  assert.match(chosen.search.why, /AND with http-keyless/);
+});

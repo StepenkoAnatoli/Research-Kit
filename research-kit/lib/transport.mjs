@@ -204,11 +204,16 @@ export function selectSearch({ explicit = '', env = process.env, config = null, 
     //
     // `adapter` still names the provider that pays the separate meter, so every existing
     // caller and every status line keeps meaning what it meant.
+    // The partner must be able to search: a fetch-only transport (the browser) hands its
+    // share to the keyless route, as the no-key branch below does. Put on the search side,
+    // it crashed the first live browser run (2026-09-29).
+    const partner = typeof side.adapter?.search === 'function' ? side.adapter : httpKeyless;
+    const partnerName = partner === side.adapter ? side.name : httpKeyless.name;
     return {
       name: serpapi.name,
       adapter: serpapi,
-      adapters: [serpapi, side.adapter],
-      why: `a SerpAPI key is configured - searching on its own meter AND with ${side.name}, merged by rank`,
+      adapters: [serpapi, partner],
+      why: `a SerpAPI key is configured - searching on its own meter AND with ${partnerName}, merged by rank`,
       searchOnly: true,
       merged: true,
     };
