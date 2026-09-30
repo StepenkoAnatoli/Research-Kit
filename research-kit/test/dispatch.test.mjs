@@ -7,7 +7,7 @@
 
 import { test, describe, assert, tempDir, cleanup, fs, path } from './harness.mjs';
 import {
-  dispatchCollection, waitForRun, listArtifacts, downloadArtifact, unwrapArtifact, queriesInput,
+  dispatchCollection, waitForRun, getRun, listArtifacts, downloadArtifact, unwrapArtifact, queriesInput,
   tokenFromEnv, redact, DispatchError, API_VERSION, TOKEN_VARS, fetchCorpus,
 } from '../lib/dispatch.mjs';
 import { rawZip } from './artifact-fixtures.mjs';
@@ -185,6 +185,34 @@ test('a dispatch that never left names the cause, not the bare "fetch failed"', 
       assert.doesNotMatch(err.message, /: fetch failed$/, 'the cause was dropped');
       return true;
     });
+});
+
+// Reproduced 2026-09-30 (break-test) with a fetch answering 200 and an HTML body - what a
+// GitHub maintenance window, a corporate TLS-inspecting proxy and an edge cache under load
+// all return. `dispatchCollection` guarded this from the start; `getRun` and `listArtifacts`
+// did not, and both threw a raw SyntaxError that `collect-remote` could only report as
+// `UNKNOWN`, with no status and no remedy.
+test('a 200 whose body is not JSON is a dispatch error, not a SyntaxError', async () => {
+  const html = async () => ({
+    ok: true, status: 200,
+    json: async () => { throw new SyntaxError('Unexpected token < in JSON at position 0'); },
+  });
+  for (const [name, call] of [
+    ['getRun', () => getRun({ repository: REPO, runId: 1, token: TOKEN, fetch: html })],
+    ['listArtifacts', () => listArtifacts({ repository: REPO, runId: 1, token: TOKEN, fetch: html })],
+  ]) {
+    await assert.rejects(call, (err) => {
+      assert.equal(err.code, 'BAD_BODY', `${name} should report a dispatch error by name`);
+      assert.equal(err.status, 200);
+      assert.match(err.message, /not JSON/);
+      assert.ok(err.remedy, `${name} should carry a remedy`);
+      return true;
+    });
+  }
+  // And a body that IS json still reads.
+  const good = async () => ({ ok: true, status: 200, json: async () => ({ id: 7, artifacts: [{ id: 7 }] }) });
+  assert.deepEqual(await listArtifacts({ repository: REPO, runId: 1, token: TOKEN, fetch: good }), [{ id: 7 }]);
+  assert.equal((await getRun({ repository: REPO, runId: 1, token: TOKEN, fetch: good })).id, 7);
 });
 
 test('a malformed repository is refused before any request is made', async () => {
