@@ -17,6 +17,11 @@
 // quietly used the operator's token would answer a different question and look like this
 // one. There is no token parameter, and `headers()` is the only place headers are built.
 
+// A probe that cannot be reached names the cause of the failed fetch (runtime.fetchFailure),
+// not Node's bare "fetch failed" - which a proxy, a DNS failure and a TLS rejection all
+// produce alike (found 2026-09-30, break-test).
+import { fetchFailure } from './runtime.mjs';
+
 /** Probes, in the order a curious stranger would try them. */
 export const PROBES = Object.freeze([
   { id: 'run', label: 'run metadata', path: (r, id) => `/repos/${r}/actions/runs/${id}` },
@@ -52,7 +57,7 @@ export async function probeRun({ repository, runId, needle = null, fetch: doFetc
       status = response.status;
       body = await response.text();
     } catch (error) {
-      findings.push({ id: probe.id, label: probe.label, status: 0, readable: false, leaksNeedle: false, note: `unreachable: ${error.message}` });
+      findings.push({ id: probe.id, label: probe.label, status: 0, readable: false, leaksNeedle: false, note: `unreachable: ${fetchFailure(error)}` });
       continue;
     }
     findings.push({
@@ -94,7 +99,7 @@ export async function probeRun({ repository, runId, needle = null, fetch: doFetc
         leaksNeedle: Boolean(needle) && body.toLowerCase().includes(String(needle).toLowerCase()),
       });
     } catch (error) {
-      findings.push({ id, label, status: 0, readable: false, leaksNeedle: false, note: `unreachable: ${error.message}` });
+      findings.push({ id, label, status: 0, readable: false, leaksNeedle: false, note: `unreachable: ${fetchFailure(error)}` });
     }
   }
 
