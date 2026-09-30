@@ -13,6 +13,8 @@
 
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import net from 'node:net';
+import dns from 'node:dns';
 import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow, fetchFailure } from './runtime.mjs';
 
 export const name = 'http-keyless';
@@ -24,9 +26,12 @@ const USER_AGENT = 'research-kit/1.0 (+keyless transport; https://example.invali
 const SELF = fileURLToPath(import.meta.url);
 
 // The child's fetch uses a configured proxy only when told to: fetchEnv (runtime.mjs).
-function runJob(job, { timeout = 60_000, spawn = spawnSync, nodePath = process.execPath, env = process.env } = {}) {
+function runJob(job, { timeout = 60_000, spawn = spawnSync, nodePath = process.execPath, env = process.env, allowInternalRedirects } = {}) {
+  // ADR-0110: undefined lets the child decide from the URL asked for; the operator's opt-out,
+  // or a caller's explicit choice, overrides it.
+  const allow = allowInternalRedirects ?? (env.RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS === '1' ? true : undefined);
   const result = spawn(nodePath, [SELF], {
-    input: JSON.stringify(job),
+    input: JSON.stringify(allow === undefined ? job : { ...job, allowInternalRedirects: allow }),
     encoding: 'utf8',
     timeout,
     windowsHide: true,
@@ -531,6 +536,53 @@ export function runScrape(url, opts = {}) {
 
 export default { name, scrape, search, map, command, status, runScrape };
 
+// ---------------------------------------------------------------- internal addresses
+
+/**
+ * Where a page on the web may not send the collector (ADR-0110): loopback, the private ranges,
+ * link-local (the cloud metadata endpoint, 169.254.169.254), carrier-grade NAT, unspecified,
+ * multicast and reserved space, their IPv6 counterparts, and IPv4 written as IPv6.
+ */
+const INTERNAL = (() => {
+  const list = new net.BlockList();
+  for (const [address, prefix] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16],
+    ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['224.0.0.0', 4], ['240.0.0.0', 4]]) {
+    list.addSubnet(address, prefix, 'ipv4');
+  }
+  for (const [address, prefix] of [['::', 127], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8]]) {
+    list.addSubnet(address, prefix, 'ipv6');
+  }
+  return list;
+})();
+
+const isInternal = (address) => {
+  // IPv4 written as IPv6 (`::ffff:127.0.0.1`, which the URL parser spells `::ffff:7f00:1`) is
+  // judged as the IPv4 it is. A ::ffff:0:0/96 rule would not do: BlockList applies it to every
+  // IPv4 address, which made 8.8.8.8 internal.
+  const mapped = /^::ffff:(?:(\d+\.\d+\.\d+\.\d+)|([0-9a-f]{1,4}):([0-9a-f]{1,4}))$/i.exec(address);
+  if (mapped) {
+    const v4 = mapped[1] ?? [parseInt(mapped[2], 16) >> 8, parseInt(mapped[2], 16) & 255, parseInt(mapped[3], 16) >> 8, parseInt(mapped[3], 16) & 255].join('.');
+    return INTERNAL.check(v4, 'ipv4');
+  }
+  const family = net.isIP(address);
+  return family !== 0 && INTERNAL.check(address, family === 6 ? 'ipv6' : 'ipv4');
+};
+
+/**
+ * Why `hostname` is internal, or null. A name is resolved, and is internal if any address it
+ * resolves to is. A name this machine cannot resolve is not judged: through a proxy the proxy
+ * resolves it, and a name nothing here can reach is not this machine's network.
+ */
+export async function internalTarget(hostname) {
+  const host = String(hostname ?? '').replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+  if (host === 'localhost' || host.endsWith('.localhost')) return `${host} is this machine`;
+  if (net.isIP(host)) return isInternal(host) ? `${host} is an internal address` : null;
+  let addresses;
+  try { addresses = await dns.promises.lookup(host, { all: true, verbatim: true }); } catch { return null; }
+  const inside = addresses.find((a) => isInternal(a.address));
+  return inside ? `${host} resolves to ${inside.address}, an internal address` : null;
+}
+
 // ---------------------------------------------------------------- the child half
 
 /**
@@ -552,15 +604,38 @@ async function child() {
     return;
   }
   try {
-    const response = await fetch(job.url, {
-      redirect: 'follow',
+    // Redirects are followed here, one hop at a time, so each hop's destination can be judged
+    // (ADR-0110): a page on the web redirecting to 127.0.0.1 or 169.254.169.254 was captured,
+    // with whatever that internal page held (found 2026-09-30, break-test). An internal URL
+    // the operator asked for is theirs, and so are the redirects that stay inside it.
+    const allowInternal = job.allowInternalRedirects === true
+      || (job.allowInternalRedirects !== false && await internalTarget(new URL(job.url).hostname) !== null);
+    const init = {
+      redirect: 'manual',
       headers: { 'user-agent': USER_AGENT, accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8' },
       signal: AbortSignal.timeout(job.timeout ?? 45_000),
-    });
+    };
+    let url = job.url;
+    let response = await fetch(url, init);
+    for (let hops = 0; [301, 302, 303, 307, 308].includes(response.status) && response.headers.get('location'); hops += 1) {
+      if (hops === 20) throw new Error('redirect count exceeded');
+      const next = new URL(response.headers.get('location'), url);
+      await response.body?.cancel();
+      if (!/^https?:$/.test(next.protocol)) throw new Error(`a redirect to a ${next.protocol} URL is not followed`);
+      const why = allowInternal ? null : await internalTarget(next.hostname);
+      if (why) {
+        process.stdout.write(JSON.stringify({ ok: false, url: job.url, error: `refused to follow a redirect from ${new URL(url).host} to ${next.host} - ${why}. `
+          + 'A page on the web may not send the collector into this machine\'s network. If you meant that address, fetch it directly, '
+          + 'or set RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS=1.' }));
+        return;
+      }
+      url = next.href;
+      response = await fetch(url, init);
+    }
     const body = await boundedText(response, 'the page');
     process.stdout.write(JSON.stringify({
       ok: response.ok,
-      url: response.url || job.url,
+      url,
       statusCode: response.status,
       contentType: response.headers.get('content-type') ?? '',
       body,
