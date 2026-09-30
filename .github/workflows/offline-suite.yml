@@ -261,9 +261,39 @@ jobs:
       - name: selftest
         run: node research-kit/bin/selftest.mjs
 
+  # The suite as a "Download ZIP" user runs it: from a tree with no .git. Every other leg runs
+  # from a checkout, so a test that assumed one could not fail here - and one did (found
+  # 2026-09-30, break-test: warc.test.mjs ran `git check-ignore` in the repository and read
+  # git's exit 128 as "the ignore rule is missing"). `git archive` is what GitHub's ZIP is
+  # built from. Linux and Node 22 only: the property is the missing .git, not the platform.
+  archive-tree:
+    name: archive tree
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, resolved 2026-09-26
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0, resolved 2026-09-26
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0, resolved 2026-09-26
+        with:
+          python-version: '3.11'
+
+      - name: selftest from a git archive tree
+        run: |
+          set -e
+          tree="$RUNNER_TEMP/archive-tree"
+          mkdir -p "$tree"
+          git archive HEAD | tar -x -C "$tree"
+          if [ -e "$tree/.git" ]; then echo "the exported tree has a .git; it is not what a ZIP user gets"; exit 1; fi
+          cd "$tree"
+          node research-kit/bin/selftest.mjs
+
   suite:
     name: suite
-    needs: [platform, node-lines]
+    needs: [platform, node-lines, archive-tree]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -280,6 +310,12 @@ jobs:
           if [ "$lines" != "success" ]; then
             echo "a Node line did not pass: $lines"
             echo "open the node legs above; the kit promises every line it names in the README"
+            exit 1
+          fi
+          archive="${{ needs.archive-tree.result }}"
+          if [ "$archive" != "success" ]; then
+            echo "the suite did not pass from a git archive tree: $archive"
+            echo "open the archive tree job; a test there assumes a .git that a ZIP download lacks"
             exit 1
           fi
           # Deliberately does NOT list the platforms.
