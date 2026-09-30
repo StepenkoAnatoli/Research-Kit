@@ -227,6 +227,73 @@ test('a settings file the installer does not recognise is REFUSED, never rewritt
   assert.equal(readText(settingsFile), '[[[ not settings at all', 'the file is untouched');
 });
 
+// Found 2026-09-30, break-test. The settings file belongs to the RUNTIME, so the shape of
+// `hooks.PreToolUse` is not the kit's to guarantee - and a node of the wrong type threw out
+// of the walkers rather than being refused:
+//
+//   {"hooks": {"PreToolUse": [null]}}                       -> TypeError: Cannot read properties of null (reading 'hooks')
+//   {"hooks": {"PreToolUse": [{"matcher":"Edit","hooks":5}]}} -> TypeError: (e.hooks ?? []).map is not a function
+//
+// Both reached `install-hooks.mjs` as a raw stack trace and exit 1 - the command an operator
+// runs because something already looks wrong. `doctor` only survived because `gateHealth`
+// wraps the call in its own try/catch.
+test('a PreToolUse node of the wrong type is REFUSED by name, not thrown at', () => {
+  const shapes = [
+    { hooks: { PreToolUse: [null] } },
+    { hooks: { PreToolUse: [7] } },
+    { hooks: { PreToolUse: ['x'] } },
+    { hooks: { PreToolUse: [[]] } },
+    { hooks: { PreToolUse: [{ matcher: 'Edit', hooks: 5 }] } },
+    { hooks: { PreToolUse: [{ matcher: 'Edit', hooks: {} }] } },
+    { hooks: { PreToolUse: [{ matcher: 'Edit', hooks: 'x' }] } },
+    { hooks: { PreToolUse: [{ matcher: 'Edit', hooks: [null] }] } },
+    { hooks: { PreToolUse: 7 } },
+  ];
+  for (const settings of shapes) {
+    const { env, settingsFile } = machine({ settings });
+    const before = readText(settingsFile);
+    assert.equal(settingsState({ env, kitHome: KIT_ROOT }), 'unfamiliar',
+      `settingsState threw or answered something else for ${JSON.stringify(settings)}`);
+    const result = installEditGate({ kitHome: KIT_ROOT, env });
+    assert.equal(result.ok, false, `installEditGate accepted ${JSON.stringify(settings)}`);
+    assert.match(result.reason, /does not recognise/);
+    assert.equal(readText(settingsFile), before, 'the file is untouched');
+    const removed = removeEditGate({ env });
+    assert.equal(removed.ok, false, `removeEditGate accepted ${JSON.stringify(settings)}`);
+    assert.equal(readText(settingsFile), before, 'the file is untouched');
+  }
+});
+
+// The shapes the walkers DO handle, asserted beside the refusals so a guard that refused
+// everything would fail here rather than passing vacuously. An entry with no `hooks` key
+// and an empty list are both the documented shape.
+//
+// The two entries that carry NO hooks are dropped by the write, as they always were
+// (`if (hooks.length) kept.push(...)`): a registration with nothing in it gates nothing.
+// What this asserts is that the one that carries a real command survives, and that the
+// unknown top-level keys survive with it.
+test('the shapes the installer does walk still install, and the operator keeps their entries', () => {
+  const { env, settingsFile } = machine({
+    settings: {
+      model: 'keep-me',
+      hooks: {
+        PreToolUse: [
+          { matcher: 'Bash', hooks: [{ type: 'command', command: 'node /theirs.mjs' }] },
+          { matcher: 'Edit' },
+          { matcher: 'Write', hooks: [] },
+        ],
+      },
+    },
+  });
+  const result = installEditGate({ kitHome: KIT_ROOT, env });
+  assert.equal(result.ok, true, result.reason);
+  const hooks = readJson(settingsFile).hooks.PreToolUse;
+  assert.equal(hooks.length, 2, "the operator's real hook and ours; the two that gate nothing are dropped");
+  assert.equal(readJson(settingsFile).model, 'keep-me');
+  assert.ok(hooks.some((e) => e.matcher === 'Bash' && e.hooks[0].command === 'node /theirs.mjs'));
+  assert.equal(settingsState({ env, kitHome: KIT_ROOT }), 'current');
+});
+
 test('a backup is written before the settings file is changed', () => {
   const { env, settingsFile } = machine({ settings: { model: 'keep-me' } });
   installEditGate({ kitHome: KIT_ROOT, env });
