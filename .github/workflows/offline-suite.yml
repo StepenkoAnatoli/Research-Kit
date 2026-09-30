@@ -266,6 +266,11 @@ jobs:
   # 2026-09-30, break-test: warc.test.mjs ran `git check-ignore` in the repository and read
   # git's exit 128 as "the ignore rule is missing"). `git archive` is what GitHub's ZIP is
   # built from. Linux and Node 22 only: the property is the missing .git, not the platform.
+  #
+  # The folder's name has a SPACE in it, as "Downloads/Research-Kit main" and "C:\Users\John
+  # Smith" do. Every other leg runs from a path without one, so a test that assumed a bare
+  # kit path could not fail - and one did (found 2026-09-30, break-test: the audit test
+  # matched `audit.mjs --zip`, while the kit correctly prints `".../audit.mjs" --zip`).
   archive-tree:
     name: archive tree
     runs-on: ubuntu-latest
@@ -284,7 +289,7 @@ jobs:
       - name: selftest from a git archive tree
         run: |
           set -e
-          tree="$RUNNER_TEMP/archive-tree"
+          tree="$RUNNER_TEMP/archive tree"
           mkdir -p "$tree"
           git archive HEAD | tar -x -C "$tree"
           if [ -e "$tree/.git" ]; then echo "the exported tree has a .git; it is not what a ZIP user gets"; exit 1; fi
