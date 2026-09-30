@@ -148,6 +148,21 @@ test('a topic part that refers back with a pronoun carries the subject; others s
     ['how Ollama streams tool calls', 'what OpenAI returns on overflow']);
 });
 
+// Found 2026-09-30 decomposing the SearXNG topic: "... : the JSON output format, ..., and the bot
+// limiter" searched "the bot limiter" alone, and the map's candidates were audio mastering
+// limiters and JSON formatters. A part that opens with "the" presupposes a referent, as a
+// pronoun does, so it carries the subject too (ADR-0103).
+test('a topic part that opens with "the" carries the subject, like a pronoun part', () => {
+  assert.deepEqual(topicQueries('SearXNG search API: the JSON output format, its query parameters, and the bot limiter'), [
+    'SearXNG search API the JSON output format',
+    'SearXNG search API its query parameters',
+    'SearXNG search API the bot limiter',
+  ]);
+  // Only at the start: "the" inside a part is not a back-reference.
+  assert.deepEqual(topicQueries('MoonAliza: how Ollama streams the tool calls, what OpenAI returns on overflow'),
+    ['how Ollama streams the tool calls', 'what OpenAI returns on overflow']);
+});
+
 test('a dry run gathers nothing and spends nothing', () => {
   const dir = makeProject();
   let searched = 0;

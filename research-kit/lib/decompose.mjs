@@ -333,6 +333,8 @@ export const MAX_TOPIC_PARTS = 6;
  */
 /** A part that leans on what came before it: a third-person pronoun, or "this"/"these"/"those". */
 const REFERS_BACK = /\b(they|them|their|theirs|it|its|this|these|those)\b/i;
+/** A part that opens with "the" presupposes a referent the same way (ADR-0103): "the bot limiter". */
+const OPENS_DEFINITE = /^the\s/i;
 
 export function topicQueries(topic) {
   const text = String(topic ?? '').trim();
@@ -344,7 +346,9 @@ export function topicQueries(topic) {
   if (items.length >= 2) {
     // A short part carries the subject (ADR-0085), and so does a part that points back at it
     // with a pronoun ("which encodings they also mask", ADR-0098): alone, it names nothing.
-    const parts = items.map((item) => (subject && (words(item) <= 2 || REFERS_BACK.test(item)) ? `${subject} ${item}` : item));
+    // A part that opens with "the" does too (ADR-0103): "the bot limiter" alone found audio limiters.
+    const leans = (item) => words(item) <= 2 || REFERS_BACK.test(item) || OPENS_DEFINITE.test(item);
+    const parts = items.map((item) => (subject && leans(item) ? `${subject} ${item}` : item));
     if (parts.every((part) => words(part) >= 2)) return uniq(parts).slice(0, MAX_TOPIC_PARTS);
   }
   return uniq([text, `${text} documentation`, `${text} pricing limits`, `${text} terms of service`]);
