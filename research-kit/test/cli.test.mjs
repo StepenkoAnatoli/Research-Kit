@@ -15,7 +15,7 @@ import { pathToFileURL } from 'node:url';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT, makePassingProject } from './harness.mjs';
 import { renderBrief } from '../lib/brief.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
-import { spellCommand, documentCommand, parseFlags } from '../lib/core.mjs';
+import { spellCommand, documentCommand, parseFlags, writeFailure } from '../lib/core.mjs';
 import { renderTable } from '../lib/render.mjs';
 
 describe('cli');
@@ -1083,6 +1083,22 @@ test('new-project and install name a refused write, exit 2, and print no stack',
   const home = tempDir('rk-refused-home-');
   writeRefused(run('install.mjs', [], { root: home, env: { HOME: home, USERPROFILE: home, RESEARCH_KIT_HOME: path.join(blocker, 'kit'), RESEARCH_KIT_CONFIG: path.join(home, 'c.json') } }),
     'install.mjs', 'a-file');
+});
+
+// Found 2026-09-30 (break-test): a dangling ~/.agents symlink made install's recursive
+// mkdir raise ENOENT, which was not a named refusal, so it reached the top as a stack.
+test('install names a mkdir through a dangling link, exits 2, and prints no stack', () => {
+  const home = tempDir('rk-dangling-home-');
+  try { fs.symlinkSync(path.join(home, 'nowhere'), path.join(home, '.agents'), 'dir'); } catch { return; } // no symlink rights (Windows)
+  writeRefused(run('install.mjs', [], { root: home, env: { HOME: home, USERPROFILE: home, RESEARCH_KIT_HOME: path.join(home, '.agents', 'research-kit'), RESEARCH_KIT_CONFIG: path.join(home, 'c.json') } }),
+    'install.mjs', '.agents');
+});
+
+test('a missing directory counts as a refused write only for mkdir, not for a missing source', () => {
+  const mk = Object.assign(new Error('ENOENT'), { code: 'ENOENT', syscall: 'mkdir', path: '/h/.agents/research-kit' });
+  assert.match(writeFailure(mk, '/elsewhere'), /could not write \/h\/\.agents\/research-kit: ENOENT/);
+  const copy = Object.assign(new Error('ENOENT'), { code: 'ENOENT', syscall: 'copyfile', path: '/kit/src.mjs', dest: '/h/dst.mjs' });
+  assert.equal(writeFailure(copy, '/elsewhere'), null, 'a missing copy SOURCE was blamed on the destination');
 });
 
 test('doctor --fix-arity names a refused lock write, exit 2, and prints no stack', () => {

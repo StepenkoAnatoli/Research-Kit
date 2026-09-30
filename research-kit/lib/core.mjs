@@ -373,6 +373,11 @@ const WRITE_REFUSALS = Object.freeze({
   EBUSY: 'the file is in use by another process',
 });
 
+// A recursive mkdir raises ENOENT only when a component of the path cannot be created, as
+// through a dangling symlink (found 2026-09-30, a dead ~/.agents link). ENOENT from any other
+// call is not named: a missing copy SOURCE would be blamed on the destination.
+const MKDIR_ENOENT = 'a folder on the path cannot be created - most often a link to something that no longer exists';
+
 /**
  * One line naming a write the environment refused - `could not write <file>: <CODE>
  * (<why>).` - or null when `err` is not such a refusal. Entrypoints that write catch with
@@ -381,7 +386,7 @@ const WRITE_REFUSALS = Object.freeze({
  * else is re-thrown by the caller, so a genuine bug keeps its stack.
  */
 export function writeFailure(err, cwd = process.cwd()) {
-  const why = WRITE_REFUSALS[err?.code];
+  const why = WRITE_REFUSALS[err?.code] ?? (err?.code === 'ENOENT' && err.syscall === 'mkdir' ? MKDIR_ENOENT : undefined);
   if (!why) return null;
   const where = err.target ?? err.dest ?? err.path;
   const shown = where ? (isInside(cwd, path.resolve(cwd, where)) ? path.relative(cwd, path.resolve(cwd, where)) : where) : 'a file';
