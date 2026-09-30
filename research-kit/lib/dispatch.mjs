@@ -242,9 +242,18 @@ async function readJsonBody(response, what) {
   }
 }
 
+async function callApi(doFetch, url, init, { api = GITHUB_API, remedy = 'check connectivity, then retry' } = {}) {
+  try {
+    return await doFetch(url, init);
+  } catch (err) {
+    throw new DispatchError('NETWORK', `could not reach ${api}: ${redact(fetchFailure(err))}`, { remedy });
+  }
+}
+
 export async function getRun({ repository, runId, token, fetch: doFetch = globalThis.fetch, api = GITHUB_API }) {
   const [owner, name] = splitRepository(repository);
-  const response = await doFetch(`${api}/repos/${owner}/${name}/actions/runs/${runId}`, { headers: headers(token) });
+  const response = await callApi(doFetch, `${api}/repos/${owner}/${name}/actions/runs/${runId}`,
+    { headers: headers(token) }, { api, remedy: `check connectivity, then retry with --run-id ${runId}` });
   if (!response.ok) throw new DispatchError('HTTP', `could not read run ${runId}: HTTP ${response.status}`, { status: response.status });
   return readJsonBody(response, `could not read run ${runId}`);
 }
@@ -286,7 +295,8 @@ export async function waitForRun({
 
 export async function listArtifacts({ repository, runId, token, fetch: doFetch = globalThis.fetch, api = GITHUB_API }) {
   const [owner, name] = splitRepository(repository);
-  const response = await doFetch(`${api}/repos/${owner}/${name}/actions/runs/${runId}/artifacts`, { headers: headers(token) });
+  const response = await callApi(doFetch, `${api}/repos/${owner}/${name}/actions/runs/${runId}/artifacts`,
+    { headers: headers(token) }, { api, remedy: `check connectivity, then retry with --run-id ${runId}` });
   if (!response.ok) throw new DispatchError('HTTP', `could not list artifacts for run ${runId}: HTTP ${response.status}`, { status: response.status });
   const body = await readJsonBody(response, `could not list artifacts for run ${runId}`);
   return body.artifacts ?? [];
@@ -294,9 +304,9 @@ export async function listArtifacts({ repository, runId, token, fetch: doFetch =
 
 export async function downloadArtifact({ repository, artifactId, token, fetch: doFetch = globalThis.fetch, api = GITHUB_API }) {
   const [owner, name] = splitRepository(repository);
-  const response = await doFetch(`${api}/repos/${owner}/${name}/actions/artifacts/${artifactId}/zip`, {
+  const response = await callApi(doFetch, `${api}/repos/${owner}/${name}/actions/artifacts/${artifactId}/zip`, {
     headers: headers(token), redirect: 'follow',
-  });
+  }, { api });
   if (response.status === 410) {
     throw new DispatchError('EXPIRED', `artifact ${artifactId} has expired`, {
       status: 410,
@@ -380,7 +390,7 @@ export async function fetchCorpus({
   const bytes = await downloadArtifact({ repository, artifactId: wanted[0].id, token, fetch: doFetch, api });
   const { bytes: pkg, unwrapped, name } = unwrapArtifact(bytes);
 
-  const file = path.join(dir, unwrapped ? name : `${wanted[0].name}.zip`);
+  const file = path.join(dir, path.basename(unwrapped ? name : `${wanted[0].name}.zip`));
   // Whole or not at all (ADR-0079), as writeArtifact is: a failed write must not empty a
   // package already at this name (Arena break test 10, 2026-09-28).
   writeBytes(file, pkg);

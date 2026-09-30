@@ -75,6 +75,18 @@ test('a capture edited after its fetch is not exported, and is named', () => {
   assert.equal(skipped.length, 1);
   assert.equal(skipped[0].file, scrape.raw);
   assert.match(skipped[0].reason, /changed since it was fetched/);
+
+  // A ledger entry pointing outside the project (or at a non-regular file) is skipped, never read.
+  const outside = path.join(tempDir(), 'outside.md');
+  fs.writeFileSync(outside, '---\ntitle: secret\n---\nOUTSIDE_BODY\n');
+  fs.mkdirSync(path.join(dir, 'research', 'raw', 'dir-as-capture'));
+  fs.appendFileSync(path.join(dir, PATHS.ledger),
+    `${JSON.stringify({ seq: 2, at: '2026-09-30T00:00:00Z', op: 'scrape', url: 'https://x.invalid/o', raw: '../outside.md' })}\n`
+    + `${JSON.stringify({ seq: 3, at: '2026-09-30T00:00:00Z', op: 'scrape', url: 'https://x.invalid/d', raw: 'research/raw/dir-as-capture' })}\n`);
+  const guarded = exportWarc(dir);
+  assert.equal(guarded.captures, 0);
+  assert.ok(guarded.skipped.some((s) => s.file === '../outside.md' && /outside the project/.test(s.reason)));
+  assert.ok(guarded.skipped.some((s) => s.file === 'research/raw/dir-as-capture' && /not a regular file/.test(s.reason)));
 });
 
 test('the CLI writes the file, --out names it, and a non-project is refused', () => {

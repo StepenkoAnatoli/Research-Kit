@@ -334,8 +334,16 @@ const fixtureKey = (prefix, body) => `${prefix}${body}`;
 test('F26: a credential in a DOTFILE is found, not skipped', () => {
   const dir = makeProject();
   writeText(resolve(dir, '.env.local'), `FIRECRAWL_API_KEY=${fixtureKey('fc', '-0123456789abcdef0123')}\n`);
-  const scan = scanForSecrets(dir);
-  assert.equal(scan.hits.length, 1, '.env.local is exactly where a key hides');
+  const locked = resolve(dir, 'aaa-unreadable');
+  fs.mkdirSync(locked);
+  const realReaddir = fs.readdirSync;
+  fs.readdirSync = (p, ...rest) => {
+    if (String(p) === locked) { const err = new Error('EACCES'); err.code = 'EACCES'; throw err; }
+    return realReaddir(p, ...rest);
+  };
+  let scan;
+  try { scan = scanForSecrets(dir); } finally { fs.readdirSync = realReaddir; }
+  assert.equal(scan.hits.length, 1, '.env.local is exactly where a key hides, even beside an unreadable folder');
   assert.equal(scan.hits[0].pattern, 'firecrawl-key');
 });
 

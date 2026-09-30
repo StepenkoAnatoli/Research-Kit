@@ -31,6 +31,14 @@ test('a tampered capture fails body-unmodified', () => {
   const verdict = runPreflight(dir);
   assert.equal(verdict.pass, false);
   assert.ok(verdict.failures.some((finding) => finding.rule === 'body-unmodified'));
+
+  const outsideDir = makePassingProject();
+  const outsideFile = path.join(tempDir(), 'outside.md');
+  writeText(outsideFile, 'outside\n');
+  appendFetch(outsideDir, { op: 'scrape', url: 'https://example.invalid/out', raw: '../outside.md', bodySha256: sha256(Buffer.from('outside\n')), transport: 'firecrawl-cli' });
+  const outsideChain = verifyLedger(outsideDir);
+  assert.equal(outsideChain.ok, false);
+  assert.ok(outsideChain.problems.some((p) => p.rule === 'raw-outside'));
 });
 
 test('a CRLF rewrite is classified as line-endings, not tampering', () => {

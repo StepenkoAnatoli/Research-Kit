@@ -1117,13 +1117,32 @@ const writeRefused = (r, bin, file) => {
 };
 
 test('timeline and brief --force name a refused write, exit 2, and print no stack', () => {
-  for (const [bin, args, file] of [['timeline.mjs', [], 'TIMELINE.md'], ['brief.mjs', ['--force'], 'BRIEF.md']]) {
+  for (const [bin, args, file] of [
+    ['timeline.mjs', [], 'TIMELINE.md'],
+    ['brief.mjs', ['--force'], 'BRIEF.md'],
+    ['decompose.mjs', ['--force', '--max-scrapes', '0'], 'MAP.md'],
+  ]) {
     const root = makePassingProject(tempDir('rk-refused-'));
     const target = path.join(root, 'research', file);
     fs.rmSync(target, { force: true, recursive: true });
     fs.mkdirSync(target);
     writeRefused(run(bin, args, { root }), bin, file);
   }
+  const auditRoot = makePassingProject(tempDir('rk-refused-audit-'));
+  fs.writeFileSync(path.join(auditRoot, 'research', 'audits'), 'blocker\n');
+  writeRefused(run('audit.mjs', ['--force'], { root: auditRoot }), 'audit.mjs', 'audits');
+
+  const priorRoot = project();
+  fs.rmSync(path.join(priorRoot, 'research', 'raw'), { recursive: true, force: true });
+  fs.writeFileSync(path.join(priorRoot, 'research', 'raw'), 'blocker\n');
+  writeRefused(run('prior.mjs', ['What I expect to find before collecting any page at all in this corpus, and what I know I cannot know yet.'], { root: priorRoot }), 'prior.mjs', 'raw');
+
+  const cfgDir = tempDir('rk-refused-cfg-');
+  fs.mkdirSync(path.join(cfgDir, 'config.json'));
+  writeRefused(run('install-hooks.mjs', ['--role', 'collector'], {
+    root: cfgDir,
+    env: { HOME: cfgDir, USERPROFILE: cfgDir, RESEARCH_KIT_CONFIG: path.join(cfgDir, 'config.json') },
+  }), 'install-hooks.mjs', 'config.json');
 });
 
 test('new-project and install name a refused write, exit 2, and print no stack', () => {

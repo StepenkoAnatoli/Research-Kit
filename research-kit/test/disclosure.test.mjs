@@ -53,11 +53,13 @@ test('no request carries an Authorization header, which is the whole method', as
 
 test('the real shape: names readable, content refused, subject absent', async () => {
   // The measurement this module was written to make repeatable, as a fixture.
-  const report = await probeRun({ repository: 'o/r', runId: 1, needle: 'layoff plan', fetch: stub(OPEN) });
+  const doFetch = stub(OPEN);
+  const report = await probeRun({ repository: 'o/r', runId: 1, needle: 'layoff plan', fetch: doFetch });
   assert.equal(report.exposedNames, true, 'a public run exposes its shape, and that is expected');
   assert.equal(report.exposedContent, false, 'the artifact and the logs were both refused');
   assert.equal(report.exposedSubject, false, 'the topic appeared in no readable response');
   assert.deepEqual(report.leaked, []);
+  assert.equal(doFetch.calls.length, 7, 'each probe plus artifact-download and logs is fetched once, not re-fetched');
 });
 
 test('a readable artifact download is reported as content exposure', async () => {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // bin/install-hooks.mjs - install, repair, or remove the two gates; declare the role.
 
-import { parseFlags, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, checkFlagValues, writeFailure } from '../lib/core.mjs';
 import { installCommitGate, installEditGate, uninstall, settingsState, retiredRepairNote } from '../lib/installer.mjs';
 import { saveConfig, loadConfig, machineRole, ROLES, EDIT_GATE_MODES, posture } from '../lib/machine.mjs';
 
@@ -31,64 +31,71 @@ boxes. A builder must not collect, and its collection CLIs refuse before any ada
   process.exit(0);
 }
 
-if (flags.role !== undefined) {
-  const role = String(flags.role);
-  if (!ROLES.includes(role)) {
-    process.stderr.write(`unknown role "${role}". Known roles: ${ROLES.join(', ')}\n`);
-    process.exit(2);
+try {
+  if (flags.role !== undefined) {
+    const role = String(flags.role);
+    if (!ROLES.includes(role)) {
+      process.stderr.write(`unknown role "${role}". Known roles: ${ROLES.join(', ')}\n`);
+      process.exit(2);
+    }
+    saveConfig({ role });
+    process.stdout.write(`role: ${role}${role === 'builder' ? ' - this machine will refuse to collect' : ' - this machine may collect'}\n`);
   }
-  saveConfig({ role });
-  process.stdout.write(`role: ${role}${role === 'builder' ? ' - this machine will refuse to collect' : ' - this machine may collect'}\n`);
-}
 
-if (flags['fail-closed']) { saveConfig({ failOpen: false }); process.stdout.write('posture: fail-closed\n'); }
-if (flags['fail-open']) { saveConfig({ failOpen: true }); process.stdout.write('posture: fail-open\n'); }
+  if (flags['fail-closed']) { saveConfig({ failOpen: false }); process.stdout.write('posture: fail-closed\n'); }
+  if (flags['fail-open']) { saveConfig({ failOpen: true }); process.stdout.write('posture: fail-open\n'); }
 
-if (flags.uninstall) {
-  const result = uninstall();
-  if (result.commit.restored === undefined) {
-    process.stdout.write(`commit gate: core.hooksPath left as ${result.commit.left ?? '(unset)'} - the kit did not set it, or it was changed since\n`);
-  } else {
-    process.stdout.write(`commit gate: restored core.hooksPath to ${result.commit.restored ?? '(unset)'}\n`);
+  if (flags.uninstall) {
+    const result = uninstall();
+    if (result.commit.restored === undefined) {
+      process.stdout.write(`commit gate: core.hooksPath left as ${result.commit.left ?? '(unset)'} - the kit did not set it, or it was changed since\n`);
+    } else {
+      process.stdout.write(`commit gate: restored core.hooksPath to ${result.commit.restored ?? '(unset)'}\n`);
+    }
+    process.stdout.write(`edit gate: removed ${result.edit.removed ?? 0} registration(s)${result.edit.ok ? '' : ` - ${result.edit.reason}`}\n`);
+    process.exit(result.edit.ok ? 0 : 1);
   }
-  process.stdout.write(`edit gate: removed ${result.edit.removed ?? 0} registration(s)${result.edit.ok ? '' : ` - ${result.edit.reason}`}\n`);
-  process.exit(result.edit.ok ? 0 : 1);
-}
 
-const dryRun = Boolean(flags['dry-run']);
-const wantCommit = !flags['edit-only'];
-const wantEdit = !flags['git-only'];
-let failed = false;
+  const dryRun = Boolean(flags['dry-run']);
+  const wantCommit = !flags['edit-only'];
+  const wantEdit = !flags['git-only'];
+  let failed = false;
 
-if (wantCommit) {
-  const result = installCommitGate({ dryRun });
-  if (result.dryRun) process.stdout.write(`would set core.hooksPath=${result.would} (was ${result.previous ?? 'unset'})\n`);
-  else if (!result.ok) { process.stderr.write(`commit gate: ${result.reason}\n`); failed = true; }
-  else process.stdout.write(`commit gate: core.hooksPath=${result.hooksPath} (was ${result.previous ?? 'unset'})\n`);
-}
-
-if (wantEdit) {
-  const before = settingsState();
-  const result = installEditGate({ dryRun, mode: typeof flags.mode === 'string' ? flags.mode : '' });
-  if (result.dryRun) {
-    process.stdout.write(`would register in ${result.file}: ${result.would}\n`);
-    if (result.removed?.length) process.stdout.write(`  ${retiredRepairNote(result.removed)}\n`);
-  } else if (!result.ok) {
-    process.stderr.write(`edit gate: ${result.reason}\n`);
-    failed = true;
-  } else {
-    process.stdout.write(`edit gate: registered in ${result.file}${before === 'retired' ? ' (repaired)' : ''}\n`);
-    if (result.note) process.stdout.write(`  ${result.note}\n`);
-    if (result.repairedSettings) process.stdout.write('  repaired one known corruption in the settings file; a backup was written beside it\n');
+  if (wantCommit) {
+    const result = installCommitGate({ dryRun });
+    if (result.dryRun) process.stdout.write(`would set core.hooksPath=${result.would} (was ${result.previous ?? 'unset'})\n`);
+    else if (!result.ok) { process.stderr.write(`commit gate: ${result.reason}\n`); failed = true; }
+    else process.stdout.write(`commit gate: core.hooksPath=${result.hooksPath} (was ${result.previous ?? 'unset'})\n`);
   }
-}
 
-const config = loadConfig();
-const state = posture();
-process.stdout.write(`
+  if (wantEdit) {
+    const before = settingsState();
+    const result = installEditGate({ dryRun, mode: typeof flags.mode === 'string' ? flags.mode : '' });
+    if (result.dryRun) {
+      process.stdout.write(`would register in ${result.file}: ${result.would}\n`);
+      if (result.removed?.length) process.stdout.write(`  ${retiredRepairNote(result.removed)}\n`);
+    } else if (!result.ok) {
+      process.stderr.write(`edit gate: ${result.reason}\n`);
+      failed = true;
+    } else {
+      process.stdout.write(`edit gate: registered in ${result.file}${before === 'retired' ? ' (repaired)' : ''}\n`);
+      if (result.note) process.stdout.write(`  ${result.note}\n`);
+      if (result.repairedSettings) process.stdout.write('  repaired one known corruption in the settings file; a backup was written beside it\n');
+    }
+  }
+
+  const config = loadConfig();
+  const state = posture();
+  process.stdout.write(`
 role            ${machineRole()}
 posture         ${state.failOpen ? 'fail-open' : 'fail-closed'} (config ${state.configState})
 edit gate mode  ${config.editGate.mode}
 evidencePolicy  ${config.evidencePolicy}
 `);
-process.exit(failed ? 1 : 0);
+  process.exit(failed ? 1 : 0);
+} catch (err) {
+  const why = writeFailure(err);
+  if (!why) throw err;
+  process.stderr.write(`${why}\n`);
+  process.exit(2);
+}

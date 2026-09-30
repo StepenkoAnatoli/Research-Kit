@@ -47,6 +47,7 @@ function headers() {
  */
 export async function probeRun({ repository, runId, needle = null, fetch: doFetch = globalThis.fetch, api = API } = {}) {
   const findings = [];
+  const bodies = new Map();
 
   for (const probe of PROBES) {
     const url = `${api}${probe.path(repository, runId)}`;
@@ -60,28 +61,27 @@ export async function probeRun({ repository, runId, needle = null, fetch: doFetc
       findings.push({ id: probe.id, label: probe.label, status: 0, readable: false, leaksNeedle: false, note: `unreachable: ${fetchFailure(error)}` });
       continue;
     }
+    const readable = status >= 200 && status < 300;
+    if (readable) bodies.set(probe.id, body);
     findings.push({
       id: probe.id,
       label: probe.label,
       status,
-      readable: status >= 200 && status < 300,
+      readable,
       leaksNeedle: Boolean(needle) && body.toLowerCase().includes(String(needle).toLowerCase()),
     });
   }
 
   // The two that matter most, and the two nobody checks: can a stranger take the evidence
   // home, and can they read the log that echoes every input.
-  const artifacts = findings.find((f) => f.id === 'artifacts');
   let artifactId = null;
   let jobId = null;
-  try {
-    if (artifacts?.readable) {
-      const listed = await (await doFetch(`${api}/repos/${repository}/actions/runs/${runId}/artifacts`, { headers: headers() })).json();
-      artifactId = listed.artifacts?.[0]?.id ?? null;
-    }
-    const jobs = await (await doFetch(`${api}/repos/${repository}/actions/runs/${runId}/jobs`, { headers: headers() })).json();
-    jobId = jobs.jobs?.[0]?.id ?? null;
-  } catch { /* a listing we cannot read is itself an answer, recorded above */ }
+  if (bodies.has('artifacts')) {
+    try { artifactId = JSON.parse(bodies.get('artifacts'))?.artifacts?.[0]?.id ?? null; } catch { /* a listing we cannot parse is not a list */ }
+  }
+  if (bodies.has('jobs')) {
+    try { jobId = JSON.parse(bodies.get('jobs'))?.jobs?.[0]?.id ?? null; } catch { /* a listing we cannot parse is not a list */ }
+  }
 
   for (const [id, label, url] of [
     ['artifact-download', 'artifact DOWNLOAD', artifactId && `${api}/repos/${repository}/actions/artifacts/${artifactId}/zip`],

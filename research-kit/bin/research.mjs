@@ -7,7 +7,7 @@
 //
 // `--dry-run` and `--status` still work there, because they spend nothing.
 
-import { parseFlags, flagList, refuseUnknownFlags, checkFlagValues, resolve, readText, parseJson, operatorPath } from '../lib/core.mjs';
+import { parseFlags, flagList, refuseUnknownFlags, checkFlagValues, resolve, readText, parseJson, operatorPath, kitCommand, writeFailure } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal, loadConfig } from '../lib/machine.mjs';
 import { findBrowser } from '../lib/browser-transport.mjs';
 import { selectTransport, TRANSPORTS, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES, unusedKeyNote } from '../lib/transport.mjs';
@@ -15,8 +15,6 @@ import { runResearch, searchSummaryLine, readPlan, planProblems, usageSummary, t
 import { parseCapture, readLedger, duplicateKey } from '../lib/corpus.mjs';
 import { readPrior } from '../lib/prior.mjs';
 import { heading } from '../lib/render.mjs';
-
-import { kitCommand } from '../lib/core.mjs';
 const { flags } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['depth', 'dry-run', 'force', 'help', 'no-fallback', 'only', 'plan', 'refresh-days', 'search-transport', 'status', 'transport', 'witness']);
 checkFlagValues(flags, { depth: { choices: DEPTHS }, 'refresh-days': { int: true, min: 0 }, plan: 'value', only: 'value', transport: 'value', 'search-transport': 'value' });
@@ -204,20 +202,28 @@ const fallbackAdapter = !flags['no-fallback'] && typeof chosen.adapter?.creditsE
   ? (findBrowser({ config: loadConfig(process.env) }) ? TRANSPORTS.browser : TRANSPORTS['http-keyless'])
   : null;
 if (fallbackAdapter) process.stdout.write(`fallback:  ${fallbackAdapter.name} if credits run out (--no-fallback to record those pages as failed instead)\n`);
-const run = runResearch(root, {
-  adapter: chosen.adapter,
-  fallbackAdapter,
-  searchAdapter: chosen.search.adapter,
-  searchAdapters: chosen.search.adapters ?? null,
-  plan: typeof flags.plan === 'string' ? readPlan(root, flags.plan) : null,
-  depth: typeof flags.depth === 'string' ? flags.depth : '',
-  refreshDays: flags['refresh-days'] === undefined ? null : Number(flags['refresh-days']),
-  force: Boolean(flags.force),
-  dryRun: Boolean(flags['dry-run']),
-  witness: Boolean(flags.witness),
-  only: flagList(flags.only),
-  log: (line) => process.stdout.write(`${line}\n`),
-});
+let run;
+try {
+  run = runResearch(root, {
+    adapter: chosen.adapter,
+    fallbackAdapter,
+    searchAdapter: chosen.search.adapter,
+    searchAdapters: chosen.search.adapters ?? null,
+    plan: typeof flags.plan === 'string' ? readPlan(root, flags.plan) : null,
+    depth: typeof flags.depth === 'string' ? flags.depth : '',
+    refreshDays: flags['refresh-days'] === undefined ? null : Number(flags['refresh-days']),
+    force: Boolean(flags.force),
+    dryRun: Boolean(flags['dry-run']),
+    witness: Boolean(flags.witness),
+    only: flagList(flags.only),
+    log: (line) => process.stdout.write(`${line}\n`),
+  });
+} catch (err) {
+  const why = writeFailure(err, root);
+  if (!why) throw err;
+  process.stderr.write(`${why}\n`);
+  process.exit(2);
+}
 
 // Which cap bound the run, and what lifts it (found 2026-09-28): a scaffolded plan says depth
 // quick and maxScrapes 10, and a run that stopped at 4 did not say the 10 needs a deeper --depth.

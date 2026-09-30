@@ -58,17 +58,19 @@ function instanceUrl(value) {
  * names the instance would otherwise print the password.
  */
 export function shownInstance(instance) {
-  const url = instanceUrl(instance);
-  if (!url || !url.password) return String(instance);
-  url.password = '***';
-  return url.href;
+  try {
+    const url = new URL(String(instance));
+    if (url.password) { url.password = '***'; return url.href; }
+  } catch { /* fall through to pattern redaction */ }
+  return String(instance).replace(/((?:^[a-z][a-z0-9+.-]*:\/\/|^)[^/?#@:]+):[^/?#@]+@/i, '$1:***@');
 }
 
 /** The `Authorization` header for credentials in the instance URL, or null. */
 export function basicAuth(instance) {
   const url = instanceUrl(instance);
   if (!url || (!url.username && !url.password)) return null;
-  const pair = `${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`;
+  const decode = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
+  const pair = `${decode(url.username)}:${decode(url.password)}`;
   return `Basic ${Buffer.from(pair).toString('base64')}`;
 }
 

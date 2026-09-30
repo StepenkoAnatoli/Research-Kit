@@ -171,4 +171,10 @@ test('an instance URL with credentials is sent as basic auth, and the password i
     assert.doesNotMatch(searxng.status({ env: { SEARXNG_URL: instance } }).raw, /s3cret/, 'status printed the password');
   } finally { guarded.close(); }
   assert.doesNotMatch(searxng.requestUrl('http://me:s3cret@h.example/', 'q').href, /s3cret|me@/, 'the request URL kept the credentials');
+  for (const typo of ['htp://me:s3cret@searx.local', 'ftp://me:s3cret@searx.local', 'me:s3cret@searx.local']) {
+    assert.doesNotMatch(searxng.search('q', { env: { SEARXNG_URL: typo }, config: noConfig }).error, /s3cret/, `${typo} leaked the password`);
+    assert.doesNotMatch(searxng.status({ env: { SEARXNG_URL: typo }, config: noConfig }).raw, /s3cret/, `${typo} leaked the password in status`);
+  }
+  assert.equal(searxng.basicAuth('http://me:100%legit@h.example/'), `Basic ${Buffer.from('me:100%legit').toString('base64')}`,
+    'a literal % in a password must not throw URIError');
 });

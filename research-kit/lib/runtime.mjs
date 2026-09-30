@@ -368,7 +368,8 @@ export function fallbackCost(name) {
 export function fetchFailure(err) {
   const message = String(err?.message ?? err);
   const cause = err?.cause;
-  const detail = cause ? String(cause.message || cause.code || '').trim() : '';
+  const first = Array.isArray(cause?.errors) ? cause.errors[0] : null;
+  const detail = cause ? String(cause.message || cause.code || first?.message || first?.code || '').trim() : '';
   if (!detail || message.includes(detail)) return message;
   const hostOnly = detail.replace(/https?:\/\/[^\s)'"]+/g, (u) => { try { return new URL(u).host; } catch { return 'a URL'; } });
   return `${message} (${hostOnly})`;
