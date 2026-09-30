@@ -27,6 +27,19 @@ test('the request is GET <instance>/search with q and format=json, under a sub-p
   }
 });
 
+// Found 2026-09-30 (break-test, PR #174): the endpoint was resolved against the instance's
+// whole href, so a query or fragment on it - `/searx?x=1`, `/searx#f` - swallowed the slash
+// appended to it and the search went to /search at the root, not the instance under /searx.
+test('a query or fragment on the instance URL does not lose its sub-path', () => {
+  for (const base of ['https://example.org/searx?x=1', 'https://example.org/searx#f', 'https://example.org/searx/?x=1', 'https://me:pw@example.org/searx?t=1']) {
+    const url = searxng.requestUrl(base, 'q');
+    assert.equal(url.pathname, '/searx/search', base);
+    assert.equal(url.hash, '', `${base} kept its fragment`);
+    assert.deepEqual([...url.searchParams.keys()], ['q', 'format'], `${base}: the request carries only q and format, as before`);
+  }
+  assert.equal(searxng.requestUrl('https://example.org?x=1', 'q').pathname, '/search', 'an instance at the root stays at the root');
+});
+
 test('results map to candidate rows, and a row that is not an object or has no url is dropped', () => {
   const rows = searxng.normalizeSearch({
     query: 'q',

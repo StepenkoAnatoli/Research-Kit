@@ -88,7 +88,14 @@ export function requestUrl(instance, query) {
   if (!base) throw new Error(`not an http(s) URL: ${shownInstance(instance)}`);
   base.username = '';
   base.password = '';
-  const url = new URL('search', base.href.endsWith('/') ? base.href : `${base.href}/`);
+  // Built on the PATH, not the whole href: a query or fragment on the instance URL swallowed
+  // the appended slash, and the search went to /search at the root (found 2026-09-30,
+  // break-test). The instance's own query and fragment are dropped, as they always were
+  // under a trailing slash: the request carries q and format only.
+  const url = new URL(base.href);
+  url.pathname = `${base.pathname.replace(/\/+$/, '')}/search`;
+  url.search = '';
+  url.hash = '';
   url.searchParams.set('q', String(query ?? ''));
   url.searchParams.set('format', 'json');
   return url;
