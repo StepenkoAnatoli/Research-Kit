@@ -457,10 +457,13 @@ test('PP: with neither, the config sits under the RESEARCH_KIT_HOME agents root'
 // --- F21: a refresh triggers claim review, it does not substitute silently ---------
 
 test('F21: an unknown still citing a superseded row FAILS, naming the replacement', () => {
-  const dir = makePassingProject();
+  const dir = makePassingProject(undefined, { date: '2026-01-01' });
+  // Both dates are fixed and in the past, so the superseding row is the later one on every day
+  // this runs. It was dated 2026-12-01 against a fixture dated TODAY, and would have gone red on
+  // that day with no code change (found 2026-09-30, break-test).
   // A forced re-collection of the same URL, as `--refresh-days` produces.
-  corrupt(dir, PATHS.evidence, (t) => `${t}| E-02 | 2026-12-01 | P | https://example.invalid/docs/limits | The free plan now allows 20 requests per minute. | research/raw/newer.md |\n`);
-  writeText(resolve(dir, 'research/raw/newer.md'), '---\nurl: https://example.invalid/docs/limits\nretrieved: 2026-12-01\n---\n\nbody\n');
+  corrupt(dir, PATHS.evidence, (t) => `${t}| E-02 | 2026-02-01 | P | https://example.invalid/docs/limits | The free plan now allows 20 requests per minute. | research/raw/newer.md |\n`);
+  writeText(resolve(dir, 'research/raw/newer.md'), '---\nurl: https://example.invalid/docs/limits\nretrieved: 2026-02-01\n---\n\nbody\n');
 
   const findings = runCheck('evidence-supersession', readCorpus(dir));
   const failed = findings.find((f) => f.severity === 'fail');
@@ -471,9 +474,9 @@ test('F21: an unknown still citing a superseded row FAILS, naming the replacemen
 });
 
 test('F21: once the citation moves, the check passes and the old capture is kept', () => {
-  const dir = makePassingProject();
-  corrupt(dir, PATHS.evidence, (t) => `${t}| E-02 | 2026-12-01 | P | https://example.invalid/docs/limits | The free plan now allows 20 requests per minute. | research/raw/newer.md |\n`);
-  writeText(resolve(dir, 'research/raw/newer.md'), '---\nurl: https://example.invalid/docs/limits\nretrieved: 2026-12-01\n---\n\nbody\n');
+  const dir = makePassingProject(undefined, { date: '2026-01-01' });
+  corrupt(dir, PATHS.evidence, (t) => `${t}| E-02 | 2026-02-01 | P | https://example.invalid/docs/limits | The free plan now allows 20 requests per minute. | research/raw/newer.md |\n`);
+  writeText(resolve(dir, 'research/raw/newer.md'), '---\nurl: https://example.invalid/docs/limits\nretrieved: 2026-02-01\n---\n\nbody\n');
   corrupt(dir, PATHS.discovery, (t) => t.replace('E-01:', 'E-02:'));
 
   const findings = runCheck('evidence-supersession', readCorpus(dir));
@@ -490,8 +493,8 @@ test('F21: a corpus where nothing was re-collected says so and passes', () => {
 
 test('F21: the stale warning names the fresher capture when one already exists', () => {
   const dir = makePassingProject(undefined, { date: '2020-01-01' });
-  corrupt(dir, PATHS.evidence, (t) => `${t}| E-02 | 2026-12-01 | P | https://example.invalid/docs/limits | Restated. | research/raw/newer.md |\n`);
-  writeText(resolve(dir, 'research/raw/newer.md'), '---\nurl: https://example.invalid/docs/limits\nretrieved: 2026-12-01\n---\n\nbody\n');
+  corrupt(dir, PATHS.evidence, (t) => `${t}| E-02 | 2026-02-01 | P | https://example.invalid/docs/limits | Restated. | research/raw/newer.md |\n`);
+  writeText(resolve(dir, 'research/raw/newer.md'), '---\nurl: https://example.invalid/docs/limits\nretrieved: 2026-02-01\n---\n\nbody\n');
 
   const findings = runCheck('unknown-closure', readCorpus(dir), { maxAgeDays: 180 });
   const stale = findings.find((f) => f.rule === 'stale-evidence');
