@@ -207,15 +207,23 @@ export function gradeCompleteness(markdown) {
   };
 }
 
+/** A vendor field as text: anything that is not a string reads as empty. */
+const text = (value) => (typeof value === 'string' ? value : '');
+
 export function normalizeScrape(stdout, url, label = name) {
   const payload = parsePayload(stdout);
   const data = payload?.data ?? payload ?? {};
-  const markdown = String(data.markdown ?? data.content ?? data.text ?? (typeof payload === 'string' ? payload : '') ?? '');
+  // A field of the wrong type reads as empty, as in serpapi and searxng: the payload is the
+  // vendor's, and a sourceURL arriving as an object was written as a capture with
+  // `url: [object Object]` - a URL the kit never fetched, in the ledger (2026-09-30).
+  // A status may be a number or a string; nothing else is one the error-page rule can judge.
+  const status = (value) => (typeof value === 'string' || Number.isFinite(value) ? value : '');
+  const markdown = text(data.markdown) || text(data.content) || text(data.text) || text(payload);
   return {
-    url: data.metadata?.sourceURL ?? data.url ?? url,
-    title: data.metadata?.title ?? data.title ?? '',
+    url: text(data.metadata?.sourceURL) || text(data.url) || text(url),
+    title: text(data.metadata?.title) || text(data.title),
     markdown,
-    statusCode: data.metadata?.statusCode ?? data.statusCode ?? '',
+    statusCode: status(data.metadata?.statusCode) || status(data.statusCode),
     transport: label,
     ...gradeCompleteness(markdown),
   };
@@ -245,12 +253,13 @@ export function normalizeSearch(stdout) {
   else if (Array.isArray(payload)) rows = payload;
 
   // A row that is not an object is dropped, not read: one null among the results had thrown
-  // and taken every valid row in the payload with it (2026-09-29, Arena break test).
-  return rows.filter((row) => row && typeof row === 'object').map((row) => ({
-    url: row.url ?? row.link ?? '',
-    title: row.title ?? '',
-    description: row.description ?? row.snippet ?? '',
-    position: row.position ?? null,
+  // and taken every valid row in the payload with it (2026-09-29, Arena break test). A FIELD
+  // of the wrong type reads as empty, as in serpapi and searxng (2026-09-30).
+  return rows.filter((row) => row && typeof row === 'object' && !Array.isArray(row)).map((row) => ({
+    url: text(row.url) || text(row.link),
+    title: text(row.title),
+    description: text(row.description) || text(row.snippet),
+    position: Number.isFinite(row.position) ? row.position : null,
   })).filter((row) => row.url);
 }
 
