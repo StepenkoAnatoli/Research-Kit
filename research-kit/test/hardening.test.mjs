@@ -790,8 +790,17 @@ test('the temp folder is measured in words, and measuring it cannot fail', () =>
   assert.match(words, /the temp folder .+ has [\d.]+ MiB free/,
     `the free space was not reported in words: ${words.slice(0, 200)}`);
   assert.match(words, /TMPDIR/, 'the reader is not told which setting to change');
-  // It must not depend on the volume being measurable: a statfs that refuses is a
-  // sentence, not a throw. The 1 MiB reproduction above is the case that bit.
+
+  // A filesystem that refuses statfs must still produce the same actionable remedy,
+  // not merely avoid throwing. The runner calls this on the ENOSPC diagnostic branch.
+  const realStatfs = fs.statfsSync;
+  fs.statfsSync = () => { throw Object.assign(new Error('statfs unavailable'), { code: 'ENOSYS' }); };
+  try {
+    const fallback = tempFreeSpace();
+    assert.match(fallback, /check the free space on the volume/);
+    assert.match(fallback, /TMPDIR/, 'the fallback does not tell the reader how to choose a usable temp folder');
+  } finally { fs.statfsSync = realStatfs; }
+
   const measured = readText(resolve(KIT_ROOT, 'lib/core.mjs'));
   assert.ok(measured.includes('export function tempFreeSpace'),
     'tempFreeSpace moved out of core.mjs, so nothing can hold it to this');
