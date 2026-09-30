@@ -5,7 +5,7 @@
 // never will: the gate resolves one project from where it stands, and a second root is
 // a second thing to be wrong about.
 
-import { parseFlags, flagList, refuseUnknownFlags, checkFlagValues, readText, resolve, PATHS, kitCommand } from '../lib/core.mjs';
+import { parseFlags, flagList, refuseUnknownFlags, checkFlagValues, readText, resolve, PATHS, kitCommand, exitAfterFlush } from '../lib/core.mjs';
 import { draftStamp } from '../lib/brief.mjs';
 import { runPreflight, fixCommand } from '../lib/preflight.mjs';
 import { CHECKS, CHECK_NAMES } from '../lib/checks.mjs';
@@ -56,7 +56,7 @@ if (flags.json) {
     evidencePolicy: verdict.evidencePolicy,
     findings: verdict.findings.map(({ severity, check, rule, detail }) => ({ severity, check, rule, detail })),
   }, null, 2)}\n`);
-  process.exit(verdict.pass ? 0 : 1);
+  await exitAfterFlush(verdict.pass ? 0 : 1);
 }
 
 if (!isGated(root)) {
@@ -92,4 +92,4 @@ if (stamp && stamp.gate !== 'unknown' && (stamp.gate === 'pass') !== verdict.pas
 if (!verdict.pass) {
   process.stdout.write(`\nDo not start building. Each failing line names what is unproven and where.\nRe-run after collecting: ${fixCommand()}\n`);
 }
-process.exit(verdict.pass ? 0 : 1);
+await exitAfterFlush(verdict.pass ? 0 : 1);

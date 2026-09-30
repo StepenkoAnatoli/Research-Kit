@@ -6,7 +6,7 @@
 // whether an unknown is closed, and it will not change a status. That judgement is the
 // protocol's, and it belongs to a person.
 
-import { parseFlags, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, checkFlagValues, exitAfterFlush } from '../lib/core.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { evidenceContext, renderContext } from '../lib/evidence-context.mjs';
 
@@ -74,4 +74,4 @@ if (flags.json) {
 
 // An unknown that could not be found is exit 1: a script asking about U-99 should be able
 // to tell "not there" from "there, and thin".
-process.exit(contexts.every((c) => c.ok) ? 0 : 1);
+await exitAfterFlush(contexts.every((c) => c.ok) ? 0 : 1);
