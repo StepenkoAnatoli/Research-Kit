@@ -9,7 +9,7 @@
 
 import { PassThrough } from 'node:stream';
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, tempDir, cleanup, fs, path, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, tempDir, cleanup, fs, path, KIT_ROOT, Unsupported } from './harness.mjs';
 import {
   handle, versionProblem, validateArgs, resourceLink, createStdioLoop, exitWhenSettled,
   END_GRACE_MS, MAX_LINE,
@@ -595,4 +595,51 @@ test('--help still works, and the server still starts with no arguments at all',
   const bare = spawnSync(process.execPath, [server], { encoding: 'utf8', timeout: 30_000, windowsHide: true, input: '' });
   assert.equal(bare.status, 0, `mcp-server.mjs refused to start with no arguments:\\n${bare.stderr}`);
   assert.doesNotMatch(bare.stderr, /unknown option/);
+});
+
+// Found 2026-09-30 (break-test): the client on the other end of a stdio server can go
+// away at any moment - a cancelled session, a restarted host, a timeout - and the
+// kernel's EPIPE for the response still in flight surfaced as an UNHANDLED 'error'
+// event: a raw stack and exit 1. A client leaving read as a server defect, in the one
+// log the client's operator still has. selftest.mjs installed tolerateClosedStdout for
+// exactly this; the server now does too, and this proves it with a REAL pipe, because
+// the kernel event only exists on one: `head -c` reads just enough to die early, and
+// every response the server writes afterwards meets a vanished reader. Without the
+// guard this pipeline exits 1 with `Unhandled 'error' event` on stderr; with it, the
+// session ends when stdin does, exit 0, silent. bash (not sh) because PIPESTATUS is
+// how the server's own code is read out of a pipeline.
+test('a client that drops mid-response ends the session quietly, not the server with a stack', async () => {
+  const candidates = ['bash', 'C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files\\Git\\usr\\bin\\bash.exe'];
+  const BASH = candidates.find((candidate) => spawnSync(candidate, ['-c', 'echo ok'],
+    { encoding: 'utf8', timeout: 10_000, windowsHide: true }).stdout?.trim() === 'ok') ?? null;
+  const headWorks = BASH !== null && spawnSync(BASH, ['-c', 'printf abc | head -c 1'],
+    { encoding: 'utf8', timeout: 10_000, windowsHide: true }).stdout === 'a';
+  if (!BASH || !headWorks) {
+    throw new Unsupported('NO_BASH_HEAD', 'a bash with coreutils head is not on PATH here, and this check needs a real pipeline');
+  }
+
+  const server = path.join(KIT_ROOT, 'bin', 'mcp-server.mjs');
+  const dir = tempDir('rk-mcp-epipe-');
+  const requests = [{ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'probe', version: '0' } } }];
+  for (let id = 2; id <= 40; id += 1) requests.push({ jsonrpc: '2.0', id, method: 'tools/list' });
+  // Forty responses, so the reader is gone before the server finishes writing whatever
+  // the timing of the first one. stdin closes when the file is read, ending the session.
+  fs.writeFileSync(path.join(dir, 'requests.jsonl'), `${requests.map((r) => JSON.stringify(r)).join('\n')}\n`);
+  const errFile = path.join(dir, 'server-stderr.log');
+  const script = `cat "$1" | ${JSON.stringify(process.execPath)} "$2" 2> "$3" | head -c 100 > /dev/null; exit "\${PIPESTATUS[1]}"`;
+  const r = spawnSync(BASH, ['-c', script, 'rk', path.join(dir, 'requests.jsonl'), server, errFile],
+    { encoding: 'utf8', timeout: 60_000, windowsHide: true });
+
+  const said = fs.existsSync(errFile) ? fs.readFileSync(errFile, 'utf8') : '';
+  assert.match(said, /research-kit ready/, `the server never reached its serve loop, so this proves nothing:\n${r.stderr.slice(0, 400)}`);
+  assert.doesNotMatch(said, /EPIPE|Unhandled/, `a client leaving reached the server as a crash:\n${said.slice(0, 600)}`);
+  assert.equal(r.status, 0, `the session ended with the client's departure, not after it (exit ${r.status}):\n${said.slice(0, 600)}`);
+});
+
+test('the server installs the closed-stdout guard before it writes its first byte', () => {
+  const source = fs.readFileSync(path.join(KIT_ROOT, 'bin', 'mcp-server.mjs'), 'utf8');
+  const call = source.indexOf('tolerateClosedStdout()');
+  const firstWrite = source.indexOf('process.stdout.write');
+  assert.ok(call !== -1, 'mcp-server.mjs no longer tolerates a closed stdout (2026-09-30)');
+  assert.ok(call < firstWrite, `the guard is installed after the first write (write at ${firstWrite}, guard at ${call})`);
 });
