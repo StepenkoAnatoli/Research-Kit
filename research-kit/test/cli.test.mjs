@@ -1025,9 +1025,12 @@ test('the suite refuses a deployed kit, and names the check that verifies one', 
 // "not gated - nothing to judge"; the two writers now refuse there and write nothing.
 // prior.mjs joined them after Arena break test 7: it registered a prior there, writing
 // research/PRIOR.md and a ledger - an orphaned half-project, and now a gated one.
-test('brief, timeline and prior refuse a folder that is not a research project, and write nothing', () => {
+// audit.mjs joined them on 2026-09-30 (break-test): there it reported "the gate fails
+// (3 blocking finding(s))" - a verdict for a folder with nothing to judge, where gate.mjs
+// and preflight.mjs both say "not gated" and exit 0. It now refuses like the other writers.
+test('brief, timeline, prior and audit refuse a folder that is not a research project, and write nothing', () => {
   const prior = 'A prediction long enough to register: the answer is whatever the primary sources say it is, nothing less.';
-  for (const [bin, args] of [['brief.mjs', []], ['timeline.mjs', []], ['prior.mjs', [prior]]]) {
+  for (const [bin, args] of [['brief.mjs', []], ['timeline.mjs', []], ['prior.mjs', [prior]], ['audit.mjs', []]]) {
     const root = tempDir('rk-not-a-project-');
     const r = run(bin, args, { root });
     assert.equal(r.status, 2, `${bin} exited ${r.status} outside a project:\n${r.all.slice(0, 400)}`);

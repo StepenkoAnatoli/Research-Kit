@@ -8,6 +8,8 @@ import { parseFlags, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs
 import { writeAudit, listVersions, resolveVersion, zipAudit, readAuditFile } from '../lib/audit.mjs';
 import { PATHS } from '../lib/core.mjs';
 import { heading } from '../lib/render.mjs';
+import { isGated } from '../lib/gate.mjs';
+import { GATE_MARKERS } from '../lib/scaffold.mjs';
 
 import { kitCommand } from '../lib/core.mjs';
 const { flags } = parseFlags(process.argv.slice(2));
@@ -87,6 +89,17 @@ if (typeof flags.show === 'string') {
   if (read.text === null) { process.stderr.write(`${read.reason}${read.outside ? ` - refusing to show it. Repair ${PATHS.audits}/index.json` : ''}\n`); process.exit(1); }
   process.stdout.write(read.text);
   process.exit(0);
+}
+
+// Outside a research project there is no corpus to snapshot, and the render path would
+// quote a preflight verdict that says the gate FAILS - a verdict for a folder with nothing
+// to judge, where gate.mjs and preflight.mjs both say "not gated" and exit 0
+// (found 2026-09-30, break-test). A writer refuses instead, in the words the other
+// writers use.
+if (!isGated(root)) {
+  process.stderr.write(`audit: ${root} is not a research project - it holds none of ${GATE_MARKERS.join(', ')}. Nothing was written.\n`
+    + `Run this from the project folder, or make one: ${kitCommand('new-project.mjs', '<dir> --topic "<topic>"')}\n`);
+  process.exit(2);
 }
 
 const result = writeAudit(root, { force: Boolean(flags.force) });
