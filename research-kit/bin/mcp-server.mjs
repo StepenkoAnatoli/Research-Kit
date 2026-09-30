@@ -29,6 +29,15 @@
 import { requireRuntime, honourEnvProxy } from '../lib/runtime.mjs';
 import { createStdioLoop, exitWhenSettled, handle, SUPPORTED_VERSIONS, SERVER_INFO, TOOLS } from '../lib/mcp.mjs';
 import { tokenFromEnv, TOKEN_VARS, redact } from '../lib/dispatch.mjs';
+import { tolerateClosedStdout } from '../lib/core.mjs';
+
+// Before anything is written: the client on the other end of these streams can go away at
+// any moment - a session cancelled, a host restarted, a timeout - and the kernel's EPIPE
+// for the response still in flight used to surface as an unhandled 'error' event: a raw
+// stack and exit 1, which reads as a server defect when it was only a client leaving
+// (found 2026-09-30, break-test). Drop writes to a vanished reader, keep the session's
+// own ending, exactly as selftest.mjs does for its report.
+tolerateClosedStdout();
 
 if (process.argv.includes('--help')) {
   // Printed to stdout ONLY here, where no client is listening: a human ran this by hand.
