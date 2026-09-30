@@ -60,3 +60,19 @@ test('researcher-release fi-validate is read-only and emits a deterministic JSON
     assertEqual(Buffer.compare(before, fs.readFileSync(input.workbook)), 0, 'CLI must not mutate the workbook');
   } finally { cleanup(input.root); }
 });
+
+// Found 2026-09-30: a --report path the environment refuses (here a folder) crashed with a
+// Node stack trace and exit 1 - this command's code for FAIL, so a caller was told the
+// evidence failed when the disk had refused the report. It is named and exits 2 now.
+test('researcher-release fi-validate names a refused --report write and exits 2, with no stack', () => {
+  const input = createSyntheticFiEvidenceBundle({ workbookMode: 'opaque' });
+  try {
+    const report = `${input.root}/report-is-a-folder`;
+    fs.mkdirSync(report);
+    const run = spawnSync(process.execPath, ['research-kit/bin/researcher-release.mjs', 'fi-validate', '--root', input.root,
+      '--workbook', input.workbook, '--records', input.recordsDir, '--manifest', input.manifest, '--report', report], { encoding: 'utf8' });
+    assertEqual(run.status, 2, `${run.stderr.slice(0, 300)}`);
+    assert(/could not write/.test(run.stderr), run.stderr.slice(0, 300));
+    assert(!/^\s+at .+:\d+:\d+\)?$/m.test(run.stderr), `a stack trace was printed:\n${run.stderr.slice(0, 500)}`);
+  } finally { cleanup(input.root); }
+});

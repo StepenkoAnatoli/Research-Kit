@@ -1032,3 +1032,29 @@ test('one unreadable folder does not end the secret scan: files after it are sti
   assert.equal(scan.hits.length, 1, 'the key after the unreadable folder was not found');
   assert.equal(scan.hits[0].pattern, 'firecrawl-key');
 });
+
+// Every command that writes a file names a write the environment refuses in words, exit
+// code included - not a Node stack trace with the exit code of "a check failed". Six
+// commands had missed it by 2026-09-30 (break-tests); a new one must not. A command that
+// imports a writer from lib/ must CALL writeFailure, or be listed here with the reason its
+// own handler is equivalent.
+const WRITERS = ['writeText', 'writeBytes', 'writeJson', 'appendLine', 'appendFetch', 'writeArtifact', 'writeAudit',
+  'renderBrief', 'renderTimeline', 'repairLedgerTail', 'installCommitGate', 'installEditGate', 'uninstall', 'saveConfig',
+  'deploy', 'scaffoldProject', 'registerPrior', 'runResearch', 'decompose', 'fetchCorpus'];
+const OWN_HANDLER = {
+  'artifact.mjs': 'create catches every packaging error, writeArtifact included, and exits BLOCKED (3) with its message',
+  'collect-remote.mjs': 'every step, the download included, is caught and reported by die() with a named exit code',
+};
+test('every command that writes names a refused write through writeFailure, or says why it need not', () => {
+  const bin = path.join(KIT_ROOT, 'bin');
+  const missing = [];
+  for (const name of fs.readdirSync(bin).filter((f) => f.endsWith('.mjs'))) {
+    const text = fs.readFileSync(path.join(bin, name), 'utf8');
+    const imported = [...text.matchAll(/^import \{([^}]*)\} from '\.\.\/lib\/[\w-]+\.mjs'/gm)]
+      .flatMap((m) => m[1].split(',').map((s) => s.trim().split(/\s+as\s+/)[0]));
+    const writes = imported.filter((n) => WRITERS.includes(n));
+    if (!writes.length || OWN_HANDLER[name]) continue;
+    if (!/\bwriteFailure\(/.test(text)) missing.push(`${name} (imports ${writes.join(', ')})`);
+  }
+  assert.deepEqual(missing, [], `these commands write and never call writeFailure:\n  ${missing.join('\n  ')}`);
+});

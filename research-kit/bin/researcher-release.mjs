@@ -3,7 +3,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
-import { writeText } from '../lib/core.mjs';
+import { writeText, writeFailure } from '../lib/core.mjs';
 import {
   DEFAULT_SCHEMA_DIR,
   listJsonFiles,
@@ -96,7 +96,17 @@ function main(argv = process.argv.slice(2)) {
       recordsDir: path.resolve(parsed.records),
       manifest: path.resolve(parsed.manifest),
     });
-    if (parsed.report) writeText(path.resolve(parsed.report), `${JSON.stringify(result, null, 2)}\n`);   // whole or not at all (ADR-0079)
+    if (parsed.report) {
+      // A report the environment refuses is named and exits 2: uncaught it was a stack trace
+      // and exit 1, which is this command's code for FAIL (found 2026-09-30).
+      try { writeText(path.resolve(parsed.report), `${JSON.stringify(result, null, 2)}\n`); }   // whole or not at all (ADR-0079)
+      catch (err) {
+        const why = writeFailure(err);
+        if (!why) throw err;
+        console.error(why);
+        return 2;
+      }
+    }
   } else {
     console.error(usage());
     return 2;
