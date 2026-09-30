@@ -10,6 +10,7 @@ import { PATHS, resolve, readJson, readText, today, hostOf, uniq, sleepSync, url
 import * as firecrawl from './firecrawl.mjs';
 import { readCorpus, cacheDecision, appendJsonLine } from './corpus.mjs';
 import { collectOne, recentlyGone, DEFAULT_SOURCE_TYPE } from './collect.mjs';
+import { fallbackCost } from './runtime.mjs';
 
 /** The budget tiers, in credits of scrape. Tuned for a ~1,000-credit free month. */
 export const DEPTH_SCRAPES = Object.freeze({
@@ -538,7 +539,7 @@ ${compatibility.remedy}`);
       });
       log(`  search failed on ${ranker}: ${reason}`);
       const next = askLive(adapter, text);
-      log(`  degrading to ${next.provider.name} for this query - this spends fetch credits`);
+      log(`  degrading to ${next.provider.name} for this query - ${fallbackCost(next.provider.name)}`);
       found = next.r;
       ranker = next.provider.name;
       if (found.ok) degraded += 1;
