@@ -1072,11 +1072,10 @@ test('projectFile answers every step of the read rule, and names the one that fa
   fs.mkdirSync(resolve(root, 'research/raw/dir.md'));
   assert.deepEqual(projectFile(root, 'research/raw/ok.md'), { abs: resolve(root, 'research/raw/ok.md'), problem: null });
   assert.equal(projectFile(root, path.relative(root, outside)).problem, 'outside');
-  // A recorded path is joined onto the root (core.resolve), so an absolute one cannot point
-  // elsewhere: it names a file under the root, which is not there.
-  const absolute = projectFile(root, outside);
-  assert.equal(absolute.problem, 'missing', 'an absolute recorded path');
-  assert.ok(absolute.abs.startsWith(root), `an absolute recorded path resolved outside the root: ${absolute.abs}`);
+  // A recorded path is joined onto the root (core.resolve), so an absolute one is never
+  // read: on POSIX it names a missing file under the root, on Windows the drive letter
+  // makes it land outside (seen on the windows-latest leg, 2026-09-30). Either way, no file.
+  assert.ok(['missing', 'outside'].includes(projectFile(root, outside).problem), 'an absolute recorded path must never be readable');
   assert.equal(projectFile(root, 'research/raw/none.md').problem, 'missing');
   assert.equal(projectFile(root, 'research/raw/dir.md').problem, 'not-file');
   assert.equal(projectFile(root, '').problem, 'outside', 'the root itself is not a file inside it');
