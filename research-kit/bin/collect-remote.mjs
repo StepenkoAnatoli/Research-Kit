@@ -258,7 +258,7 @@ else {
   say(`\n${result.status}  build ${result.buildAuthorized ? 'AUTHORIZED' : 'NOT authorized'}  state=${result.state}`);
   if (result.status === 'PASS' && !result.buildAuthorized) {
     say('\nThis is a COLLECTED CORPUS, not an approved brief. It does not authorize building.');
-    say('Three review steps remain, for an agent or a person; README-FIRST.md inside the package lists them.');
+    say('Three review steps remain, for the agent; README-FIRST.md inside the package lists them.');
   }
 }
 

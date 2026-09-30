@@ -8,7 +8,7 @@ import { PATHS, resolve, readText, writeText, today, documentCommand, exists, sh
 import { readCorpus, sectionOf, claimOf, captureOf } from './corpus.mjs';
 import { readPrior } from './prior.mjs';
 
-/** `judged: true` marks a section the corpus cannot fill - it needs a person's call. */
+/** `judged: true` marks a section the corpus cannot fill - it needs the reviewer's call. */
 export const BRIEF_SECTIONS = Object.freeze([
   { key: 'intent', heading: 'Intent', judged: false },
   { key: 'verified', heading: 'What we verified', judged: false },
@@ -35,14 +35,13 @@ export const BRIEF_FILE_MARKER = '<!-- research-kit:brief=scaffold -->';
  * refuses loudly rather than guessing.
  */
 /**
- * Who reviewed this corpus, as its reviewer declared it in the brief (ADR-0074):
- * `agent`, `human`, or `undeclared`.
+ * Who reviewed this corpus, as its reviewer declared it in the brief (ADR-0074): `agent`
+ * or `undeclared`. The review is the agent's (ADR-0107); a line naming a person - valid in
+ * 1.x packages - now reads as `undeclared`.
  *
  * A DECLARATION, and read as one. The three review steps are checked by what they leave
  * behind, never by who did them, so nothing can verify this line - and approval does not
- * depend on it. It exists so a package stops saying "a human reviewed it" when an agent did,
- * and so a consumer that requires a person can ask. The drafted placeholder
- * (`_agent or human ..._`) is not a declaration.
+ * depend on it. The drafted placeholder (`_agent - ..._`) is not a declaration.
  */
 export function reviewedBy(text) {
   // An ambiguous declaration is no declaration (found 2026-09-27): a line naming both
@@ -58,7 +57,8 @@ export function reviewedBy(text) {
     if (roles.size > 1) return 'undeclared';
     said.add(first[1]);
   }
-  return said.size === 1 ? [...said][0] : 'undeclared';
+  // The review is the agent's (ADR-0107): a line naming a person declares nothing the kit reads.
+  return said.size === 1 && said.has('agent') ? 'agent' : 'undeclared';
 }
 
 export function briefState(text) {
@@ -271,12 +271,12 @@ passes. Run \`${documentCommand('preflight.mjs', '', { root })}\` to see what is
   const body = `# Brief - ${topic}
 
 _Auto-drafted ${date} by \`bin/brief.mjs\` from the corpus. Sections marked ${TODO_MARK}
-require human/agent judgement; everything else is assembled from evidence already
+require the reviewing agent's judgement; everything else is assembled from evidence already
 in \`research/\`. While a ${TODO_MARK} remains, this brief is **not reviewed** and the
 handoff is **not approved** - a structurally valid corpus, a reviewed one, and an
 approved handoff are three different states._
 
-Reviewed by: _agent or human - whoever classified the map, rewrote the findings and answered the ${TODO_MARK} sections; replace this line with \`Reviewed by: agent\` or \`Reviewed by: human\`_
+Reviewed by: _agent - the agent that classified the map, rewrote the findings and answered the ${TODO_MARK} sections replaces this line with \`Reviewed by: agent\`_
 
 **This is the phase-1 to phase-2 handoff.** ${gateLine}
 

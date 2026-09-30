@@ -2,7 +2,7 @@
 
 **Research first, build second.** This is a research kit that collects evidence from real
 sources, keeps a tamper-evident record of where every claim came from, and then *refuses to
-let a build start* until the evidence has been reviewed - by an agent or a person.
+let a build start* until the evidence has been reviewed - by the agent.
 
 It is for the case where an AI would otherwise guess: API limits, pricing, what a licence
 actually permits, whether a platform can do the thing you are planning around.
@@ -140,10 +140,10 @@ When it finishes, scroll to **Artifacts** at the bottom of the run and download 
 
 Open the ZIP and read **`README-FIRST.md`**. It will say:
 
-> **COLLECTED CORPUS — HUMAN REVIEW REQUIRED**
+> **COLLECTED CORPUS — REVIEW REQUIRED**
 
 **That is the correct result, not a problem.** The collector gathers evidence; it does not
-decide whether the research is any good. Three steps are yours, and no tool does them:
+decide whether the research is any good. Three review steps remain, and the agent does them:
 
 1. Classify every row in `project/research/MAP.md`
 2. Rewrite every Finding in `project/research/EVIDENCE.md` into a claim you would defend
@@ -265,8 +265,8 @@ from research that passed the gate first.
 
 Read `buildAuthorized` and stop if it is `false`. **It will be `false` for everything this
 command returns**, because a freshly collected corpus has not been reviewed by anyone. An
-agent treating exit 0 as permission to build has skipped the only part that needed a
-reviewer - an agent or a person.
+agent treating exit 0 as permission to build has skipped the review - the three steps
+that are its own job.
 
 ---
 

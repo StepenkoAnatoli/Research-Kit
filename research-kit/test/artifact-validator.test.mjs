@@ -155,7 +155,7 @@ const FIXTURES = {
   '18-unsupported-major-version': {
     build: () => {
       const manifest = clone(collected.manifest);
-      manifest.formatVersion = '2.0.0';
+      manifest.formatVersion = '3.0.0';
       return seal(copyPayload(collected.payload), manifest);
     },
     expect: { status: 'INCOMPLETE', code: 'FORMAT-UNSUPPORTED' },
@@ -327,7 +327,7 @@ test('APPROVED_BRIEF requires every review field and an empty blocking list', ()
 });
 
 test('every non-approved state refuses an authorization claim', () => {
-  for (const state of ['COLLECTION_FAILED', 'HUMAN_REVIEW_REQUIRED', 'REVIEW_IN_PROGRESS', 'PREFLIGHT_BLOCKED']) {
+  for (const state of ['COLLECTION_FAILED', 'REVIEW_REQUIRED', 'REVIEW_IN_PROGRESS', 'PREFLIGHT_BLOCKED']) {
     const manifest = clone(collected.manifest);
     manifest.state = state;
     manifest.buildAuthorized = true;
@@ -402,14 +402,46 @@ test('an unreadable file is BLOCKED, not FAIL - the difference is whether a verd
   assert.equal(result.buildAuthorized, false);
 });
 
-test('SUPPORTED_FORMAT_MAJOR is 1, and a 2.x package is INCOMPLETE rather than invalid', () => {
-  assert.equal(SUPPORTED_FORMAT_MAJOR, 1);
+test('SUPPORTED_FORMAT_MAJOR is 2, and a 3.x package is INCOMPLETE rather than invalid', () => {
+  assert.equal(SUPPORTED_FORMAT_MAJOR, 2);
   const manifest = clone(collected.manifest);
-  manifest.formatVersion = '2.1.0';
+  manifest.formatVersion = '3.0.0';
   const file = writeFixture(scratch, 'future-major', seal(copyPayload(collected.payload), manifest));
   const result = validateArtifact({ file, tempRoot: scratch });
   assert.equal(result.status, 'INCOMPLETE',
     'a newer package is probably correct and merely unreadable here; calling it invalid sends somebody hunting a corruption that is not there');
+});
+
+// ADR-0107: format 2.0.0 renames HUMAN_REVIEW_REQUIRED to REVIEW_REQUIRED and retires the
+// `human` reviewer. A 1.x package made before stays valid, and is reported under the new
+// name, so a consumer switches on one state; a 2.x package carrying either old value is not
+// one this kit produced.
+test('a 1.x package still validates, and its old state is reported as REVIEW_REQUIRED', () => {
+  const manifest = clone(collected.manifest);
+  manifest.formatVersion = '1.1.0';
+  manifest.state = 'HUMAN_REVIEW_REQUIRED';
+  manifest.review.by = 'human';
+  const file = writeFixture(scratch, 'old-major', seal(copyPayload(collected.payload), manifest));
+  const result = validateArtifact({ file, tempRoot: scratch });
+  assert.equal(result.status, 'PASS', result.errors.map((e) => `${e.code} ${e.message}`).join('; '));
+  assert.equal(result.state, 'REVIEW_REQUIRED');
+  assert.equal(result.buildAuthorized, false);
+});
+
+test('a 2.x package carrying a retired value, or a 1.x one carrying the new name, is refused by name', () => {
+  for (const [version, change, pattern] of [
+    ['2.0.0', (m) => { m.state = 'HUMAN_REVIEW_REQUIRED'; }, /HUMAN_REVIEW_REQUIRED.*REVIEW_REQUIRED/],
+    ['2.0.0', (m) => { m.review.by = 'human'; }, /human/],
+    ['1.1.0', (m) => { m.state = 'REVIEW_REQUIRED'; }, /REVIEW_REQUIRED/],
+  ]) {
+    const manifest = clone(collected.manifest);
+    manifest.formatVersion = version;
+    change(manifest);
+    const file = writeFixture(scratch, `retired-${version}-${manifest.state}-${manifest.review.by}`, seal(copyPayload(collected.payload), manifest));
+    const result = validateArtifact({ file, tempRoot: scratch });
+    assert.equal(result.status, 'FAIL', `${version} ${manifest.state} ${manifest.review.by} passed`);
+    assert.ok(result.errors.some((e) => pattern.test(e.message)), result.errors.map((e) => e.message).join('; '));
+  }
 });
 
 test('entry-name rules refuse each shape on its own', () => {

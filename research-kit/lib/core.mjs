@@ -264,7 +264,7 @@ export function ensureDir(p) {
  * write cut short - a full disk, a quota, EFBIG, a killed process - left a partial new file
  * where the old one had been (found 2026-09-28: a 6,300-byte file under a 4 KB limit became
  * 4,096 bytes of the new text). EVIDENCE.md and MAP.md are rewritten through here and hold
- * human review work. So the text goes to a scratch dotfile beside the target - a dotfile, so
+ * review work. So the text goes to a scratch dotfile beside the target - a dotfile, so
  * a leftover is never read as a capture - and is renamed over it, which replaces the file
  * in one step within a filesystem. The replaced file's mode is kept (a 0600 config stays
  * 0600); a symlinked target is written through to the file it names; a dangling link is

@@ -90,7 +90,7 @@ test('the producer ignores an ambient GATE_OFF: the gate it runs is the real one
   // property of a package that will outlive that shell.
   const built = createArtifact({ root, ...IDENTITY, env: { RESEARCH_KIT_GATE: 'off', RESEARCH_GATE_OFF: '1' } });
   assert.equal(built.manifest.buildAuthorized, false);
-  assert.ok(['REVIEW_IN_PROGRESS', 'HUMAN_REVIEW_REQUIRED', 'PREFLIGHT_BLOCKED'].includes(built.manifest.state),
+  assert.ok(['REVIEW_IN_PROGRESS', 'REVIEW_REQUIRED', 'PREFLIGHT_BLOCKED'].includes(built.manifest.state),
     `unexpected state ${built.manifest.state}`);
 });
 
@@ -393,9 +393,10 @@ test('the scratch directory is removed', () => {
 // be a declaration: nothing here can verify it, and approval does not depend on it.
 test('reviewedBy reads the brief\'s declaration, and only a real one', () => {
   assert.equal(reviewedBy('# Brief\n\nReviewed by: agent\n'), 'agent');
-  assert.equal(reviewedBy('Reviewed by: **Human** - J. Doe, 2026-09-27'), 'human');
+  // Review is the agent's (ADR-0107): a line naming a person is no declaration the kit reads.
+  assert.equal(reviewedBy('Reviewed by: **Human** - J. Doe, 2026-09-27'), 'undeclared');
   assert.equal(reviewedBy('reviewed by:   agent (claude)'), 'agent');
-  assert.equal(reviewedBy('Reviewed by: _agent or human - whoever did the review_'), 'undeclared',
+  assert.equal(reviewedBy('Reviewed by: _agent - replace this line once the review is done_'), 'undeclared',
     'the drafted placeholder is not a declaration');
   assert.equal(reviewedBy('Reviewed by: robot'), 'undeclared');
   assert.equal(reviewedBy('No declaration here.'), 'undeclared');
@@ -417,20 +418,21 @@ test('the drafted brief asks who reviewed it, and an answer reaches the manifest
   const undeclared = build(approvedProject());
   assert.equal(undeclared.manifest.review.by, 'undeclared');
   assert.equal(undeclared.manifest.buildAuthorized, true, 'approval does not depend on the declaration');
-  assert.equal(undeclared.manifest.formatVersion, '1.1.0');
+  assert.equal(undeclared.manifest.formatVersion, '2.0.0');
 
   const own = tempDir('rk-reviewed-by-');
-  for (const who of ['agent', 'human']) {
+  for (const who of ['agent']) {
     const root = approvedProject();
     const briefFile = resolve(root, 'research/BRIEF.md');
     const brief = fs.readFileSync(briefFile, 'utf8');
-    assert.match(brief, /^Reviewed by: _agent or human/m, 'the drafted brief carries the placeholder');
+    assert.match(brief, /^Reviewed by: _agent/m, 'the drafted brief carries the placeholder');
+    assert.doesNotMatch(brief, /human/i, 'the drafted brief still offers the review to a person');
     fs.writeFileSync(briefFile, brief.replace(/^Reviewed by: .*$/m, `Reviewed by: ${who}`), 'utf8');
     const built = build(root, { clientRef: `by-${who}` });
     assert.equal(built.manifest.review.by, who);
     assert.equal(built.manifest.buildAuthorized, true);
     const readme = built.entries.find((e) => e.name === 'README-FIRST.md').data.toString('utf8');
-    assert.ok(readme.includes(who === 'agent' ? 'reviewed by an agent' : 'reviewed by a person'), readme.slice(0, 300));
+    assert.ok(readme.includes('reviewed by an agent'), readme.slice(0, 300));
     const summary = built.entries.find((e) => e.name === 'reports/collection-summary.md').data.toString('utf8');
     assert.match(summary, new RegExp(`reviewed by: \\*\\*${who}\\*\\*`));
 
@@ -441,6 +443,23 @@ test('the drafted brief asks who reviewed it, and an answer reaches the manifest
     assert.equal(result.reviewedBy, who);
   }
   cleanup(own);
+});
+
+// ADR-0107: review is the agent's, and the state that waits for it is REVIEW_REQUIRED.
+test('a collected package says REVIEW_REQUIRED, format 2.0.0, and offers the review to nobody but the agent', () => {
+  // Collected, gate not yet passing, no review step done: the state that waits for review.
+  const root = collectedProject();
+  const discovery = resolve(root, 'research/DISCOVERY.md');
+  fs.writeFileSync(discovery, fs.readFileSync(discovery, 'utf8').replace('| CLOSED |', '| OPEN |'), 'utf8');
+  const map = resolve(root, 'research/MAP.md');
+  fs.writeFileSync(map, fs.readFileSync(map, 'utf8').replace(/\| (COVERED|DISMISSED|GAP) \|/g, '|  |'), 'utf8');
+  const built = build(root);
+  assert.equal(built.manifest.formatVersion, '2.0.0');
+  assert.equal(built.manifest.state, 'REVIEW_REQUIRED');
+  for (const name of ['README-FIRST.md', 'reports/collection-summary.md']) {
+    const text = built.entries.find((e) => e.name === name).data.toString('utf8');
+    assert.doesNotMatch(text, /human|a person/i, `${name} still offers the review to a person`);
+  }
 });
 
 // ---------------------------------------------------------------- nothing from outside (ADR-0076)

@@ -44,7 +44,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const KIT_ROOT = path.resolve(here, '..');
 
 const FORMAT = 'research-kit-artifact';
-const FORMAT_VERSION = '1.1.0';
+const FORMAT_VERSION = '2.0.0';
 /** The API version this format's `source.workflowRunId` is defined against. */
 export const GITHUB_API_VERSION = '2026-03-10';
 
@@ -243,7 +243,7 @@ export function deriveState(root, { corpus = null, env = {} } = {}) {
     : approved ? 'APPROVED_BRIEF'
       : gatePass ? 'REVIEW_IN_PROGRESS'
         : (mapClassified || briefReviewed || findingsReviewed) ? 'PREFLIGHT_BLOCKED'
-          : 'HUMAN_REVIEW_REQUIRED';
+          : 'REVIEW_REQUIRED';
 
   return {
     state,
@@ -294,7 +294,6 @@ export function findingsReviewState(root, corpus) {
 /** How README-FIRST names the reviewer. A declaration, so the undeclared case says so. */
 const REVIEWER_PROSE = Object.freeze({
   agent: 'reviewed by an agent (as declared in the brief)',
-  human: 'reviewed by a person (as declared in the brief)',
   undeclared: 'reviewed (the brief does not declare by whom)',
 });
 
@@ -340,8 +339,8 @@ The commands below are written for PowerShell, bash and zsh. In cmd.exe, write
 
 ## Three required review steps
 
-An agent or a person may do them. Whoever does, declare it in the brief with a line
-\`Reviewed by: agent\` or \`Reviewed by: human\`; the manifest carries it as \`review.by\`.
+The agent does them, and declares it in the brief with the line \`Reviewed by: agent\`;
+the manifest carries it as \`review.by\`.
 
 1. Review and classify every row in \`project/research/MAP.md\`.
 2. Review every finding in \`project/research/EVIDENCE.md\`.

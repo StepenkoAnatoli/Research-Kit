@@ -1,7 +1,7 @@
 # ADR-0074 — The reviewer may be an agent, and the package says who declared it
 
 - **Date:** 2026-09-27
-- **Status:** accepted
+- **Status:** superseded in part by ADR-0107 (the `human` reviewer is retired, and the state is renamed REVIEW_REQUIRED)
 - **Area:** `lib/brief.mjs` (`reviewedBy`), `lib/artifact.mjs`, `lib/artifact-validator.mjs`,
   `lib/mcp.mjs`, `bin/collect-remote.mjs`, `schemas/artifact-manifest.schema.json`
 - **Amends:** ADR-0032 (the artifact contract; format 1.0.0 → 1.1.0)

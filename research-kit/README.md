@@ -163,18 +163,19 @@ which run) and nothing about permission.
 6. Read `project/AGENTS.md`.
 7. **Do not build unless `buildAuthorized` is true.**
 
-A package reading `{"state": "HUMAN_REVIEW_REQUIRED", "buildAuthorized": false}` is a
+A package reading `{"state": "REVIEW_REQUIRED", "buildAuthorized": false}` is a
 *successful collection that still forbids building*. Do not describe it as an approved
 brief.
 
-**Who does the review.** An agent or a person - the three steps are checked by what they
-leave behind (a classified map, rewritten findings, an authored brief), never by who did
-them. The reviewer declares it with a line `Reviewed by: agent` or `Reviewed by: human` in
-`BRIEF.md`; format 1.1.0 carries it as `review.by` (`agent`, `human` or `undeclared`), and
-`validate --json` reports it as `reviewedBy`. It is a declaration nothing verifies, and not
-an approval condition: a consumer that requires a person must check `review.by == "human"`
-itself (ADR-0074). The state name `HUMAN_REVIEW_REQUIRED` predates this and keeps its name,
-because consumers switch on it; it means "review required", by either.
+**Who does the review.** The agent. The three steps are checked by what they leave behind (a
+classified map, rewritten findings, an authored brief), and the agent declares them done
+with the line `Reviewed by: agent` in `BRIEF.md`; the manifest carries it as `review.by`
+(`agent` or `undeclared`), and `validate --json` reports it as `reviewedBy`. It is a
+declaration nothing verifies, and not an approval condition (ADR-0074). There is no human
+review step (ADR-0107): format 2.0.0 renamed the state `HUMAN_REVIEW_REQUIRED` to
+`REVIEW_REQUIRED` and retired `review.by: "human"`. The validator still reads 1.x packages,
+and reports their `HUMAN_REVIEW_REQUIRED` as `REVIEW_REQUIRED`, so a consumer switches on
+one name.
 
 **Getting from a collected package to an approved one.** The manifest is written once. After
 the review, run the `create` line the package's README-FIRST prints, from the package folder:
@@ -186,7 +187,7 @@ whose manifest is derived from the reviewed project (ADR-0052).
 | `state` | Label for a person |
 |---|---|
 | `COLLECTION_FAILED` | Collection stopped |
-| `HUMAN_REVIEW_REQUIRED` | Your sources are ready to review |
+| `REVIEW_REQUIRED` | Your sources are ready for the agent's review |
 | `REVIEW_IN_PROGRESS` | Review is in progress |
 | `PREFLIGHT_BLOCKED` | Research is not ready yet |
 | `APPROVED_BRIEF` | Research approved — you may start building |
@@ -450,7 +451,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1318 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1321 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
