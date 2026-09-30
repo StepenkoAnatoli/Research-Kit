@@ -120,6 +120,39 @@ test('a tampered capture is BLOCKED by the real hook even when nothing outside r
   assert.match(`${result.stdout}${result.stderr}`, /body-unmodified/);
 });
 
+// Found 2026-09-30 (break-test): the hook listed the staged set with `git diff --cached
+// --name-only -z`, and git detects renames by default, so `git mv src/app.js research/app.js`
+// listed ONE path - the destination, inside research/. While the verdict failed, `git rm
+// src/app.js` was BLOCKED (a removal of product code is a change outside research/) and the
+// same removal spelled as a move was ALLOWED, and what the gate decided depended on the
+// operator's `diff.renames` setting. The staged set is every path the commit touches.
+test('moving product code into research/ is BLOCKED while the verdict fails, exactly as deleting it is', () => {
+  requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
+  const dir = makeRepo();
+  writeText(resolve(dir, 'src/app.js'), 'export const app = 1;\n');
+  writeText(resolve(dir, 'src/other.js'), 'export const other = 2;\n');
+  git(dir, ['add', 'src/app.js', 'src/other.js']);
+  git(dir, fixtureCommitArgs('product code'));
+  // Git's own default since 2.9, stated so this test does not depend on the host's git.
+  git(dir, ['config', 'diff.renames', 'true']);
+  corrupt(dir, PATHS.discovery, (text) => text.replace('CLOSED', 'OPEN'));
+  git(dir, ['add', 'research/DISCOVERY.md']);
+
+  // The control: the same removal, spelled as a removal.
+  git(dir, ['rm', '-q', 'src/other.js']);
+  const removed = runHook(dir);
+  assert.notEqual(removed.status, 0, `deleting product code while the verdict fails was allowed: ${removed.stdout}${removed.stderr}`);
+  git(dir, ['reset', '-q', '--', 'src/other.js']);
+  git(dir, ['checkout', '-q', '--', 'src/other.js']);
+
+  git(dir, ['mv', 'src/app.js', 'research/app.js']);
+  assert.match(git(dir, ['diff', '--cached', '--name-status']), /^R\d*\tsrc\/app\.js\tresearch\/app\.js/m,
+    'the fixture did not stage a rename, so this test proves nothing');
+  const moved = runHook(dir);
+  assert.notEqual(moved.status, 0, `moving product code into research/ got past the gate: ${moved.stdout}${moved.stderr}`);
+  assert.match(`${moved.stdout}${moved.stderr}`, /BLOCKED[\s\S]*preflight\.mjs/, 'the block must say it is a block and print the fix');
+});
+
 test('a fresh project\'s first commit - scaffold and corpus together - is ALLOWED while the verdict fails', () => {
   requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
   const dir = tempDir('rk-fresh-');
@@ -225,7 +258,7 @@ test('the staged path list is DATA, not arguments: argv stays bounded', () => {
 
 test('the hook pipes the list and never accumulates argv', () => {
   const text = readText(HOOK);
-  assert.match(text, /git diff --cached --name-only -z \|/, 'the list must travel on a pipe');
+  assert.match(text, /git diff --cached --name-only --no-renames -z \|/, 'the list must travel on a pipe, and name both paths of a rename');
   assert.doesNotMatch(text, /set -- "\$@" --staged/, 'the O(n^2) argv loop must not come back');
   assert.match(text, /--staged-stdin/);
 });

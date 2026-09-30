@@ -93,7 +93,11 @@ fi
 
 # --- run it, with the staged list on a pipe ---------------------------------------
 
-git diff --cached --name-only -z | \
+# --no-renames: the staged set is EVERY path the commit touches. With rename detection (git's
+# default, and `diff.renames` in the operator's config) `git mv src/app.js research/app.js`
+# listed only research/app.js, so a removal of product code that `git rm` would have blocked
+# was allowed as a move (found 2026-09-30, break-test).
+git diff --cached --name-only --no-renames -z | \
   $WATCHDOG node "$KIT_HOME/bin/gate.mjs" --gate commit --staged-stdin
 status=$?
 
