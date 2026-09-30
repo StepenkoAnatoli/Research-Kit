@@ -112,7 +112,7 @@ export const TOOLS = Object.freeze([
     description:
       'Start a research collection on GitHub Actions. Returns the workflow run id immediately; '
       + 'the run takes minutes. Call fetch_corpus with that id to get the result. '
-      + 'The corpus that comes back is NOT approved research: it must be reviewed - by an agent or a person - before anything is built from it.',
+      + 'The corpus that comes back is NOT approved research: the agent must review it before anything is built from it.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,

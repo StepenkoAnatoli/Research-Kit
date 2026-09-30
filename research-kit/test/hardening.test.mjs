@@ -526,7 +526,7 @@ test('the timeline writes each moment in one readable form', () => {
 // with 'w', which EMPTIES it before a byte is written, so a write cut short - a full disk, a
 // quota, EFBIG, a killed process - left a partial new file where the old one had been.
 // Measured: a 6,300-byte file under a 4 KB limit became 4,096 bytes of the new text, the
-// original gone. EVIDENCE.md and MAP.md are rewritten this way and hold human review work.
+// original gone. EVIDENCE.md and MAP.md are rewritten this way and hold the review work.
 test('a write cut short leaves the file it was replacing untouched, and no scratch file', () => {
   const dir = tempDir('rk-atomic-');
   const target = path.join(dir, 'EVIDENCE.md');

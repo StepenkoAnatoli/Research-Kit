@@ -45,7 +45,10 @@ export const README_PATH = 'README-FIRST.md';
 const LEDGER_PATH = 'project/research/raw/.fetches.jsonl';
 
 /** The major version this validator implements. A different major is UNSUPPORTED, not invalid. */
-export const SUPPORTED_FORMAT_MAJOR = 1;
+export const SUPPORTED_FORMAT_MAJOR = 2;
+// 1.x packages stay readable (ADR-0107): 2.0.0 only renamed HUMAN_REVIEW_REQUIRED and retired
+// the `human` reviewer, so a package made before is still a package this kit produced.
+export const OLDEST_FORMAT_MAJOR = 1;
 
 /** Files a package must never carry. Machine-local state, overrides, and credentials. */
 const FORBIDDEN_PAYLOAD = Object.freeze([
@@ -188,9 +191,9 @@ export function validateArtifact({
         { path: MANIFEST_PATH, remedy: 'this is not a Research-Kit artifact' });
       return report();
     }
-    if (!Number.isInteger(major) || major !== SUPPORTED_FORMAT_MAJOR) {
+    if (!Number.isInteger(major) || major < OLDEST_FORMAT_MAJOR || major > SUPPORTED_FORMAT_MAJOR) {
       reject('INCOMPLETE', 'FORMAT-UNSUPPORTED',
-        `this package declares format version ${version || '(none)'}; this validator implements major ${SUPPORTED_FORMAT_MAJOR}`,
+        `this package declares format version ${version || '(none)'}; this validator reads majors ${OLDEST_FORMAT_MAJOR} to ${SUPPORTED_FORMAT_MAJOR}`,
         { path: MANIFEST_PATH, remedy: `upgrade Research-Kit to a version that reads format ${major || '?'}.x` });
       return report();
     }
@@ -211,6 +214,12 @@ export function validateArtifact({
       // reader disguised as a schema detail, whichever check happened to notice first.
       checkAuthorization();
       return report();
+    }
+
+    // Each major carries its own names (ADR-0107). The schema lists both eras' values, so the
+    // pairing is checked here, where the message can say which name belongs to which format.
+    for (const problem of eraProblems(manifest, major)) {
+      reject('FAIL', 'MANIFEST-SCHEMA', problem, { path: MANIFEST_PATH, remedy: 'regenerate the artifact' });
     }
 
     // ---- correlation --------------------------------------------------------------
@@ -381,13 +390,32 @@ export function validateArtifact({
       packageId: manifest?.packageId ?? null,
       clientRef: manifest?.clientRef ?? null,
       workflowRunId: manifest?.source?.workflowRunId ?? null,
-      state: manifest?.state ?? null,
+      // A 1.x package's HUMAN_REVIEW_REQUIRED is reported under its 2.0.0 name, so a consumer
+      // switches on one state whichever format it was handed (ADR-0107).
+      state: manifest?.state === 'HUMAN_REVIEW_REQUIRED' ? 'REVIEW_REQUIRED' : (manifest?.state ?? null),
       // The reviewer's own declaration (format 1.1.0, ADR-0074); a 1.0.0 package has none.
       reviewedBy: manifest?.review?.by ?? 'undeclared',
       errors,
       warnings,
     };
   }
+}
+
+// ---------------------------------------------------------------- format eras
+
+/** Values that belong to the other major (ADR-0107), each named with the one that belongs here. */
+function eraProblems(manifest, major) {
+  const out = [];
+  if (major >= 2 && manifest?.state === 'HUMAN_REVIEW_REQUIRED') {
+    out.push('state HUMAN_REVIEW_REQUIRED was renamed REVIEW_REQUIRED in format 2.0.0; a 2.x package cannot carry the old name');
+  }
+  if (major >= 2 && manifest?.review?.by === 'human') {
+    out.push('review.by "human" was retired in format 2.0.0: the review is the agent\'s, and a 2.x package declares "agent" or "undeclared"');
+  }
+  if (major < 2 && manifest?.state === 'REVIEW_REQUIRED') {
+    out.push('state REVIEW_REQUIRED is a format 2.0.0 name; a 1.x package says HUMAN_REVIEW_REQUIRED');
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- authorization

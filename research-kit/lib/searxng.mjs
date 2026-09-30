@@ -24,7 +24,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from './machine.mjs';
-import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow } from './runtime.mjs';
+import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow, fetchFailure } from './runtime.mjs';
 
 export const name = 'searxng';
 
@@ -52,10 +52,36 @@ function instanceUrl(value) {
   } catch { return null; }
 }
 
-/** `GET <instance>/search?q=...&format=json` (E-01); an instance under a sub-path keeps it. */
+/**
+ * The instance as it may be shown: a password in it is replaced by `***`. An instance behind
+ * basic auth is written http://user:pass@host (found 2026-09-30), and every message that
+ * names the instance would otherwise print the password.
+ */
+export function shownInstance(instance) {
+  const url = instanceUrl(instance);
+  if (!url || !url.password) return String(instance);
+  url.password = '***';
+  return url.href;
+}
+
+/** The `Authorization` header for credentials in the instance URL, or null. */
+export function basicAuth(instance) {
+  const url = instanceUrl(instance);
+  if (!url || (!url.username && !url.password)) return null;
+  const pair = `${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`;
+  return `Basic ${Buffer.from(pair).toString('base64')}`;
+}
+
+/**
+ * `GET <instance>/search?q=...&format=json` (E-01); an instance under a sub-path keeps it.
+ * Credentials are dropped from the URL - fetch refuses a URL that carries them - and sent as
+ * a header instead (basicAuth).
+ */
 export function requestUrl(instance, query) {
   const base = instanceUrl(instance);
-  if (!base) throw new Error(`not an http(s) URL: ${instance}`);
+  if (!base) throw new Error(`not an http(s) URL: ${shownInstance(instance)}`);
+  base.username = '';
+  base.password = '';
   const url = new URL('search', base.href.endsWith('/') ? base.href : `${base.href}/`);
   url.searchParams.set('q', String(query ?? ''));
   url.searchParams.set('format', 'json');
@@ -86,7 +112,7 @@ const NOT_CONFIGURED = `no SearXNG instance: set ${URL_ENV}, or ${CONFIG_KEY} in
 /** Why a response failed, in words an operator can act on. */
 function explain(answer, instance) {
   if (answer.statusCode === 403) {
-    return `the SearXNG instance at ${instance} answered HTTP 403: JSON output is not enabled. `
+    return `the SearXNG instance at ${shownInstance(instance)} answered HTTP 403: JSON output is not enabled. `
       + 'Add json to search.formats in its settings.yml and restart it (search.formats lists only html by default).';
   }
   return answer.error || 'searxng request failed';
@@ -110,7 +136,7 @@ export function search(query, {
   const base = { query: text, results: [], cmd: command(text), provider: name };
   if (!instance) return { ok: false, ...base, error: NOT_CONFIGURED };
   if (!instanceUrl(instance)) {
-    return { ok: false, ...base, error: `${URL_ENV}/${CONFIG_KEY} must be an http(s) URL; got "${instance}"` };
+    return { ok: false, ...base, error: `${URL_ENV}/${CONFIG_KEY} must be an http(s) URL; got "${shownInstance(instance)}"` };
   }
 
   const answer = job({ kind: 'searxng-search', query: text, instance, timeout }, { timeout, env });
@@ -129,7 +155,7 @@ export function status({ env = process.env, config = null } = {}) {
     authenticated: Boolean(instance),
     source,
     searchesRemaining: null,
-    raw: instance ? `searxng: instance ${instance} (via ${source})` : `searxng: ${NOT_CONFIGURED}`,
+    raw: instance ? `searxng: instance ${shownInstance(instance)} (via ${source})` : `searxng: ${NOT_CONFIGURED}`,
   };
 }
 
@@ -190,7 +216,7 @@ async function child() {
   try {
     const response = await fetch(url, {
       redirect: 'follow',
-      headers: { accept: 'application/json' },
+      headers: { accept: 'application/json', ...(basicAuth(job.instance) ? { authorization: basicAuth(job.instance) } : {}) },
       signal: AbortSignal.timeout(job.timeout ?? DEFAULT_TIMEOUT),
     });
     const body = await boundedText(response, 'the SearXNG response');
@@ -206,7 +232,7 @@ async function child() {
     }
     process.stdout.write(JSON.stringify({ ok: true, statusCode: response.status, payload }));
   } catch (err) {
-    process.stdout.write(JSON.stringify({ ok: false, error: `could not reach the SearXNG instance: ${String(err?.cause?.message ?? err?.message ?? err)}` }));
+    process.stdout.write(JSON.stringify({ ok: false, error: `could not reach the SearXNG instance: ${fetchFailure(err)}` }));
   }
 }
 

@@ -29,7 +29,7 @@
     },
     "formatVersion": {
       "type": "string",
-      "pattern": "^1\\.[0-9]+\\.[0-9]+$"
+      "pattern": "^[12]\\.[0-9]+\\.[0-9]+$"
     },
     "packageId": {
       "type": "string",
@@ -53,6 +53,7 @@
       "type": "string",
       "enum": [
         "COLLECTION_FAILED",
+        "REVIEW_REQUIRED",
         "HUMAN_REVIEW_REQUIRED",
         "REVIEW_IN_PROGRESS",
         "PREFLIGHT_BLOCKED",
@@ -203,7 +204,7 @@
           "type": "boolean"
         },
         "by": {
-          "description": "Who did the review, as the reviewer declared it in BRIEF.md (format 1.1.0, ADR-0074). A declaration nothing verifies, and not an approval condition. Absent in 1.0.0 packages.",
+          "description": "Who did the review, as the reviewer declared it in BRIEF.md (format 1.1.0, ADR-0074). A declaration nothing verifies, and not an approval condition. Absent in 1.0.0 packages. \"human\" occurs only in 1.x packages: from 2.0.0 the review is the agent's (ADR-0107).",
           "enum": ["agent", "human", "undeclared"]
         }
       }

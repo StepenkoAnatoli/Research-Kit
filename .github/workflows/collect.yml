@@ -622,7 +622,7 @@ jobs:
       # The artifact's authorization state is DERIVED here by the kit, from this corpus.
       # Nothing in this workflow can assert it: `artifact.mjs` has no --build-authorized
       # and refuses the flag if it is passed (ADR-0032). A freshly collected corpus is
-      # HUMAN_REVIEW_REQUIRED with buildAuthorized false, and the ZIP says so at its top.
+      # REVIEW_REQUIRED with buildAuthorized false, and the ZIP says so at its top.
       - name: package the corpus, honestly labelled
         env:
           CLIENT_REF: ${{ inputs.client_ref }}
@@ -713,7 +713,7 @@ jobs:
               }
             }
             out.push("", "**This artifact is a COLLECTED CORPUS, not an approved brief.** It does not",
-                     "authorize building. Three human review steps remain; `README-FIRST.md` inside",
+                     "authorize building. Three review steps remain, for the agent; `README-FIRST.md` inside",
                      "the package lists them, and `manifest.json` carries the authorization state.");
             fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${out.join("\n")}\n`);
           ' || true

@@ -113,7 +113,7 @@ test('the machine config carries searxngUrl', () => {
 const LOCAL = Object.fromEntries(Object.entries(process.env)
   .filter(([name]) => !['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].includes(name)));
 
-async function standIn({ status = 200, body = '' }) {
+async function standIn({ status = 200, body = '', auth = '' }) {
   const dir = tempDir('rk-searxng-standin-');
   const file = path.join(dir, 'server.mjs');
   fs.writeFileSync(file, `
@@ -121,6 +121,7 @@ import http from 'node:http';
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname !== '/search' || url.searchParams.get('format') !== 'json') { res.writeHead(404); res.end(); return; }
+  if (${JSON.stringify(auth)} && req.headers.authorization !== ${JSON.stringify(auth)}) { res.writeHead(401); res.end(); return; }
   res.writeHead(${status}, { 'content-type': 'application/json' });
   res.end(${JSON.stringify(body)});
 });
@@ -151,4 +152,23 @@ test('a real child reads a stand-in instance: results come back, and a 403 is na
     assert.equal(r.ok, false);
     assert.match(r.error, /403.*search\.formats|search\.formats.*403/s);
   } finally { refused.close(); }
+});
+
+// Found 2026-09-30 (audit of the new provider): an instance behind basic auth, named as
+// http://user:pass@host, failed every search - fetch refuses a URL with credentials - and the
+// error printed the URL, password included.
+test('an instance URL with credentials is sent as basic auth, and the password is never shown', async () => {
+  const auth = `Basic ${Buffer.from('me:s3cret').toString('base64')}`;
+  const guarded = await standIn({ auth, body: JSON.stringify({ results: [{ url: 'https://a.example/', title: 'A', content: '' }] }) });
+  try {
+    const instance = guarded.base.replace('http://', 'http://me:s3cret@');
+    const r = searxng.search('q', { env: { ...LOCAL, SEARXNG_URL: instance }, config: noConfig, timeout: 20_000 });
+    assert.equal(r.ok, true, r.error);
+    assert.deepEqual(r.results.map((row) => row.url), ['https://a.example/']);
+    const wrong = searxng.search('q', { env: { ...LOCAL, SEARXNG_URL: guarded.base.replace('http://', 'http://me:wrong@') }, config: noConfig, timeout: 20_000 });
+    assert.equal(wrong.ok, false);
+    assert.doesNotMatch(wrong.error, /wrong/, 'the password was printed');
+    assert.doesNotMatch(searxng.status({ env: { SEARXNG_URL: instance } }).raw, /s3cret/, 'status printed the password');
+  } finally { guarded.close(); }
+  assert.doesNotMatch(searxng.requestUrl('http://me:s3cret@h.example/', 'q').href, /s3cret|me@/, 'the request URL kept the credentials');
 });

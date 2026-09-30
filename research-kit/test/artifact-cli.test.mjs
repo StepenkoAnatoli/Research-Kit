@@ -63,7 +63,7 @@ test('an invalid package exits 1', () => {
 
 test('an unsupported format major exits 2, not 1', () => {
   const { payload, manifest } = basePackage(collectedProject());
-  const future = seal(payload, { ...manifest, formatVersion: '2.0.0' });
+  const future = seal(payload, { ...manifest, formatVersion: '3.0.0' });
   const file = path.join(scratch, 'future.zip');
   fs.writeFileSync(file, future);
   const r = run(['validate', '--file', file]);

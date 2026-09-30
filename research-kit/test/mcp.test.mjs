@@ -32,7 +32,7 @@ function deps(overrides = {}) {
       seen.corpus = a;
       return {
         file: 'C:\\tmp\\research-kit-corpus-v1-job-1.zip',
-        validation: { status: 'PASS', buildAuthorized: false, state: 'HUMAN_REVIEW_REQUIRED', packageId: 'RK-X', errors: [] },
+        validation: { status: 'PASS', buildAuthorized: false, state: 'REVIEW_REQUIRED', packageId: 'RK-X', errors: [] },
       };
     },
     seen,
@@ -349,7 +349,7 @@ test('an approved corpus says so instead, and the two texts cannot both appear',
 test('an invalid package is flagged isError even though the call succeeded', async () => {
   const d = deps({ corpus: async () => ({
     file: '/tmp/x.zip',
-    validation: { status: 'FAIL', buildAuthorized: false, state: 'HUMAN_REVIEW_REQUIRED', packageId: null, errors: [{ code: 'FILE-HASH-MISMATCH', message: 'x' }] },
+    validation: { status: 'FAIL', buildAuthorized: false, state: 'REVIEW_REQUIRED', packageId: null, errors: [{ code: 'FILE-HASH-MISMATCH', message: 'x' }] },
   }) });
   const r = await handle(call('fetch_corpus', { repository: 'o/r', workflow_run_id: 42 }), d);
   assert.equal(r.result.isError, true);

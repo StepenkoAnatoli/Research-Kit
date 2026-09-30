@@ -432,3 +432,18 @@ test('CI regenerates the derived files before it checks the tree is clean', () =
   const step = text.slice(regen, clean);
   assert(/bin\/timeline\.mjs/.test(step) && /bin\/export-warc\.mjs/.test(step), 'both writers must run');
 });
+
+test('CI runs the suite once from a git archive tree, and the required check waits for it', () => {
+  // Found 2026-09-30 (break-test): a ZIP download has no .git, and one test assumed it did.
+  // Every CI leg runs from a checkout, so nothing could notice.
+  const file = path.join(REPO, '.github', 'workflows', 'offline-suite.yml');
+  if (!fs.existsSync(file)) return;
+  const text = fs.readFileSync(file, 'utf8');
+  const at = text.indexOf('\n  archive-tree:\n');
+  assert(at !== -1, 'no archive-tree job');
+  const job = text.slice(at, text.indexOf('\n  suite:\n'));
+  assert(/git archive/.test(job), 'the archive-tree job does not export with git archive');
+  assert(/bin\/selftest\.mjs/.test(job), 'the archive-tree job does not run the suite');
+  assert(/needs: \[[^\]]*\barchive-tree\b[^\]]*\]/.test(text), 'the required suite check does not wait for archive-tree');
+  assert(/needs\.archive-tree\.result/.test(text), 'the required suite check does not read archive-tree\'s result');
+});

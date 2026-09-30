@@ -225,8 +225,9 @@ The sequence is decompose -> contract -> collect -> gate -> brief.
    **The review is your job, not a person's.** Classifying the map (step 0), rewriting
    the findings (step 4) and answering the brief's **TODO** sections are the three review
    steps: they are checked by what they leave behind, never by who did them. Declare who
-   did them in the brief with a line `Reviewed by: agent` (or `Reviewed by: human`); a
-   package carries it as `review.by`, and says it is a declaration (ADR-0074).
+   did them in the brief with the line `Reviewed by: agent`; a package carries it as
+   `review.by`, and says it is a declaration (ADR-0074). There is no human review step
+   (ADR-0107).
 
 ## Rule 2 - questions are for intent, never for facts
 
