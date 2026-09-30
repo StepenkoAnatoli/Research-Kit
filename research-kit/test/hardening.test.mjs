@@ -1058,3 +1058,28 @@ test('every command that writes names a refused write through writeFailure, or s
   }
   assert.deepEqual(missing, [], `these commands write and never call writeFailure:\n  ${missing.join('\n  ')}`);
 });
+
+// One rule for reading a path a corpus RECORDS (a ledger raw, a Raw cell): inside the
+// project, by path and by real path, present, and a regular file. provenance and warc each
+// re-implemented it and each had missed a step until 2026-09-30 - one helper now answers
+// all four, and names which one failed.
+test('projectFile answers every step of the read rule, and names the one that failed', async () => {
+  const { projectFile } = await import('../lib/core.mjs');
+  const root = makeProject();
+  const outside = path.join(tempDir('rk-pf-outside-'), 'o.md');
+  writeText(outside, 'o\n');
+  writeText(resolve(root, 'research/raw/ok.md'), 'ok\n');
+  fs.mkdirSync(resolve(root, 'research/raw/dir.md'));
+  assert.deepEqual(projectFile(root, 'research/raw/ok.md'), { abs: resolve(root, 'research/raw/ok.md'), problem: null });
+  assert.equal(projectFile(root, path.relative(root, outside)).problem, 'outside');
+  // A recorded path is joined onto the root (core.resolve), so an absolute one cannot point
+  // elsewhere: it names a file under the root, which is not there.
+  const absolute = projectFile(root, outside);
+  assert.equal(absolute.problem, 'missing', 'an absolute recorded path');
+  assert.ok(absolute.abs.startsWith(root), `an absolute recorded path resolved outside the root: ${absolute.abs}`);
+  assert.equal(projectFile(root, 'research/raw/none.md').problem, 'missing');
+  assert.equal(projectFile(root, 'research/raw/dir.md').problem, 'not-file');
+  assert.equal(projectFile(root, '').problem, 'outside', 'the root itself is not a file inside it');
+  try { fs.symlinkSync(outside, resolve(root, 'research/raw/link.md')); } catch { return; }   // the link case needs symlink rights
+  assert.equal(projectFile(root, 'research/raw/link.md').problem, 'outside', 'a link that leads out');
+});

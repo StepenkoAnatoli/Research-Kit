@@ -16,7 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import {
-  PATHS, GENESIS, resolve, exists, isInside, realInside, isRegularFile, readText, ensureDir, appendLine,
+  PATHS, GENESIS, resolve, exists, projectFile, readText, ensureDir, appendLine,
   canonicalJson, sha256, nowIso, writeText,
 } from './core.mjs';
 import { readCorpus, readLedger } from './corpus.mjs';
@@ -380,13 +380,13 @@ export function verifyLedger(root, { corpus = null } = {}) {
     prev = entry.entrySha256 ?? prev;
 
     if (entry.op === 'fail' || !entry.raw) continue;
-    const abs = resolve(root, entry.raw);
-    if (!isInside(root, abs) || (exists(abs) && !realInside(root, abs))) {
+    const { abs, problem } = projectFile(root, entry.raw);
+    if (problem === 'outside') {
       problems.push({ rule: 'raw-outside', line: entry.line, file: entry.raw,
         detail: `${entry.raw}, named by seq ${entry.seq}, is outside the project - not read` });
       continue;
     }
-    if (!exists(abs)) {
+    if (problem === 'missing') {
       problems.push({ rule: 'raw-missing', line: entry.line, file: entry.raw, detail: `capture named by seq ${entry.seq} is not on disk` });
       continue;
     }
@@ -396,7 +396,7 @@ export function verifyLedger(root, { corpus = null } = {}) {
     // until libstdc++ kills the process with std::bad_alloc (found 2026-09-28,
     // break-test). Both ended the run of every entrypoint that verifies a corpus,
     // including the commit gate, with no diagnostic at all.
-    if (!isRegularFile(abs)) {
+    if (problem === 'not-file') {
       problems.push({ rule: 'raw-unreadable', line: entry.line, file: entry.raw,
         detail: `${entry.raw}, named by seq ${entry.seq}, could not be read (it is not a regular file, `
           + 'so it has no end to read to) - check what it is' });
