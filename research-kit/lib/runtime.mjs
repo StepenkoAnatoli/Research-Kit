@@ -358,3 +358,18 @@ export const FREE_FETCH_TRANSPORTS = Object.freeze(['http-keyless', 'browser']);
 export function fallbackCost(name) {
   return FREE_FETCH_TRANSPORTS.includes(name) ? `free on ${name}, which has no meter` : 'this spends fetch credits';
 }
+
+/**
+ * A failed fetch in words: Node's `fetch failed` plus the reason it keeps on `err.cause` -
+ * `getaddrinfo ENOTFOUND host`, `ECONNREFUSED`, `redirect count exceeded` (found 2026-09-30:
+ * an offline machine, a mistyped host and a refused port all read "fetch failed"). A URL in
+ * the cause is cut to its host, so a query string - a key - never rides along.
+ */
+export function fetchFailure(err) {
+  const message = String(err?.message ?? err);
+  const cause = err?.cause;
+  const detail = cause ? String(cause.message || cause.code || '').trim() : '';
+  if (!detail || message.includes(detail)) return message;
+  const hostOnly = detail.replace(/https?:\/\/[^\s)'"]+/g, (u) => { try { return new URL(u).host; } catch { return 'a URL'; } });
+  return `${message} (${hostOnly})`;
+}

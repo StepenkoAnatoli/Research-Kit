@@ -28,7 +28,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from './machine.mjs';
-import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow } from './runtime.mjs';
+import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow, fetchFailure } from './runtime.mjs';
 
 export const name = 'serpapi';
 
@@ -492,9 +492,10 @@ async function child() {
     }
     process.stdout.write(JSON.stringify({ ok: true, statusCode: response.status, payload }));
   } catch (err) {
-    // `err.message` can contain the request URL, and the request URL contains the key.
+    // `err.message` can contain the request URL, and the request URL contains the key;
+    // fetchFailure cuts a URL in the cause to its host.
     // The parent redacts on receipt; this keeps the child from being the one that leaks.
-    process.stdout.write(JSON.stringify({ ok: false, error: String(err?.message ?? err) }));
+    process.stdout.write(JSON.stringify({ ok: false, error: fetchFailure(err) }));
   }
 }
 

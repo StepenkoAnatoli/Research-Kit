@@ -13,7 +13,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow } from './runtime.mjs';
+import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow, fetchFailure } from './runtime.mjs';
 
 export const name = 'http-keyless';
 export const FULL_THRESHOLD = 1500;
@@ -432,7 +432,7 @@ async function child() {
       error: response.ok ? '' : `HTTP ${response.status}`,
     }));
   } catch (err) {
-    process.stdout.write(JSON.stringify({ ok: false, url: job.url, error: err.message }));
+    process.stdout.write(JSON.stringify({ ok: false, url: job.url, error: fetchFailure(err) }));
   }
 }
 
