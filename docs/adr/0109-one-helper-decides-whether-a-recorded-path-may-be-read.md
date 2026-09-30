@@ -20,8 +20,10 @@ ledger naming `../elsewhere` was verified, and exported into the WARC.
 - **`verifyLedger` and `exportWarc` use it.** Each still maps the answer to its own words:
   `raw-outside` / `raw-missing` / `raw-unreadable` in the chain, a named `skipped` reason in
   the export.
-- A recorded path is joined onto the root (`core.resolve`), so an absolute one names a file
-  under the root and reads as `missing`, never as a path elsewhere.
+- A recorded path is joined onto the root (`core.resolve`), so an absolute one is never read
+  as a path elsewhere. On POSIX it names a file under the root and reads as `missing`; on
+  Windows its drive letter lands the join outside the root and it reads as `outside`
+  (the windows-latest leg, 2026-09-30). Either answer means no file is read.
 
 ## Deferred
 
