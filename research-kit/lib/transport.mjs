@@ -11,6 +11,7 @@
 import * as firecrawl from './firecrawl.mjs';
 import * as httpKeyless from './http-transport.mjs';
 import * as serpapi from './serpapi.mjs';
+import * as searxng from './searxng.mjs';
 import browser from './browser-transport.mjs';
 import { loadConfig } from './machine.mjs';
 
@@ -36,6 +37,8 @@ export const SEARCH_PROVIDERS = Object.freeze({
   // Only the transports that search: the browser fetches and nothing else (ADR-0088).
   ...Object.fromEntries(Object.entries(TRANSPORTS).filter(([, adapter]) => typeof adapter.search === 'function')),
   serpapi,
+  // A SearXNG instance the operator runs (ADR-0104). Explicit only: never chosen automatically.
+  searxng,
 });
 
 export const SEARCH_PROVIDER_NAMES = Object.freeze(Object.keys(SEARCH_PROVIDERS));
@@ -186,11 +189,17 @@ export function selectSearch({ explicit = '', env = process.env, config = null, 
     // key" rather than crash; three precedence tests failed precisely because they ask
     // which name wins and have no business supplying a key. So the unreadiness travels
     // with the selection, and `runResearch` refuses on it before spending.
-    const notReady = adapter === serpapi && !serpapi.readKey({ env, config: settings })
+    let notReady = adapter === serpapi && !serpapi.readKey({ env, config: settings })
       ? `${adapter.name} was selected by ${why}, but no SerpAPI key is configured. `
         + 'Set SERPAPI_API_KEY, or put serpapiKey in ~/.agents/research-kit.config.json. '
         + 'Unset the explicit choice to let the kit pick a provider it can run.'
       : '';
+    // The same, for an instance URL (ADR-0104): reported, never thrown, for the same reasons.
+    if (adapter === searxng && !searxng.readUrl({ env, config: settings })) {
+      notReady = `${adapter.name} was selected by ${why}, but no instance is configured. `
+        + `Set ${searxng.URL_ENV}, or put ${searxng.CONFIG_KEY} in ~/.agents/research-kit.config.json, `
+        + 'to the URL of a SearXNG instance you run with json in its search.formats.';
+    }
     return { name: adapter.name ?? asked, adapter, why, searchOnly: isSearchOnly(adapter), notReady };
   }
 
