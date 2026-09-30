@@ -265,7 +265,7 @@ export function editGateState(settings) {
   if (settings === null) return 'none';
   const hooks = settings?.hooks?.PreToolUse;
   if (!Array.isArray(hooks)) return 'none';
-  const commands = hooks.flatMap((entry) => (entry.hooks ?? []).map((h) => String(h.command ?? '')));
+  const commands = hooks.flatMap((entry) => (Array.isArray(entry?.hooks) ? entry.hooks : []).map((h) => String(h?.command ?? '')));
   if (commands.some((c) => namesHook(c, EDIT_GATE_HOOK))) return 'current';
   if (commands.some((c) => RETIRED_EDIT_GATE_HOOKS.some((retired) => namesHook(c, retired)))) return 'retired';
   return 'none';

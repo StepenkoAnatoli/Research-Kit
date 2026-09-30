@@ -239,6 +239,10 @@ test('a settings file the installer does not recognise is REFUSED, never rewritt
 // wraps the call in its own try/catch.
 test('a PreToolUse node of the wrong type is REFUSED by name, not thrown at', () => {
   const shapes = [
+    { hooks: null },
+    { hooks: [] },
+    { hooks: 7 },
+    { hooks: 'none' },
     { hooks: { PreToolUse: [null] } },
     { hooks: { PreToolUse: [7] } },
     { hooks: { PreToolUse: ['x'] } },
@@ -247,9 +251,11 @@ test('a PreToolUse node of the wrong type is REFUSED by name, not thrown at', ()
     { hooks: { PreToolUse: [{ matcher: 'Edit', hooks: {} }] } },
     { hooks: { PreToolUse: [{ matcher: 'Edit', hooks: 'x' }] } },
     { hooks: { PreToolUse: [{ matcher: 'Edit', hooks: [null] }] } },
+    { hooks: { PreToolUse: [{ matcher: 'Edit', hooks: [[]] }] } },
     { hooks: { PreToolUse: 7 } },
   ];
   for (const settings of shapes) {
+    assert.equal(editGateState(settings), 'none', `editGateState threw or misreported for ${JSON.stringify(settings)}`);
     const { env, settingsFile } = machine({ settings });
     const before = readText(settingsFile);
     assert.equal(settingsState({ env, kitHome: KIT_ROOT }), 'unfamiliar',
