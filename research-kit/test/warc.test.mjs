@@ -170,3 +170,34 @@ test('an export never reads a capture outside the project or one that is not a r
   for (const raw of raws) assert.ok(out.skipped.some((s) => s.file === raw && /outside the project/.test(s.reason)), `${raw} was not named as outside`);
   assert.ok(out.skipped.some((s) => s.file === 'research/raw/dir-as-capture' && /not a regular file/.test(s.reason)));
 });
+
+// Found 2026-09-30 (break-test, PR #174): the export hashed the capture's bytes, then READ
+// THE FILE AGAIN to parse it - so a capture replaced between the two reads (a refresh, a
+// concurrent collector) was exported with the replacement's text under the ledger's hash of
+// the original. The race is made deterministic here: the file is swapped right after the
+// first read of it, and the export must carry what it verified, or nothing.
+test('an export carries the bytes it verified, not a second read of the file', () => {
+  const dir = makePassingProject();
+  const entry = readLedger(dir).entries.find((e) => e.op === 'scrape' && e.raw);
+  const abs = path.join(dir, entry.raw);
+  const original = fs.readFileSync(abs);
+  const replacement = Buffer.from(`${original.toString('utf8').replace(/\n*$/, '')}\nREPLACED_AFTER_VERIFY\n`);
+  const realRead = fs.readFileSync;
+  let swapped = false;
+  fs.readFileSync = function readThenSwap(p, ...rest) {
+    const result = realRead.call(fs, p, ...rest);
+    // Only after the read whose bytes are HASHED - the one that asks for a Buffer. The corpus
+    // reader reads the capture as text first, and a swap there is caught by the hash check,
+    // which is not the window this test is about.
+    if (!swapped && rest[0] === undefined && path.resolve(String(p)) === path.resolve(abs)) {
+      swapped = true;
+      fs.writeFileSync(abs, replacement);
+    }
+    return result;
+  };
+  let out;
+  try { out = exportWarc(dir); } finally { fs.readFileSync = realRead; }
+  assert.ok(swapped, 'the export never read the capture, so this proves nothing');
+  const text = zlib.gunzipSync(out.bytes).toString('utf8');
+  assert.doesNotMatch(text, /REPLACED_AFTER_VERIFY/, 'the export carried text the ledger hash never covered');
+});

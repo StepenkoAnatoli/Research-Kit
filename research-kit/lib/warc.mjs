@@ -11,7 +11,7 @@
 // The corpus and its ledger remain the evidence: an export is a copy, and it never gates.
 
 import zlib from 'node:zlib';
-import { projectFile, sha256, readText } from './core.mjs';
+import { projectFile, sha256 } from './core.mjs';
 import { readLedger, readCorpus, parseCapture, fs } from './corpus.mjs';
 
 const CRLF = '\r\n';
@@ -102,7 +102,10 @@ export function exportWarc(root) {
       skipped.push({ file: entry.raw, seq: entry.seq, reason: 'the capture changed since it was fetched - its hash no longer matches the ledger' });
       continue;
     }
-    const { front, body } = parseCapture(readText(abs) ?? '');
+    // The bytes whose hash just passed, not a second read of the file: a capture replaced
+    // between the two - a refresh, a concurrent collector - was exported with the new text
+    // under the ledger's hash of the old (found 2026-09-30, break-test).
+    const { front, body } = parseCapture(raw.toString('utf8'));
     const seed = entry.entrySha256 || `${entry.seq}:${entry.url}:${entry.bodySha256}`;
     const resourceId = uuidFrom(`resource:${seed}`);
     const metaId = uuidFrom(`metadata:${seed}`);
