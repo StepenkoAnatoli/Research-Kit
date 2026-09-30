@@ -102,6 +102,14 @@ if (!isGated(root)) {
   process.exit(2);
 }
 
+// Read BEFORE the write, so the note below can tell a continuation of a chain from a new
+// one. The slug comes from the map's topic line - the line phase 0 asks the operator to own -
+// so refining a topic starts a chain of its own, and that used to happen in silence: the run
+// printed `v0.1` and the next `audit.mjs --zip` refused with "several topics hold audits and
+// none was named", which is the exact command the line below it had just recommended
+// (found 2026-09-30, break-test).
+const held = listVersions(root).known;
+
 const result = writeAudit(root, { force: Boolean(flags.force) });
 if (!result.written) {
   process.stdout.write(`${result.reason}\n`);
@@ -111,4 +119,12 @@ if (!result.written) {
 process.stdout.write(`${heading(`audit v${result.version}`)}\n`);
 process.stdout.write(`${result.main}\n`);
 for (const file of result.subtopics) process.stdout.write(`${file}\n`);
-process.stdout.write(`\nOne attachment instead of ${result.subtopics.length + 1} pastes:\n  ${kitCommand('audit.mjs', '--zip')}\n`);
+const others = held.filter((slug) => slug !== result.slug);
+if (!held.includes(result.slug) && others.length) {
+  process.stdout.write(`\nThis started a NEW topic, \`${result.slug}\` - the map's topic line decides the\n`
+    + `slug, and it does not match the one audits are already held under: ${others.join(', ')}.\n`
+    + 'Audits are never rewritten, so both chains stay; `audit.mjs --list` shows them, and\n'
+    + '`--zip` needs to be told which one.\n');
+}
+const topicFlag = others.length ? ` --topic ${result.slug}` : '';
+process.stdout.write(`\nOne attachment instead of ${result.subtopics.length + 1} pastes:\n  ${kitCommand('audit.mjs', `--zip${topicFlag}`)}\n`);

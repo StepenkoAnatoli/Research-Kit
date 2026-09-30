@@ -119,7 +119,15 @@ function scrubError(text) {
  * any `--topic` is accepted there.
  */
 export function resolveTopic(root, asked) {
-  const plan = readCorpus(root).plan;
+  const corpus = readCorpus(root);
+  // A duplicate object key keeps only the LAST value in JSON.parse, and the topic is what
+  // every search below is built from - so the run would spend on the second value while the
+  // operator reads the first. The gate names it, but the gate runs after the credits are
+  // gone (found 2026-09-30, break-test: the same hole in research.mjs).
+  const duplicate = (corpus.problems ?? []).find((problem) => problem.kind === 'plan-unparsed'
+    && /duplicate object key/.test(String(problem.detail ?? '')));
+  if (duplicate) return { error: `${duplicate.artifact} ${duplicate.detail} - fix it, then run this again.` };
+  const plan = corpus.plan;
   const own = typeof plan?.topic === 'string' && plan.topic.trim() && plan.topic.trim() !== UNTITLED_TOPIC
     ? plan.topic.trim() : '';
   const given = typeof asked === 'string' ? asked.trim() : '';

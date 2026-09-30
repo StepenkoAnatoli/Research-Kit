@@ -12,7 +12,7 @@ import { collectionPolicy, collectionRefusal, loadConfig } from '../lib/machine.
 import { findBrowser } from '../lib/browser-transport.mjs';
 import { selectTransport, TRANSPORTS, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES, unusedKeyNote } from '../lib/transport.mjs';
 import { runResearch, searchSummaryLine, readPlan, planProblems, usageSummary, topicMatch, DEPTHS, DEPTH_SCRAPES } from '../lib/research-run.mjs';
-import { parseCapture, readLedger } from '../lib/corpus.mjs';
+import { parseCapture, readLedger, duplicateKey } from '../lib/corpus.mjs';
 import { readPrior } from '../lib/prior.mjs';
 import { heading } from '../lib/render.mjs';
 
@@ -131,6 +131,15 @@ function vendorMeter(search) {
   }
   try { parseJson(planText); } catch (err) {
     process.stderr.write(`${planPath} does not parse as JSON (${err.message}) - fix it, then run this again.\n`);
+    process.exit(2);
+  }
+  // A duplicate key keeps only the LAST value in JSON.parse, so the entry the operator
+  // pasted is not the entry that would be collected - and this is the command that spends.
+  // The gate names it too, but preflight runs AFTER collection, once the credits are gone
+  // (found 2026-09-30, break-test).
+  const duplicate = duplicateKey(planText);
+  if (duplicate) {
+    process.stderr.write(`${planPath} ${duplicate} - fix it, then run this again.\n`);
     process.exit(2);
   }
   const problems = planProblems(parseJson(planText));
