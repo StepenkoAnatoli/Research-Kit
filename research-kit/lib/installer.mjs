@@ -20,6 +20,13 @@ import { KIT_ROOT, HOOK_MODE, hookExecutability } from './scaffold.mjs';
 
 export const MATCHER = 'Edit|Write|MultiEdit|NotebookEdit';
 
+/**
+ * Why a settings file that PARSES is still refused. Named so the reason reaches the
+ * operator's terminal rather than being inferred from a stack trace (see
+ * `knownHookShape`).
+ */
+const UNFAMILIAR_SHAPE = 'hooks.PreToolUse is not the shape this installer walks';
+
 // ---------------------------------------------------------------- the commit gate
 
 export function installCommitGate({ kitHome = KIT_HOME, env = process.env, dryRun = false, gitPaths = {} } = {}) {
@@ -61,14 +68,21 @@ function readSettings(file) {
   const text = readText(file, '');
   try {
     const parsed = parseJson(text || '{}');
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return { state: 'readable', settings: parsed, text };
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return knownHookShape(parsed)
+        ? { state: 'readable', settings: parsed, text }
+        : { state: 'unfamiliar', settings: {}, text, error: UNFAMILIAR_SHAPE };
+    }
     return { state: 'unfamiliar', settings: {}, text };
   } catch (err) {
     // One known corruption is repairable: a stray line of prose. Anything else is refused.
     const repaired = text.split(/\r?\n/).filter((line) => !/^[A-Za-z][^"{}[\]:,]*;?-?\s*$/.test(line.trim()) || !line.trim()).join('\n');
     try {
       const parsed = parseJson(repaired || '{}');
-      return { state: 'repairable', settings: parsed, text, repaired, error: err.message };
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && knownHookShape(parsed)) {
+        return { state: 'repairable', settings: parsed, text, repaired, error: err.message };
+      }
+      return { state: 'unfamiliar', settings: {}, text, error: err.message };
     } catch {
       return { state: 'unfamiliar', settings: {}, text, error: err.message };
     }
@@ -82,6 +96,39 @@ function hookCommand(kitHome) {
 function entriesOf(settings) {
   const pre = settings?.hooks?.PreToolUse;
   return Array.isArray(pre) ? pre : [];
+}
+
+/**
+ * Is `hooks.PreToolUse` the shape the installer walks, entry by entry?
+ *
+ * The settings file belongs to the runtime, not to this kit: a hand edit, a merge, another
+ * tool's writer or a truncated sync can leave any node in it a type the walkers below do
+ * not expect. `readSettings` only proved the FILE was an object, so `[null]` in
+ * `PreToolUse` reached `settingsState` and threw
+ *
+ *     TypeError: Cannot read properties of null (reading 'hooks')
+ *         at installer.mjs:196 in Array.flatMap
+ *
+ * and `{"hooks": 5}` on one entry threw `(e.hooks ?? []).map is not a function`. Both
+ * arrived as a raw stack trace and exit 1 from `install-hooks.mjs`, the command an
+ * operator runs precisely because something looks wrong (found 2026-09-30, break-test).
+ * `doctor` survived it only because `gateHealth` wraps the call in its own try/catch.
+ *
+ * REFUSED, not repaired. A shape this module does not walk is a file it must not rewrite:
+ * tolerating the bad node and writing `kept` would drop the operator's own entries along
+ * with it, which is the silent data loss the `unfamiliar` state already exists to prevent.
+ * So the answer is the same one a settings file that does not parse at all gets.
+ *
+ * An entry with no `hooks` key at all is still the known shape: the walkers read
+ * `entry.hooks ?? []` and write `{ ...entry, hooks }`.
+ */
+function knownHookShape(settings) {
+  const pre = settings?.hooks?.PreToolUse;
+  if (pre === undefined) return true;
+  if (!Array.isArray(pre)) return false;
+  return pre.every((entry) => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry)
+    && (entry.hooks === undefined
+      || (Array.isArray(entry.hooks) && entry.hooks.every((hook) => Boolean(hook) && typeof hook === 'object'))));
 }
 
 /** What the installer replaced, so a rename that changes nothing does not stay silent. */
