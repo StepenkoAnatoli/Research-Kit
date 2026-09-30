@@ -4,12 +4,11 @@
 // Gathers material with the transport, so a BUILDER machine refuses it (exit 2).
 // It writes a checklist with statuses BLANK: the tool contains no judgment.
 
-import { parseFlags, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, checkFlagValues, listFiles, writeFailure } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal } from '../lib/machine.mjs';
 import { selectTransport, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES, unusedKeyNote } from '../lib/transport.mjs';
 import { decompose, searchSummary, resolveTopic, RECIPE_DIR } from '../lib/decompose.mjs';
 import { UNIVERSAL_DIMENSIONS } from '../lib/dimensions.mjs';
-import { listFiles } from '../lib/core.mjs';
 
 const { flags } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['help', 'topic', 'dry-run', 'force', 'limit', 'max-scrapes', 'recipe', 'recipes', 'transport', 'search-transport']);
@@ -131,6 +130,11 @@ try {
     log: (line) => process.stdout.write(`${line}\n`),
   });
 } catch (err) {
+  const why = writeFailure(err, root);
+  if (why) {
+    process.stderr.write(`${why}\n`);
+    process.exit(2);
+  }
   if (err.code === 'UNKNOWN_RECIPE' || err.code === 'INVALID_BUDGET') {
     process.stderr.write(`${err.message}\n`);
     process.exit(2);

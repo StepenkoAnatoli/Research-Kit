@@ -4,14 +4,11 @@
 // It PRINTS what lib/audit.mjs returns. It used to walk the raw index itself with a
 // second sort, which made the reader below it dead code and the ordering unsettleable.
 
-import { parseFlags, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, checkFlagValues, PATHS, kitCommand, writeFailure } from '../lib/core.mjs';
 import { writeAudit, listVersions, resolveVersion, zipAudit, readAuditFile } from '../lib/audit.mjs';
-import { PATHS } from '../lib/core.mjs';
 import { heading } from '../lib/render.mjs';
 import { isGated } from '../lib/gate.mjs';
 import { GATE_MARKERS } from '../lib/scaffold.mjs';
-
-import { kitCommand } from '../lib/core.mjs';
 const { flags } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['force', 'help', 'list', 'show', 'topic', 'version', 'zip']);
 checkFlagValues(flags, { topic: 'value', show: 'value', version: 'value' });
@@ -55,7 +52,15 @@ if (flags.zip) {
       process.exit(2);
     }
   }
-  const result = zipAudit(root, { topic: typeof flags.topic === 'string' ? flags.topic : '' });
+  let result;
+  try {
+    result = zipAudit(root, { topic: typeof flags.topic === 'string' ? flags.topic : '' });
+  } catch (err) {
+    const why = writeFailure(err, root);
+    if (!why) throw err;
+    process.stderr.write(`${why}\n`);
+    process.exit(2);
+  }
   if (!result.ok) {
     process.stderr.write(`${result.reason}\n`);
     if (result.known?.length) process.stderr.write(`known topics: ${result.known.join(', ')}\n`);
@@ -110,7 +115,15 @@ if (!isGated(root)) {
 // (found 2026-09-30, break-test).
 const held = listVersions(root).known;
 
-const result = writeAudit(root, { force: Boolean(flags.force) });
+let result;
+try {
+  result = writeAudit(root, { force: Boolean(flags.force) });
+} catch (err) {
+  const why = writeFailure(err, root);
+  if (!why) throw err;
+  process.stderr.write(`${why}\n`);
+  process.exit(2);
+}
 if (!result.written) {
   process.stdout.write(`${result.reason}\n`);
   process.exit(result.verdict && !result.verdict.pass ? 1 : 0);
