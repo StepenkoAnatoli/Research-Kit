@@ -292,6 +292,51 @@ test('a plan that does not parse is named as not parsing, not as empty', () => {
   assert.match(missing.err, /research\/nope\.json does not exist/, missing.err);
 });
 
+// Found 2026-09-30 (break-test): an audit's topic slug comes from the map's topic line - the
+// line phase 0 asks the operator to own - so refining that line starts a SECOND chain under a
+// new name. Nothing said so: the run printed `v0.1` and the command it recommended at the end,
+// `audit.mjs --zip`, then refused with "several topics hold audits and none was named".
+test('a refined topic line starts a new audit chain, the CLI says so, and its zip command works', () => {
+  const root = makePassingProject();
+  const first = run('audit.mjs', [], { root });
+  assert.equal(first.status, 0, first.all);
+  assert.match(first.out, /fixture-topic-v0\.1/, first.out);
+  assert.match(first.out, /bin[\\/]audit\.mjs --zip\n/, `one topic needs no --topic:\n${first.out}`);
+
+  const map = path.join(root, 'research', 'MAP.md');
+  fs.writeFileSync(map, fs.readFileSync(map, 'utf8').replace(/^## Topic\n\n(.+)$/m, '## Topic\n\n$1 (refined)'));
+  const second = run('audit.mjs', [], { root });
+  assert.equal(second.status, 0, second.all);
+  assert.match(second.out, /started a NEW topic/, `the fork was silent:\n${second.out}`);
+  assert.match(second.out, /under: fixture-topic\b/, second.out);
+
+  // The command the run prints is the one that works - that is the whole claim of that line.
+  const printed = second.out.split('\n').find((line) => line.includes('audit.mjs --zip'));
+  assert.ok(printed, `no zip command was printed:\n${second.out}`);
+  const named = /--topic (\S+)/.exec(printed);
+  assert.equal(named?.[1], 'fixture-topic-refined', printed);
+  const zipped = run('audit.mjs', ['--zip', '--topic', named[1]], { root });
+  assert.equal(zipped.status, 0, `the printed command failed:\n${zipped.all}`);
+});
+
+// Found 2026-09-30 (break-test): research.mjs reads the plan with JSON.parse, where the LAST of
+// two equal keys wins. The gate names the duplicate, but preflight runs after collection, so the
+// entry the operator pasted was not the entry collected - and the credits were already spent.
+test('research refuses a plan with a duplicate object key before it spends anything', () => {
+  const root = project('duplicate plan key');
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'),
+    '{"topic":"x","depth":"quick","urls":[{"url":"https://x.invalid/one","why":"U-1","url":"https://x.invalid/two","type":"P"}]}');
+  const r = run('research.mjs', ['--dry-run', '--transport', 'http-keyless'], { root });
+  assert.equal(r.status, 2, r.all);
+  assert.match(r.err, /duplicate object key "url"/, r.err);
+  assert.doesNotMatch(r.out, /x\.invalid/, `it still planned a fetch:\n${r.out}`);
+  // A sound plan is not refused, so the guard is not a blanket refusal.
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'),
+    '{"topic":"x","depth":"quick","urls":[{"url":"https://x.invalid/one","why":"U-1","type":"P"}]}');
+  const ok = run('research.mjs', ['--dry-run', '--transport', 'http-keyless'], { root });
+  assert.equal(ok.status, 0, `a sound plan was refused as well:\n${ok.all}`);
+});
+
 test('research reads a plan saved with a byte-order mark', () => {
   const root = planned('bom plan');
   const file = path.join(root, 'research', 'plan.json');

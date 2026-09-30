@@ -3,7 +3,7 @@
 
 import { test, describe, assert, makeProject, makePassingProject, fs } from './harness.mjs';
 import { PATHS, resolve, readText, listFiles } from '../lib/core.mjs';
-import { decompose, parseRecipe, loadRecipe, docsHosts, scrapeOrder, ownerOf, topicQueries, RECIPE_DIR, searchSummary, outlineOf } from '../lib/decompose.mjs';
+import { decompose, parseRecipe, loadRecipe, docsHosts, scrapeOrder, ownerOf, topicQueries, RECIPE_DIR, searchSummary, outlineOf, resolveTopic } from '../lib/decompose.mjs';
 import { UNIVERSAL_DIMENSIONS, seedRows, coverageOfUniversals } from '../lib/dimensions.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { searchUsage } from '../lib/research-run.mjs';
@@ -495,4 +495,22 @@ test('the scrape budget goes to the likely owners first, not to whatever ranked 
   const map = readText(resolve(dir, PATHS.map));
   assert.ok(map.indexOf('blog.elsewhere.com/example-limits') < map.indexOf('docs.example.com/limits'),
     'the candidate list keeps search order - only the scrape budget is re-ordered');
+});
+
+// Found 2026-09-30 (break-test): a duplicate object key in plan.json keeps only the LAST value
+// in JSON.parse, and decompose builds every search from that topic. So a project whose file
+// names two topics would spend its credits on the second while the operator reads the first -
+// and the gate that names the duplicate runs after collection, not before it.
+test('a duplicate topic key in plan.json is refused before decompose searches anything', () => {
+  const dir = makeProject();
+  fs.writeFileSync(resolve(dir, PATHS.plan), '{ "topic": "alpha subject", "topic": "beta subject", "depth": "quick" }');
+  const resolved = resolveTopic(dir, '');
+  assert.match(String(resolved.error ?? ''), /duplicate object key "topic"/, JSON.stringify(resolved));
+  assert.equal(resolved.topic, undefined, 'it picked one of the two values anyway');
+
+  // And a plan with one topic still resolves, so the guard is not a blanket refusal.
+  fs.writeFileSync(resolve(dir, PATHS.plan), '{ "topic": "one subject", "depth": "quick" }');
+  const ok = resolveTopic(dir, '');
+  assert.equal(ok.error, undefined, JSON.stringify(ok));
+  assert.equal(ok.topic, 'one subject');
 });
