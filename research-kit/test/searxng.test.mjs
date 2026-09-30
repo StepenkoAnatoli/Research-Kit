@@ -22,8 +22,13 @@ test('the request is GET <instance>/search with q and format=json, under a sub-p
   assert.equal(url.searchParams.get('q'), 'node fetch proxy');
   assert.equal(url.searchParams.get('format'), 'json');
   // An instance served under a path keeps it; a trailing slash or none makes no difference.
-  for (const base of ['https://example.org/searx', 'https://example.org/searx/']) {
-    assert.equal(searxng.requestUrl(base, 'q').pathname, '/searx/search', base);
+  for (const base of [
+    'https://example.org/searx', 'https://example.org/searx/',
+    'https://example.org/searx?theme=simple', 'https://example.org/searx#home',
+    'https://example.org/searx/?theme=simple#home',
+  ]) {
+    assert.equal(searxng.requestUrl(base, 'q').href,
+      'https://example.org/searx/search?q=q&format=json', base);
   }
 });
 

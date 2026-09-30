@@ -170,3 +170,31 @@ test('an export never reads a capture outside the project or one that is not a r
   for (const raw of raws) assert.ok(out.skipped.some((s) => s.file === raw && /outside the project/.test(s.reason)), `${raw} was not named as outside`);
   assert.ok(out.skipped.some((s) => s.file === 'research/raw/dir-as-capture' && /not a regular file/.test(s.reason)));
 });
+
+
+test('a capture replaced after its verified read cannot inject unverified bytes into the export', () => {
+  const dir = makePassingProject();
+  const scrape = readLedger(dir).entries.find((e) => e.op === 'scrape');
+  const target = path.join(dir, scrape.raw);
+  const expected = exportWarc(dir).bytes;
+  const read = fs.readFileSync;
+  let swapped = false;
+  let result;
+  try {
+    fs.readFileSync = function (file, ...args) {
+      const data = read.call(this, file, ...args);
+      // readCorpus first reads UTF-8; the buffer read is the hash verification boundary.
+      if (file === target && Buffer.isBuffer(data) && !swapped) {
+        swapped = true;
+        fs.writeFileSync(target, '---\ntitle: replaced\n---\nUNVERIFIED REPLACEMENT\n');
+      }
+      return data;
+    };
+    result = exportWarc(dir);
+  } finally {
+    fs.readFileSync = read;
+  }
+  assert.equal(swapped, true, 'the simulated concurrent refresh must actually happen');
+  assert.deepEqual(result.skipped, []);
+  assert.ok(result.bytes.equals(expected), 'only the original verified bytes may be exported');
+});

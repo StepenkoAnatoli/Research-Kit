@@ -88,7 +88,11 @@ export function requestUrl(instance, query) {
   if (!base) throw new Error(`not an http(s) URL: ${shownInstance(instance)}`);
   base.username = '';
   base.password = '';
-  const url = new URL('search', base.href.endsWith('/') ? base.href : `${base.href}/`);
+  // Append to the pathname, not href: a query or fragment must not swallow the slash.
+  base.pathname = `${base.pathname.replace(/\/$/, '')}/search`;
+  base.search = '';
+  base.hash = '';
+  const url = base;
   url.searchParams.set('q', String(query ?? ''));
   url.searchParams.set('format', 'json');
   return url;
