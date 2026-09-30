@@ -163,6 +163,13 @@ try {
   process.stderr.write(`${err.message}\n`);
   process.exit(2);
 }
+// An explicit search provider that cannot run (no key, no instance) is refused before anything
+// is searched. selectSearch reports it on the SELECTION; this passed only the provider module
+// to runResearch, whose own check therefore never fired (found 2026-09-30).
+if (spends && chosen.search.notReady) {
+  process.stderr.write(`${chosen.search.notReady}\n`);
+  process.exit(2);
+}
 
 // The last moment a prediction can still be a prediction. Printed rather than enforced:
 // a prior is optional, and a collector that refused without one would make the habit a

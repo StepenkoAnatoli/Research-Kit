@@ -193,6 +193,27 @@ test('a dry run says the most it could spend: page fetches and searches', () => 
   assert.match(dry.out, /at most\s+4 page fetch\(es\) and 2 search\(es\)/, `no total in the preview:\n${dry.out}`);
 });
 
+// Found 2026-09-30 wiring in the SearXNG provider: selectSearch reports an explicit provider
+// that cannot run (no key, no instance) as notReady, but research passed the provider MODULE
+// to runResearch, so its refusal never fired, and decompose had none. Both went on to fail
+// search by search, and decompose degraded to the fetch provider's search, which on
+// Firecrawl spends credits.
+test('an explicit search provider that cannot run is refused before anything is searched', () => {
+  const root = project('search-not-ready');
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({
+    topic: 'not ready', depth: 'quick', maxScrapes: 2, refreshDays: 30, limit: 8, perQuery: 3, prefer: [],
+    queries: [{ q: 'anything at all', why: 'U-1' }], urls: [],
+  }));
+  for (const [bin, extra] of [['research.mjs', ['--plan', 'research/plan.json']], ['decompose.mjs', []]]) {
+    for (const [provider, names] of [['serpapi', /SERPAPI_API_KEY/], ['searxng', /SEARXNG_URL/]]) {
+      const r = run(bin, [...extra, '--transport', 'http-keyless', '--search-transport', provider], { root });
+      assert.notEqual(r.status, 0, `${bin} --search-transport ${provider} ran with the provider unready:\n${r.out}${r.err}`);
+      assert.match(r.err, names, `${bin} ${provider}: ${r.err}`);
+      assert.doesNotMatch(r.out + r.err, /search failed/, `${bin} ${provider} searched before refusing`);
+    }
+  }
+});
+
 // ADR-0086: the fallback is announced before a run, and --no-fallback is a real flag. A
 // run already on http-keyless has nothing to fall back to, so nothing is announced.
 test('research names its credit fallback, and --no-fallback is accepted', () => {
