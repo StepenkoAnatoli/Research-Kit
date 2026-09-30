@@ -222,11 +222,31 @@ function stringifyInputs(inputs) {
 
 // ---------------------------------------------------------------- waiting
 
+/**
+ * A 200 whose body is not JSON, as a DispatchError rather than a raw SyntaxError.
+ *
+ * dispatchCollection already guarded its body; getRun and listArtifacts did not. A 200 with
+ * an HTML body - a maintenance page, a TLS-inspecting proxy, an edge cache under load -
+ * threw `SyntaxError: Unexpected token <` straight out, and collect-remote reported it only
+ * as UNKNOWN, with no status and no remedy (found 2026-09-30, break-test). The parser's
+ * first line is kept: it usually shows the doctype or the cache's own error text.
+ */
+async function readJsonBody(response, what) {
+  try {
+    return await response.json();
+  } catch (err) {
+    throw new DispatchError('BAD_BODY', `${what}: HTTP ${response.status} returned a body that is not JSON (${String(err.message).split('\n')[0]})`, {
+      status: response.status,
+      remedy: 'a JSON API answering with HTML is usually a proxy or a maintenance page - retry, then check api.github.com',
+    });
+  }
+}
+
 export async function getRun({ repository, runId, token, fetch: doFetch = globalThis.fetch, api = GITHUB_API }) {
   const [owner, name] = splitRepository(repository);
   const response = await doFetch(`${api}/repos/${owner}/${name}/actions/runs/${runId}`, { headers: headers(token) });
   if (!response.ok) throw new DispatchError('HTTP', `could not read run ${runId}: HTTP ${response.status}`, { status: response.status });
-  return response.json();
+  return readJsonBody(response, `could not read run ${runId}`);
 }
 
 /**
@@ -268,7 +288,7 @@ export async function listArtifacts({ repository, runId, token, fetch: doFetch =
   const [owner, name] = splitRepository(repository);
   const response = await doFetch(`${api}/repos/${owner}/${name}/actions/runs/${runId}/artifacts`, { headers: headers(token) });
   if (!response.ok) throw new DispatchError('HTTP', `could not list artifacts for run ${runId}: HTTP ${response.status}`, { status: response.status });
-  const body = await response.json();
+  const body = await readJsonBody(response, `could not list artifacts for run ${runId}`);
   return body.artifacts ?? [];
 }
 
