@@ -189,6 +189,40 @@ test('a malformed row in a Firecrawl payload is dropped, not fatal to the rows b
   assert.deepEqual(firecrawl.normalizeMap('{"links":[null,7,{"url":"https://b.invalid"},"https://a.invalid"]}'), ['https://b.invalid', 'https://a.invalid']);
 });
 
+// Found 2026-09-30 (break-test, PR #172): the Firecrawl parsers dropped a malformed ROW but
+// read a FIELD of the wrong type as the value. `{ url: { href } }` and `{ url: 42 }` became
+// candidates, and a scrape whose metadata.sourceURL was an object was written as a capture
+// named `...-object-object-...md` with `url: [object Object]` - a URL the kit never fetched,
+// recorded in the ledger. serpapi and searxng read such a field as empty; one hostile shape
+// goes to all three here, so they cannot drift apart again.
+test('every vendor parser reads a field of the wrong type as empty, the same way', async () => {
+  const { normalizeSearch: serpapiSearch } = await import('../lib/serpapi.mjs');
+  const { normalizeSearch: searxngSearch } = await import('../lib/searxng.mjs');
+  const hostile = { url: { href: 'https://a.invalid' }, link: 42, title: {}, description: [], snippet: 7, content: {}, position: '2' };
+  assert.deepEqual(firecrawl.normalizeSearch(JSON.stringify({ data: { web: [hostile] } })), [], 'firecrawl kept a row with no string URL');
+  assert.deepEqual(serpapiSearch({ organic_results: [hostile] }), []);
+  assert.deepEqual(searxngSearch({ results: [hostile] }), []);
+  // A row with a real URL keeps it, and its wrong-typed fields read as empty.
+  const kept = { ...hostile, url: 'https://ok.invalid' };
+  assert.deepEqual(firecrawl.normalizeSearch(JSON.stringify({ data: { web: [kept] } })),
+    [{ url: 'https://ok.invalid', title: '', description: '', position: null }]);
+
+  // A scrape: the requested URL stands in when the vendor's is not a string, a real one is
+  // still preferred, a string or number status still reaches the error-page rule, and a
+  // body that is not text is not written as "[object Object]".
+  const scrape = (data) => firecrawl.normalizeScrape(JSON.stringify({ data }), 'https://requested.invalid');
+  const body = 'x'.repeat(1600);
+  assert.equal(scrape({ markdown: body, metadata: { sourceURL: { href: 'https://a.invalid' }, title: {} } }).url, 'https://requested.invalid');
+  assert.equal(scrape({ markdown: body, metadata: { title: {} }, title: [] }).title, '');
+  assert.equal(scrape({ markdown: body, metadata: { sourceURL: 'https://a.invalid/l', statusCode: 200 } }).url, 'https://a.invalid/l');
+  assert.equal(scrape({ markdown: body, metadata: { statusCode: 200 } }).statusCode, 200);
+  assert.equal(scrape({ markdown: body, metadata: { statusCode: '503' } }).statusCode, '503');
+  assert.equal(scrape({ markdown: body, metadata: { statusCode: {} } }).statusCode, '', 'an object is not a status code');
+  const objectBody = scrape({ markdown: { text: 'x' }, content: body });
+  assert.equal(objectBody.markdown, body, 'a body that is not text must fall through to the next field');
+  assert.doesNotMatch(scrape({ markdown: {} }).markdown, /\[object Object\]/);
+});
+
 test('parseStatus reads what it can and reports null for what is not there', () => {
   // This invented sample is what the parser was written against before a key existed:
   // a number BEFORE the word "credits". The real CLI prints "Credits: 949 / 1,000", so
