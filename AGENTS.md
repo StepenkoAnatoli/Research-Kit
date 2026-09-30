@@ -112,7 +112,9 @@ cd docs/decisions/<date>-<decision-name>
 ```
 
 Then work there exactly as in any project, and **commit the corpus including
-`research/raw/.fetches.jsonl`**. The worked example is
+`research/raw/.fetches.jsonl`**. Add the project's row to `docs/decisions/README.md` in the same commit (ADR-0102).
+Nothing in `docs/decisions/` is ever moved or deleted; the index says which projects still
+carry a decision. The worked example is
 `docs/decisions/2026-09-21-delivery-architecture/`.
 
 Two things this rule exists to prevent, both of which have already happened once:
