@@ -776,3 +776,33 @@ test('a page built from a run of sections keeps the run, not the densest one', a
   assert.equal(grade(markdown, extraction).completeness, 'full', grade(markdown, extraction).omitted);
   assert.doesNotMatch(markdown, /Link 12/, 'the navigation stays out');
 });
+
+// Found 2026-09-30 (break-test): every network failure in the keyless and SerpAPI children
+// read "fetch failed". Node keeps the reason on err.cause, so an offline machine, a mistyped
+// host and a refused port looked the same.
+test('a failed fetch names its cause, and a URL in the cause shows only its host', async () => {
+  const { fetchFailure } = await import('../lib/runtime.mjs');
+  const dns = Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('getaddrinfo ENOTFOUND no-such.invalid'), { code: 'ENOTFOUND' }) });
+  assert.equal(fetchFailure(dns), 'fetch failed (getaddrinfo ENOTFOUND no-such.invalid)');
+  const refused = Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new AggregateError([], ''), { code: 'ECONNREFUSED' }) });
+  assert.equal(fetchFailure(refused), 'fetch failed (ECONNREFUSED)');
+  const keyed = Object.assign(new TypeError('fetch failed'), { cause: new Error('bad response from https://serpapi.com/search.json?api_key=SECRET&q=x') });
+  assert.doesNotMatch(fetchFailure(keyed), /SECRET|api_key/);
+  assert.match(fetchFailure(keyed), /serpapi\.com/);
+  assert.equal(fetchFailure(new Error('plain')), 'plain');
+  assert.equal(fetchFailure('text'), 'text');
+});
+
+test('a keyless fetch of a refused port says the connection was refused', async () => {
+  const http = await import('node:http');
+  const server = http.createServer();
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  const { port } = server.address();
+  await new Promise((done) => server.close(done));
+  const env = Object.fromEntries(Object.entries(process.env)
+    .filter(([name]) => !['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].includes(name)));
+  const { scrape } = await import('../lib/http-transport.mjs');
+  const r = scrape(`http://127.0.0.1:${port}/`, { env, timeout: 20_000 });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /ECONNREFUSED/, r.error);
+});

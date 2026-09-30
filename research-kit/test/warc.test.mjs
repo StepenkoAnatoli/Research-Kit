@@ -132,7 +132,13 @@ test('the default export is ignored by git, in a scaffolded project and in this 
   assert.equal(r.status, 0, r.stderr);
   assert.equal(spawnSync('git', ['check-ignore', '-q', 'research-corpus.warc.gz'], { cwd: dir }).status, 0,
     'a scaffolded project does not ignore the default export');
+  // The repository's own rule is checked in a fresh repository holding a copy of its
+  // .gitignore: a ZIP download or `git archive` tree has no .git, and check-ignore there
+  // exits 128, which read as "the rule is missing" (found 2026-09-30, break-test).
   const repo = fileURLToPath(new URL('../..', import.meta.url));
-  assert.equal(spawnSync('git', ['check-ignore', '-q', '--no-index', 'research-corpus.warc.gz'], { cwd: repo }).status, 0,
+  const probe = tempDir();
+  spawnSync('git', ['init', '-q'], { cwd: probe });
+  fs.copyFileSync(path.join(repo, '.gitignore'), path.join(probe, '.gitignore'));
+  assert.equal(spawnSync('git', ['check-ignore', '-q', '--no-index', 'research-corpus.warc.gz'], { cwd: probe }).status, 0,
     'the kit repository does not ignore the default export');
 });
