@@ -12,7 +12,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { test, describe, assert, tempDir, fs, path, KIT_ROOT, makePassingProject } from './harness.mjs';
+import { test, describe, assert, tempDir, fs, path, KIT_ROOT, makePassingProject, Unsupported } from './harness.mjs';
 import { renderBrief } from '../lib/brief.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
 import { spellCommand, documentCommand, parseFlags, writeFailure, writeText } from '../lib/core.mjs';
@@ -1172,6 +1172,42 @@ test('install names a mkdir through a dangling link, exits 2, and prints no stac
   try { fs.symlinkSync(path.join(home, 'nowhere'), path.join(home, '.agents'), 'dir'); } catch { return; } // no symlink rights (Windows)
   writeRefused(run('install.mjs', [], { root: home, env: { HOME: home, USERPROFILE: home, RESEARCH_KIT_HOME: path.join(home, '.agents', 'research-kit'), RESEARCH_KIT_CONFIG: path.join(home, 'c.json') } }),
     'install.mjs', '.agents');
+});
+
+// Found 2026-09-30 (break-test, PR #172): `install.mjs | head` - a pager quit, `grep -m1`,
+// a log capture that stops reading - made install's next write an UNHANDLED 'error' event:
+// a raw stack and exit 1 over a deploy that SUCCEEDED, which reads as a failed install.
+// selftest.mjs and mcp-server.mjs install tolerateClosedStdout; install did not. A REAL pipe,
+// as the mcp test does it, because the kernel's EPIPE only exists on one; bash for PIPESTATUS.
+test('install whose reader leaves early still reports its deploy as done, with no stack', () => {
+  const candidates = ['bash', 'C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files\\Git\\usr\\bin\\bash.exe'];
+  const BASH = candidates.find((candidate) => spawnSync(candidate, ['-c', 'echo ok'],
+    { encoding: 'utf8', timeout: 10_000, windowsHide: true }).stdout?.trim() === 'ok') ?? null;
+  const headWorks = BASH !== null && spawnSync(BASH, ['-c', 'printf abc | head -c 1'],
+    { encoding: 'utf8', timeout: 10_000, windowsHide: true }).stdout === 'a';
+  if (!BASH || !headWorks) {
+    throw new Unsupported('NO_BASH_HEAD', 'a bash with coreutils head is not on PATH here, and this check needs a real pipeline');
+  }
+  const home = tempDir('rk-install-epipe-');
+  const errFile = path.join(home, 'install-stderr.log');
+  const script = `${JSON.stringify(process.execPath)} "$1" 2> "$2" | head -c 1 > /dev/null; exit "\${PIPESTATUS[0]}"`;
+  const r = spawnSync(BASH, ['-c', script, 'rk', path.join(KIT_ROOT, 'bin', 'install.mjs'), errFile], {
+    cwd: home, encoding: 'utf8', timeout: 60_000, windowsHide: true,
+    env: { ...process.env, HOME: home, USERPROFILE: home, RESEARCH_KIT_HOME: path.join(home, '.agents', 'research-kit'), RESEARCH_KIT_CONFIG: path.join(home, 'c.json') },
+  });
+  const said = fs.existsSync(errFile) ? fs.readFileSync(errFile, 'utf8') : '';
+  assert.doesNotMatch(said, /EPIPE|Unhandled|node:events/, `a reader leaving reached install as a crash:\n${said.slice(0, 600)}`);
+  assert.equal(r.status, 0, `a deploy that succeeded exited ${r.status}:\n${said.slice(0, 600)}`);
+  assert.ok(fs.existsSync(path.join(home, '.agents', 'research-kit')), 'the deploy did not happen, so this proves nothing');
+});
+
+// The guard only helps if it is in place before the write that fails.
+test('install installs the closed-stdout guard before it writes its first byte', () => {
+  const source = fs.readFileSync(path.join(KIT_ROOT, 'bin', 'install.mjs'), 'utf8');
+  const call = source.indexOf('tolerateClosedStdout()');
+  const firstWrite = source.indexOf('process.stdout.write');
+  assert.ok(call !== -1, 'install.mjs does not tolerate a closed stdout (2026-09-30)');
+  assert.ok(call < firstWrite, `the guard is installed after the first write (write at ${firstWrite}, guard at ${call})`);
 });
 
 // Found 2026-09-30 (break-test, PR #172): the atomic write's scratch was the whole target

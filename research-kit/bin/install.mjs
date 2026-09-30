@@ -2,13 +2,17 @@
 // bin/install.mjs - deploy the kit and the skill; role-aware next steps.
 
 import path from 'node:path';
-import { parseFlags, refuseUnknownFlags, checkFlagValues, writeFailure } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, checkFlagValues, writeFailure, spellCommand, tolerateClosedStdout } from '../lib/core.mjs';
 import { deploy } from '../lib/installer.mjs';
 import { machineRole, KIT_HOME } from '../lib/machine.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 import { heading } from '../lib/render.mjs';
 
-import { spellCommand } from '../lib/core.mjs';
+// Before the first write: a reader that leaves early - `| head`, a pager quit - made the next
+// write an unhandled 'error' event, a stack and exit 1 over a deploy that SUCCEEDED (found
+// 2026-09-30, break-test). A refused stdout is named in words, exit 2, as selftest's is.
+tolerateClosedStdout();
+
 const { flags } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['help', 'dry-run', 'into']);
 checkFlagValues(flags, { into: 'value' });

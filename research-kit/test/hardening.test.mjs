@@ -607,7 +607,9 @@ test('a package write cut short leaves the file it was replacing untouched', () 
 // suite prints ~99 KB (measured), the pipe buffer is 64 KB, and Node turns the write that
 // no longer fits into an unhandled 'error' event: a raw stack, exit 1, and the result file
 // never written - a green run reporting itself as broken, which is the confusion this kit
-// refuses everywhere else. Every other entrypoint was measured under the buffer.
+// refuses everywhere else. "Every other entrypoint was measured under the buffer" was true of
+// the SIZE and missed the point: a reader that leaves early is enough at any size, so
+// mcp-server.mjs (2026-09-30) and install.mjs (2026-09-30, PR #172) install the guard too.
 test('tolerateClosedStdout drops writes after EPIPE and lets other errors through', async () => {
   const { EventEmitter } = await import('node:events');
   const stream = new EventEmitter();

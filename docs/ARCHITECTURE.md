@@ -197,7 +197,7 @@ a flag-driven failure with the policy name told a reader the policy had failed t
 `gate.mjs`
 (→ evaluate; `--staged-stdin` reads the piped path list; `--posture` answers 0 allow /
 1 fail-closed / 2 unreadable-and-closed, so no shell has to parse JSON), `doctor.mjs` (`--fix-arity`), `install.mjs` (deploy + `--into` per-project
-binding, role-aware next steps), `install-hooks.mjs` (`--fail-closed`, `--role`),
+binding, role-aware next steps; `tolerateClosedStdout` before its first write, so a reader that leaves early does not turn a finished deploy into exit 1, 2026-09-30), `install-hooks.mjs` (`--fail-closed`, `--role`),
 `new-project.mjs` (its first next step omits `--topic` once the project has one, ADR-0056), `decompose.mjs` (phase 0 CLI, refused on a builder by role),
 `timeline.mjs`, `audit.mjs` (lists and resolves versions through the manifest's
 reader), `brief.mjs` (drafts the handoff and reports the brief's state; it,
