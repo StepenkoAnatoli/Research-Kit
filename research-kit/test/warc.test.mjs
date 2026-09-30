@@ -142,3 +142,21 @@ test('the default export is ignored by git, in a scaffolded project and in this 
   assert.equal(spawnSync('git', ['check-ignore', '-q', '--no-index', 'research-corpus.warc.gz'], { cwd: probe }).status, 0,
     'the kit repository does not ignore the default export');
 });
+
+// Found 2026-09-30 (outside break-test): exportWarc read every ledger-named capture with
+// readFileSync, so an entry naming a file outside the project - by ../ or by a link under
+// research/raw - packed that file into the archive, and a FIFO there would hang the export.
+test('an export never reads a capture outside the project or one that is not a regular file', () => {
+  const dir = makePassingProject();
+  const outside = path.join(tempDir('rk-outside-'), 'secret.md');
+  fs.writeFileSync(outside, '---\ntitle: s\n---\nTOP_SECRET_OUTSIDE\n');
+  const raws = [path.relative(dir, outside).split(path.sep).join('/')];
+  try { fs.symlinkSync(outside, path.join(dir, 'research', 'raw', 'link.md')); raws.push('research/raw/link.md'); } catch { /* no symlink rights */ }
+  fs.mkdirSync(path.join(dir, 'research', 'raw', 'dir-as-capture'));
+  const lines = [...raws, 'research/raw/dir-as-capture'].map((raw, i) => JSON.stringify({ seq: 90 + i, op: 'scrape', url: `https://x.invalid/${i}`, raw }));
+  fs.appendFileSync(path.join(dir, PATHS.ledger), `${lines.join('\n')}\n`);
+  const out = exportWarc(dir);
+  assert.ok(!zlib.gunzipSync(out.bytes).toString('latin1').includes('TOP_SECRET_OUTSIDE'), 'a file outside the project was exported');
+  for (const raw of raws) assert.ok(out.skipped.some((s) => s.file === raw && /outside the project/.test(s.reason)), `${raw} was not named as outside`);
+  assert.ok(out.skipped.some((s) => s.file === 'research/raw/dir-as-capture' && /not a regular file/.test(s.reason)));
+});
