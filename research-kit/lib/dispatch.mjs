@@ -24,6 +24,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { writeBytes, tempBase } from './core.mjs';
+import { fetchFailure } from './runtime.mjs';
 import { openZip } from './artifact-zip.mjs';
 import { validateArtifact } from './artifact-validator.mjs';
 
@@ -159,7 +160,13 @@ export async function dispatchCollection({
       body: JSON.stringify({ ref, inputs: stringifyInputs(inputs), return_run_details: true }),
     });
   } catch (err) {
-    throw new DispatchError('NETWORK', `could not reach ${api}: ${redact(err.message)}`,
+    // The CAUSE, not the bare `fetch failed` Node throws. Every other fetching seam in this
+    // kit already does this (ADR-0047, `fetchFailure`): a dispatch that never left used to
+    // read "could not reach https://api.github.com: fetch failed", which is the same sentence
+    // a mistyped proxy, a DNS failure and a TLS-inspecting middlebox produce - and the caller
+    // is an agent whose only next step is to guess. Reproduced 2026-09-30 on a host with no
+    // egress to api.github.com, where the cause was "unable to verify the first certificate".
+    throw new DispatchError('NETWORK', `could not reach ${api}: ${redact(fetchFailure(err))}`,
       { remedy: 'check connectivity, then retry - a dispatch that never left is safe to repeat' });
   }
 

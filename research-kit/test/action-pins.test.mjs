@@ -44,3 +44,20 @@ test('an API error that is not "no such commit" is not reported as a dead pin', 
   assert.equal(result.unknown.length, 1);
   assert.equal(result.ok, false, 'an unchecked pin is not a passing check either');
 });
+
+// Found 2026-09-30 on a host with no egress to api.github.com: every pin printed
+// `request failed: fetch failed`, which is also what a mistyped proxy, a DNS failure and a
+// TLS rejection produce - so the one line a weekly check prints when it cannot do its job
+// named none of them. `fetchFailure` is the kit's existing answer (ADR-0047).
+test('a request that never left names its cause, not the bare "fetch failed"', async () => {
+  const { checkPins } = await load();
+  const pin = { owner: 'actions', repo: 'checkout', sha: 'a'.repeat(40), tag: '' };
+  const boom = () => { const err = new TypeError('fetch failed'); err.cause = { code: 'ENOTFOUND', message: 'getaddrinfo ENOTFOUND api.github.com' }; throw err; };
+  const result = await checkPins([pin], { fetch: boom, token: '' });
+  assert.equal(result.unknown.length, 1);
+  assert.match(result.unknown[0].detail, /ENOTFOUND/);
+  assert.doesNotMatch(result.unknown[0].detail, /^request failed: fetch failed$/, 'the cause was dropped');
+  // A rejection with no cause at all still reports something, rather than "undefined".
+  const bare = await checkPins([pin], { fetch: () => { throw new TypeError('fetch failed'); }, token: '' });
+  assert.match(bare.unknown[0].detail, /request failed: fetch failed/);
+});

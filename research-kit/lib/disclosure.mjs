@@ -26,6 +26,13 @@ export const PROBES = Object.freeze([
   { id: 'secrets', label: 'repository secrets', path: (r) => `/repos/${r}/actions/secrets` },
 ]);
 
+// A probe that cannot be reached names its CAUSE, as every other fetching seam in this kit
+// does (ADR-0047). `unreachable: fetch failed` is the same sentence a proxy, a DNS failure
+// and a TLS-inspecting middlebox produce, and this module's whole subject is what a
+// stranger can see - so a stranger running it on a restricted network got no answer about
+// WHICH of those it was (reproduced 2026-09-30, break-test).
+import { fetchFailure } from './runtime.mjs';
+
 const API = 'https://api.github.com';
 
 /** No Authorization header, ever. That absence is the whole method. */
@@ -52,7 +59,7 @@ export async function probeRun({ repository, runId, needle = null, fetch: doFetc
       status = response.status;
       body = await response.text();
     } catch (error) {
-      findings.push({ id: probe.id, label: probe.label, status: 0, readable: false, leaksNeedle: false, note: `unreachable: ${error.message}` });
+      findings.push({ id: probe.id, label: probe.label, status: 0, readable: false, leaksNeedle: false, note: `unreachable: ${fetchFailure(error)}` });
       continue;
     }
     findings.push({
@@ -94,7 +101,7 @@ export async function probeRun({ repository, runId, needle = null, fetch: doFetc
         leaksNeedle: Boolean(needle) && body.toLowerCase().includes(String(needle).toLowerCase()),
       });
     } catch (error) {
-      findings.push({ id, label, status: 0, readable: false, leaksNeedle: false, note: `unreachable: ${error.message}` });
+      findings.push({ id, label, status: 0, readable: false, leaksNeedle: false, note: `unreachable: ${fetchFailure(error)}` });
     }
   }
 

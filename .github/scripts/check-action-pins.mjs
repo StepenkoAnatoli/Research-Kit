@@ -10,6 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fetchFailure } from '../../research-kit/lib/runtime.mjs';
 
 const USES = /uses:\s*([\w.-]+)\/([\w.-]+)(?:\/[^@\s]*)?@([0-9a-f]{40})\b(?:[^\n#]*#\s*(v[\w.-]+))?/g;
 
@@ -29,6 +30,14 @@ export function pinnedActions(texts) {
  * Ask GitHub for each pinned commit. 404 or 422 means the pin is dead (no such repository or
  * no such commit). Any other failure - a rate limit, an outage - says nothing about the pin, so
  * it is reported as unchecked, never as dead, and the check still does not pass.
+ *
+ * A request that never left is named by its CAUSE, not as the bare `fetch failed` Node throws.
+ * Reproduced 2026-09-30 on a host with no egress to api.github.com: all four pins printed
+ * `request failed: fetch failed`, which is the same line a mistyped proxy, a DNS failure and a
+ * TLS rejection produce - so the one line a weekly check prints when it cannot do its job said
+ * nothing about which of those it was. `fetchFailure` is the kit's existing answer to exactly
+ * this (ADR-0047); a helper whose whole job is to explain a fetch should not be bypassed by the
+ * script that most often runs where fetches are constrained.
  */
 export async function checkPins(pins, { fetch = globalThis.fetch, token = '' } = {}) {
   const dead = [];
@@ -39,7 +48,7 @@ export async function checkPins(pins, { fetch = globalThis.fetch, token = '' } =
     try {
       res = await fetch(url, { headers: { Accept: 'application/vnd.github+json', ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
     } catch (err) {
-      unknown.push({ ...pin, detail: `request failed: ${err.message}` });
+      unknown.push({ ...pin, detail: `request failed: ${fetchFailure(err)}` });
       continue;
     }
     if (res.ok) continue;
