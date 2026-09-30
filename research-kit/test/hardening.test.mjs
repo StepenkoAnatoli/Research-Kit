@@ -456,8 +456,13 @@ test('PP: with neither, the config sits under the RESEARCH_KIT_HOME agents root'
 
 // --- F21: a refresh triggers claim review, it does not substitute silently ---------
 
+// E-01 is dated 2020-01-01, not today: E-02 is 2026-12-01, and "E-02 supersedes E-01" needs E-02
+// to be the LATER date. With E-01 dated `today()` these two tests passed until 2026-12-01 and
+// failed on that day and every day after - a red suite with no code change (found 2026-09-30,
+// break-test, by running the suite with the clock moved forward). The third F21 test below
+// already pinned its dates; these two now do the same.
 test('F21: an unknown still citing a superseded row FAILS, naming the replacement', () => {
-  const dir = makePassingProject();
+  const dir = makePassingProject(undefined, { date: '2020-01-01' });
   // A forced re-collection of the same URL, as `--refresh-days` produces.
   corrupt(dir, PATHS.evidence, (t) => `${t}| E-02 | 2026-12-01 | P | https://example.invalid/docs/limits | The free plan now allows 20 requests per minute. | research/raw/newer.md |\n`);
   writeText(resolve(dir, 'research/raw/newer.md'), '---\nurl: https://example.invalid/docs/limits\nretrieved: 2026-12-01\n---\n\nbody\n');
@@ -471,7 +476,7 @@ test('F21: an unknown still citing a superseded row FAILS, naming the replacemen
 });
 
 test('F21: once the citation moves, the check passes and the old capture is kept', () => {
-  const dir = makePassingProject();
+  const dir = makePassingProject(undefined, { date: '2020-01-01' });
   corrupt(dir, PATHS.evidence, (t) => `${t}| E-02 | 2026-12-01 | P | https://example.invalid/docs/limits | The free plan now allows 20 requests per minute. | research/raw/newer.md |\n`);
   writeText(resolve(dir, 'research/raw/newer.md'), '---\nurl: https://example.invalid/docs/limits\nretrieved: 2026-12-01\n---\n\nbody\n');
   corrupt(dir, PATHS.discovery, (t) => t.replace('E-01:', 'E-02:'));

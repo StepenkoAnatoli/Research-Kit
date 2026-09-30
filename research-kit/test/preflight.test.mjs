@@ -148,7 +148,9 @@ test('runPreflight accepts a pre-read corpus, so a caller does not pay twice', (
 
 test('the maxAgeDays that judges staleness is the operator\'s, not a constant', () => {
   const dir = makePassingProject(undefined, { date: '2026-01-01' });
-  const generous = runPreflight(dir, { env: envWith({ maxAgeDays: 3650 }) });
+  // 36500 days, not 3650: a ten-year window over a 2026 capture closes on 2035-12-30, and this
+  // test would then fail with no code change (found 2026-09-30, break-test).
+  const generous = runPreflight(dir, { env: envWith({ maxAgeDays: 36500 }) });
   assert.equal(generous.warnings.some((f) => f.rule === 'stale-evidence'), false);
 
   const tight = runPreflight(dir, { env: envWith({ maxAgeDays: 7 }) });

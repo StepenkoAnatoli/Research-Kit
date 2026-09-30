@@ -753,13 +753,15 @@ test('a duplicated evidence row is not reported as superseded by itself', () => 
 
 // Found 2026-09-27: a Retrieved date of 2030-01-01 passed without a word. No page was fetched in
 // the future, and a future date also hides the row's age from every freshness check.
+// The date is 2099-01-01 since 2026-09-30 (break-test): 2030-01-01 stops being the future on
+// 2030-01-01, and this test would then fail with no code change.
 test('a retrieval date in the future fails hygiene', () => {
   const dir = makePassingProject();
-  corrupt(dir, PATHS.evidence, (text) => text.replace(/^(\| E-01 \| )\d{4}-\d{2}-\d{2}/m, '$12030-01-01'));
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/^(\| E-01 \| )\d{4}-\d{2}-\d{2}/m, '$12099-01-01'));
   const f = runCheck('hygiene', snapshot(dir)).find((x) => x.rule === 'future-date');
   assert.ok(f, 'no finding for a date in the future');
   assert.equal(f.severity, 'fail');
-  assert.match(f.detail, /E-01 has retrieval date 2030-01-01, which is in the future/);
+  assert.match(f.detail, /E-01 has retrieval date 2099-01-01, which is in the future/);
 });
 
 // Found 2026-09-27: renaming "## Build intent" (to "## Intent") failed as "## Build intent is
