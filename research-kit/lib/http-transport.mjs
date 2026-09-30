@@ -254,7 +254,8 @@ export function command(argv) {
  * 2026-09-26: a complete 748-character GitHub API response was graded `partial` by the
  * HTML length bar.
  * `binary` - PDF, images, archives: `response.text()` is not a faithful copy of these, so
- * the capture is never graded full, and the reason names the type.
+ * `scrape` refuses them by name and keeps no capture (ADR-0105). They had been kept and
+ * graded partial, which put megabytes of unrecoverable text into a committed corpus.
  */
 export function bodyKind(contentType) {
   const type = String(contentType ?? '').split(';')[0].trim().toLowerCase();
@@ -264,12 +265,10 @@ export function bodyKind(contentType) {
   return 'binary';
 }
 
-function verbatim(url, job, argv, kind) {
+function verbatim(url, job, argv) {
   const body = job.body ?? '';
-  const type = String(job.contentType ?? '').split(';')[0].trim();
   const reasons = [];
   if (!body.length) reasons.push('the response body was empty');
-  if (kind === 'binary') reasons.push(`the response is ${type}, which is not text; this capture is not a faithful copy of it`);
   return {
     ok: true,
     url: job.url ?? url,
@@ -288,7 +287,15 @@ export function scrape(url, opts = {}) {
   const job = runJob({ kind: 'fetch', url: String(url) }, opts);
   if (!job.ok) return { ok: false, url, error: job.error, cmd: command(argv), transport: name };
   const kind = bodyKind(job.contentType);
-  if (kind !== 'html') return verbatim(url, job, argv, kind);
+  // A binary body is refused, not kept (ADR-0105). Read as text it loses every byte UTF-8
+  // cannot hold, so the capture could neither be reopened as the file nor hold a quote.
+  if (kind === 'binary') {
+    const type = String(job.contentType ?? '').split(';')[0].trim();
+    return { ok: false, url, cmd: command(argv), transport: name,
+      error: `the response is ${type}, which is not text - the keyless transport cannot keep a faithful copy of it. `
+        + 'Fetch it with --transport firecrawl-cli, which converts documents such as PDFs to text, or cite an HTML page that carries the same text.' };
+  }
+  if (kind !== 'html') return verbatim(url, job, argv);
   const html = job.body ?? '';
   const extraction = mainContent(html);
   const markdown = htmlToMarkdown(extraction.html);
