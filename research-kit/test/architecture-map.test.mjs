@@ -444,6 +444,8 @@ test('CI runs the suite once from a git archive tree, and the required check wai
   const job = text.slice(at, text.indexOf('\n  suite:\n'));
   assert(/git archive/.test(job), 'the archive-tree job does not export with git archive');
   assert(/bin\/selftest\.mjs/.test(job), 'the archive-tree job does not run the suite');
+  // A folder name with a space, as a Windows home or a renamed download has (2026-09-30).
+  assert(/tree="\$RUNNER_TEMP\/[^"]* [^"]*"/.test(job), 'the archive-tree job no longer runs from a path with a space');
   assert(/needs: \[[^\]]*\barchive-tree\b[^\]]*\]/.test(text), 'the required suite check does not wait for archive-tree');
   assert(/needs\.archive-tree\.result/.test(text), 'the required suite check does not read archive-tree\'s result');
 });
