@@ -73,7 +73,10 @@ about defects that were already fixed. Nothing was deleted; it was moved and lin
 ```
 
 Release validation is a **separate path** — it shares the canonical primitives and nothing
-else, and it never touches the corpus:
+else, and it never touches the corpus. It is also **optional**: decompose, research, preflight, the
+gate, the brief and handoff import none of it, so the research protocol runs the same with or
+without it. It came from an older tree under ADR-0029's porting rules, and whether it stays
+is an open decision (2026-09-30):
 
 ```
  bin/researcher-release.mjs ──── validate | conform | fi-validate

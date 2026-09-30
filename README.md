@@ -389,8 +389,11 @@ node research-kit/bin/install-hooks.mjs                  # a collector (the defa
 node research-kit/bin/install-hooks.mjs --role builder   # instead, on a build machine
 ```
 
-**3. See a validator actually work, before you own any data.** Six synthetic packages —
-one that passes, five that fail one way each:
+**3. See a validator actually work, before you own any data.** This step is optional. The
+release-evidence validators are a separate layer
+([ADR-0029](docs/adr/0029-the-validator-layer-arrives-as-a-source-not-a-donor.md)): research,
+preflight and the gates never use them, so skip to step 4 if you only research. Six synthetic
+packages, one that passes and five that fail one way each:
 
 ```bash
 node research-kit/examples/release-evidence/run-example.mjs
