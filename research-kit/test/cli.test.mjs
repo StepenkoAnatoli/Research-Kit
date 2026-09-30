@@ -301,7 +301,9 @@ test('a refined topic line starts a new audit chain, the CLI says so, and its zi
   const first = run('audit.mjs', [], { root });
   assert.equal(first.status, 0, first.all);
   assert.match(first.out, /fixture-topic-v0\.1/, first.out);
-  assert.match(first.out, /bin[\\/]audit\.mjs --zip\n/, `one topic needs no --topic:\n${first.out}`);
+  // The kit path is quoted when it contains a space (ADR-0050), so allow the closing quote -
+  // found 2026-09-30 (break-test): this failed for every checkout under a path with a space.
+  assert.match(first.out, /bin[\\/]audit\.mjs"? --zip\n/, `one topic needs no --topic:\n${first.out}`);
 
   const map = path.join(root, 'research', 'MAP.md');
   fs.writeFileSync(map, fs.readFileSync(map, 'utf8').replace(/^## Topic\n\n(.+)$/m, '## Topic\n\n$1 (refined)'));
@@ -311,7 +313,7 @@ test('a refined topic line starts a new audit chain, the CLI says so, and its zi
   assert.match(second.out, /under: fixture-topic\b/, second.out);
 
   // The command the run prints is the one that works - that is the whole claim of that line.
-  const printed = second.out.split('\n').find((line) => line.includes('audit.mjs --zip'));
+  const printed = second.out.split('\n').find((line) => /audit\.mjs"? --zip/.test(line));
   assert.ok(printed, `no zip command was printed:\n${second.out}`);
   const named = /--topic (\S+)/.exec(printed);
   assert.equal(named?.[1], 'fixture-topic-refined', printed);
