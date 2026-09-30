@@ -213,8 +213,13 @@ export const CAPTURE_MAX_BYTES = 10 * 1024 * 1024;
  * the LAST of two equal keys, so a merge or a paste loses the first value in silence. Only
  * a DUPLICATE is reported here: the strict reader may differ from JSON.parse in other ways,
  * and parse errors are already JSON.parse's to name.
+ *
+ * Exported 2026-09-30 (break-test): the gate named the duplicate in plan.json while the
+ * command that SPENDS - research.mjs - read the same file through JSON.parse and collected
+ * the second value in silence. The finding was caught only after the credits were gone,
+ * because preflight runs after collection. One reader, so the spend and the verdict agree.
  */
-function duplicateKey(text) {
+export function duplicateKey(text) {
   const source = String(text ?? '').replace(/^\uFEFF/, '');
   try {
     parseJsonNoDuplicates(source);

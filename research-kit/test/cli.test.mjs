@@ -292,6 +292,24 @@ test('a plan that does not parse is named as not parsing, not as empty', () => {
   assert.match(missing.err, /research\/nope\.json does not exist/, missing.err);
 });
 
+// Found 2026-09-30 (break-test): research.mjs reads the plan with JSON.parse, where the LAST of
+// two equal keys wins. The gate names the duplicate, but preflight runs after collection, so the
+// entry the operator pasted was not the entry collected - and the credits were already spent.
+test('research refuses a plan with a duplicate object key before it spends anything', () => {
+  const root = project('duplicate plan key');
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'),
+    '{"topic":"x","depth":"quick","urls":[{"url":"https://x.invalid/one","why":"U-1","url":"https://x.invalid/two","type":"P"}]}');
+  const r = run('research.mjs', ['--dry-run', '--transport', 'http-keyless'], { root });
+  assert.equal(r.status, 2, r.all);
+  assert.match(r.err, /duplicate object key "url"/, r.err);
+  assert.doesNotMatch(r.out, /x\.invalid/, `it still planned a fetch:\n${r.out}`);
+  // A sound plan is not refused, so the guard is not a blanket refusal.
+  fs.writeFileSync(path.join(root, 'research', 'plan.json'),
+    '{"topic":"x","depth":"quick","urls":[{"url":"https://x.invalid/one","why":"U-1","type":"P"}]}');
+  const ok = run('research.mjs', ['--dry-run', '--transport', 'http-keyless'], { root });
+  assert.equal(ok.status, 0, `a sound plan was refused as well:\n${ok.all}`);
+});
+
 test('research reads a plan saved with a byte-order mark', () => {
   const root = planned('bom plan');
   const file = path.join(root, 'research', 'plan.json');
