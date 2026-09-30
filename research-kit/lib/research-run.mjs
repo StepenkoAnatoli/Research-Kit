@@ -11,6 +11,7 @@ import * as firecrawl from './firecrawl.mjs';
 import { readCorpus, cacheDecision, appendJsonLine } from './corpus.mjs';
 import { collectOne, recentlyGone, DEFAULT_SOURCE_TYPE } from './collect.mjs';
 import { fallbackCost } from './runtime.mjs';
+import * as wayback from './witness.mjs';
 
 /** The budget tiers, in credits of scrape. Tuned for a ~1,000-credit free month. */
 export const DEPTH_SCRAPES = Object.freeze({
@@ -300,6 +301,21 @@ export function searchPatiently(provider, text, { limit, maxRateLimitRetries = 2
   }
 }
 
+// One lookup for one newly collected page, recorded beside the corpus - never in raw/ or the
+// ledger - so a witness cannot alter or fail the capture it witnesses (ADR-0106).
+function witnessCapture(root, url, raw, lookup, log) {
+  let record;
+  try { record = lookup(url, { timestamp: wayback.waybackTimestamp(new Date()) }); } catch (err) {
+    record = { witnessed: false, reason: `the lookup failed: ${err?.message ?? err}` };
+  }
+  if (!record || typeof record !== 'object') record = { witnessed: false, reason: 'the lookup returned nothing' };
+  try { appendJsonLine(root, PATHS.witnesses, { at: new Date().toISOString(), url, raw: raw ?? '', ...record }); } catch (err) {
+    log(`  witness   ${url} - not recorded: ${err.message}`);
+    return;
+  }
+  log(`  witness   ${url} - ${record.witnessed ? record.snapshot : record.reason}`);
+}
+
 export function runResearch(root, {
   adapter,
   // The SEARCH side (ADR-0027). Absent means "the fetch adapter", which is what every
@@ -315,6 +331,9 @@ export function runResearch(root, {
   refreshDays = null,
   force = false,
   dryRun = false,
+  // The opt-in Wayback witness (ADR-0106): off, nothing is sent to the Internet Archive.
+  witness = false,
+  witnessLookup = null,
   only = [],
   date = today(),
   now = new Date(),
@@ -634,6 +653,7 @@ ${compatibility.remedy}`);
     if (outcome.status === 'failed') { failed += 1; spent += 1; }
     results.push({ ...target, ...outcome });
     log(`  ${outcome.status.padEnd(9)} ${target.url}${outcome.reason ? ` - ${outcome.reason}` : ''}`);
+    if (witness && !dryRun && outcome.status === 'collected') witnessCapture(root, target.url, outcome.entry?.file, witnessLookup ?? wayback.lookup, log);
   }
 
   // A run that only searched still spent something - on a different meter. Logging only

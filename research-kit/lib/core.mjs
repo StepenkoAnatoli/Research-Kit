@@ -41,6 +41,9 @@ export const PATHS = Object.freeze({
   timeline: 'research/TIMELINE.md',
   brief: 'research/BRIEF.md',
   plan: 'research/plan.json',
+  // Opt-in third-party witnesses for captures (ADR-0106). Outside raw/ and the ledger, so a
+  // witness can never alter or fail a capture; not a dotfile, so it travels with git.
+  witnesses: 'research/witnesses.jsonl',
 
   raw: 'research/raw',
   audits: 'research/audits',

@@ -371,6 +371,14 @@ wired in**, because its terms permit it and its AI providers to retain queries a
 outputs for training — a reasonable thing to opt into knowingly, and not a reasonable
 default ([research/BRIEF.md](research/BRIEF.md)).
 
+**An opt-in witness.** `research --witness` asks the Wayback Machine, after each newly
+collected page, for its snapshot closest to the capture time, and appends the answer to
+`research/witnesses.jsonl`. A snapshot is a third party's copy of the page; the ledger
+alone proves only that the capture was not edited afterwards. The lookup sends each
+collected URL to the Internet Archive, so it is off by default. It only looks up: it never
+asks the archive to save a page, and a failed lookup never fails a capture
+([ADR-0106](docs/adr/0106-the-wayback-witness-is-opt-in-and-lookup-only.md)).
+
 ## Your first 30 minutes
 
 **The local path**, for running the kit on your own machine rather than on GitHub. If you

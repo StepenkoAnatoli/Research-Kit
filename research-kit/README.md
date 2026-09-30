@@ -82,7 +82,7 @@ node "$HOME/.agents/research-kit/bin/handoff.mjs"     # did the corpus arrive wh
 | `doctor.mjs` | machine + project + gate + chain health, with the exact fix per problem (`--fix-arity` drops a torn ledger tail) |
 | `preflight.mjs` | the verdict (`--checks`, `--check <name>`, `--strict`, `--json`) |
 | `gate.mjs` | the verdict for a hook (`--gate commit\|edit`, `--staged-stdin`, `--posture`) |
-| `research.mjs` | collect (`--depth`, `--refresh-days`, `--force`, `--dry-run`, `--status`, `--transport`) |
+| `research.mjs` | collect (`--depth`, `--refresh-days`, `--force`, `--dry-run`, `--status`, `--transport`, `--witness`) |
 | `prior.mjs` | register what you expect **before** collecting, chained so it cannot be moved or rewritten afterwards; with no argument, prints the one on record |
 | `decompose.mjs` | phase 0 (`--topic`, `--recipe`, `--recipes`, `--max-scrapes`, `--dry-run`); the map shows the section headings of the pages it captured |
 | `handoff.mjs` | the arrival question, with the remedy picked from the cause |
@@ -450,7 +450,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1304 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1312 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
