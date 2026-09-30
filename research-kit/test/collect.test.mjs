@@ -195,6 +195,28 @@ test('rankCandidate prefers the page that OWNS the fact', () => {
   assert.ok(rankCandidate('https://example.com/login', { prefer: [] }) < 0);
 });
 
+// Found 2026-09-30 (break-test). `why` was spliced into `new RegExp(why.split(/\s+/)
+// .slice(0, 2).join('|'), 'i')`, so a reason holding an unbalanced metacharacter threw a raw
+// SyntaxError out of an exported ranking function, and a reason of only whitespace built the
+// pattern `|` - an empty alternative, which matches every URL - so every candidate silently
+// earned the bonus and the ranking became noise. Neither is reachable from the collector
+// today (no caller passes `why`), which is exactly why it was still there.
+const whyBonus = (url, why) => rankCandidate(url, { why }) - rankCandidate(url);
+
+test('a reason is matched as words, never compiled as a pattern', () => {
+  for (const why of ['rate limits (api)', 'a(b', '[x', '*', '\\', '(?:', 'a{2,1}', '(?<n>', '{{', '\\d+']) {
+    assert.equal(whyBonus('https://example.com/zebra', why), 0, `${JSON.stringify(why)} must not decide the ranking`);
+  }
+  assert.equal(whyBonus('https://example.com/pricing', 'pricing tier'), 1, 'a word the URL names still scores');
+  assert.equal(whyBonus('https://example.com/tier', 'pricing tier'), 1, 'either of the first two words scores');
+});
+
+test('a blank reason scores nothing, rather than scoring everything', () => {
+  for (const why of ['', ' ', '   ', '\t\n']) {
+    assert.equal(whyBonus('https://example.com/zebra', why), 0, JSON.stringify(why));
+  }
+});
+
 // ---------------------------------------------------------------- prefer: a path on a shared host
 //
 // Found 2026-09-26, collect run 36279879229: dispatched with `prefer: github.com` to collect
