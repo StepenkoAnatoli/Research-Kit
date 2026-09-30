@@ -223,7 +223,7 @@ folder first; started anywhere else, it crashed at import before any test ran - 
 
 ### Not lib, not bin — but load-bearing
 
-- `githooks/pre-commit` — POSIX sh commit-gate wrapper. Its posture reader drops a leading byte-order mark before its structural check, agreeing with `parseJson` (a pinned posture row per BOM state). With HOME unset or empty it takes the home directory from node (`os.homedir()`, else the passwd entry), as `lib/machine.mjs`'s `homeDir()` does: under `set -u` it stopped on `$HOME` and refused every commit with a shell error (ADR-0072). **Tracked as mode 100755**, and
+- `githooks/pre-commit` — POSIX sh commit-gate wrapper. Its posture reader drops a leading byte-order mark before its structural check, agreeing with `parseJson` (a pinned posture row per BOM state). With HOME unset or empty it takes the home directory from node (`os.homedir()`, else the passwd entry), as `lib/machine.mjs`'s `homeDir()` does: under `set -u` it stopped on `$HOME` and refused every commit with a shell error (ADR-0072). **Tracked as mode 100755**, and It lists the staged set with `--no-renames`, so a `git mv` out of product code names both paths and cannot pass as a change confined to research/ (2026-09-30).
   that is part of its contract, not a detail: git *skips a hook it cannot execute, and
   says nothing*. It was tracked 100644 until 2026-09-20, so every Linux and macOS clone
   of this repository had a commit gate that silently never ran — invisible on Windows,
