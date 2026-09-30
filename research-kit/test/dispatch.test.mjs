@@ -178,13 +178,20 @@ test('a dispatch that never left names the cause, not the bare "fetch failed"', 
     err.cause = { code: 'ENOTFOUND', message: 'getaddrinfo ENOTFOUND api.github.com' };
     throw err;
   };
-  await assert.rejects(() => dispatchCollection({ repository: REPO, token: TOKEN, fetch: doFetch }),
-    (err) => {
+  for (const call of [
+    () => dispatchCollection({ repository: REPO, token: TOKEN, fetch: doFetch }),
+    () => getRun({ repository: REPO, runId: 1, token: TOKEN, fetch: doFetch }),
+    () => listArtifacts({ repository: REPO, runId: 1, token: TOKEN, fetch: doFetch }),
+    () => downloadArtifact({ repository: REPO, artifactId: 1, token: TOKEN, fetch: doFetch }),
+  ]) {
+    await assert.rejects(call, (err) => {
       assert.equal(err.code, 'NETWORK');
       assert.match(err.message, /ENOTFOUND/);
       assert.doesNotMatch(err.message, /: fetch failed$/, 'the cause was dropped');
+      assert.ok(err.remedy, 'a NETWORK DispatchError must carry a remedy');
       return true;
     });
+  }
 });
 
 // Reproduced 2026-09-30 (break-test) with a fetch answering 200 and an HTML body - what a
