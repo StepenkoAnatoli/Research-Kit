@@ -184,3 +184,15 @@ test('a mistyped instance URL never shows its password, and a % in a password do
   assert.equal(searxng.basicAuth('http://me:100%legit@h.example/'), `Basic ${Buffer.from('me:100%legit').toString('base64')}`,
     'a literal % in a password must be sent as typed, not throw URIError');
 });
+
+// Found 2026-09-30 (pre-merge review): the fallback pattern stopped at the first / ? or #, so
+// a password holding one - which no URL parser accepts, so it always reached the fallback -
+// was printed in full, even behind a correct http:// scheme.
+test('a password holding / ? # or @ is never shown, whatever the scheme', () => {
+  for (const typo of ['http://me:s3/cret@searx.local', 'htp://me:s3?cret@searx.local', 'me:s3#cret@searx.local', 'htp://me:s3@cret@searx.local']) {
+    assert.doesNotMatch(searxng.shownInstance(typo), /s3|cret/, `${typo} was shown with its password`);
+    assert.doesNotMatch(searxng.status({ env: { SEARXNG_URL: typo }, config: noConfig }).raw, /s3|cret/, `${typo} leaked in status`);
+  }
+  // Nothing to hide is shown as typed: a path holding @ is not a password.
+  assert.equal(searxng.shownInstance('http://searx.local:8080/a@b'), 'http://searx.local:8080/a@b');
+});
