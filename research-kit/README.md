@@ -451,7 +451,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1334 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1335 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
@@ -459,6 +459,12 @@ A prerequisite this host cannot provide - no POSIX shell, no git, no python - is
 as `UNSUP` with its reason code and **blocks**. It is never a silent skip: a test that
 returns early on a missing prerequisite prints `ok` having asserted nothing, which is
 the same false green one layer up.
+
+For a local run on a machine without one of them - most often Python - set
+`RESEARCH_KIT_ALLOW_UNSUP=1`: a run whose only blockers are unsupported tests then exits 0,
+still lists each one, and ends `NOT a full pass` rather than `all tests passed`. A failed
+test is never waived, and the option is ignored when `CI` is set, so the merge check still
+blocks (ADR-0108).
 
 `test/hardening.test.mjs`, `test/index-gate.test.mjs` and `test/concurrency.test.mjs`
 pin the defects confirmed in the 2026-09-16 researcher review, each named by its

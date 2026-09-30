@@ -104,7 +104,16 @@ for (const { file, error } of await importTestFiles(dir, files)) {
   });
 }
 
-const { failures, passed, unsupported, blocking, errorCodes } = await runPending();
+const { failures, passed, unsupported, blocking: allBlocking, errorCodes } = await runPending();
+
+// RESEARCH_KIT_ALLOW_UNSUP=1 (ADR-0108): a contributor without Python can get a green LOCAL
+// run - unsupported tests are still listed, and the last line says the run was not a full
+// pass. Only unsupported tests are waived, never a failure; and CI ignores the opt-in, so a
+// missing interpreter there still blocks the merge.
+const inCi = Boolean(process.env.CI) && process.env.CI !== 'false';
+const optIn = process.env.RESEARCH_KIT_ALLOW_UNSUP === '1';
+const waiveUnsupported = optIn && !inCi && failures === 0 && unsupported.length > 0;
+const blocking = waiveUnsupported ? 0 : allBlocking;
 
 /**
  * Write the result as DATA, when asked.
@@ -123,7 +132,7 @@ function writeResultFile(code) {
   if (!target) return;
   try {
     fs.writeFileSync(target, `${JSON.stringify({
-      passed, failures, unsupported: unsupported.length, blocking, exit: code,
+      passed, failures, unsupported: unsupported.length, unsupportedWaived: waiveUnsupported, blocking, exit: code,
       seconds: Number(((Date.now() - started) / 1000).toFixed(1)),
       files: files.length, node: process.versions.node, platform: process.platform,
     }, null, 2)}
@@ -152,6 +161,8 @@ if (unsupported.length) {
   // says exactly which capability, and why, and it blocks.
   process.stdout.write('\nThis host could not run:\n');
   for (const entry of unsupported) process.stdout.write(`  ${entry.code}  ${entry.label}\n    ${entry.reason}\n`);
+  if (optIn && inCi) process.stdout.write('\nRESEARCH_KIT_ALLOW_UNSUP is ignored in CI: an unsupported test blocks there.\n');
+  else if (!optIn) process.stdout.write('\nTo pass a LOCAL run anyway, set RESEARCH_KIT_ALLOW_UNSUP=1; CI still blocks.\n');
 }
 if (blocking) {
   writeResultFile(1);
@@ -195,5 +206,7 @@ if (!positional.length) {
 }
 
 writeResultFile(0);
-process.stdout.write('all tests passed\n');
+process.stdout.write(waiveUnsupported
+  ? `NOT a full pass: every test that ran passed, and ${unsupported.length} could not run on this host (RESEARCH_KIT_ALLOW_UNSUP=1)\n`
+  : 'all tests passed\n');
 process.exit(0);

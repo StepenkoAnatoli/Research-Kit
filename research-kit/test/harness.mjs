@@ -141,6 +141,9 @@ let pythonProbe;
  */
 export function findPython({ run } = {}) {
   if (run) return checkPython({ run }).exe ?? null;
+  // Test fixture only: a host with no Python, simulated on every platform, so the
+  // RESEARCH_KIT_ALLOW_UNSUP test needs no PATH surgery (ADR-0108).
+  if (process.env.RESEARCH_KIT_TEST_NO_PYTHON === '1') return null;
   if (pythonProbe === undefined) pythonProbe = checkPython().exe ?? null;
   return pythonProbe;
 }
