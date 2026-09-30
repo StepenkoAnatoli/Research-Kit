@@ -15,7 +15,7 @@ import { pathToFileURL } from 'node:url';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT, makePassingProject } from './harness.mjs';
 import { renderBrief } from '../lib/brief.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
-import { spellCommand, documentCommand, parseFlags, writeFailure } from '../lib/core.mjs';
+import { spellCommand, documentCommand, parseFlags, writeFailure, writeText, readText } from '../lib/core.mjs';
 import { renderTable } from '../lib/render.mjs';
 
 describe('cli');
@@ -1172,6 +1172,67 @@ test('install names a mkdir through a dangling link, exits 2, and prints no stac
   try { fs.symlinkSync(path.join(home, 'nowhere'), path.join(home, '.agents'), 'dir'); } catch { return; } // no symlink rights (Windows)
   writeRefused(run('install.mjs', [], { root: home, env: { HOME: home, USERPROFILE: home, RESEARCH_KIT_HOME: path.join(home, '.agents', 'research-kit'), RESEARCH_KIT_CONFIG: path.join(home, 'c.json') } }),
     'install.mjs', '.agents');
+});
+
+// Found 2026-09-30 (break-test): install.mjs was the one entrypoint measured to die when
+// its stdout went away mid-run - `install.mjs | head -2`, or a full disk - with an unhandled
+// 'error' event: a raw stack and exit 1 over a deploy that SUCCEEDED, which reads as a
+// failed install. selftest.mjs was hardened against the shape on 2026-09-28 and
+// mcp-server.mjs on 2026-09-30; install prints its next steps last, so it needed it too.
+// POSIX only: /dev/full is how a write is made to fail portably, and Windows has no such
+// device (a closed pipe there needs a parent to close it, which destroy() does not do).
+test('install survives a stdout the environment refuses, and names it in words', () => {
+  if (process.platform === 'win32') return;
+  const home = tempDir('rk-full-home-');
+  const full = fs.openSync('/dev/full', 'w');
+  let r;
+  try {
+    r = spawnSync(process.execPath, [path.join(KIT_ROOT, 'bin', 'install.mjs')], {
+      cwd: home,
+      encoding: 'utf8',
+      timeout: 60_000,
+      windowsHide: true,
+      stdio: ['ignore', full, 'pipe'],
+      env: {
+        PATH: process.env.PATH, HOME: home, USERPROFILE: home,
+        // Point the deploy at the throwaway home in one go: RESEARCH_KIT_HOME outranks it.
+        RESEARCH_KIT_HOME: path.join(home, '.agents', 'research-kit'),
+        RESEARCH_KIT_CONFIG: path.join(home, 'c.json'),
+      },
+    });
+  } finally { fs.closeSync(full); }
+  assert.equal(r.status, 2, `install did not report a refused stdout as "not a verdict": ${r.stderr?.slice(0, 300)}`);
+  assert.match(String(r.stderr), /could not write its output: ENOSPC \(/, r.stderr);
+  assert.doesNotMatch(String(r.stderr), /Unhandled 'error' event|node:events/, 'a raw stack reached the operator');
+});
+
+// The guard only helps if it is installed BEFORE the write that fails, which is the whole
+// reason `tolerateClosedStdout()` sits at the top of the file rather than beside the report.
+test('install installs the stdout guard before it writes its first line', () => {
+  const source = readText(path.join(KIT_ROOT, 'bin', 'install.mjs'));
+  const call = source.indexOf('tolerateClosedStdout()');
+  const firstWrite = source.indexOf('process.stdout.write');
+  assert.ok(call !== -1, 'install.mjs no longer tolerates a closed stdout (2026-09-30)');
+  assert.ok(call < firstWrite, `the guard is installed after the first write (write at ${firstWrite}, guard at ${call})`);
+});
+
+// Found 2026-09-30 (break-test): ENAMETOOLONG was not in the refusal table, so it fell
+// through to the caller's re-throw and reached the operator as a Node stack with exit 1 -
+// which reads as a bug in the kit. The scratch name the atomic write uses was also LONGER
+// than the target it replaces, so a basename the filesystem accepts (248 bytes is legal on
+// ext4 and tmpfs) failed where a plain write of the same name succeeded.
+test('a too-long name is a named refusal, and a legal long name still writes', () => {
+  const tooLong = Object.assign(new Error('ENAMETOOLONG'), { code: 'ENAMETOOLONG', syscall: 'open', path: '/tmp/x/waytoo-long.warc.gz' });
+  assert.match(writeFailure(tooLong, '/elsewhere'), /could not write \/tmp\/x\/waytoo-long\.warc\.gz: ENAMETOOLONG \(/);
+
+  // POSIX only, and deliberately: Windows has its own path-length behaviour (MAX_PATH,
+  // \\?\ prefixes), so a test about the SCRATCH name must not be a test about MAX_PATH.
+  if (process.platform === 'win32') return;
+  const dir = tempDir('rk-longname-');
+  const long = path.join(dir, `${'y'.repeat(240)}.txt`);          // 244 bytes: legal as a target
+  writeText(long, 'body\n');
+  assert.equal(fs.readFileSync(long, 'utf8'), 'body\n', 'a name the filesystem accepts was refused');
+  assert.deepEqual(fs.readdirSync(dir).filter((f) => f.includes('.tmp-')), [], 'a scratch file was left behind');
 });
 
 test('a missing directory counts as a refused write only for mkdir, not for a missing source', () => {

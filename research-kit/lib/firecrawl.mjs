@@ -210,12 +210,22 @@ export function gradeCompleteness(markdown) {
 export function normalizeScrape(stdout, url, label = name) {
   const payload = parsePayload(stdout);
   const data = payload?.data ?? payload ?? {};
+  // A field of the wrong type reads as empty, as it does in the other two vendor parsers
+  // (found 2026-09-30, break-test). The payload is the vendor's, not the kit's, so `url`
+  // arriving as an object wrote a capture named `...-object-object-....md` with
+  // `url: [object Object]` in its front matter, and the ledger recorded a URL the kit
+  // never fetched. serpapi.normalizeSearch was hardened against its own shape on
+  // 2026-09-28 and searxng's on 2026-09-29; this parser, the same shape, was not.
+  const text = (value) => (typeof value === 'string' ? value : '');
+  // A status code is the one field that is legitimately a number or a string; anything
+  // else is not a status the collector may judge an error page by.
+  const scalar = (value) => (typeof value === 'string' || Number.isFinite(value) ? value : '');
   const markdown = String(data.markdown ?? data.content ?? data.text ?? (typeof payload === 'string' ? payload : '') ?? '');
   return {
-    url: data.metadata?.sourceURL ?? data.url ?? url,
-    title: data.metadata?.title ?? data.title ?? '',
+    url: text(data.metadata?.sourceURL) || text(data.url) || text(url),
+    title: text(data.metadata?.title) || text(data.title),
     markdown,
-    statusCode: data.metadata?.statusCode ?? data.statusCode ?? '',
+    statusCode: scalar(data.metadata?.statusCode) || scalar(data.statusCode),
     transport: label,
     ...gradeCompleteness(markdown),
   };
@@ -245,12 +255,16 @@ export function normalizeSearch(stdout) {
   else if (Array.isArray(payload)) rows = payload;
 
   // A row that is not an object is dropped, not read: one null among the results had thrown
-  // and taken every valid row in the payload with it (2026-09-29, Arena break test).
-  return rows.filter((row) => row && typeof row === 'object').map((row) => ({
-    url: row.url ?? row.link ?? '',
-    title: row.title ?? '',
-    description: row.description ?? row.snippet ?? '',
-    position: row.position ?? null,
+  // and taken every valid row in the payload with it (2026-09-29, Arena break test). A FIELD
+  // of the wrong type is dropped the same way (2026-09-30): `{ url: 42 }` and
+  // `{ url: { href } }` were carried into the collector as candidates, where every other
+  // vendor parser reads them as empty and drops the row.
+  const text = (value) => (typeof value === 'string' ? value : '');
+  return rows.filter((row) => row && typeof row === 'object' && !Array.isArray(row)).map((row) => ({
+    url: text(row.url) || text(row.link),
+    title: text(row.title),
+    description: text(row.description) || text(row.snippet),
+    position: Number.isFinite(row.position) ? row.position : null,
   })).filter((row) => row.url);
 }
 

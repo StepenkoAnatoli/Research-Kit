@@ -2,13 +2,21 @@
 // bin/install.mjs - deploy the kit and the skill; role-aware next steps.
 
 import path from 'node:path';
-import { parseFlags, refuseUnknownFlags, checkFlagValues, writeFailure } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, checkFlagValues, writeFailure, tolerateClosedStdout } from '../lib/core.mjs';
 import { deploy } from '../lib/installer.mjs';
 import { machineRole, KIT_HOME } from '../lib/machine.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 import { heading } from '../lib/render.mjs';
 
 import { spellCommand } from '../lib/core.mjs';
+
+// Before the first write: `install.mjs | head -2` kills the pipe, and Node turns the next
+// write into an unhandled 'error' event - a raw stack and exit 1 over a deploy that
+// SUCCEEDED, which reads as a failed install (found 2026-09-30, break-test). selftest.mjs
+// was hardened against this on 2026-09-28 and mcp-server.mjs on 2026-09-30; this
+// entrypoint, which prints its next steps last, was not.
+tolerateClosedStdout();
+
 const { flags } = parseFlags(process.argv.slice(2));
 refuseUnknownFlags(flags, ['help', 'dry-run', 'into']);
 checkFlagValues(flags, { into: 'value' });

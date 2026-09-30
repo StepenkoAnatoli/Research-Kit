@@ -324,7 +324,12 @@ export function writeBytes(p, data, encoding = null) {
     } catch { /* p does not exist yet: a new file */ }
     target = p;
   }
-  const scratch = path.join(path.dirname(target), `.${path.basename(target)}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`);
+  // The scratch carries a short prefix of the target's name, never the whole of it. The
+  // `.` and `.tmp-<pid>-<hex>` around it made the scratch LONGER than the file it was about
+  // to replace, so a name the filesystem accepts - 240+ characters is legal on ext4 and
+  // tmpfs - failed with ENAMETOOLONG while a plain write of the same name succeeded, and
+  // reached the operator as a Node stack (found 2026-09-30, break-test).
+  const scratch = path.join(path.dirname(target), `.${path.basename(target).slice(0, 100)}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`);
   try {
     if (encoding === null) fs.writeFileSync(scratch, data);
     else fs.writeFileSync(scratch, data, encoding);
@@ -386,6 +391,7 @@ const WRITE_REFUSALS = Object.freeze({
   EDQUOT: 'the disk quota is used up',
   EFBIG: 'the file would exceed the size this process may write',
   EISDIR: 'a folder is where the file should be',
+  ENAMETOOLONG: 'the name is longer than the filesystem allows (255 bytes per name on ext4 and tmpfs)',
   ENOTDIR: 'a file is where a folder should be',
   EEXIST: 'something already exists where a folder should be',
   EBUSY: 'the file is in use by another process',

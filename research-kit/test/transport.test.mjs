@@ -189,6 +189,34 @@ test('a malformed row in a Firecrawl payload is dropped, not fatal to the rows b
   assert.deepEqual(firecrawl.normalizeMap('{"links":[null,7,{"url":"https://b.invalid"},"https://a.invalid"]}'), ['https://b.invalid', 'https://a.invalid']);
 });
 
+// Found 2026-09-30 (break-test). The 2026-09-29 fix taught this parser to drop a malformed
+// ROW; it still read a FIELD of the wrong type as if it were the value. `{ url: { href } }`
+// and `{ url: 42 }` became candidates, and a scrape whose `metadata.sourceURL` was an object
+// wrote a capture named `...-object-object-....md` with `url: [object Object]` in its front
+// matter - the ledger recording a URL the kit never fetched. serpapi and searxng read a
+// non-string field as empty; this one did not. One shape, fed to every vendor parser, so the
+// three cannot drift apart again (the hardening note in build-report-2026-09-29).
+test('every vendor parser reads a field of the wrong type as empty, the same way', async () => {
+  const { normalizeSearch: serpapiSearch } = await import('../lib/serpapi.mjs');
+  const { normalizeSearch: searxngSearch } = await import('../lib/searxng.mjs');
+  const shaped = { url: { href: 'https://docs.example.invalid/limits' }, title: {}, description: [], position: '2' };
+  assert.deepEqual(firecrawl.normalizeSearch(JSON.stringify({ data: { web: [shaped] } })), []);
+  assert.deepEqual(serpapiSearch({ organic_results: [{ link: { href: 'x' }, title: {} }] }), []);
+  assert.deepEqual(searxngSearch({ results: [{ url: { href: 'x' }, title: {} }] }), []);
+
+  // And a scrape: the requested URL is the fallback when the vendor's own is not a string,
+  // a real one is still preferred, and a string status stays readable by the error-page rule.
+  const scrape = (metadata) => firecrawl.normalizeScrape(
+    JSON.stringify({ data: { markdown: 'x'.repeat(1600), metadata } }), 'https://requested.invalid',
+  );
+  assert.equal(scrape({ sourceURL: { href: 'https://a.invalid' }, title: {} }).url, 'https://requested.invalid');
+  assert.equal(scrape({ sourceURL: { href: 'https://a.invalid' }, title: {} }).title, '');
+  assert.equal(scrape({ sourceURL: 'https://a.invalid/l', title: 'T', statusCode: 200 }).url, 'https://a.invalid/l');
+  assert.equal(scrape({ sourceURL: 'https://a.invalid/l', title: 'T', statusCode: 200 }).statusCode, 200);
+  assert.equal(scrape({ statusCode: '503' }).statusCode, '503', 'a string status still reaches the error-page rule');
+  assert.equal(scrape({ statusCode: {} }).statusCode, '', 'an object is not a status code');
+});
+
 test('parseStatus reads what it can and reports null for what is not there', () => {
   // This invented sample is what the parser was written against before a key existed:
   // a number BEFORE the word "credits". The real CLI prints "Credits: 949 / 1,000", so

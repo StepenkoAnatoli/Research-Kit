@@ -109,6 +109,18 @@ test('a refused write is named in words, and one record is "1 record"', () => {
   assert.ok(r.stderr.includes(path.basename(folder)), r.stderr);
   assert.doesNotMatch(`${r.stdout}${r.stderr}`, /node:fs|^\s+at /m);
 
+  // Found 2026-09-30: the scratch the atomic write uses was longer than the file it
+  // replaces, so a name the filesystem accepts reached the operator as a raw stack - and a
+  // name that is genuinely too long must still be a sentence. POSIX only: on Windows the
+  // same length is a MAX_PATH question, not a scratch-name one.
+  if (process.platform !== 'win32') {
+    const long = `${'y'.repeat(248)}.warc.gz`;                    // 256 bytes: over the 255-byte limit
+    r = spawnSync(process.execPath, [bin, '--out', path.join(dir, long)], { cwd: dir, encoding: 'utf8' });
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /could not write .*ENAMETOOLONG \(/);
+    assert.doesNotMatch(`${r.stdout}${r.stderr}`, /node:fs|^\s+at /m);
+  }
+
   const empty = tempDir();
   fs.mkdirSync(path.join(empty, 'research'));
   fs.writeFileSync(path.join(empty, 'research', 'DISCOVERY.md'), '# Discovery Contract\n');
