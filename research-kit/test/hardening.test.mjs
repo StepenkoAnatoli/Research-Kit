@@ -1013,3 +1013,22 @@ test('deployedDrift walks a folder link that loops back to an ancestor once', ()
   const drift = deployedDrift({ from, kitHome: dest });
   assert.deepEqual(drift.kit.extra, [], `a loop was walked more than once: ${drift.kit.extra.length} extra files`);
 });
+
+// Found 2026-09-30 (outside break-test): scanForSecrets wrapped the whole walk in one
+// try/catch, so the first folder it could not read ended the scan - every file after it in
+// walk order went unscanned, and the report said nothing was found.
+test('one unreadable folder does not end the secret scan: files after it are still scanned', () => {
+  const dir = makeProject();
+  const locked = resolve(dir, 'aaa-unreadable');
+  fs.mkdirSync(locked);
+  writeText(resolve(dir, 'zzz-notes.txt'), `FIRECRAWL_API_KEY=${fixtureKey('fc', '-0123456789abcdef0123')}\n`);
+  const realReaddir = fs.readdirSync;
+  fs.readdirSync = (p, ...rest) => {
+    if (String(p) === locked) throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+    return realReaddir(p, ...rest);
+  };
+  let scan;
+  try { scan = scanForSecrets(dir); } finally { fs.readdirSync = realReaddir; }
+  assert.equal(scan.hits.length, 1, 'the key after the unreadable folder was not found');
+  assert.equal(scan.hits[0].pattern, 'firecrawl-key');
+});
