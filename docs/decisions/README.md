@@ -36,3 +36,5 @@ repository. The retention rule is **ADR-0102**:
 | [2026-09-28-warc-export](2026-09-28-warc-export/) | Exporting a corpus as WARC 1.1 | ADR-0090 | active |
 | [2026-09-29-chromium-sandbox-userns](2026-09-29-chromium-sandbox-userns/) | Chromium's sandbox under Ubuntu's user-namespace restriction | ADR-0092 | active |
 | [2026-09-29-perspective-discovery](2026-09-29-perspective-discovery/) | STORM-style perspective discovery without a language model | ADR-0091 | active |
+| [2026-09-30-searxng-search](2026-09-30-searxng-search/) | SearXNG's JSON Search API as a keyless search transport | ADR-0104; `lib/searxng.mjs` | active |
+| [2026-09-30-wayback-witness](2026-09-30-wayback-witness/) | The Wayback Machine as a third-party witness for captured pages | ADR-0106; `lib/witness.mjs` | active |

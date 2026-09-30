@@ -391,13 +391,23 @@ test('HTML is still graded by what extraction kept, and an unknown type is treat
     'a response with no content type keeps the old behaviour');
 });
 
-test('an empty body or a binary type is never graded full', () => {
+test('an empty body is never graded full', () => {
   const empty = scrapeServed('application/json', '');
   assert.equal(empty.completeness, 'partial');
   assert.match(empty.omitted, /empty/);
-  const pdf = scrapeServed('application/pdf', '%PDF-1.7 binary junk');
-  assert.equal(pdf.completeness, 'partial', 'a PDF read as text is not a faithful copy');
-  assert.match(pdf.omitted, /application\/pdf/, 'the reason names the content type');
+});
+
+// ADR-0105 (2026-09-30): a binary response is refused, not kept. Decoded as text, a PDF lost
+// every byte UTF-8 could not hold, so the "capture" could neither be reopened as the file nor
+// hold a quote - and one 10-page paper put 2.3 MB of it into a committed corpus.
+test('a binary response is refused by name, with no capture, and the remedy names a transport that converts it', () => {
+  for (const type of ['application/pdf', 'image/png', 'application/zip', 'application/octet-stream']) {
+    const result = scrapeServed(type, '%PDF-1.7 binary junk');
+    assert.equal(result.ok, false, `${type} was kept as a capture`);
+    assert.equal(result.markdown, undefined, `${type}: a body came back with the refusal`);
+    assert.ok(result.error.includes(type), `${type}: the refusal does not name the type: ${result.error}`);
+    assert.match(result.error, /firecrawl-cli/, `${type}: no remedy named: ${result.error}`);
+  }
 });
 
 test('the rendezvous returns a result object rather than throwing, when the job fails', () => {

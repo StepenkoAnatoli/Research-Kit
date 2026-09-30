@@ -339,6 +339,7 @@ environment, or the machine config at `~/.agents/research-kit.config.json`:
 |---|---|---|
 | Firecrawl | fetching pages, and searching by default | `npm install -g firecrawl-cli@1.24.6` (the package is `firecrawl-cli`; `firecrawl` is a different one), then `firecrawl login` — the CLI stores it. **Never run `firecrawl env` inside a repository**: it writes the key into `.env`. |
 | SerpAPI | searching only, entirely optional | `SERPAPI_API_KEY`, or `serpapiKey` in the machine config |
+| SearXNG | searching only, optional, no key: an instance you run | `SEARXNG_URL`, or `searxngUrl` in the machine config, then `--search-transport searxng` |
 
 Both have free tiers, and the kit is designed around them: Firecrawl gives 1,000 credits
 a month, SerpAPI 250 searches. Adding the SerpAPI key is worth it not because it is
@@ -356,11 +357,27 @@ conformance runners in both languages, `preflight` and the whole test suite are 
 and read-only — none of them reads an environment variable, so none can use a key even
 by accident. A reviewer can re-run every check without asking you for anything.
 
+**SearXNG, if DuckDuckGo keeps refusing keyless searches.** A SearXNG instance you run answers
+searches as JSON with no key and no meter
+([ADR-0104](docs/adr/0104-searxng-is-an-explicit-search-provider.md)). Its JSON output is off by
+default: add `json` to `search.formats` in its `settings.yml`, or every search is refused
+with HTTP 403, which the kit names. Then set `SEARXNG_URL` (for example
+`http://localhost:8888`) and pass `--search-transport searxng`, or put both in the machine
+config. It is never chosen automatically.
+
 One disclosure, since it is your data: a search sends your query text to the provider.
 SerpAPI retains search data for 31 days. Tavily was evaluated and **deliberately not
 wired in**, because its terms permit it and its AI providers to retain queries and
 outputs for training — a reasonable thing to opt into knowingly, and not a reasonable
 default ([research/BRIEF.md](research/BRIEF.md)).
+
+**An opt-in witness.** `research --witness` asks the Wayback Machine, after each newly
+collected page, for its snapshot closest to the capture time, and appends the answer to
+`research/witnesses.jsonl`. A snapshot is a third party's copy of the page; the ledger
+alone proves only that the capture was not edited afterwards. The lookup sends each
+collected URL to the Internet Archive, so it is off by default. It only looks up: it never
+asks the archive to save a page, and a failed lookup never fails a capture
+([ADR-0106](docs/adr/0106-the-wayback-witness-is-opt-in-and-lookup-only.md)).
 
 ## Your first 30 minutes
 

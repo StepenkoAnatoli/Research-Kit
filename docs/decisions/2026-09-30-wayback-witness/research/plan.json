@@ -1,0 +1,38 @@
+{
+  "topic": "Internet Archive Wayback Machine as a witness for captured pages: the Wayback Availability API, Save Page Now requests and their limits, what a saved capture makes public, and the terms of use",
+  "notes": "Fill queries and urls BEFORE collecting - every scrape spends a credit. q is the search query, why records which unknown in research/DISCOVERY.md it closes, prefer lists the official domains that carry the fact. depth sets the scrapes per run (probe 2, quick 4, normal 10, deep 25); maxScrapes can only lower that.",
+  "depth": "quick",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 3,
+  "maxScrapes": 8,
+  "prefer": [],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://archive.org/help/wayback_api.php",
+      "type": "P",
+      "why": "U-01: the Wayback Availability API request and response"
+    },
+    {
+      "url": "https://help.archive.org/help/save-pages-in-the-wayback-machine/",
+      "type": "P",
+      "why": "U-02, U-03: how Save Page Now is used, by whom, and what a saved page becomes"
+    },
+    {
+      "url": "https://help.archive.org/help/internet-archive-access-policy/",
+      "type": "P",
+      "why": "U-03, U-04: who can see captures, and removal"
+    },
+    {
+      "url": "https://archive.org/about/terms",
+      "type": "P",
+      "why": "U-04: the terms of use for automated access"
+    },
+    {
+      "url": "https://nullhandle.org/pdf/2022-08-25_taking_the_witness_stand.pdf",
+      "type": "S",
+      "why": "U-05: what a web archive capture can and cannot attest"
+    }
+  ]
+}

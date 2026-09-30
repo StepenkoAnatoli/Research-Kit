@@ -79,6 +79,7 @@ export const DEFAULTS = Object.freeze({
   transport: '',
   searchTransport: '',
   serpapiKey: '',
+  searxngUrl: '',
   skillRoots: Object.freeze([]),
   projectSkillDir: '',
   maxAgeDays: 180,
@@ -129,6 +130,8 @@ function shape(raw) {
     // environment and never in a repository (SR-1). Read but never rendered: every
     // display path goes through `serpapi.redact()`.
     serpapiKey: typeof raw.serpapiKey === 'string' ? raw.serpapiKey : DEFAULTS.serpapiKey,
+    // The SearXNG instance the searxng search provider asks (ADR-0104). A URL, not a secret.
+    searxngUrl: typeof raw.searxngUrl === 'string' ? raw.searxngUrl : DEFAULTS.searxngUrl,
     skillRoots: Array.isArray(raw.skillRoots) ? raw.skillRoots.slice() : [],
     projectSkillDir: typeof raw.projectSkillDir === 'string' ? raw.projectSkillDir : '',
     maxAgeDays: Number.isFinite(raw.maxAgeDays) ? raw.maxAgeDays : DEFAULTS.maxAgeDays,

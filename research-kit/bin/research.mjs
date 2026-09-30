@@ -18,7 +18,7 @@ import { heading } from '../lib/render.mjs';
 
 import { kitCommand } from '../lib/core.mjs';
 const { flags } = parseFlags(process.argv.slice(2));
-refuseUnknownFlags(flags, ['depth', 'dry-run', 'force', 'help', 'no-fallback', 'only', 'plan', 'refresh-days', 'search-transport', 'status', 'transport']);
+refuseUnknownFlags(flags, ['depth', 'dry-run', 'force', 'help', 'no-fallback', 'only', 'plan', 'refresh-days', 'search-transport', 'status', 'transport', 'witness']);
 checkFlagValues(flags, { depth: { choices: DEPTHS }, 'refresh-days': { int: true, min: 0 }, plan: 'value', only: 'value', transport: 'value', 'search-transport': 'value' });
 const root = process.cwd();
 
@@ -40,6 +40,9 @@ if (flags.help) {
                        Default: the fetch transport, unless a SerpAPI key is configured.
   --no-fallback        when Firecrawl's credits run out, record the remaining pages as
                        failed instead of switching the rest of the run to http-keyless
+  --witness            after each newly collected page, ask the Wayback Machine for its
+                       closest snapshot and record it in research/witnesses.jsonl. Sends
+                       each collected URL to the Internet Archive; off by default.
 
 Every scrape spends a credit. Plan the queries before collecting.
 `);
@@ -163,6 +166,13 @@ try {
   process.stderr.write(`${err.message}\n`);
   process.exit(2);
 }
+// An explicit search provider that cannot run (no key, no instance) is refused before anything
+// is searched. selectSearch reports it on the SELECTION; this passed only the provider module
+// to runResearch, whose own check therefore never fired (found 2026-09-30).
+if (spends && chosen.search.notReady) {
+  process.stderr.write(`${chosen.search.notReady}\n`);
+  process.exit(2);
+}
 
 // The last moment a prediction can still be a prediction. Printed rather than enforced:
 // a prior is optional, and a collector that refused without one would make the habit a
@@ -195,6 +205,7 @@ const run = runResearch(root, {
   refreshDays: flags['refresh-days'] === undefined ? null : Number(flags['refresh-days']),
   force: Boolean(flags.force),
   dryRun: Boolean(flags['dry-run']),
+  witness: Boolean(flags.witness),
   only: flagList(flags.only),
   log: (line) => process.stdout.write(`${line}\n`),
 });

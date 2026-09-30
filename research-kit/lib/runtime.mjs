@@ -346,3 +346,15 @@ export function requireRuntime({ node = true, git = false, python = false,
   }
   return Object.fromEntries(checks.map(([name, result]) => [name, result.detail]));
 }
+
+/**
+ * What falling back onto a fetch provider's own search costs, in words (2026-09-30).
+ *
+ * The fallback line said "this spends fetch credits" whatever the fetch side was, including
+ * the keyless and browser transports, which have no meter. Only those two are named free: a
+ * fetch provider the kit does not know may be metered, so it keeps the warning.
+ */
+export const FREE_FETCH_TRANSPORTS = Object.freeze(['http-keyless', 'browser']);
+export function fallbackCost(name) {
+  return FREE_FETCH_TRANSPORTS.includes(name) ? `free on ${name}, which has no meter` : 'this spends fetch credits';
+}

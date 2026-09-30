@@ -268,6 +268,26 @@ test('RR-2: degradation is REPORTED, because it silently moves spend onto the fe
   assert.match(text, /spends fetch credits/, 'the operator was not told the fallback costs money');
 });
 
+// Found 2026-09-30: with the fetch side on http-keyless, the fallback line said "this spends
+// fetch credits" - a transport with no meter. The warning stays for any fetch provider that
+// may be metered (the stub above included); it is dropped only for the known-free ones.
+test('RR-2: a fallback onto a free fetch transport does not claim to spend credits', () => {
+  for (const name of ['http-keyless', 'browser']) {
+    const root = project();
+    const lines = [];
+    runResearch(root, {
+      adapter: fetchStub({ name }),
+      searchAdapter: searchStub({ fail: 'no instance' }),
+      plan: plan(),
+      log: (l) => lines.push(l),
+    });
+    const text = lines.join('\n');
+    assert.match(text, new RegExp(`degrading to ${name}`), text);
+    assert.doesNotMatch(text, /spends fetch credits/, `${name} has no meter:\n${text}`);
+    assert.match(text, /free/, `${name}: the line does not say what it costs:\n${text}`);
+  }
+});
+
 test('RR-1: when BOTH providers fail, the query is skipped and the run continues', () => {
   const root = project();
   const fetcher = fetchStub();

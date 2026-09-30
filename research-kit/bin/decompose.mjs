@@ -98,6 +98,13 @@ if (spends) {
     // A merged selection names every provider it searches; passing only `adapter` searched
     // SerpAPI alone under a banner that said both (found 2026-09-28).
     searchAdapters = chosen.search.adapters ?? null;
+    // An explicit search provider that cannot run is refused before anything is searched:
+    // without this, each search failed and fell back to the fetch provider's own search,
+    // which on Firecrawl spends credits (found 2026-09-30).
+    if (chosen.search.notReady) {
+      process.stderr.write(`${chosen.search.notReady}\n`);
+      process.exit(2);
+    }
     process.stdout.write(`transport: ${chosen.name} - ${chosen.why}\n`);
     process.stdout.write(unusedKeyNote(chosen));
     if (!chosen.search.sameAsFetch) {
