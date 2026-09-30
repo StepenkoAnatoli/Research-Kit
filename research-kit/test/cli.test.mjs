@@ -1117,13 +1117,43 @@ const writeRefused = (r, bin, file) => {
 };
 
 test('timeline and brief --force name a refused write, exit 2, and print no stack', () => {
-  for (const [bin, args, file] of [['timeline.mjs', [], 'TIMELINE.md'], ['brief.mjs', ['--force'], 'BRIEF.md']]) {
+  for (const [bin, args, file] of [
+    ['timeline.mjs', [], 'TIMELINE.md'],
+    ['brief.mjs', ['--force'], 'BRIEF.md'],
+    // Offline: search goes to a SearXNG "instance" on a closed loopback port, fails at once,
+    // and decompose goes on to write the map. No network is touched.
+    ['decompose.mjs', ['--force', '--max-scrapes', '0', '--transport', 'http-keyless', '--search-transport', 'searxng'], 'MAP.md'],
+  ]) {
     const root = makePassingProject(tempDir('rk-refused-'));
     const target = path.join(root, 'research', file);
     fs.rmSync(target, { force: true, recursive: true });
     fs.mkdirSync(target);
-    writeRefused(run(bin, args, { root }), bin, file);
+    writeRefused(run(bin, args, { root, env: { SEARXNG_URL: 'http://127.0.0.1:9' } }), bin, file);
   }
+
+  // research: a plan url on a closed loopback port fails at once, and the failure is still
+  // recorded - into a research/raw that is a file.
+  const researchRoot = project();
+  fs.writeFileSync(path.join(researchRoot, 'research', 'plan.json'),
+    '{"topic":"x","depth":"quick","urls":[{"url":"http://127.0.0.1:9/page","why":"U-1","type":"P"}]}');
+  fs.rmSync(path.join(researchRoot, 'research', 'raw'), { recursive: true, force: true });
+  fs.writeFileSync(path.join(researchRoot, 'research', 'raw'), 'blocker\n');
+  writeRefused(run('research.mjs', ['--transport', 'http-keyless'], { root: researchRoot }), 'research.mjs', 'raw');
+  const auditRoot = makePassingProject(tempDir('rk-refused-audit-'));
+  fs.writeFileSync(path.join(auditRoot, 'research', 'audits'), 'blocker\n');
+  writeRefused(run('audit.mjs', ['--force'], { root: auditRoot }), 'audit.mjs', 'audits');
+
+  const priorRoot = project();
+  fs.rmSync(path.join(priorRoot, 'research', 'raw'), { recursive: true, force: true });
+  fs.writeFileSync(path.join(priorRoot, 'research', 'raw'), 'blocker\n');
+  writeRefused(run('prior.mjs', ['What I expect to find before collecting any page at all in this corpus, and what I know I cannot know yet.'], { root: priorRoot }), 'prior.mjs', 'raw');
+
+  const cfgDir = tempDir('rk-refused-cfg-');
+  fs.mkdirSync(path.join(cfgDir, 'config.json'));
+  writeRefused(run('install-hooks.mjs', ['--role', 'collector'], {
+    root: cfgDir,
+    env: { HOME: cfgDir, USERPROFILE: cfgDir, RESEARCH_KIT_CONFIG: path.join(cfgDir, 'config.json') },
+  }), 'install-hooks.mjs', 'config.json');
 });
 
 test('new-project and install name a refused write, exit 2, and print no stack', () => {

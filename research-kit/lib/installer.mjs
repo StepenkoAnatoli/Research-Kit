@@ -122,13 +122,16 @@ function entriesOf(settings) {
  * An entry with no `hooks` key at all is still the known shape: the walkers read
  * `entry.hooks ?? []` and write `{ ...entry, hooks }`.
  */
+const isPlainObject = (v) => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
+
 function knownHookShape(settings) {
+  if (settings?.hooks !== undefined && !isPlainObject(settings.hooks)) return false;
   const pre = settings?.hooks?.PreToolUse;
   if (pre === undefined) return true;
   if (!Array.isArray(pre)) return false;
-  return pre.every((entry) => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry)
+  return pre.every((entry) => isPlainObject(entry)
     && (entry.hooks === undefined
-      || (Array.isArray(entry.hooks) && entry.hooks.every((hook) => Boolean(hook) && typeof hook === 'object'))));
+      || (Array.isArray(entry.hooks) && entry.hooks.every(isPlainObject))));
 }
 
 /** What the installer replaced, so a rename that changes nothing does not stay silent. */

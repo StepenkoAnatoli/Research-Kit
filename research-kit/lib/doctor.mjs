@@ -265,7 +265,7 @@ export function editGateState(settings) {
   if (settings === null) return 'none';
   const hooks = settings?.hooks?.PreToolUse;
   if (!Array.isArray(hooks)) return 'none';
-  const commands = hooks.flatMap((entry) => (entry.hooks ?? []).map((h) => String(h.command ?? '')));
+  const commands = hooks.flatMap((entry) => (Array.isArray(entry?.hooks) ? entry.hooks : []).map((h) => String(h?.command ?? '')));
   if (commands.some((c) => namesHook(c, EDIT_GATE_HOOK))) return 'current';
   if (commands.some((c) => RETIRED_EDIT_GATE_HOOKS.some((retired) => namesHook(c, retired)))) return 'retired';
   return 'none';
@@ -308,9 +308,16 @@ export function scanForSecrets(root, { maxFiles = 2000 } = {}) {
   let temp = null;
   try { temp = fs.realpathSync(tempBase()); } catch { /* no temp folder to skip */ }
 
+  const seen = new Set();
   const walk = (dir, rel) => {
     if (scanned >= maxFiles) return;
-    for (const name of fs.readdirSync(dir, { withFileTypes: true })) {
+    let real;
+    try { real = fs.realpathSync(dir); } catch { return; }
+    if (seen.has(real)) return;
+    seen.add(real);
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const name of entries) {
       const childRel = rel ? `${rel}/${name.name}` : name.name;
       if (SECRET_SKIP_DIRS.has(name.name) || SECRET_SKIP_DIRS.has(childRel)) continue;
       const abs = path.join(dir, name.name);
@@ -336,7 +343,7 @@ export function scanForSecrets(root, { maxFiles = 2000 } = {}) {
       }
     }
   };
-  try { walk(root, ''); } catch { /* an unreadable tree is reported as what was scanned */ }
+  walk(root, '');
 
   return {
     hits,

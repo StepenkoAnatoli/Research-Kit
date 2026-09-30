@@ -1013,3 +1013,72 @@ test('deployedDrift walks a folder link that loops back to an ancestor once', ()
   const drift = deployedDrift({ from, kitHome: dest });
   assert.deepEqual(drift.kit.extra, [], `a loop was walked more than once: ${drift.kit.extra.length} extra files`);
 });
+
+// Found 2026-09-30 (outside break-test): scanForSecrets wrapped the whole walk in one
+// try/catch, so the first folder it could not read ended the scan - every file after it in
+// walk order went unscanned, and the report said nothing was found.
+test('one unreadable folder does not end the secret scan: files after it are still scanned', () => {
+  const dir = makeProject();
+  const locked = resolve(dir, 'aaa-unreadable');
+  fs.mkdirSync(locked);
+  writeText(resolve(dir, 'zzz-notes.txt'), `FIRECRAWL_API_KEY=${fixtureKey('fc', '-0123456789abcdef0123')}\n`);
+  const realReaddir = fs.readdirSync;
+  fs.readdirSync = (p, ...rest) => {
+    if (String(p) === locked) throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+    return realReaddir(p, ...rest);
+  };
+  let scan;
+  try { scan = scanForSecrets(dir); } finally { fs.readdirSync = realReaddir; }
+  assert.equal(scan.hits.length, 1, 'the key after the unreadable folder was not found');
+  assert.equal(scan.hits[0].pattern, 'firecrawl-key');
+});
+
+// Every command that writes a file names a write the environment refuses in words, exit
+// code included - not a Node stack trace with the exit code of "a check failed". Six
+// commands had missed it by 2026-09-30 (break-tests); a new one must not. A command that
+// imports a writer from lib/ must CALL writeFailure, or be listed here with the reason its
+// own handler is equivalent.
+const WRITERS = ['writeText', 'writeBytes', 'writeJson', 'appendLine', 'appendFetch', 'writeArtifact', 'writeAudit',
+  'renderBrief', 'renderTimeline', 'repairLedgerTail', 'installCommitGate', 'installEditGate', 'uninstall', 'saveConfig',
+  'deploy', 'scaffoldProject', 'registerPrior', 'runResearch', 'decompose', 'fetchCorpus'];
+const OWN_HANDLER = {
+  'artifact.mjs': 'create catches every packaging error, writeArtifact included, and exits BLOCKED (3) with its message',
+  'collect-remote.mjs': 'every step, the download included, is caught and reported by die() with a named exit code',
+};
+test('every command that writes names a refused write through writeFailure, or says why it need not', () => {
+  const bin = path.join(KIT_ROOT, 'bin');
+  const missing = [];
+  for (const name of fs.readdirSync(bin).filter((f) => f.endsWith('.mjs'))) {
+    const text = fs.readFileSync(path.join(bin, name), 'utf8');
+    const imported = [...text.matchAll(/^import \{([^}]*)\} from '\.\.\/lib\/[\w-]+\.mjs'/gm)]
+      .flatMap((m) => m[1].split(',').map((s) => s.trim().split(/\s+as\s+/)[0]));
+    const writes = imported.filter((n) => WRITERS.includes(n));
+    if (!writes.length || OWN_HANDLER[name]) continue;
+    if (!/\bwriteFailure\(/.test(text)) missing.push(`${name} (imports ${writes.join(', ')})`);
+  }
+  assert.deepEqual(missing, [], `these commands write and never call writeFailure:\n  ${missing.join('\n  ')}`);
+});
+
+// One rule for reading a path a corpus RECORDS (a ledger raw, a Raw cell): inside the
+// project, by path and by real path, present, and a regular file. provenance and warc each
+// re-implemented it and each had missed a step until 2026-09-30 - one helper now answers
+// all four, and names which one failed.
+test('projectFile answers every step of the read rule, and names the one that failed', async () => {
+  const { projectFile } = await import('../lib/core.mjs');
+  const root = makeProject();
+  const outside = path.join(tempDir('rk-pf-outside-'), 'o.md');
+  writeText(outside, 'o\n');
+  writeText(resolve(root, 'research/raw/ok.md'), 'ok\n');
+  fs.mkdirSync(resolve(root, 'research/raw/dir.md'));
+  assert.deepEqual(projectFile(root, 'research/raw/ok.md'), { abs: resolve(root, 'research/raw/ok.md'), problem: null });
+  assert.equal(projectFile(root, path.relative(root, outside)).problem, 'outside');
+  // A recorded path is joined onto the root (core.resolve), so an absolute one is never
+  // read: on POSIX it names a missing file under the root, on Windows the drive letter
+  // makes it land outside (seen on the windows-latest leg, 2026-09-30). Either way, no file.
+  assert.ok(['missing', 'outside'].includes(projectFile(root, outside).problem), 'an absolute recorded path must never be readable');
+  assert.equal(projectFile(root, 'research/raw/none.md').problem, 'missing');
+  assert.equal(projectFile(root, 'research/raw/dir.md').problem, 'not-file');
+  assert.equal(projectFile(root, '').problem, 'outside', 'the root itself is not a file inside it');
+  try { fs.symlinkSync(outside, resolve(root, 'research/raw/link.md')); } catch { return; }   // the link case needs symlink rights
+  assert.equal(projectFile(root, 'research/raw/link.md').problem, 'outside', 'a link that leads out');
+});

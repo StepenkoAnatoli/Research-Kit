@@ -36,6 +36,8 @@ test('a malformed answer is "not witnessed", never a throw', () => {
 
 test('the lookup asks for the snapshot closest to the capture time, in the 14-digit form', () => {
   assert.equal(witness.waybackTimestamp(new Date('2026-09-30T05:44:07Z')), '20260930054407');
+  assert.equal(witness.waybackTimestamp('2026-09-30T05:44:07Z'), '20260930054407');
+  assert.equal(witness.waybackTimestamp(new Date('not-a-date')), '', 'an invalid Date must not throw');
   const url = witness.requestUrl('https://docs.searxng.org/dev/search_api.html', '20260930054407');
   assert.equal(url.origin + url.pathname, 'https://archive.org/wayback/available');
   assert.equal(url.searchParams.get('url'), 'https://docs.searxng.org/dev/search_api.html');

@@ -786,6 +786,8 @@ test('a failed fetch names its cause, and a URL in the cause shows only its host
   assert.equal(fetchFailure(dns), 'fetch failed (getaddrinfo ENOTFOUND no-such.invalid)');
   const refused = Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new AggregateError([], ''), { code: 'ECONNREFUSED' }) });
   assert.equal(fetchFailure(refused), 'fetch failed (ECONNREFUSED)');
+  const aggWithoutTopCode = Object.assign(new TypeError('fetch failed'), { cause: new AggregateError([new Error('connect ECONNREFUSED 127.0.0.1:1')], '') });
+  assert.equal(fetchFailure(aggWithoutTopCode), 'fetch failed (connect ECONNREFUSED 127.0.0.1:1)');
   const keyed = Object.assign(new TypeError('fetch failed'), { cause: new Error('bad response from https://serpapi.com/search.json?api_key=SECRET&q=x') });
   assert.doesNotMatch(fetchFailure(keyed), /SECRET|api_key/);
   assert.match(fetchFailure(keyed), /serpapi\.com/);

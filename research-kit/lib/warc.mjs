@@ -11,7 +11,7 @@
 // The corpus and its ledger remain the evidence: an export is a copy, and it never gates.
 
 import zlib from 'node:zlib';
-import { resolve, sha256, readText } from './core.mjs';
+import { projectFile, sha256, readText } from './core.mjs';
 import { readLedger, readCorpus, parseCapture, fs } from './corpus.mjs';
 
 const CRLF = '\r\n';
@@ -86,10 +86,18 @@ export function exportWarc(root) {
   const skipped = [];
   let captures = 0;
   for (const entry of scrapes) {
-    const abs = resolve(root, entry.raw);
+    const { abs, problem } = projectFile(root, entry.raw);
+    if (problem) {
+      skipped.push({ file: entry.raw, seq: entry.seq, reason: {
+        outside: 'the capture is outside the project - not read',
+        missing: 'the capture is not on disk',
+        'not-file': 'the capture is not a regular file',
+      }[problem] });
+      continue;
+    }
     let raw = null;
     try { raw = fs.readFileSync(abs); } catch { /* named below */ }
-    if (raw === null) { skipped.push({ file: entry.raw, seq: entry.seq, reason: 'the capture is not on disk' }); continue; }
+    if (raw === null) { skipped.push({ file: entry.raw, seq: entry.seq, reason: 'the capture could not be read' }); continue; }
     if (entry.bodySha256 && sha256(raw) !== entry.bodySha256) {
       skipped.push({ file: entry.raw, seq: entry.seq, reason: 'the capture changed since it was fetched - its hash no longer matches the ledger' });
       continue;

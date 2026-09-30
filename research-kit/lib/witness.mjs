@@ -17,7 +17,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow } from './runtime.mjs';
+import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow, fetchFailure } from './runtime.mjs';
 
 export const ENDPOINT = 'https://archive.org/wayback/available';
 export const DEFAULT_TIMEOUT = 15_000;
@@ -26,7 +26,8 @@ const SELF = fileURLToPath(import.meta.url);
 
 /** A Date as the archive's 14-digit timestamp, YYYYMMDDhhmmss, in UTC (E-01). */
 export function waybackTimestamp(date = new Date()) {
-  return date.toISOString().replace(/[-:T]/g, '').slice(0, 14);
+  const d = date instanceof Date ? date : new Date(date);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString().replace(/[-:T]/g, '').slice(0, 14);
 }
 
 /** The Availability API request for `url`, asking for the snapshot closest to `timestamp`. */
@@ -113,7 +114,7 @@ async function child() {
     }
     process.stdout.write(JSON.stringify({ ok: true, statusCode: response.status, payload }));
   } catch (err) {
-    process.stdout.write(JSON.stringify({ ok: false, error: `could not reach the Wayback Machine: ${String(err?.cause?.message ?? err?.message ?? err)}` }));
+    process.stdout.write(JSON.stringify({ ok: false, error: `could not reach the Wayback Machine: ${fetchFailure(err)}` }));
   }
 }
 

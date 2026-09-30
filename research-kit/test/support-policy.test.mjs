@@ -330,3 +330,29 @@ test('a check count the docs state is the registry\'s', async () => {
     }
   }
 });
+
+// RESEARCH_KIT_ALLOW_UNSUP (2026-09-30, ADR-0108): a contributor with no Python can ask for
+// a green LOCAL run, told plainly that it was not a full pass; CI ignores the opt-in, so a
+// missing interpreter there still blocks. Exercised on a real run of one group that needs
+// Python, on a host the harness reports as having none.
+test('RESEARCH_KIT_ALLOW_UNSUP lets a local run without Python pass, says so, and is ignored in CI', () => {
+  const selftest = path.join(KIT_ROOT, 'bin', 'selftest.mjs');
+  const base = Object.fromEntries(Object.entries(process.env).filter(([k]) => !['CI', 'RESEARCH_KIT_ALLOW_UNSUP', 'RESEARCH_KIT_RESULT_FILE'].includes(k)));
+  const suite = (extra) => spawnSync(process.execPath, [selftest, 'canonical-float-policy'], {
+    cwd: path.resolve(KIT_ROOT, '..'), encoding: 'utf8', timeout: 120_000,
+    env: { ...base, RESEARCH_KIT_TEST_NO_PYTHON: '1', ...extra },
+  });
+
+  const blocked = suite({});
+  assert.equal(blocked.status, 1, `with no Python and no opt-in the run must block:\n${blocked.stdout.slice(-600)}`);
+  assert.match(blocked.stdout, /unsupported/);
+
+  const allowed = suite({ RESEARCH_KIT_ALLOW_UNSUP: '1' });
+  assert.equal(allowed.status, 0, `the opt-in did not let the run pass:\n${allowed.stdout.slice(-600)}`);
+  assert.match(allowed.stdout, /NOT a full pass/, 'a passing run with unsupported tests must say it was not a full pass');
+  assert.doesNotMatch(allowed.stdout, /^all tests passed$/m, 'it claimed every test passed');
+
+  const ci = suite({ RESEARCH_KIT_ALLOW_UNSUP: '1', CI: 'true' });
+  assert.equal(ci.status, 1, `CI honoured the opt-in:\n${ci.stdout.slice(-600)}`);
+  assert.match(ci.stdout, /RESEARCH_KIT_ALLOW_UNSUP is ignored in CI/);
+});

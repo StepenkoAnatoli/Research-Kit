@@ -242,3 +242,19 @@ test('a ledger line nested too deeply to walk is a named chain problem, not a cr
   assert.ok(report.findings.some((f) => f.name === 'handoff-chain-broken'),
     `handoff named: ${report.findings.map((f) => f.name).join(', ')}`);
 });
+
+// Found 2026-09-30 (outside break-test): verifyLedger resolved each entry's raw path and read
+// it without asking whether it was inside the project, so a ledger naming ../elsewhere - or a
+// link under research/raw that leads out - verified a file the corpus does not hold.
+test('a ledger entry that leads outside the project is a raw-outside failure, not read', () => {
+  const dir = makePassingProject();
+  const outside = path.join(tempDir('rk-outside-'), 'secret.md');
+  writeText(outside, '---\ntitle: s\n---\nOUTSIDE\n');
+  const hash = sha256(fs.readFileSync(outside));
+  const raws = [path.relative(dir, outside).split(path.sep).join('/')];
+  try { fs.symlinkSync(outside, path.join(dir, 'research', 'raw', 'link.md')); raws.push('research/raw/link.md'); } catch { /* no symlink rights: the relative case still runs */ }
+  for (const raw of raws) appendFetch(dir, { op: 'scrape', url: `https://x.invalid/${raws.indexOf(raw)}`, raw, bodySha256: hash, transport: 'http-keyless' });
+  const chain = verifyLedger(dir);
+  assert.equal(chain.ok, false, 'a chain naming files outside the project verified');
+  assert.deepEqual(chain.problems.filter((p) => p.rule === 'raw-outside').map((p) => p.file), raws);
+});

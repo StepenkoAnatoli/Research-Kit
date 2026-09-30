@@ -172,3 +172,27 @@ test('an instance URL with credentials is sent as basic auth, and the password i
   } finally { guarded.close(); }
   assert.doesNotMatch(searxng.requestUrl('http://me:s3cret@h.example/', 'q').href, /s3cret|me@/, 'the request URL kept the credentials');
 });
+
+// Found 2026-09-30 (outside break-test): shownInstance redacted only what parsed as an
+// http(s) URL, so a TYPO in the scheme - the case where the instance is shown in an error -
+// printed the password in full; and a literal % in a password made basicAuth throw URIError.
+test('a mistyped instance URL never shows its password, and a % in a password does not throw', () => {
+  for (const typo of ['htp://me:s3cret@searx.local', 'ftp://me:s3cret@searx.local', 'me:s3cret@searx.local']) {
+    assert.doesNotMatch(searxng.search('q', { env: { SEARXNG_URL: typo }, config: noConfig }).error, /s3cret/, `${typo} leaked in the error`);
+    assert.doesNotMatch(searxng.status({ env: { SEARXNG_URL: typo }, config: noConfig }).raw, /s3cret/, `${typo} leaked in status`);
+  }
+  assert.equal(searxng.basicAuth('http://me:100%legit@h.example/'), `Basic ${Buffer.from('me:100%legit').toString('base64')}`,
+    'a literal % in a password must be sent as typed, not throw URIError');
+});
+
+// Found 2026-09-30 (pre-merge review): the fallback pattern stopped at the first / ? or #, so
+// a password holding one - which no URL parser accepts, so it always reached the fallback -
+// was printed in full, even behind a correct http:// scheme.
+test('a password holding / ? # or @ is never shown, whatever the scheme', () => {
+  for (const typo of ['http://me:s3/cret@searx.local', 'htp://me:s3?cret@searx.local', 'me:s3#cret@searx.local', 'htp://me:s3@cret@searx.local']) {
+    assert.doesNotMatch(searxng.shownInstance(typo), /s3|cret/, `${typo} was shown with its password`);
+    assert.doesNotMatch(searxng.status({ env: { SEARXNG_URL: typo }, config: noConfig }).raw, /s3|cret/, `${typo} leaked in status`);
+  }
+  // Nothing to hide is shown as typed: a path holding @ is not a password.
+  assert.equal(searxng.shownInstance('http://searx.local:8080/a@b'), 'http://searx.local:8080/a@b');
+});

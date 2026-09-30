@@ -58,17 +58,23 @@ function instanceUrl(value) {
  * names the instance would otherwise print the password.
  */
 export function shownInstance(instance) {
-  const url = instanceUrl(instance);
-  if (!url || !url.password) return String(instance);
-  url.password = '***';
-  return url.href;
+  const text = String(instance);
+  try {
+    const url = new URL(text);
+    if (url.password) { url.password = '***'; return url.href; }
+    if (url.protocol === 'http:' || url.protocol === 'https:') return text;
+  } catch { /* fall through to pattern redaction */ }
+  // What no parser accepts is redacted by pattern, up to the LAST @: a password holding an
+  // unencoded / ? # or @ is exactly what makes a URL unparseable (found 2026-09-30).
+  return text.replace(/^((?:[a-z][a-z0-9+.-]*:\/\/)?[^/?#@:\s]+):\S*@/i, '$1:***@');
 }
 
 /** The `Authorization` header for credentials in the instance URL, or null. */
 export function basicAuth(instance) {
   const url = instanceUrl(instance);
   if (!url || (!url.username && !url.password)) return null;
-  const pair = `${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`;
+  const decode = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
+  const pair = `${decode(url.username)}:${decode(url.password)}`;
   return `Basic ${Buffer.from(pair).toString('base64')}`;
 }
 

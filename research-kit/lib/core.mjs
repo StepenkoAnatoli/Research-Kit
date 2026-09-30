@@ -240,6 +240,24 @@ export function isRegularFile(p) {
   }
 }
 
+/**
+ * May a path the corpus RECORDS - a ledger entry's raw, an evidence Raw cell - be read?
+ * `{ abs, problem }`: problem is null, or the first rule it breaks, in order:
+ *   'outside'  not inside the project by path, or (it exists) by real path - a link out
+ *   'missing'  not on disk
+ *   'not-file' a directory, fifo or device: no end to read to (ADR-0076, 2026-09-28)
+ * One helper, because provenance and warc each re-implemented these steps and each had
+ * missed one until 2026-09-30 - a ledger naming ../elsewhere was verified and exported.
+ */
+export function projectFile(root, rel) {
+  const abs = resolve(root, String(rel ?? ''));
+  if (!isInside(root, abs)) return { abs, problem: 'outside' };
+  if (!exists(abs)) return { abs, problem: 'missing' };
+  if (!realInside(root, abs)) return { abs, problem: 'outside' };
+  if (!isRegularFile(abs)) return { abs, problem: 'not-file' };
+  return { abs, problem: null };
+}
+
 export function readText(p, fallback = null) {
   // The guard is here rather than at each corpus call site because this is the one
   // funnel every text read in the kit goes through - captures, the ledger, the
