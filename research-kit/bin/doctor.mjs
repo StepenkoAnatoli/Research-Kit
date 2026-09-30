@@ -4,7 +4,7 @@
 // It describes WHEREVER IT IS RUN. A clean report from the wrong directory is a clean
 // report about the wrong project.
 
-import { parseFlags, refuseUnknownFlags, writeFailure } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, writeFailure, exitAfterFlush } from '../lib/core.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
 import { repairLedgerTail } from '../lib/provenance.mjs';
 import { renderTable, heading } from '../lib/render.mjs';
@@ -48,7 +48,7 @@ const report = runDoctor(root);
 
 if (flags.json) {
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  process.exit(report.ok ? 0 : 1);
+  await exitAfterFlush(report.ok ? 0 : 1);
 }
 
 const order = { critical: 0, fail: 1, warn: 2, info: 3, pass: 4 };
@@ -71,4 +71,4 @@ const remedy = report.findings.find((r) => r.name === 'handoff-remedy');
 if (remedy) process.stdout.write(`${heading('handoff')}\n${remedy.detail}\n`);
 
 process.stdout.write(`\n${report.ok ? 'READY' : `${report.blocking.length} blocker(s)`}  [role=${report.role}]\n`);
-process.exit(report.ok ? 0 : 1);
+await exitAfterFlush(report.ok ? 0 : 1);

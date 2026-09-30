@@ -392,6 +392,52 @@ export function tolerateClosedStdout(stream = process.stdout, { exit = (code) =>
   });
 }
 
+/**
+ * Resolves once everything written to `stream` so far has reached the operating system, or
+ * once the stream can take nothing more because its reader left.
+ *
+ * `process.exit()` does not wait for a pipe. On POSIX, Node writes to a pipe asynchronously:
+ * the kernel takes the first 64 KiB, the rest stays queued in the process until the reader
+ * makes room, and `process.exit()` discards what is still queued. Every report this kit
+ * prints ends in an exit whose code carries the verdict, so a reader slower than the writer
+ * - a pager, a CI log shipper, an agent's tool runner, `| jq` - got the first 65,536 bytes of
+ * a larger report, no error, and the exit status of a command that had succeeded:
+ * `preflight --json`, `evidence-context --all --json` and `audit --show` stopped mid-document,
+ * and `preflight`'s verdict block, printed last, was the part that went (found 2026-09-30,
+ * break-test). Windows makes stdout pipes blocking, so that leg of CI could never show it.
+ *
+ * A write callback runs in order, so an empty write queued now calls back after every
+ * earlier one. A stream that is already gone, or that errors while we wait (EPIPE: the
+ * reader left), counts as flushed - there is nobody left to deliver to, and the exit status
+ * must not depend on it.
+ */
+export function flushed(stream) {
+  return new Promise((resolvePromise) => {
+    if (!stream || stream.destroyed || stream.writableEnded) { resolvePromise(); return; }
+    const done = () => resolvePromise();
+    // Never removed. Node reports a failed write through its callback FIRST and emits 'error'
+    // on the next tick, so a listener that left with the callback left that event unhandled:
+    // the raw-stack crash this exists to prevent. The process is about to exit.
+    stream.on('error', done);
+    stream.once('close', done);
+    try { stream.write('', done); } catch { done(); }
+  });
+}
+
+/**
+ * End the process with `code` once stdout and stderr have flushed: `await exitAfterFlush(1)`.
+ *
+ * It is for the last line of a command that prints a report, where `process.exit(code)` cut
+ * the report at the pipe's capacity (see `flushed`). `process.exitCode` is set first, so the
+ * status is the same however the wait ends. Only a top-level `await` can halt the script
+ * here; code that cannot await sets `process.exitCode` and lets the loop drain instead.
+ */
+export async function exitAfterFlush(code = 0) {
+  process.exitCode = code;
+  await Promise.all([flushed(process.stdout), flushed(process.stderr)]);
+  process.exit(code);
+}
+
 /** Why a write was refused, in words, by error code (2026-09-28). */
 const WRITE_REFUSALS = Object.freeze({
   EACCES: 'permission denied - the folder or the file is not writable by this user',

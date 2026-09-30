@@ -8,7 +8,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { parseFlags, listFiles, refuseUnknownFlags, exists, kitCommand, tolerateClosedStdout, tempBase, tempFreeSpace } from '../lib/core.mjs';
+import { parseFlags, listFiles, refuseUnknownFlags, exists, kitCommand, tolerateClosedStdout, tempBase, tempFreeSpace, exitAfterFlush } from '../lib/core.mjs';
 import { runPending, TEST_TIMEOUT, importTestFiles, describe, test, dominantFailureCause } from '../test/harness.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 
@@ -177,7 +177,7 @@ if (blocking) {
     process.stdout.write(`Likely single cause: ${cause.count} of ${failures} failures (${percent}%) open with ${cause.code}.\n`);
     process.stdout.write(`  ${cause.code === 'ENOSPC' || cause.code === 'EDQUOT' ? tempFreeSpace() : `one code behind most of a red suite points at one broken thing, not ${failures} broken tests.`}\n`);
   }
-  process.exit(1);
+  await exitAfterFlush(1);
 }
 
 // The README states a test count in the present tense, and it has now gone stale TWICE:
@@ -200,7 +200,7 @@ if (!positional.length) {
         + `A stale count is the first claim a reader checks, and the cheapest one to lose trust over.\n`
         + `Fix: change "${claim[1]} tests, offline" to "${actual} tests, offline" in research-kit/README.md\n`);
       writeResultFile(1);
-      process.exit(1);
+      await exitAfterFlush(1);
     }
   } catch { /* no README (a scaffolded or partial copy) - nothing to keep honest */ }
 }
@@ -209,4 +209,4 @@ writeResultFile(0);
 process.stdout.write(waiveUnsupported
   ? `NOT a full pass: every test that ran passed, and ${unsupported.length} could not run on this host (RESEARCH_KIT_ALLOW_UNSUP=1)\n`
   : 'all tests passed\n');
-process.exit(0);
+await exitAfterFlush(0);

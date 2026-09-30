@@ -4,7 +4,7 @@
 // It PRINTS what lib/audit.mjs returns. It used to walk the raw index itself with a
 // second sort, which made the reader below it dead code and the ordering unsettleable.
 
-import { parseFlags, refuseUnknownFlags, checkFlagValues, PATHS, kitCommand, writeFailure } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, checkFlagValues, PATHS, kitCommand, writeFailure, exitAfterFlush } from '../lib/core.mjs';
 import { writeAudit, listVersions, resolveVersion, zipAudit, readAuditFile } from '../lib/audit.mjs';
 import { heading } from '../lib/render.mjs';
 import { isGated } from '../lib/gate.mjs';
@@ -93,7 +93,7 @@ if (typeof flags.show === 'string') {
   const read = readAuditFile(root, held.main);
   if (read.text === null) { process.stderr.write(`${read.reason}${read.outside ? ` - refusing to show it. Repair ${PATHS.audits}/index.json` : ''}\n`); process.exit(1); }
   process.stdout.write(read.text);
-  process.exit(0);
+  await exitAfterFlush(0);
 }
 
 // Outside a research project there is no corpus to snapshot, and the render path would
