@@ -173,7 +173,8 @@ export function tempFreeSpace() {
     return `the temp folder ${base} has ${mib < 10 ? mib.toFixed(1) : Math.round(mib)} MiB free, and ${measured}. `
       + 'Point TMPDIR (TEMP and TMP on Windows) at a folder with room, and run again.';
   } catch {
-    return `check the free space on the volume holding ${base}; ${measured}.`;
+    return `check the free space on the volume holding ${base}; ${measured}. `
+      + 'Point TMPDIR (TEMP and TMP on Windows) at a folder with room, and run again.';
   }
 }
 
