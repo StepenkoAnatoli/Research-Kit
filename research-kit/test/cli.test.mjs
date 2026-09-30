@@ -15,7 +15,7 @@ import { pathToFileURL } from 'node:url';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT, makePassingProject } from './harness.mjs';
 import { renderBrief } from '../lib/brief.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
-import { spellCommand, documentCommand, parseFlags, writeFailure } from '../lib/core.mjs';
+import { spellCommand, documentCommand, parseFlags, writeFailure, writeText } from '../lib/core.mjs';
 import { renderTable } from '../lib/render.mjs';
 
 describe('cli');
@@ -1172,6 +1172,28 @@ test('install names a mkdir through a dangling link, exits 2, and prints no stac
   try { fs.symlinkSync(path.join(home, 'nowhere'), path.join(home, '.agents'), 'dir'); } catch { return; } // no symlink rights (Windows)
   writeRefused(run('install.mjs', [], { root: home, env: { HOME: home, USERPROFILE: home, RESEARCH_KIT_HOME: path.join(home, '.agents', 'research-kit'), RESEARCH_KIT_CONFIG: path.join(home, 'c.json') } }),
     'install.mjs', '.agents');
+});
+
+// Found 2026-09-30 (break-test, PR #172): the atomic write's scratch was the whole target
+// name plus `.` and `.tmp-<pid>-<hex>`, so a name the filesystem accepts (up to 255 BYTES on
+// ext4 and tmpfs) failed with ENAMETOOLONG where a plain write succeeded - and ENAMETOOLONG
+// was not in the refusal table, so it reached the operator as a Node stack with exit 1.
+test('a legal long name still writes, and a name that is too long is a named refusal', () => {
+  const tooLong = Object.assign(new Error('ENAMETOOLONG'), { code: 'ENAMETOOLONG', syscall: 'open', path: '/x/long.warc.gz' });
+  assert.match(String(writeFailure(tooLong, '/elsewhere')), /could not write \/x\/long\.warc\.gz: ENAMETOOLONG \(/);
+
+  // POSIX only: on Windows a long name is a MAX_PATH question about the whole path, which is
+  // not what the scratch name is about.
+  if (process.platform === 'win32') return;
+  const dir = tempDir('rk-longname-');
+  // 244 bytes of ASCII, and 243 bytes of 3-byte characters: the scratch must be bounded in
+  // BYTES - 100 characters of the second name would be 300 bytes on their own.
+  for (const name of [`${'y'.repeat(240)}.txt`, `${'日'.repeat(80)}.md`]) {
+    const file = path.join(dir, name);
+    writeText(file, 'body\n');
+    assert.equal(fs.readFileSync(file, 'utf8'), 'body\n', `a ${Buffer.byteLength(name)}-byte name the filesystem accepts was refused`);
+  }
+  assert.deepEqual(fs.readdirSync(dir).filter((f) => f.includes('.tmp-')), [], 'a scratch file was left behind');
 });
 
 test('a missing directory counts as a refused write only for mkdir, not for a missing source', () => {

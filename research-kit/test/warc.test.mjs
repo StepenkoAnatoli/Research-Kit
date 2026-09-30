@@ -109,6 +109,16 @@ test('a refused write is named in words, and one record is "1 record"', () => {
   assert.ok(r.stderr.includes(path.basename(folder)), r.stderr);
   assert.doesNotMatch(`${r.stdout}${r.stderr}`, /node:fs|^\s+at /m);
 
+  // Found 2026-09-30 (break-test, PR #172): a name over the filesystem's 255-byte limit was
+  // a Node stack and exit 1, because ENAMETOOLONG was not a named refusal. POSIX only: on
+  // Windows the same length is a MAX_PATH question about the whole path.
+  if (process.platform !== 'win32') {
+    r = spawnSync(process.execPath, [bin, '--out', path.join(dir, `${'y'.repeat(248)}.warc.gz`)], { cwd: dir, encoding: 'utf8' });
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /could not write .*: ENAMETOOLONG \(/);
+    assert.doesNotMatch(`${r.stdout}${r.stderr}`, /node:fs|^\s+at /m);
+  }
+
   const empty = tempDir();
   fs.mkdirSync(path.join(empty, 'research'));
   fs.writeFileSync(path.join(empty, 'research', 'DISCOVERY.md'), '# Discovery Contract\n');

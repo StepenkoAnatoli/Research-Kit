@@ -307,6 +307,21 @@ export function writeText(p, text) {
  *
  * Bytes and text share one implementation so the promise cannot drift between them.
  */
+/**
+ * The part of a target's name its scratch carries: at most 100 BYTES, cut on a character
+ * boundary. The scratch adds `.` and `.tmp-<pid>-<hex>`, so carrying the whole name made it
+ * LONGER than the file it replaces - a name the filesystem accepts (255 bytes on ext4 and
+ * tmpfs) failed with ENAMETOOLONG where a plain write succeeded (found 2026-09-30,
+ * break-test). Bytes, not characters: 100 characters of a CJK name are 300 bytes.
+ */
+function scratchStem(name) {
+  const bytes = Buffer.from(name, 'utf8');
+  if (bytes.length <= 100) return name;
+  let end = 100;
+  while (end > 0 && (bytes[end] & 0xC0) === 0x80) end -= 1;     // never split a character
+  return bytes.subarray(0, end).toString('utf8');
+}
+
 export function writeBytes(p, data, encoding = null) {
   ensureDir(path.dirname(p));
   let target = p;
@@ -324,7 +339,7 @@ export function writeBytes(p, data, encoding = null) {
     } catch { /* p does not exist yet: a new file */ }
     target = p;
   }
-  const scratch = path.join(path.dirname(target), `.${path.basename(target)}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`);
+  const scratch = path.join(path.dirname(target), `.${scratchStem(path.basename(target))}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`);
   try {
     if (encoding === null) fs.writeFileSync(scratch, data);
     else fs.writeFileSync(scratch, data, encoding);
@@ -386,6 +401,7 @@ const WRITE_REFUSALS = Object.freeze({
   EDQUOT: 'the disk quota is used up',
   EFBIG: 'the file would exceed the size this process may write',
   EISDIR: 'a folder is where the file should be',
+  ENAMETOOLONG: 'the name is longer than the filesystem allows - most allow 255 bytes per name',
   ENOTDIR: 'a file is where a folder should be',
   EEXIST: 'something already exists where a folder should be',
   EBUSY: 'the file is in use by another process',
