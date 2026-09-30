@@ -639,12 +639,27 @@ test('a stdout the environment refuses is named in words and exits 2, not a raw 
   let exited = null;
   tolerateClosedStdout(stream, { exit: (code) => { exited = code; } });
 
-  stream.emit('error', Object.assign(new Error('no space left on device'), { code: 'ENOSPC' }));
+  // The handler names the refusal on the REAL stderr, even when the stream is a fake -
+  // and this leak put `no space is left on the disk` on every green suite's stderr,
+  // exactly the words a genuinely full disk would print, sending the reader hunting for
+  // a disk problem that did not exist (found 2026-09-30, break-test). Capture it here,
+  // and assert the words, which is the property under test.
+  const realStderrWrite = process.stderr.write;
+  const said = [];
+  process.stderr.write = (chunk) => { said.push(String(chunk)); return true; };
+  try {
+    stream.emit('error', Object.assign(new Error('no space left on device'), { code: 'ENOSPC' }));
+    // Every later write fails the same way; the report must not be attempted once per line.
+    stream.emit('error', Object.assign(new Error('no space left on device'), { code: 'ENOSPC' }));
+  } finally {
+    process.stderr.write = realStderrWrite;
+  }
 
   assert.equal(exited, 2, 'a refused output reported itself as a red run (exit 1) with a stack trace');
-  // Every later write fails the same way; the report must not be attempted once per line.
-  stream.emit('error', Object.assign(new Error('no space left on device'), { code: 'ENOSPC' }));
-  assert.equal(exited, 2);
+  const words = said.join('');
+  assert.match(words, /ENOSPC/, 'the refusal is named in words, with the code that explains it');
+  assert.match(words, /no space is left on the disk/, 'the reader gets the reason, not a stack trace');
+  assert.equal(said.length, 1, 'the report was printed once per run, not once per failed write');
 });
 
 test('a command whose reader quits keeps its own exit code', async () => {
