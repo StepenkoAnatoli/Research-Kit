@@ -122,6 +122,18 @@ test('an unreachable endpoint is a refusal to conclude, not a clean result', asy
   assert.match(text, /not tried/);
 });
 
+// Found 2026-09-30 (outside break-test): an unreachable probe was noted as
+// "unreachable: fetch failed" - Node's message - while the reason sat on err.cause.
+test('an unreachable probe names the cause of the failed fetch, not the bare "fetch failed"', async () => {
+  const doFetch = async () => {
+    throw Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('getaddrinfo ENOTFOUND api.github.com'), { code: 'ENOTFOUND' }) });
+  };
+  const report = await probeRun({ repository: 'o/r', runId: 1, fetch: doFetch });
+  const tried = report.findings.filter((f) => /unreachable/.test(f.note ?? ''));
+  assert.ok(tried.length, 'no probe was attempted');
+  for (const f of tried) assert.match(f.note, /ENOTFOUND api\.github\.com/, f.note);
+});
+
 test('an exposure found stands even when another probe could not be made', async () => {
   const table = {
     ...OPEN,

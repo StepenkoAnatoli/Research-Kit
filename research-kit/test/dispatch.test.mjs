@@ -168,6 +168,25 @@ test('a network failure is distinguished from a rejection', async () => {
     (err) => err.code === 'NETWORK' && /safe to repeat/.test(err.remedy));
 });
 
+// Same class as the transports' 2026-09-30 fix (ADR-0047), one seam later: a dispatch that
+// never left read "could not reach https://api.github.com: fetch failed" whatever the cause,
+// and the caller is an agent whose only next step is to guess. Reproduced 2026-09-30 on a
+// host with no egress to api.github.com, where the real cause was a TLS-inspecting proxy.
+test('a dispatch that never left names the cause, not the bare "fetch failed"', async () => {
+  const doFetch = async () => {
+    const err = new TypeError('fetch failed');
+    err.cause = { code: 'ENOTFOUND', message: 'getaddrinfo ENOTFOUND api.github.com' };
+    throw err;
+  };
+  await assert.rejects(() => dispatchCollection({ repository: REPO, token: TOKEN, fetch: doFetch }),
+    (err) => {
+      assert.equal(err.code, 'NETWORK');
+      assert.match(err.message, /ENOTFOUND/);
+      assert.doesNotMatch(err.message, /: fetch failed$/, 'the cause was dropped');
+      return true;
+    });
+});
+
 test('a malformed repository is refused before any request is made', async () => {
   const doFetch = stubFetch([jsonResponse(200, { workflow_run_id: 1 })]);
   for (const bad of ['no-slash', '/leading', 'trailing/', 'a/b/c']) {
