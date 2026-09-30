@@ -33,6 +33,18 @@ test('a rendered page becomes a graded capture through the keyless extractor', (
   assert.equal(calls[0].args.at(-1), 'https://nodejs.org/api/fs.html', 'the URL is an argv element, last, never a shell word');
 });
 
+// Found 2026-09-30: every browser capture recorded `command: http-keyless browser <url>` - the
+// keyless transport's name on a page no keyless request fetched. The command is an annotation,
+// but it is written into a committed ledger, so it names the tool that ran.
+test('the recorded command names the browser, not the keyless transport', () => {
+  const { spawn } = spawnWith({ stdout: PAGE });
+  const r = browser.scrape('https://nodejs.org/api/fs.html', { spawn, browserPath: '/opt/chrome', env: {} });
+  assert.equal(r.cmd, 'browser https://nodejs.org/api/fs.html');
+  assert.equal(browser.command(['https://x.invalid/a b']), 'browser "https://x.invalid/a b"', 'a URL with a space is quoted');
+  const none = browser.scrape('https://x.invalid/a', { spawn, browserPath: null, env: {}, exists: () => false, config: {} });
+  assert.doesNotMatch(none.cmd, /http-keyless/, 'the refusal carries the same command');
+});
+
 test('Chromium\'s own error page is a failure that names its code, though it exits 0', () => {
   assert.equal(chromeErrorOf(PRIVACY), 'ERR_CERT_AUTHORITY_INVALID');
   assert.equal(chromeErrorOf(PAGE), '');

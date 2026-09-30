@@ -10,7 +10,7 @@
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import { mainContent, htmlToMarkdown, titleOf, gradeCompleteness, command as keylessCommand } from './http-transport.mjs';
+import { mainContent, htmlToMarkdown, titleOf, gradeCompleteness } from './http-transport.mjs';
 import httpKeyless from './http-transport.mjs';
 import { CHILD_OUTPUT_LIMIT } from './runtime.mjs';
 
@@ -73,8 +73,13 @@ export function chromeErrorOf(html) {
   return text.match(/\b(?:NET::)?(ERR_[A-Z_]+)\b/)?.[1] ?? 'ERR_UNKNOWN';
 }
 
+/**
+ * What the ledger records as this fetch's command: `browser <url>`, quoted like the keyless
+ * transport's. It had used that transport's formatter whole, so every browser capture read
+ * `http-keyless browser <url>` - the wrong tool's name in a committed file (2026-09-30).
+ */
 export function command(argv) {
-  return keylessCommand(['browser', ...argv.slice(-1)]);
+  return ['browser', ...argv.slice(-1)].map((p) => (/\s/.test(p) ? JSON.stringify(p) : p)).join(' ');
 }
 
 export function scrape(url, { spawn = spawnSync, browserPath = null, env = process.env, config = {}, exists, timeout = TIMEOUT_MS, uid } = {}) {
