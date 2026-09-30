@@ -145,8 +145,28 @@ export function rankCandidate(url, { prefer = [], why = '' } = {}) {
   if (/\b(terms|tos|legal|licen[cs]e|privacy)\b/.test(url)) value += 3;
   if (/\b(blog|news|medium\.com|reddit\.com|youtube\.com|stackoverflow\.com)\b/.test(url)) value -= 5;
   if (/\b(login|signin|signup|cart|checkout)\b/.test(url)) value -= 8;
-  if (why && new RegExp(why.split(/\s+/).slice(0, 2).join('|'), 'i').test(url)) value += 1;
+  if (mentionsWhy(url, why)) value += 1;
   return value;
+}
+
+/**
+ * Does the URL mention one of the first two words of the reason? A plain case-insensitive
+ * substring test, NOT a regex built from the reason.
+ *
+ * Two defects, found 2026-09-30 on the same line (break-test). A reason holding an
+ * unbalanced metacharacter - `rate limits (api)`, `[x]`, `a{2,1}` - threw a raw
+ * `SyntaxError: Invalid regular expression` straight out of an exported ranking function, so
+ * one malformed reason in a plan took down a whole collection instead of one candidate. And a
+ * reason that was only whitespace, or began with whitespace, built `|` or `|pricing` - an
+ * EMPTY alternative, which matches every URL - so every candidate silently earned the bonus
+ * and the ranking became noise. Both are the same root cause: caller text was used as a
+ * pattern instead of as words.
+ */
+function mentionsWhy(url, why) {
+  const words = String(why ?? '').split(/\s+/).filter(Boolean).slice(0, 2);
+  if (words.length === 0) return false;
+  const haystack = String(url).toLowerCase();
+  return words.some((word) => haystack.includes(word.toLowerCase()));
 }
 
 /**
