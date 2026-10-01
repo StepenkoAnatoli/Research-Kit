@@ -3,6 +3,15 @@
 Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 `research-kit/lib/core.mjs`; a release is tagged `v<version>` (ADR-0116).
 
+## Unreleased
+
+Bug fixes after 0.9.0, under the freeze (ADR-0117).
+
+- `tolerateClosedStdout` answers the callback of every write it drops. The write that
+  replaced stdout's after EPIPE returned without calling back, and `exitAfterFlush` waits on
+  exactly that callback: `selftest.mjs | head -n 1` finished green, then exited 13 on an
+  unsettled top-level await after its result file had recorded 0 (break-test PR #186).
+
 ## 0.9.0 — 2026-10-01
 
 The first tagged release. Research-Kit is feature-frozen from here: changes are bug fixes,

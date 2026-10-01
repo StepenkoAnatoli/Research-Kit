@@ -405,9 +405,19 @@ export function writeBytes(p, data, encoding = null) {
  */
 export function tolerateClosedStdout(stream = process.stdout, { exit = (code) => process.exit(code) } = {}) {
   let reported = false;
+  // The write that replaces the stream's once its output is gone. It drops the chunk and
+  // still answers the callback, a tick later, as a real write would: `exitAfterFlush` learns
+  // that stdout has drained by writing an empty chunk and waiting for exactly that callback,
+  // and a replacement that never called it left a green `selftest.mjs | head -1` on an
+  // unsettled top-level await - exit 13 (found 2026-10-01, break-test PR #186).
+  const dropWrite = (chunk, encoding, callback) => {
+    const done = typeof encoding === 'function' ? encoding : callback;
+    if (typeof done === 'function') process.nextTick(done);
+    return true;
+  };
   stream.on('error', (err) => {
     if (err?.code === 'EPIPE') {
-      stream.write = () => true;
+      stream.write = dropWrite;
       return;
     }
     // The ENVIRONMENT refusing the OUTPUT - a full disk, a quota, a read-only mount - is
@@ -423,7 +433,7 @@ export function tolerateClosedStdout(stream = process.stdout, { exit = (code) =>
     if (!reason) throw err;
     if (reported) return;                 // every later write fails the same way
     reported = true;
-    stream.write = () => true;
+    stream.write = dropWrite;
     try {
       process.stderr.write(`research-kit: could not write its output: ${err.code} (${reason}).\n`);
     } catch { /* stderr is gone too, and there is nothing left to say it with */ }
