@@ -7,6 +7,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- Chromium is given its own deadline (`--timeout`), ten seconds under the transport's kill
+  timeout. With the virtual-time budget alone, one resource that never answered froze the
+  budget, so headless never dumped and was killed with nothing to show: the intermittent
+  "did not finish rendering" on CI, reproduced with a page whose image never arrives. At
+  the deadline Chromium dumps the DOM it has, so such a page is captured as it stands.
 - The browser transport judges a timeout by what Chromium printed, not by its exit: a whole
   DOM dump after the render timeout is the render, a dump holding the guard's refusal is
   the refusal, and a timeout with no dump names the last thing Chromium said on stderr.
