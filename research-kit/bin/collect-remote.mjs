@@ -15,7 +15,8 @@
 //   1  the artifact is invalid
 //   2  the run failed, or the artifact is incomplete/unsupported
 //   3  could not start, could not reach GitHub, or no token
-//   4  dispatched and still running when the wait ran out - the run id is on stdout
+//   4  dispatched and still running when the wait ran out - the run id is on stdout, and
+//      --run-id <n> picks it up again
 //
 // 0 DOES NOT AUTHORIZE BUILDING. A collected corpus is evidence with three review
 // steps outstanding. Read `buildAuthorized`, which is false for everything this command
@@ -33,6 +34,7 @@ import {
 const HELP = `collect-remote - run the collector on GitHub Actions and bring the result back.
 
   node research-kit/bin/collect-remote.mjs --repository OWNER/REPO --topic "<what to research>"
+  node research-kit/bin/collect-remote.mjs --repository OWNER/REPO --run-id <n>
 
   --repository OWNER/REPO   required
   --topic "<text>"          required. Visible to anyone who can read the repository.
@@ -60,6 +62,9 @@ const HELP = `collect-remote - run the collector on GitHub Actions and bring the
   --out <dir>               where to save the artifact (default .)
   --timeout <seconds>       how long to wait (default 1800)
   --no-wait                 dispatch and exit, printing the run id
+  --run-id <n>              pick up a run already dispatched - after --no-wait, a timeout
+                            (exit 4) or a lost connection - instead of dispatching another.
+                            Waits for it, then downloads and judges it. Takes no --topic.
   --json                    machine-readable result
 
 The token is read from the environment: ${TOKEN_VARS.join(' or ')}.
@@ -79,7 +84,7 @@ requireRuntime({ node: true });
 const KNOWN = new Set([
   'repository', 'topic', 'max-pages', 'depth', 'client-ref', 'runner', 'workflow', 'ref',
   'search-transport', 'prior', 'prefer', 'query', 'url',
-  'out', 'timeout', 'no-wait', 'json', 'help',
+  'out', 'timeout', 'no-wait', 'json', 'help', 'run-id',
 ]);
 const unknown = Object.keys(flags).filter((f) => !KNOWN.has(f));
 if (unknown.length) {
@@ -108,7 +113,22 @@ function die(code, payload) {
   process.exit(code);
 }
 
-const missing = ['repository', 'topic'].filter((n) => flags[n] === undefined || flags[n] === true);
+// --run-id picks up a run already dispatched (found 2026-10-01: the remedies and exit 4 pointed at
+// this flag, and it did not exist, so the only way back to a run was to pay for another). A topic
+// beside it would dispatch a second run, so the two are refused together.
+const pickUp = flags['run-id'] !== undefined;
+if (pickUp) {
+  const id = String(flags['run-id']);
+  if (!/^[1-9]\d*$/.test(id)) {
+    process.stderr.write(`--run-id takes the run's number, as printed by a dispatch: got "${flags['run-id'] === true ? '' : id}"\n`);
+    process.exit(EXIT.CANNOT_START);
+  }
+  if (flags.topic !== undefined || flags['no-wait']) {
+    process.stderr.write(`--run-id picks up a run already dispatched; ${flags.topic !== undefined ? '--topic would dispatch another' : '--no-wait would leave nothing to do'}. Give one or the other.\n`);
+    process.exit(EXIT.CANNOT_START);
+  }
+}
+const missing = (pickUp ? ['repository'] : ['repository', 'topic']).filter((n) => flags[n] === undefined || flags[n] === true);
 if (missing.length) {
   process.stderr.write(`collect-remote needs ${missing.map((m) => `--${m}`).join(' and ')}\n\n`);
   process.stdout.write(HELP);
@@ -176,11 +196,15 @@ if (queriesValue.value) inputs.queries = queriesValue.value;
 // ---------------------------------------------------------------- dispatch
 
 let started;
-try {
-  started = await dispatchCollection({ repository, workflow, ref, inputs, token });
-} catch (err) {
-  const e = err instanceof DispatchError ? err : new DispatchError('UNKNOWN', err.message);
-  die(EXIT.CANNOT_START, { error: `${e.code}: ${e.message}`, code: e.code, remedy: e.remedy });
+if (pickUp) {
+  started = { workflowRunId: Number(flags['run-id']), runUrl: null, htmlUrl: null };
+} else {
+  try {
+    started = await dispatchCollection({ repository, workflow, ref, inputs, token });
+  } catch (err) {
+    const e = err instanceof DispatchError ? err : new DispatchError('UNKNOWN', err.message);
+    die(EXIT.CANNOT_START, { error: `${e.code}: ${e.message}`, code: e.code, remedy: e.remedy });
+  }
 }
 
 // Printed BEFORE the wait. A caller that dies here can still find its run, and a caller
@@ -197,6 +221,11 @@ if (flags['no-wait']) {
 
 // ---------------------------------------------------------------- wait
 
+/** The way back to this run, for a failure that names none: it was dispatched, and may be fine. */
+function pickUpAgain() {
+  return `the run may be fine - pick it up again without dispatching another: --repository ${repository} --run-id ${started.workflowRunId}`;
+}
+
 let run;
 try {
   run = await waitForRun({
@@ -212,7 +241,7 @@ try {
 } catch (err) {
   const e = err instanceof DispatchError ? err : new DispatchError('UNKNOWN', err.message);
   die(e.code === 'TIMEOUT' ? EXIT.STILL_RUNNING : EXIT.RUN_FAILED,
-    { error: `${e.code}: ${e.message}`, code: e.code, remedy: e.remedy, workflowRunId: started.workflowRunId });
+    { error: `${e.code}: ${e.message}`, code: e.code, remedy: e.remedy ?? pickUpAgain(), workflowRunId: started.workflowRunId });
 }
 
 if (run.conclusion !== 'success') {
@@ -237,7 +266,7 @@ try {
   });
 } catch (err) {
   const e = err instanceof DispatchError ? err : new DispatchError('UNKNOWN', err.message);
-  die(EXIT.RUN_FAILED, { error: `${e.code}: ${e.message}`, code: e.code, remedy: e.remedy, workflowRunId: started.workflowRunId });
+  die(EXIT.RUN_FAILED, { error: `${e.code}: ${e.message}`, code: e.code, remedy: e.remedy ?? pickUpAgain(), workflowRunId: started.workflowRunId });
 }
 const { file, validation: result } = got;
 say(`saved ${file}`);

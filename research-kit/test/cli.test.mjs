@@ -710,6 +710,40 @@ test('collect-remote refuses a bad --max-pages, --depth, --runner or --timeout b
   }
 });
 
+// Found 2026-10-01: lib/dispatch.mjs told the caller to "retry with --run-id <n>", exit 4 said
+// "the run id is on stdout", and collect-remote had no --run-id - it refused it as an unknown
+// option. A watch that ended (a timeout, a dropped connection, a closed laptop) could not be
+// picked up again; the only way back was a second dispatch, paying for the run again.
+test('collect-remote --run-id picks up a run already dispatched, without a topic', () => {
+  const r = run('collect-remote.mjs', ['--repository', 'o/r', '--run-id', '123456'], { root: project() });
+  assert.equal(r.status, 3, r.all);
+  assert.doesNotMatch(r.all, /unknown option|needs --topic/, `--run-id was not accepted on its own:\n${r.all}`);
+  assert.match(r.err, /token/i, 'it went as far as asking for the token, as a real pick-up would');
+
+  const bad = run('collect-remote.mjs', ['--repository', 'o/r', '--run-id', '12x'], { root: project() });
+  assert.equal(bad.status, 3, bad.all);
+  assert.match(bad.err.split('\n')[0] ?? '', /--run-id/, `a bad --run-id was not refused by name:\n${bad.all}`);
+
+  // A topic beside a run id would dispatch a second, paid run: refused, by name, first.
+  const both = run('collect-remote.mjs', ['--repository', 'o/r', '--run-id', '123456', '--topic', 't'], { root: project() });
+  assert.equal(both.status, 3, both.all);
+  assert.match(both.err.split('\n')[0] ?? '', /--run-id.*--topic|--topic.*--run-id/, both.all);
+});
+
+test('every flag a collect-remote remedy names is a flag collect-remote has', () => {
+  const help = run('collect-remote.mjs', ['--help'], { root: project() }).out;
+  const sources = ['lib/dispatch.mjs', 'bin/collect-remote.mjs'].map((rel) => fs.readFileSync(path.join(KIT_ROOT, ...rel.split('/')), 'utf8'));
+  const named = new Set();
+  for (const text of sources) {
+    for (const remedy of text.match(/remedy:[^\n]*(?:\n\s+\+[^\n]*)*/g) ?? []) {
+      for (const [, flag] of remedy.matchAll(/--([a-z][a-z-]+)/g)) named.add(flag);
+    }
+  }
+  assert.ok(named.has('run-id'), 'the remedies this test exists for are not being read');
+  const missing = [...named].filter((flag) => !new RegExp(`--${flag}\\b`).test(help));
+  assert.deepEqual(missing, [], 'a remedy tells the caller to use a flag collect-remote does not have');
+});
+
 test('collect-remote documents --url', () => {
   const r = run('collect-remote.mjs', ['--help'], { root: project() });
   assert.match(r.out, /--url/);

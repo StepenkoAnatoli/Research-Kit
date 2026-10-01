@@ -254,7 +254,15 @@ export async function getRun({ repository, runId, token, fetch: doFetch = global
   const [owner, name] = splitRepository(repository);
   const response = await callApi(doFetch, `${api}/repos/${owner}/${name}/actions/runs/${runId}`,
     { headers: headers(token) }, { api, remedy: `check connectivity, then retry with --run-id ${runId}` });
-  if (!response.ok) throw new DispatchError('HTTP', `could not read run ${runId}: HTTP ${response.status}`, { status: response.status });
+  if (!response.ok) {
+    // A refusal names its own way out; the caller's generic "pick it up again" would send
+    // somebody back to a run number that does not exist, with a token that cannot see it.
+    const remedy = response.status === 404 ? `no run ${runId} on ${repository}, or the token cannot see it - check the number the dispatch printed`
+      : response.status === 401 ? 'the token was refused - it is expired or mistyped; create a new one'
+        : response.status === 403 ? 'the token may not read this repository\'s runs - it needs "Actions" set to read and write'
+          : null;
+    throw new DispatchError('HTTP', `could not read run ${runId}: HTTP ${response.status}`, { status: response.status, remedy });
+  }
   return readJsonBody(response, `could not read run ${runId}`);
 }
 
@@ -310,7 +318,7 @@ export async function waitForRun({
     if (now() >= deadline) {
       throw new DispatchError('TIMEOUT', `run ${runId} was still ${run.status} after ${Math.round(timeoutMs / 1000)}s`, {
         // Not a failure of the run: the caller stopped watching, and the run keeps going.
-        remedy: `the run is still going; check ${run.html_url ?? `run ${runId}`} or wait again with a longer --timeout`,
+        remedy: `the run is still going; check ${run.html_url ?? `run ${runId}`}, or pick it up again with --run-id ${runId} (and a longer --timeout)`,
       });
     }
     await sleep(intervalMs);

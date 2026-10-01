@@ -326,6 +326,8 @@ test('a poll refused for the token or the run is not retried', async () => {
       (err) => { assert.equal(err.status, status); return true; },
     );
     assert.equal(doFetch.calls.length, 1, `HTTP ${status} was retried: a retry cannot change the answer`);
+    await waitForRun({ repository: REPO, runId: 7, token: TOKEN, fetch: stubFetch([jsonResponse(status, {})]), intervalMs: 0, sleep: async () => {} })
+      .catch((err) => assert.match(err.remedy ?? '', status === 404 ? /no run 7/ : /token/, `HTTP ${status} gave no way out of its own`));
   }
 });
 
