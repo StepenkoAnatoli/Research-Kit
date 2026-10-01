@@ -527,6 +527,25 @@ test('deploy refuses to mirror into a folder of other files, and touches nothing
   assert.equal(fs.existsSync(path.join(earlier, 'lib', 'gone.mjs')), false, 'and is still mirrored');
 });
 
+// Found 2026-10-01: the refusal listed every file under the folder to count them - 1.6 s for /usr
+// (77,000 files) here, and a home directory holds millions. It needs only a few to name.
+test('refusing a folder reads only as much of it as the refusal names', async () => {
+  const { deploy } = await import('../lib/installer.mjs');
+  const source = tempDir('research-kit-src-');
+  writeText(path.join(source, 'lib', 'core.mjs'), 'export const a = 1;\n');
+  const env = { ...process.env, RESEARCH_KIT_INSTALL_STATE: path.join(tempDir('research-kit-state-'), 'install.json') };
+  const theirs = tempDir('research-kit-theirs-');
+  for (let i = 0; i < 40; i += 1) writeText(path.join(theirs, `folder-${i}`, 'file.txt'), `${i}\n`);
+
+  const real = fs.readdirSync;
+  let reads = 0;
+  fs.readdirSync = (...args) => { reads += 1; return real(...args); };
+  let result;
+  try { result = deploy({ from: source, kitHome: theirs, env, dryRun: true }); } finally { fs.readdirSync = real; }
+  assert.equal(result.ok, false);
+  assert.ok(reads <= 5, `a refusal read ${reads} folders of the 41 there, to name a few files`);
+});
+
 test('install names a refused folder and exits 2', () => {
   const theirs = tempDir('research-kit-theirs-');
   writeText(path.join(theirs, 'notes.txt'), 'mine\n');

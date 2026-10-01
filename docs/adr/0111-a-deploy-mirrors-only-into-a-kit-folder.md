@@ -20,9 +20,9 @@ here with `notes.txt` reported as "pruned 1 retired file(s)").
   shipped since the repository's first commit), or the install state records
   the kit as deployed there.
 - **Any other folder is refused, and nothing in it is touched.** That covers the kit's own
-  files and the skill roots too. The refusal names the folder, the count of files that would
-  have been removed and a sample of them, and the way out: point `RESEARCH_KIT_HOME` at an
-  empty or new folder, or unset it.
+  files and the skill roots too. The refusal names the folder and the first few of its files (it reads no further: a home
+  directory holds millions), and the way out: point `RESEARCH_KIT_HOME` at an empty or new
+  folder, or unset it.
 - **`--dry-run` answers the same way.** A preview that said "would prune" over someone's files
   is what the operator would have read before running the real thing.
 - **`bin/install.mjs` exits 2 on a refusal**, as it does for a write the filesystem refused.

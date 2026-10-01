@@ -278,7 +278,7 @@ export function registeredPath(command) {
  * `RESEARCH_KIT_HOME` naming a regular file printed a raw ENOTDIR stack trace instead
  * (found 2026-09-29, break-test).
  */
-function listTree(root) {
+function listTree(root, { limit = Infinity } = {}) {
   const out = [];
   // Each real folder once: a link back to an ancestor otherwise re-lists the tree on every
   // lap until ELOOP ends it, ~40 copies of each file (found 2026-09-29, break-test).
@@ -291,6 +291,7 @@ function listTree(root) {
     let names;
     try { names = fs.readdirSync(dir); } catch { return; }        // a file, a refusal, a vanished folder
     for (const name of names) {
+      if (out.length >= limit) return;                            // the caller asked for a few
       if (name === 'node_modules' || name === '.git') continue;
       const abs = path.join(dir, name);
       let stat;
@@ -447,12 +448,16 @@ const KIT_MARKERS = Object.freeze(['lib/core.mjs', 'bin/gate.mjs', 'bin/prefligh
  * the install state says the kit was deployed there.
  */
 function mirrorRefusal(kitHome, env) {
-  const present = listTree(kitHome);
-  if (present.length === 0 || KIT_MARKERS.every((rel) => present.includes(rel))) return null;
+  const isFile = (rel) => { try { return fs.statSync(path.join(kitHome, ...rel.split('/'))).isFile(); } catch { return false; } };
+  if (KIT_MARKERS.every(isFile)) return null;
   const recorded = readInstallState(env)?.kitHome;
   if (typeof recorded === 'string' && path.resolve(recorded) === path.resolve(kitHome)) return null;
+  // A few files are all the refusal names. Listing every one to count them took 1.6 s for /usr
+  // (77,000 files), and a home directory holds millions (found 2026-10-01).
+  const present = listTree(kitHome, { limit: 4 });
+  if (present.length === 0) return null;
   const sample = present.slice(0, 3).join(', ');
-  return `${kitHome} is not a kit deployment - it holds ${present.length} file(s) the kit does not ship (${sample}${present.length > 3 ? ', ...' : ''}), `
+  return `${kitHome} is not a kit deployment - it holds files the kit does not ship (${sample}${present.length > 3 ? ', ...' : ''}), `
     + 'and a deploy mirrors, removing every file it does not ship. Nothing was changed. '
     + 'Point RESEARCH_KIT_HOME at an empty or new folder, or unset it to use the default.';
 }
