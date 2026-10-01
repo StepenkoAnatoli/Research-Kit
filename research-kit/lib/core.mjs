@@ -694,6 +694,45 @@ export function uniq(items) {
   return [...new Set(items)];
 }
 
+/**
+ * Order two identifiers, paths or dates the SAME WAY on every machine.
+ *
+ * `String.prototype.localeCompare` with no locale argument reads the ambient one, so
+ * the same corpus orders differently depending on where it is read. Measured
+ * 2026-10-01 (break-test), against this kit's own orderings:
+ *
+ *   da_DK.UTF-8   `Firecrawl` sorts BEFORE `firecrawl` - the reverse of every other locale
+ *   sv_SE/fi_FI   `zebra` sorts before `ålder` - the Nordic letters move to the end
+ *   th_TH.UTF-8   a dash and an underscore are IGNORED, so `a-b` and `ab` compare EQUAL,
+ *                 and their order is then whatever the sort's input order happened to be
+ *
+ * `audit --list` prints `listVersions`' order, so two machines looking at one corpus
+ * disagree about it; the conformance file lists and the ledger read order move with it.
+ *
+ * What this kit sorts is never prose - it is slugs, record IDs, ledger file paths and
+ * ISO dates - so "one order everywhere" is the property that matters and a linguistic
+ * collation is the defect. Two ways to get it were considered:
+ *
+ *   pin the locale, `localeCompare(b, 'en')`   keeps today's output on every machine that
+ *                                              already agrees, but leaves the order at the
+ *                                              mercy of the next CLDR/ICU update, which is
+ *                                              the same non-reproducibility in slower
+ *                                              clothing
+ *   code-unit order, below                    total, depends on no ICU at all, and is what
+ *                                              `canonicalJson` already sorts object keys
+ *                                              with, so the kit has one ordering
+ *
+ * Code-unit order is the choice. It changes nothing for an identifier that is neither
+ * mixed-case nor non-ASCII - every slug, record ID, path and date in this repository
+ * orders exactly as it did before - and it moves the rest onto the ordering the kit
+ * already trusts wherever a byte has to be reproducible.
+ */
+export function compareText(a, b) {
+  const left = String(a);
+  const right = String(b);
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 // ---------------------------------------------------------------- argv
 
 /**

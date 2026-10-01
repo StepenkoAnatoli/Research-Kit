@@ -10,6 +10,7 @@ import {
   sha256,
   validateJsonSchema,
 } from './release-validator.mjs';
+import { compareText } from './core.mjs';
 
 export const SNAPSHOT_VALIDATOR_VERSION = '1.0.0';
 export const SNAPSHOT_SCHEMA = path.join(DEFAULT_SCHEMA_DIR, 'git-origin-path-authority-snapshot.schema.json');
@@ -172,7 +173,7 @@ export function validatePathAuthoritySnapshot(snapshot, { schemaPath = SNAPSHOT_
 
 export function runPathAuthorityConformance({ files = [], schemaPath = SNAPSHOT_SCHEMA } = {}) {
   const errors = [];
-  const ordered = [...files].sort((a, b) => String(a).localeCompare(String(b)));
+  const ordered = [...files].sort(compareText);
   if (!ordered.length) add(errors, 'SCHEMA-NO-FILES', 'at least one JSON file is required', '$', 'INCOMPLETE');
   const schema = loadSchema(schemaPath);
   if (schema?.error) add(errors, 'SCHEMA-READ', schema.error.message, schemaPath, 'INCOMPLETE');

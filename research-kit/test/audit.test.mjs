@@ -179,6 +179,32 @@ test('versions sort numerically: v0.10 comes after v0.9', () => {
   assert.deepEqual(listVersions(dir).topics[0].versions, ['0.1', '0.9', '0.10']);
 });
 
+test('the topic ordering is the same on every machine, whatever its locale says', () => {
+  // `String.prototype.localeCompare` with no locale argument reads the ambient one, so the
+  // same manifest ordered differently depending on where it was read: under da_DK `Firecrawl`
+  // came before `firecrawl`, under sv_SE and fi_FI `zebra` came before `ålder`, and under
+  // th_TH a dash and an underscore were IGNORED, so `a-b` and `ab` compared equal and their
+  // order was whatever the sort's input order happened to be. `audit --list` prints this
+  // order, so two machines disagreed about one corpus (found 2026-10-01, break-test).
+  //
+  // The assertion is the code-unit order, which no locale can move. The slugs are chosen
+  // because they are exactly the ones the divergent locales reordered.
+  const dir = makePassingProject();
+  writeAudit(dir);
+  const manifest = readManifest(dir);
+  for (const slug of ['Firecrawl', 'firecrawl', 'zebra', 'ålder', 'a-b', 'ab']) {
+    manifest.topics[slug] = {
+      topic: slug,
+      latest: '0.1',
+      versions: { '0.1': { date: '2026-10-01', fingerprint: slug, main: `${PATHS.audits}/${slug}-v0.1.md`, subtopics: [] } },
+    };
+  }
+  writeText(resolve(dir, `${PATHS.audits}/index.json`), `${JSON.stringify(manifest, null, 2)}\n`);
+  assert.deepEqual(listVersions(dir).known, [
+    'Firecrawl', 'a-b', 'ab', 'firecrawl', 'fixture-topic', 'zebra', 'ålder',
+  ], 'code-unit order: uppercase before lowercase, a dash before a letter, the Nordic letters after z');
+});
+
 // --- the bundle --------------------------------------------------------------------
 
 test('the bundle holds the latest main audit and its subtopics, and is named for them', () => {

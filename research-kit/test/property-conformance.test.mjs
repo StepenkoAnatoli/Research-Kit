@@ -7,6 +7,7 @@ import { test, describe, assert, assertEqual } from './harness.mjs';
 // Ported 2026-09-20 under ADR-0029.
 describe('property-conformance');
 import { persistPropertyFailure, propertyInput } from '../lib/property-replay.mjs';
+import { compareText } from '../lib/core.mjs';
 
 const HASH_ZERO = '0'.repeat(64);
 const HASHING_SEED = 0xC14A0001;
@@ -76,7 +77,7 @@ test('descendant rollback invalidation is transitive, sorted, duplicate-free, an
       assertEqual(first.status, 'PASS', JSON.stringify(first));
       assertEqual(new Set(first.affectedPointers).size, first.affectedPointers.length, `affected pointers unique ${iteration}`);
       assertEqual(first.revocations.length, first.affectedPointers.length, `one revocation per pointer ${iteration}`);
-      assertEqual(first.affectedPointers.join(','), [...first.affectedPointers].sort((a, b) => first.rank[a] - first.rank[b] || a.localeCompare(b)).join(','), `package order ${iteration}`);
+      assertEqual(first.affectedPointers.join(','), [...first.affectedPointers].sort((a, b) => first.rank[a] - first.rank[b] || compareText(a, b)).join(','), `package order ${iteration}`);
       for (const revocation of first.revocations) assertEqual(revocation.invalidationRoots.join(','), [...revocation.invalidationRoots].sort().join(','), `root order ${iteration}`);
       const second = computeDescendantInvalidation({ pointers: shuffled, invalidationRoots: [root] });
       assertEqual(second.affectedPointers.join(','), first.affectedPointers.join(','), `input permutation ${iteration}`);

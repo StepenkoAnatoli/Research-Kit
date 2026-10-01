@@ -35,6 +35,7 @@ import {
   recordHash, qualificationRecordHash, qualificationChainHash,
 } from './release/canonical.mjs';
 import { validateJsonSchema } from './release/schema.mjs';
+import { compareText } from './core.mjs';
 import { inside, safePath } from './release/paths.mjs';
 
 // Re-exported so this module's public API is byte-for-byte what it was before the split.
@@ -202,7 +203,7 @@ export function computeDescendantInvalidation({ pointers = [], invalidationRoots
     closures[pointer.recordId] = closure;
   }
   const affected = pointers.filter((pointer) => roots.some((root) => closures[pointer.recordId].includes(root)));
-  affected.sort((left, right) => (rank[left.recordId] - rank[right.recordId]) || (left.generation - right.generation) || left.recordId.localeCompare(right.recordId));
+  affected.sort((left, right) => (rank[left.recordId] - rank[right.recordId]) || (left.generation - right.generation) || compareText(left.recordId, right.recordId));
   const affectedPointers = affected.map((pointer) => pointer.recordId);
   const revocations = affected.map((pointer) => ({
     recordId: pointer.recordId,
@@ -231,7 +232,7 @@ function readQualificationLedger(ledgerPath) {
       }
     } else files.push(ledgerPath);
   }
-  const uniqueFiles = [...new Set(files)].sort((a, b) => a.localeCompare(b));
+  const uniqueFiles = [...new Set(files)].sort(compareText);
   const records = [];
   const errors = [];
   for (const file of uniqueFiles) {
@@ -332,8 +333,8 @@ export function summarizeLedgerHistory(records = []) {
     };
     promotionTimelines[packageName].push(entry);
   }
-  for (const packageName of packages) promotionTimelines[packageName].sort((left, right) => (left.physicalSequence ?? Number.MAX_SAFE_INTEGER) - (right.physicalSequence ?? Number.MAX_SAFE_INTEGER) || String(left.recordId).localeCompare(String(right.recordId)));
-  recoveryReceipts.sort((left, right) => left.sequence - right.sequence || left.id.localeCompare(right.id));
+  for (const packageName of packages) promotionTimelines[packageName].sort((left, right) => (left.physicalSequence ?? Number.MAX_SAFE_INTEGER) - (right.physicalSequence ?? Number.MAX_SAFE_INTEGER) || compareText(left.recordId, right.recordId));
+  recoveryReceipts.sort((left, right) => left.sequence - right.sequence || compareText(left.id, right.id));
   return { promotionTimelines, recoveryReceiptIds: recoveryReceipts.map((entry) => entry.id) };
 }
 
@@ -938,7 +939,7 @@ function collectJsonFiles(dir) {
     }
   };
   walk(dir);
-  return result.sort((a, b) => a.localeCompare(b));
+  return result.sort(compareText);
 }
 
 export function listJsonFiles(dir) {
@@ -955,7 +956,7 @@ export function runSchemaConformance({ files = [], schemaPath, schema } = {}) {
   }
   if (!actualSchema) return { validatorVersion: VALIDATOR_VERSION, status: 'INCOMPLETE', files: [], errors: [{ code: 'SCHEMA-READ', message: 'schema is required', path: '$', status: 'INCOMPLETE' }] };
   if (!files.length) return { validatorVersion: VALIDATOR_VERSION, status: 'INCOMPLETE', files: [], errors: [{ code: 'SCHEMA-NO-FILES', message: 'at least one JSON file is required', path: '$', status: 'INCOMPLETE' }] };
-  for (const file of [...files].sort((a, b) => String(a).localeCompare(String(b)))) {
+  for (const file of [...files].sort(compareText)) {
     const loaded = readJson(file);
     if (loaded.error) { errors.push({ code: loaded.code ?? 'SCHEMA-READ', message: loaded.error.message, path: file, status: 'INCOMPLETE' }); continue; }
     const local = [];
