@@ -329,7 +329,14 @@ export function unwrapArtifact(bytes) {
   if (zip.problems.length) return { bytes, unwrapped: false };
   const inner = zip.names.filter((n) => n.endsWith('.zip'));
   if (inner.length !== 1) return { bytes, unwrapped: false };
-  return { bytes: zip.read(inner[0]), unwrapped: true, name: inner[0] };
+  // An inner package that cannot be read is handed on as it came, as a wrapper that cannot be
+  // opened is: judging such bytes is the validator's job, and a ZIP-READ thrown from here went
+  // past it (found 2026-10-01, break-test).
+  try {
+    return { bytes: zip.read(inner[0]), unwrapped: true, name: inner[0] };
+  } catch {
+    return { bytes, unwrapped: false };
+  }
 }
 
 // ---------------------------------------------------------------- bringing it home

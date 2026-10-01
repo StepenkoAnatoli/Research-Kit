@@ -11,6 +11,7 @@ import {
   tokenFromEnv, redact, DispatchError, API_VERSION, TOKEN_VARS, fetchCorpus,
 } from '../lib/dispatch.mjs';
 import { rawZip } from './artifact-fixtures.mjs';
+import { openZip as importedOpenZip } from '../lib/artifact-zip.mjs';
 
 describe('dispatch');
 
@@ -424,3 +425,31 @@ test('a downloaded package cannot be written outside the directory asked for', a
     assert.deepEqual(fs.readdirSync(path.join(parent, 'sub')), ['out'], 'something was written outside --out');
   } finally { cleanup(parent); }
 });
+
+// Found 2026-10-01 (break-test, PR #178): unwrapArtifact caught a wrapper it could not open,
+// but not an inner entry it could not READ - an invalid deflate stream threw ZIP-READ out of
+// fetchCorpus, past the validator that exists to judge exactly such bytes.
+test('a wrapper whose inner package cannot be decompressed is judged by the validator, not thrown', async () => {
+  const { buildZip } = await import('../lib/archive.mjs');
+  const bytes = buildZip([{ name: 'package.zip', data: 'hello'.repeat(100) }]);
+  bytes.fill(255, 41, 46);                 // inside the deflated payload: an invalid block type
+  assert.throws(() => (/** the fixture must really be corrupt */ require_read(bytes)), /could not be decompressed/);
+  const r = unwrapArtifact(bytes);
+  assert.equal(r.unwrapped, false);
+  assert.equal(r.bytes, bytes, 'the bytes are handed on as they came');
+
+  const dir = tempDir('rk-corrupt-');
+  try {
+    const result = await fetchCorpus({ repository: REPO, runId: 1, token: TOKEN, outDir: dir, fetch: stubFetch([
+      jsonResponse(200, { artifacts: [{ id: 1, name: 'research-kit-corpus-v1-ok', expired: false }] }),
+      { ok: true, status: 200, arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length) },
+    ]) });
+    assert.notEqual(result.validation.status, 'PASS', 'a package that cannot be read must not validate');
+    assert.ok(result.validation.errors.length > 0, 'and the validator must say why');
+  } finally { cleanup(dir); }
+});
+
+function require_read(bytes) {
+  // openZip is what unwrapArtifact uses; reading the one entry is where the throw came from.
+  return importedOpenZip(bytes).read('package.zip');
+}
