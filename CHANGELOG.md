@@ -24,6 +24,10 @@ Bug fixes after 0.9.0, under the freeze (ADR-0117).
   one that will not parse - so a signed URL in a plan was printed to the terminal and written into
   `research/raw/.fetches.jsonl` as that entry's error: nine copies of one token, in the file that
   must travel, in the one directory `doctor`'s secret scan excludes (break-test 2026-10-01).
+- `skillRoots` is checked as a list of paths, not only as an array. A number or a null left in a
+  hand-edited machine config reached `path.join` and killed `doctor` with a raw
+  `ERR_INVALID_ARG_TYPE` stack - the one command whose job is to name every problem and print its
+  fix (break-test 2026-10-01).
 - The browser transport judges a timeout by what Chromium printed, not by its exit: a whole
   DOM dump after the render timeout is the render, a dump holding the guard's refusal is
   the refusal, and a timeout with no dump names the last thing Chromium said on stderr.
