@@ -14,7 +14,7 @@ import {
 import { readCorpus, cacheDecision, tableRow, appendJsonLine, parseCapture } from './corpus.mjs';
 import { seedRows, UNIVERSAL_DIMENSIONS } from './dimensions.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
-import { urlKey, matchesQuery, mergeByRank, searchPatiently, canSearch } from './research-run.mjs';
+import { urlKey, matchesQuery, mergeByRank, searchPatiently, canSearch, isWebUrl } from './research-run.mjs';
 import { KIT_ROOT, UNTITLED_TOPIC } from './scaffold.mjs';
 import { fallbackCost } from './runtime.mjs';
 
@@ -475,7 +475,7 @@ export function decompose(root, {
         // answered: `covered` keeps it out of the lost count (searchSummary).
         for (const miss of missed) failures.push(lists.length ? { ...miss, covered: true } : miss);
         for (const row of mergeByRank(lists)) {
-          if (seen.has(urlKey(row.url))) continue;
+          if (!isWebUrl(row.url) || seen.has(urlKey(row.url))) continue;   // only http(s) pages are material
           seen.add(urlKey(row.url));
           material.push({ ...row, rankedBy: (row.providers ?? [row.provider]).filter(Boolean).join('+'), foundBy: query });
         }
@@ -505,8 +505,9 @@ export function decompose(root, {
         continue;
       }
       for (const row of found.results) {
-        // One page, one candidate - the identity runResearch uses (urlKey).
-        if (seen.has(urlKey(row.url))) continue;
+        // One page, one candidate - the identity runResearch uses (urlKey). Only an http(s)
+        // page is material: a `file:` or `javascript:` result reached the fetch adapter.
+        if (!isWebUrl(row.url) || seen.has(urlKey(row.url))) continue;
         seen.add(urlKey(row.url));
         material.push({ ...row, rankedBy: ranker, foundBy: query });
       }

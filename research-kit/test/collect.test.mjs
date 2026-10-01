@@ -887,3 +887,15 @@ test('a vendor-stated rate-limit wait is capped at one minute', () => {
   assert.equal(rateLimitWaitMs('Rate limit exceeded; retry after 59s'), 60_000, 'a stated wait under the cap is kept');
   assert.equal(rateLimitWaitMs('Rate limit exceeded; retry after 5s'), 6_000);
 });
+
+// Found 2026-10-01 (break-test, PR #180): a search result's URL is the vendor's text, and
+// selectCandidates queued `javascript:` and `file:` rows beside real pages - the browser
+// transport hands a queued URL to Chromium as it is. Plan URLs were checked; search results
+// were not. Only an http(s) URL with a host reaches a fetch adapter.
+test('only an http(s) search result with a host is queued for a fetch', () => {
+  const rows = ['javascript:alert(1)', 'file:///etc/passwd', 'data:text/html,<b>x</b>', 'ftp://ftp.example/r', 'https://', 'not a url',
+    'https://docs.example.com/rate-limits', 'http://plain.example/rate-limits']
+    .map((url) => ({ url, title: 'Rate limits' }));
+  assert.deepEqual(selectCandidates(rows, { perQuery: 10 }).map((row) => row.url),
+    ['https://docs.example.com/rate-limits', 'http://plain.example/rate-limits']);
+});
