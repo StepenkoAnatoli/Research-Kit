@@ -407,7 +407,14 @@ export function tolerateClosedStdout(stream = process.stdout, { exit = (code) =>
   let reported = false;
   stream.on('error', (err) => {
     if (err?.code === 'EPIPE') {
-      stream.write = () => true;
+      // A later exitAfterFlush() writes an empty chunk with a callback. Dropping that write
+      // must still acknowledge it; otherwise the callback never runs and Node exits 13 for
+      // an unsettled top-level await after an otherwise green selftest | head -1 run.
+      stream.write = (_chunk, encoding, callback) => {
+        const done = typeof encoding === 'function' ? encoding : callback;
+        if (typeof done === 'function') process.nextTick(done);
+        return true;
+      };
       return;
     }
     // The ENVIRONMENT refusing the OUTPUT - a full disk, a quota, a read-only mount - is

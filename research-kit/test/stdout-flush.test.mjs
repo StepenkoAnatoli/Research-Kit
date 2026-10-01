@@ -144,6 +144,23 @@ process.stdout.write('UNREACHABLE\\n');
   return file;
 }
 
+test('a tolerated EPIPE still lets exitAfterFlush settle with its green exit code', () => {
+  const file = path.join(tempDir('rk-flush-epipe-'), 'report.mjs');
+  const core = pathToFileURL(path.join(KIT_ROOT, 'lib', 'core.mjs')).href;
+  fs.writeFileSync(file, [
+    `import { tolerateClosedStdout, exitAfterFlush } from ${JSON.stringify(core)};`,
+    'tolerateClosedStdout();',
+    "process.stdout.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }));",
+    'await exitAfterFlush(0);',
+  ].join('\n'));
+  const result = spawnSync(process.execPath, [file], {
+    cwd: tempDir('rk-flush-epipe-cwd-'), encoding: 'utf8', timeout: 5_000, windowsHide: true,
+  });
+  assert.ifError(result.error);
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stderr, /Detected unsettled top-level await/);
+});
+
 test('exitAfterFlush delivers every line to a slow reader, then exits with the code it was given', async () => {
   const file = fixture();
   const results = await Promise.all([0, 1, 3].map((code) => throughSlowPipe([file, String(code)], tempDir('rk-flush-cwd-'))));
