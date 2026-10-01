@@ -430,8 +430,12 @@ export function driftNote(drift) {
   return `${parts.join('; ')}${sample.length ? ` (e.g. ${sample.join(', ')})` : ''}`;
 }
 
-/** A file every kit version has shipped: a folder holding it is a deployment of some kit. */
-const KIT_MARKER = 'lib/core.mjs';
+/**
+ * Files every kit version has shipped, since the repository's first commit: a folder holding all
+ * three is a deployment of some kit. One was not enough - a project of somebody's own with a
+ * `lib/core.mjs` was taken for a kit, and its other files were pruned (found 2026-10-01).
+ */
+const KIT_MARKERS = Object.freeze(['lib/core.mjs', 'bin/gate.mjs', 'bin/preflight.mjs']);
 
 /**
  * Why `kitHome` may not be mirrored into, or null when it may (ADR-0111).
@@ -444,7 +448,7 @@ const KIT_MARKER = 'lib/core.mjs';
  */
 function mirrorRefusal(kitHome, env) {
   const present = listTree(kitHome);
-  if (present.length === 0 || present.includes(KIT_MARKER)) return null;
+  if (present.length === 0 || KIT_MARKERS.every((rel) => present.includes(rel))) return null;
   const recorded = readInstallState(env)?.kitHome;
   if (typeof recorded === 'string' && path.resolve(recorded) === path.resolve(kitHome)) return null;
   const sample = present.slice(0, 3).join(', ');

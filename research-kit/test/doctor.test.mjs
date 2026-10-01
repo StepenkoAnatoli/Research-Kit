@@ -421,6 +421,11 @@ test('ownership is decided before executability, so the fix is never chmod on a 
 
 // --- deploy mirrors, it does not merge --------------------------------------------
 
+/** The files every kit version has shipped, so a fixture reads as an earlier deployment. */
+function asEarlierKit(dir) {
+  for (const rel of ['bin/gate.mjs', 'bin/preflight.mjs']) writeText(path.join(dir, ...rel.split('/')), '// an earlier kit\n');
+}
+
 test('deploy MIRRORS: a file the source no longer ships is removed from the deployed tree', async () => {
   const { deploy } = await import('../lib/installer.mjs');
   const source = tempDir('research-kit-src-');
@@ -434,6 +439,7 @@ test('deploy MIRRORS: a file the source no longer ships is removed from the depl
   writeText(path.join(target, 'lib', 'release-validator.mjs'), 'export const old = true;\n');
   writeText(path.join(target, 'recipes', 'retired-recipe.md'), '# from a kit that was replaced\n');
   writeText(path.join(target, 'schemas', 'old.schema.json'), '{}\n');
+  asEarlierKit(target);
 
   const { env } = { env: { ...process.env, RESEARCH_KIT_INSTALL_STATE: path.join(target, 'install.json') } };
   const result = deploy({ from: source, kitHome: target, env });
@@ -468,6 +474,7 @@ test('deploy --dry-run names exactly what a real deploy would prune, and nothing
   writeText(path.join(stale, 'lib', 'core.mjs'), 'export const a = 0;\n');
   writeText(path.join(stale, 'lib', 'gone.mjs'), 'old\n');
   writeText(path.join(stale, ...RETIRED_KIT_FILES[0].split('/')), 'retired\n');
+  asEarlierKit(stale);
   const preview = deploy({ from: source, kitHome: stale, env, dryRun: true }).prune.sort();
   assert.ok(fs.existsSync(path.join(stale, 'lib', 'gone.mjs')), 'a dry run removes nothing');
   const real = deploy({ from: source, kitHome: stale, env }).pruned.sort();
@@ -498,6 +505,16 @@ test('deploy refuses to mirror into a folder of other files, and touches nothing
   for (const rel of files) assert.equal(readText(path.join(theirs, ...rel.split('/'))), `${rel}\n`, `${rel} was changed or deleted`);
   assert.equal(fs.existsSync(path.join(theirs, 'lib', 'core.mjs')), false, 'the kit was written into it anyway');
 
+  // A project of somebody's own that happens to have a lib/core.mjs is not a kit: one common file
+  // name took a project for a deployment, and its src/app.js was pruned (found 2026-10-01).
+  const project = tempDir('research-kit-project-');
+  writeText(path.join(project, 'lib', 'core.mjs'), 'export const theirs = 1;\n');
+  writeText(path.join(project, 'src', 'app.js'), 'app\n');
+  assert.equal(deploy({ from: source, kitHome: project, env, dryRun: true }).ok, false, 'a project with a lib/core.mjs was taken for a kit');
+  assert.equal(deploy({ from: source, kitHome: project, env }).ok, false);
+  assert.equal(readText(path.join(project, 'src', 'app.js')), 'app\n');
+  assert.equal(readText(path.join(project, 'lib', 'core.mjs')), 'export const theirs = 1;\n');
+
   // An empty folder, an absent one and an earlier deployment are all still deployed into.
   for (const target of [tempDir('research-kit-empty-'), path.join(tempDir('research-kit-new-'), 'kit')]) {
     assert.equal(deploy({ from: source, kitHome: target, env }).ok, true, `${target} was refused`);
@@ -505,6 +522,7 @@ test('deploy refuses to mirror into a folder of other files, and touches nothing
   const earlier = tempDir('research-kit-old-');
   writeText(path.join(earlier, 'lib', 'core.mjs'), 'export const a = 0;\n');
   writeText(path.join(earlier, 'lib', 'gone.mjs'), 'old\n');
+  asEarlierKit(earlier);
   assert.equal(deploy({ from: source, kitHome: earlier, env }).ok, true, 'an earlier deployment was refused');
   assert.equal(fs.existsSync(path.join(earlier, 'lib', 'gone.mjs')), false, 'and is still mirrored');
 });

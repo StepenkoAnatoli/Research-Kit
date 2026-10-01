@@ -16,7 +16,8 @@ here with `notes.txt` reported as "pruned 1 retired file(s)").
 ## Decision
 
 - **`deploy` mirrors into a folder only when it is one of three things.** It holds no files,
-  it holds `lib/core.mjs` (a file every kit version has shipped), or the install state records
+  it holds `lib/core.mjs`, `bin/gate.mjs` and `bin/preflight.mjs` (files every kit version has
+  shipped since the repository's first commit), or the install state records
   the kit as deployed there.
 - **Any other folder is refused, and nothing in it is touched.** That covers the kit's own
   files and the skill roots too. The refusal names the folder, the count of files that would
@@ -35,4 +36,8 @@ here with `notes.txt` reported as "pruned 1 retired file(s)").
   does not ship is the drift `doctor` reports as orphaned, forever. The kit belongs in a folder
   of its own.
 - **A marker file written by every deploy.** Deployments made before this ADR would lack it and
-  be refused on their next update. `lib/core.mjs` is already a marker every version carries.
+  be refused on their next update. The three files above are already a marker every version
+  carries.
+- **One marker file.** `lib/core.mjs` alone was the first version of this decision. A project of
+  somebody's own with a `lib/core.mjs` was taken for a kit, and its other files would have been
+  pruned; three kit file names together do not occur by accident.
