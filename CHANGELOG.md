@@ -7,6 +7,14 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- `research.mjs` names the refusals the kit wrote instead of re-throwing them. A torn ledger
+  tail - what an interrupted collection leaves behind - printed its own remedy under a source
+  line, a caret, six frames and Node's version footer, and a damaged chain dumped its internal
+  `problems` array as an object literal; both exited 1, which this kit reserves for FAIL,
+  checked and wrong. `NAMED_RUN_REFUSALS` in `core.mjs` is the four codes (LEDGER_DAMAGED,
+  LEDGER_TORN_TAIL, LOCK_HELD, LOCK_STUCK), answered with their message and exit 2, as
+  `prior.mjs` and `doctor --fix-arity` already answered them (break-test 2026-10-01, PR #193,
+  redone on main).
 - A lock the kit judges stale and cannot remove is a named refusal (`LOCK_STUCK`), not a
   livelock. The failed removal fell through to `continue`, which skipped both the deadline and
   the sleep, so a read-only `research/raw` holding a dead pid's lock - or a `.fetches.lock`
