@@ -7,6 +7,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- `runChecks` appends findings one at a time. The spread passed every finding as an
+  argument, and a corpus of about 66,000 evidence rows pushed one check past the engine's
+  limit: preflight, doctor, brief and audit died with a raw RangeError instead of a verdict,
+  and the commit gate answered internal error (break-test PR #188).
 - `tolerateClosedStdout` answers the callback of every write it drops. The write that
   replaced stdout's after EPIPE returned without calling back, and `exitAfterFlush` waits on
   exactly that callback: `selftest.mjs | head -n 1` finished green, then exited 13 on an

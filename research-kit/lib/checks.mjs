@@ -969,7 +969,11 @@ export function runChecks(corpus, options = {}) {
   const findings = [];
   for (const check of CHECKS) {
     if (!only.includes(check.name)) continue;
-    findings.push(...check.run(corpus, options));
+    // One at a time, never `push(...check.run())`: a spread passes every finding as an
+    // argument, and past the engine's argument limit - between 60,000 and 130,000 findings
+    // from one check, depending on the Node line - it throws RangeError out of the verdict
+    // (2026-10-01, break-test PR #188). A loop has no such ceiling.
+    for (const finding of check.run(corpus, options)) findings.push(finding);
   }
   return findings;
 }
