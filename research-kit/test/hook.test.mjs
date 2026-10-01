@@ -368,3 +368,96 @@ test('a fixture commit is immune to the host machine\'s global git config', () =
     `a fixture commit died on the host's global config (core.hooksPath, commit.gpgsign):\n${isolated.stderr}`);
   assert.doesNotMatch(isolated.stderr, /host hook ran/, 'the host hook ran on a fixture commit');
 });
+
+// Found 2026-10-01 (break-test, PR #182): git runs hooks from ONE directory. The kit's commit
+// gate is installed as the machine-wide core.hooksPath, so every repository's own .git/hooks
+// stopped running - its pre-commit, its commit-msg, Git LFS's pre-push upload - and nothing said
+// so. Every hook git knows now has a file in githooks/ that hands the call to the repository's
+// own hook (ADR-0112). The names are git 2.43's, read from the git binary.
+const GIT_HOOK_NAMES = [
+  'applypatch-msg', 'pre-applypatch', 'post-applypatch', 'pre-commit', 'pre-merge-commit', 'prepare-commit-msg',
+  'commit-msg', 'post-commit', 'pre-rebase', 'post-checkout', 'post-merge', 'pre-push', 'pre-receive', 'update',
+  'proc-receive', 'post-receive', 'post-update', 'reference-transaction', 'push-to-checkout', 'pre-auto-gc',
+  'post-rewrite', 'sendemail-validate', 'fsmonitor-watchman', 'p4-changelist', 'p4-prepare-changelist',
+  'p4-post-changelist', 'p4-pre-submit', 'post-index-change',
+];
+
+/** A hook in the repository's own .git/hooks that records that it ran, with its stdin. */
+function ownHook(dir, name, log, { exit = 0 } = {}) {
+  const file = path.join(dir, '.git', 'hooks', name);
+  const to = log.split('\\').join('/');
+  const stdin = name === 'pre-push' ? `cat >> "${to}"\n` : '';   // only pre-push is handed anything on stdin
+  fs.writeFileSync(file, `#!/bin/sh\necho "${name} $*" >> "${to}"\n${stdin}exit ${exit}\n`);
+  fs.chmodSync(file, 0o755);
+}
+
+function gitWithKitHooks(dir, args, env = {}) {
+  return spawnSync('git', ['-c', `core.hooksPath=${path.join(KIT_ROOT, 'githooks')}`, '-c', 'commit.gpgsign=false', ...args], {
+    cwd: dir,
+    encoding: 'utf8',
+    timeout: 60_000,
+    env: {
+      ...process.env,
+      RESEARCH_KIT_HOME: KIT_ROOT,
+      RESEARCH_KIT_CONFIG: isolatedConfig(),
+      RESEARCH_KIT_INSTALL_STATE: path.join(tempDir('research-kit-hookstate-'), 'install.json'),
+      ...env,
+    },
+  });
+}
+
+test('under the kit\'s hooksPath, the repository\'s own pre-commit, commit-msg and pre-push still run', () => {
+  requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
+  const dir = makeRepo();
+  const log = path.join(tempDir('rk-own-hooks-'), 'ran.log');
+  for (const name of ['pre-commit', 'commit-msg', 'pre-push']) ownHook(dir, name, log);
+
+  writeText(resolve(dir, 'README.md'), '# fixture\n');
+  git(dir, ['add', 'README.md']);
+  const commit = gitWithKitHooks(dir, ['commit', '-q', '-m', 'docs']);
+  assert.equal(commit.status, 0, commit.stdout + commit.stderr);
+
+  const remote = tempDir('rk-remote-');
+  git(remote, ['init', '-q', '--bare']);
+  const push = gitWithKitHooks(dir, ['push', '-q', remote, 'HEAD:refs/heads/main']);
+  assert.equal(push.status, 0, push.stdout + push.stderr);
+
+  const ran = fs.existsSync(log) ? readText(log) : '';
+  assert.match(ran, /^pre-commit/m, `the repository's own pre-commit did not run:\n${ran}`);
+  assert.match(ran, /^commit-msg .*COMMIT_EDITMSG/m, 'commit-msg did not run, or lost its argument');
+  assert.match(ran, /^pre-push /m, 'pre-push did not run - Git LFS uploads from this hook');
+  assert.match(ran, /refs\/heads\/main/, 'pre-push did not receive the refs on stdin');
+});
+
+test('the repository\'s own pre-commit can still refuse a commit, and is not asked while the gate blocks', () => {
+  requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
+  const dir = makeRepo();
+  const log = path.join(tempDir('rk-own-hooks-'), 'ran.log');
+  ownHook(dir, 'pre-commit', log, { exit: 1 });
+  writeText(resolve(dir, 'README.md'), '# fixture\n');
+  git(dir, ['add', 'README.md']);
+  const refused = gitWithKitHooks(dir, ['commit', '-q', '-m', 'docs']);
+  assert.notEqual(refused.status, 0, 'the repository\'s own pre-commit refused, and the commit went through');
+
+  // A blocking gate answers first; the repository's hook is not run for a commit already refused.
+  fs.rmSync(log, { force: true });
+  corrupt(dir, PATHS.discovery, (text) => text.replace('CLOSED', 'OPEN'));
+  writeText(resolve(dir, 'src/app.js'), 'export const app = 1;\n');
+  git(dir, ['add', PATHS.discovery, 'src/app.js']);
+  const blocked = gitWithKitHooks(dir, ['commit', '-q', '-m', 'code']);
+  assert.notEqual(blocked.status, 0);
+  assert.equal(fs.existsSync(log), false, 'the repository\'s pre-commit ran for a commit the gate had refused');
+});
+
+test('every hook git knows has a file in githooks/, tracked executable, that hands on to the repository\'s own', () => {
+  const dir = path.join(KIT_ROOT, 'githooks');
+  assert.deepEqual(fs.readdirSync(dir).sort(), [...GIT_HOOK_NAMES].sort(), 'githooks/ and the hooks git knows disagree');
+  const passOn = GIT_HOOK_NAMES.filter((name) => name !== 'pre-commit').map((name) => readText(path.join(dir, name)));
+  assert.equal(new Set(passOn).size, 1, 'the pass-on files have drifted apart');
+  assert.match(passOn[0], /^#!\/bin\/sh/);
+  assert.match(passOn[0], /--git-common-dir/, 'the repository\'s hooks must be found past core.hooksPath, not through it');
+  const tracked = spawnSync('git', ['ls-files', '-s', '--', 'githooks'], { cwd: KIT_ROOT, encoding: 'utf8' });
+  if (tracked.status === 0 && tracked.stdout.trim()) {
+    for (const line of tracked.stdout.trim().split('\n')) assert.match(line, /^100755 /, `not executable in the index: ${line}`);
+  }
+});
