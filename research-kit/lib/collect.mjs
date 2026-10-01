@@ -8,9 +8,10 @@
 // IMPORTS firstFinding and does not re-export it, so the extractor has one address.
 
 import fs from 'node:fs';
+import path from 'node:path';
 import {
   PATHS, HEADERS, resolve, today, sha256, titleFromUrl, hostOf, urlDigest, writeText, readText, exists,
-  sleepSync, urlKey, ageInDays,
+  sleepSync, urlKey, ageInDays, realInside,
 } from './core.mjs';
 import { rateLimitWaitMs } from './firecrawl.mjs';
 import {
@@ -19,6 +20,30 @@ import {
 } from './corpus.mjs';
 import { appendFetch, withLock } from './provenance.mjs';
 import { firstFinding } from './finding.mjs';
+
+/**
+ * Refuse a capture path that would lead out of the project (found 2026-10-01, break-test).
+ * The name is the kit's own, so a link AT it - dangling or not - is refused outright: a
+ * dangling one was followed and the page created outside the project, and one to a file had
+ * that file read for the duplicate check. The folder it goes in is judged by REAL path, so a
+ * research/raw that links out is refused, while a project that merely lives under a link
+ * (macOS /tmp is one) is not.
+ */
+function assertCapturePath(root, abs) {
+  const refuse = (where, why) => {
+    const err = new Error(`${where}: ${why} - the kit writes captures only inside the project`);
+    err.code = 'OUTSIDE_PROJECT';
+    err.path = where;
+    throw err;
+  };
+  let link = false;
+  try { link = fs.lstatSync(abs).isSymbolicLink(); } catch { /* nothing there yet */ }
+  if (link) refuse(abs, 'the capture\'s name is a link');
+  let dir = path.dirname(abs);
+  while (!exists(dir) && path.dirname(dir) !== dir) dir = path.dirname(dir);
+  const inside = (() => { try { return fs.realpathSync(dir) === fs.realpathSync(root); } catch { return false; } })() || realInside(root, dir);
+  if (!inside) refuse(dir, 'a link in this path leads out of the project');
+}
 
 /** `research/raw/2026-09-13-rate-limits-firecrawl-552467ff.md` */
 export function captureName(url, { date = today(), title = '' } = {}) {
@@ -54,7 +79,9 @@ export function writeRaw(root, result, { date = today() } = {}) {
   // original, which is how readCaptures picks the latest of a day. Overwriting destroyed
   // the earlier reading and broke its ledger hash (found 2026-09-27).
   let file = `${PATHS.raw}/${base}`;
-  for (let n = 2; exists(resolve(root, file)) && readText(resolve(root, file)) !== text; n += 1) {
+  for (let n = 2; ; n += 1) {
+    assertCapturePath(root, resolve(root, file));      // before the read as well as the write
+    if (!exists(resolve(root, file)) || readText(resolve(root, file)) === text) break;
     file = `${PATHS.raw}/${base.replace(/\.md$/, `.r${n}.md`)}`;
   }
   writeText(resolve(root, file), text);

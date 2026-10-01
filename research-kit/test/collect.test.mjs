@@ -1,7 +1,7 @@
 // One URL's journey, and many URLs in one run. Offline: the adapter is a stub behind
 // the runScrape seam, so no key, no credits, no network.
 
-import { test, describe, assert, makeProject, makePassingProject, fs, path, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, makeProject, makePassingProject, fs, path, KIT_ROOT, tempDir } from './harness.mjs';
 import { PATHS, resolve, readText, writeJson, today } from '../lib/core.mjs';
 import { readCorpus, parseTable } from '../lib/corpus.mjs';
 import { HEADERS } from '../lib/core.mjs';
@@ -805,4 +805,44 @@ test('a fetch-only transport is never asked to search, and the real search failu
   const after = failuresOf(spent);
   assert.ok(after.some((f) => f.op === 'credits-exhausted'), JSON.stringify(after));
   assert.equal(after.filter((f) => f.op === 'search').length, 2, `each query's search failure is recorded: ${JSON.stringify(after)}`);
+});
+
+// Found 2026-10-01 (break-test, PR #180): the capture's own path was trusted. A corpus checked
+// out from someone else can carry a link at the name the collector will generate - dangling,
+// it was followed and the page was CREATED outside the project; pointing at a file, that file
+// was read for the duplicate check - or a research/raw that is itself a link out, and every
+// capture was written there. The name is the kit's: a link there is refused, as is a folder
+// whose real path leaves the project. A project that merely LIVES under a link (macOS /tmp
+// is one) is judged by real path and still writes.
+test('a capture is never written or read through a link out of the project, and a linked project still writes', () => {
+  const url = 'https://x.invalid/linked';
+  const date = '2026-10-01';
+  const elsewhere = tempDir('rk-capture-outside-');
+  const victim = path.join(elsewhere, 'victim.txt');
+  fs.writeFileSync(victim, 'DO NOT TOUCH\n');
+  const name = (dir) => resolve(dir, `${PATHS.raw}/${captureName(url, { date })}`);
+  const refused = (err) => err?.code === 'OUTSIDE_PROJECT' && /link/.test(err.message);
+
+  const dangling = makeProject();
+  fs.symlinkSync(path.join(elsewhere, 'created.md'), name(dangling), 'file');
+  assert.throws(() => writeRaw(dangling, { url, markdown: PAGE, statusCode: 200 }, { date }), refused);
+  assert.equal(fs.existsSync(path.join(elsewhere, 'created.md')), false, 'the capture was created outside the project');
+
+  const pointing = makeProject();
+  fs.symlinkSync(victim, name(pointing), 'file');
+  assert.throws(() => writeRaw(pointing, { url, markdown: PAGE, statusCode: 200 }, { date }), refused);
+  assert.equal(fs.readFileSync(victim, 'utf8'), 'DO NOT TOUCH\n');
+
+  const linkedRaw = makeProject();
+  fs.rmSync(resolve(linkedRaw, PATHS.raw), { recursive: true, force: true });
+  fs.mkdirSync(path.join(elsewhere, 'raw'));
+  fs.symlinkSync(path.join(elsewhere, 'raw'), resolve(linkedRaw, PATHS.raw), 'junction');
+  assert.throws(() => writeRaw(linkedRaw, { url, markdown: PAGE, statusCode: 200 }, { date }), refused);
+  assert.deepEqual(fs.readdirSync(path.join(elsewhere, 'raw')), [], 'a capture was written through a linked research/raw');
+
+  const real = makeProject();
+  const viaLink = path.join(tempDir('rk-linked-project-'), 'project');
+  fs.symlinkSync(real, viaLink, 'junction');
+  const entry = writeRaw(viaLink, { url, markdown: PAGE, statusCode: 200 }, { date });
+  assert.ok(fs.existsSync(resolve(real, entry.file)), 'a project reached through a link could not write its own capture');
 });
