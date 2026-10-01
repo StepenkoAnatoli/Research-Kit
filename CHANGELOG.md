@@ -19,6 +19,11 @@ Bug fixes after 0.9.0, under the freeze (ADR-0117).
   quote-not-found against the heading that displays it. 32 of this repository's 188 captures hold
   558 zero-width spaces between them. `normalizeForMatch` drops `\p{Cf}` on both sides, which can
   only shorten what is searched for, so an invented passage stays invented (break-test 2026-10-01).
+- `fetchFailure` cuts a URL to its host in the failure's OWN message, not only in its cause. Node
+  throws some refusals with no cause and the whole URL in the message - a URL carrying credentials,
+  one that will not parse - so a signed URL in a plan was printed to the terminal and written into
+  `research/raw/.fetches.jsonl` as that entry's error: nine copies of one token, in the file that
+  must travel, in the one directory `doctor`'s secret scan excludes (break-test 2026-10-01).
 - The browser transport judges a timeout by what Chromium printed, not by its exit: a whole
   DOM dump after the render timeout is the render, a dump holding the guard's refusal is
   the refusal, and a timeout with no dump names the last thing Chromium said on stderr.
