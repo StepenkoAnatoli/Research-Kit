@@ -1087,3 +1087,41 @@ test('projectFile answers every step of the read rule, and names the one that fa
   try { fs.symlinkSync(outside, resolve(root, 'research/raw/link.md')); } catch { return; }   // the link case needs symlink rights
   assert.equal(projectFile(root, 'research/raw/link.md').problem, 'outside', 'a link that leads out');
 });
+
+// Break-test PR #182 (risk 3), a static finding: on Windows an antivirus scanner or the search
+// indexer can hold a file for a moment, and the rename that makes every write atomic then fails
+// with EPERM, EBUSY or EACCES - once, where a moment later it would succeed. The rename is
+// retried there, briefly; anywhere else those codes are a real refusal and fail at once.
+test('the atomic rename retries a file Windows holds for a moment, and nothing else', async () => {
+  const { renameRetrying, RENAME_RETRIES } = await import('../lib/core.mjs');
+  const held = (code, times) => {
+    const calls = [];
+    const rename = (from, to) => { calls.push([from, to]); if (calls.length <= times) throw Object.assign(new Error(`${code}: held`), { code }); };
+    return { rename, calls };
+  };
+  const slept = [];
+  const sleep = (ms) => slept.push(ms);
+
+  for (const code of ['EPERM', 'EBUSY', 'EACCES']) {
+    const { rename, calls } = held(code, 2);
+    renameRetrying('a', 'b', { rename, sleep, platform: 'win32' });
+    assert.equal(calls.length, 3, `${code}: a file held twice was not renamed on the third try`);
+  }
+  assert.ok(slept.length && slept.every((ms) => ms > 0 && ms <= 1000), `the waits are short: ${slept}`);
+
+  const stuck = held('EBUSY', Infinity);
+  assert.throws(() => renameRetrying('a', 'b', { rename: stuck.rename, sleep, platform: 'win32' }), /EBUSY/);
+  assert.equal(stuck.calls.length, RENAME_RETRIES + 1, 'a file held for good was retried without end');
+
+  for (const [platform, code] of [['linux', 'EACCES'], ['darwin', 'EPERM'], ['win32', 'ENOENT'], ['win32', 'EISDIR']]) {
+    const once = held(code, Infinity);
+    assert.throws(() => renameRetrying('a', 'b', { rename: once.rename, sleep, platform }), new RegExp(code));
+    assert.equal(once.calls.length, 1, `${platform} ${code} was retried: it is a refusal, not a moment's hold`);
+  }
+
+  const { writeBytes } = await import('../lib/core.mjs');
+  const src = fs.readFileSync(path.join(KIT_ROOT, 'lib', 'core.mjs'), 'utf8');
+  const body = src.slice(src.indexOf('export function writeBytes'), src.indexOf('export function writeBytes') + 3000);
+  assert.match(body, /renameRetrying\(scratch, target\)/, 'writeBytes does not rename through the retry');
+  assert.equal(typeof writeBytes, 'function');
+});
