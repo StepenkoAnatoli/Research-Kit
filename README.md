@@ -437,9 +437,15 @@ node "$HOME/.agents/research-kit/bin/new-project.mjs" . --topic "<your topic>"
 node "$HOME/.agents/research-kit/bin/decompose.mjs" --topic "<your topic>"
 ```
 
+With no Firecrawl key, `decompose` searches with the free keyless route. If every search
+fails, it says so and the map is the bare checklist: carry on, and name the pages you
+already know in `plan.json`'s `urls` below.
+
 Then open `research/MAP.md` and mark each row `COVERED`, `DISMISSED` or `GAP`. **This step
 is yours and is not automated** — deciding what counts as answered is the judgement the
-rest of the kit protects.
+rest of the kit protects. A `COVERED` row names the unknowns that close it - `U-1, U-2`,
+from `research/DISCOVERY.md` - never evidence rows (`E-01`): a map row is closed by
+unknowns, and an unknown by evidence.
 
 Write the blocking unknowns into `research/DISCOVERY.md`, each tracing back to a map row,
 then the queries and pages that close them into `research/plan.json`. `research.mjs`
@@ -459,6 +465,11 @@ refuses a plan with neither:
 node "$HOME/.agents/research-kit/bin/research.mjs" --dry-run   # see what it would fetch, and the cost
 node "$HOME/.agents/research-kit/bin/research.mjs"
 ```
+
+Then rewrite each auto-extracted `Finding` cell in `research/EVIDENCE.md` into the claim the
+page supports. Where a claim rests on one sentence, add `[quote: the sentence]`, copied from
+the capture word for word - quotation marks around it are optional. The gate checks that the
+sentence is really in the page; a claim with no quote is accepted, but nothing checks it.
 
 **7. Ask whether you may build yet.**
 
