@@ -13,6 +13,12 @@ Bug fixes after 0.9.0, under the freeze (ADR-0117).
   runs over every page and the artifact producer over every row, and this repository's corpus
   already holds a capture with a single 308,705-character line. The same row now costs 28 ms, and
   the rewrite is pinned against the old pattern over 4,000 generated rows (break-test 2026-10-01).
+- A quote anchor no longer misses a passage over a character nobody can see. Unicode's format
+  characters - a soft hyphen from a PDF extractor, the zero-width space a docs site puts inside a
+  heading's anchor link, a word joiner - survive NFKC and `\s`, so `[quote: ## Bundled skills]` was
+  quote-not-found against the heading that displays it. 32 of this repository's 188 captures hold
+  558 zero-width spaces between them. `normalizeForMatch` drops `\p{Cf}` on both sides, which can
+  only shorten what is searched for, so an invented passage stays invented (break-test 2026-10-01).
 - The browser transport judges a timeout by what Chromium printed, not by its exit: a whole
   DOM dump after the render timeout is the render, a dump holding the guard's refusal is
   the refusal, and a timeout with no dump names the last thing Chromium said on stderr.

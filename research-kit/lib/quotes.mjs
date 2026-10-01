@@ -50,12 +50,28 @@ function unwrap(quote) {
 /**
  * Text as it is compared, and only compared - never stored (UAX #15: NFKC removes formatting
  * distinctions). It undoes what a capture does to a sentence and nothing more: compatibility
- * forms (the "fi" ligature), curly quotes and long dashes, Markdown link syntax, emphasis,
- * backticks and backslash escapes, runs of whitespace, and case.
+ * forms (the "fi" ligature), the invisible formatting characters a page's own tooling inserts,
+ * curly quotes and long dashes, Markdown link syntax, emphasis, backticks and backslash escapes,
+ * runs of whitespace, and case.
  */
 export function normalizeForMatch(text) {
   return String(text ?? '')
     .normalize('NFKC')
+    // Unicode's format characters (General_Category=Cf): the soft hyphen a PDF extractor
+    // leaves at a line break, the zero-width space a docs site puts inside a heading's
+    // anchor link, the word joiner, the directional marks, the joiners. None of them is
+    // visible, NFKC does not remove them, and `\s` matches only U+FEFF of them - so a
+    // passage quoted without one was quote-not-found against a capture holding it, which
+    // is the same failure the unwrap below exists for, one character class wider.
+    //
+    // Not a hypothesis about vendor pages: of the 188 captures in this repository's own
+    // corpora, 32 hold 558 zero-width spaces between them, and `## [\u200B](…#bundled-skills)
+    // Bundled skills` in research/raw/2026-09-13-extend-claude-with-skills-claude-code-docs-*.md
+    // made `[quote: ## Bundled skills]` unfound (found 2026-10-01, break-test).
+    //
+    // Dropping them can only shorten what is searched for, on BOTH sides, so it cannot make
+    // an invented passage match: an invention differs in characters somebody can see.
+    .replace(/\p{Cf}/gu, '')
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/[‘’‚‛′]/g, "'")
     .replace(/[“”„‟″]/g, '"')
