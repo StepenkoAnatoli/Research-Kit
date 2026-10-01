@@ -259,11 +259,28 @@ export async function getRun({ repository, runId, token, fetch: doFetch = global
 }
 
 /**
+ * Does waiting mend this failure? The network, a rate limit, a server error, and a 200 whose
+ * body is not JSON (a proxy's maintenance page) do. A 401, 403 or 404 does not: that is a token,
+ * a permission or a mistyped run id, and retrying it only delays the message.
+ */
+function mendsByWaiting(err) {
+  if (!(err instanceof DispatchError)) return false;
+  if (err.code === 'NETWORK' || err.code === 'BAD_BODY') return true;
+  return err.code === 'HTTP' && (err.status === 429 || (err.status >= 500 && err.status <= 599));
+}
+
+/**
  * Poll until the run finishes. Returns the final run object.
  *
  * `waiting` is a status, not a stall: it means a deployment protection rule is holding the
  * job, and a caller that treated it as failure would give up on a run that is fine. It is
  * reported through `onStatus` so an agent can say so rather than sitting mute.
+ *
+ * A poll that fails in a way waiting can mend is tried again, up to `retries` times IN A ROW
+ * (a poll that succeeds starts the count again), and each retry is reported through `onRetry`.
+ * A watch can last 30 minutes - up to 180 calls, over whatever network the operator has - and
+ * one 502 or one dropped connection used to end it with the exit code of a run that FAILED,
+ * while the run, and the credits it spends, went on unwatched (found 2026-10-01, break-test).
  */
 export async function waitForRun({
   repository, runId, token,
@@ -271,14 +288,27 @@ export async function waitForRun({
   api = GITHUB_API,
   intervalMs = 10_000,
   timeoutMs = 30 * 60_000,
+  retries = 5,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   now = () => Date.now(),
   onStatus = () => {},
+  onRetry = () => {},
 } = {}) {
   const deadline = now() + timeoutMs;
   let last = null;
+  let failed = 0;
   for (;;) {
-    const run = await getRun({ repository, runId, token, fetch: doFetch, api });
+    let run;
+    try {
+      run = await getRun({ repository, runId, token, fetch: doFetch, api });
+      failed = 0;
+    } catch (err) {
+      if (!mendsByWaiting(err) || failed >= retries || now() >= deadline) throw err;
+      failed += 1;
+      onRetry(err, failed);
+      await sleep(intervalMs);
+      continue;
+    }
     if (run.status !== last) { last = run.status; onStatus(run); }
     if (run.status === 'completed') return run;
     if (now() >= deadline) {

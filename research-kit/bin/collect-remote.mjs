@@ -206,6 +206,8 @@ try {
       // holding the job, which is a person's decision and not a stall to retry through.
       ? 'status: waiting - a deployment protection rule is holding this run for approval'
       : `status: ${r.status}`),
+    // A blip is not the end of the watch; say so, so a quiet minute is not mistaken for a hang.
+    onRetry: (e, n) => say(`${e.message} - trying again (${n})`),
   });
 } catch (err) {
   const e = err instanceof DispatchError ? err : new DispatchError('UNKNOWN', err.message);

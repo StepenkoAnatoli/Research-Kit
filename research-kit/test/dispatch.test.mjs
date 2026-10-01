@@ -277,6 +277,89 @@ test('a timeout says the run is still going, not that it failed', async () => {
   );
 });
 
+// Found 2026-10-01 (break-test): waitForRun made every failed poll fatal. A remote collection can
+// be watched for 30 minutes - up to 180 calls, over whatever network the operator has - and one
+// 502, one reset connection or one proxy maintenance page ended the wait with RUN_FAILED, the exit
+// code of a run that FAILED, while the run, and the credits it spends, went on unwatched. A failure
+// that waiting can mend (the network, a 429, a 5xx, a 200 that is not JSON) is retried a bounded
+// number of times in a row; one that it cannot (401, 403, 404: a token, a permission, a mistyped
+// run id) still ends the wait at once.
+const TRANSIENT_POLL_FAILURES = [
+  ['the network dropped', () => { throw new TypeError('fetch failed'); }, 'NETWORK'],
+  ['a bad gateway', jsonResponse(502, {}), 'HTTP'],
+  ['a service outage', jsonResponse(503, {}), 'HTTP'],
+  ['a rate limit', jsonResponse(429, {}), 'HTTP'],
+  ['a maintenance page answering 200', jsonResponse(200, null, { json: async () => { throw new SyntaxError('Unexpected token <'); } }), 'BAD_BODY'],
+];
+const IN_PROGRESS = () => jsonResponse(200, { status: 'in_progress' });
+const COMPLETED = () => jsonResponse(200, { status: 'completed', conclusion: 'success' });
+
+test('one transient failure while waiting does not end the wait, and is said aloud', async () => {
+  for (const [what, failure, code] of TRANSIENT_POLL_FAILURES) {
+    const doFetch = stubFetch([failure, IN_PROGRESS(), COMPLETED()]);
+    const retried = [];
+    const run = await waitForRun({
+      repository: REPO, runId: 1, token: TOKEN, fetch: doFetch,
+      intervalMs: 0, sleep: async () => {}, onRetry: (err) => retried.push(err.code),
+    });
+    assert.equal(run.conclusion, 'success', `${what}: the wait gave up on a run that was fine`);
+    assert.equal(doFetch.calls.length, 3, `${what}: it did not go on polling`);
+    assert.deepEqual(retried, [code], `${what}: the retry was silent, or misnamed`);
+  }
+});
+
+test('failures are counted in a row: a poll that succeeds starts the count again', async () => {
+  // Six failures in all, none of them two in a row - far more than the default allows in a row.
+  const doFetch = stubFetch([
+    jsonResponse(502, {}), IN_PROGRESS(), jsonResponse(502, {}), IN_PROGRESS(), jsonResponse(502, {}), IN_PROGRESS(),
+    jsonResponse(502, {}), IN_PROGRESS(), jsonResponse(502, {}), IN_PROGRESS(), jsonResponse(502, {}), COMPLETED(),
+  ]);
+  const run = await waitForRun({ repository: REPO, runId: 1, token: TOKEN, fetch: doFetch, intervalMs: 0, sleep: async () => {}, retries: 1 });
+  assert.equal(run.conclusion, 'success');
+  assert.equal(doFetch.calls.length, 12);
+});
+
+test('a failure that does not mend ends the wait after a bounded number of tries, with its own error', async () => {
+  const bounded = stubFetch([jsonResponse(503, {})]);
+  await assert.rejects(
+    () => waitForRun({ repository: REPO, runId: 1, token: TOKEN, fetch: bounded, intervalMs: 0, sleep: async () => {}, retries: 3 }),
+    (err) => { assert.equal(err.code, 'HTTP'); assert.equal(err.status, 503); return true; },
+  );
+  assert.equal(bounded.calls.length, 4, 'three retries after the first failure');
+
+  // And with no option given: a few tries, not one and not forever.
+  const byDefault = stubFetch([() => { throw new TypeError('fetch failed'); }]);
+  await assert.rejects(
+    () => waitForRun({ repository: REPO, runId: 1, token: TOKEN, fetch: byDefault, intervalMs: 0, sleep: async () => {} }),
+    (err) => err.code === 'NETWORK',
+  );
+  assert.ok(byDefault.calls.length >= 3 && byDefault.calls.length <= 10, `made ${byDefault.calls.length} calls`);
+});
+
+test('a 401, 403 or 404 while waiting is never retried - waiting cannot mend it', async () => {
+  for (const status of [401, 403, 404]) {
+    const doFetch = stubFetch([jsonResponse(status, {})]);
+    await assert.rejects(
+      () => waitForRun({ repository: REPO, runId: 1, token: TOKEN, fetch: doFetch, intervalMs: 0, sleep: async () => {} }),
+      (err) => { assert.equal(err.status, status); return true; },
+    );
+    assert.equal(doFetch.calls.length, 1, `HTTP ${status} was retried`);
+  }
+});
+
+test('a wait that is out of time does not retry past its deadline', async () => {
+  let clock = 0;
+  const doFetch = stubFetch([jsonResponse(502, {})]);
+  await assert.rejects(
+    () => waitForRun({
+      repository: REPO, runId: 1, token: TOKEN, fetch: doFetch,
+      intervalMs: 1, timeoutMs: 10, sleep: async () => { clock += 20; }, now: () => clock,
+    }),
+    (err) => err.status === 502,
+  );
+  assert.equal(doFetch.calls.length, 2, 'one try, one retry, then the deadline had passed');
+});
+
 // ---------------------------------------------------------------- the artifact
 
 test('an expired artifact is named as expired, with the reason it is gone', async () => {
