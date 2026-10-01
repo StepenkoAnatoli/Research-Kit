@@ -222,7 +222,7 @@ artifact, unwraps it, and validates it.
 | 1 | the package is invalid |
 | 2 | the run failed, or the package is incomplete |
 | 3 | could not start: no token, bad repository, or no permission |
-| 4 | dispatched and still running when the wait ran out; the run id is on stdout |
+| 4 | dispatched and still running when the wait ran out; the run id is on stdout, and `--run-id <n>` picks it up again |
 
 ### Or register it as an MCP tool
 

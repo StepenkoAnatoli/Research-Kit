@@ -278,7 +278,7 @@ export function registeredPath(command) {
  * `RESEARCH_KIT_HOME` naming a regular file printed a raw ENOTDIR stack trace instead
  * (found 2026-09-29, break-test).
  */
-function listTree(root) {
+function listTree(root, { limit = Infinity } = {}) {
   const out = [];
   // Each real folder once: a link back to an ancestor otherwise re-lists the tree on every
   // lap until ELOOP ends it, ~40 copies of each file (found 2026-09-29, break-test).
@@ -291,6 +291,7 @@ function listTree(root) {
     let names;
     try { names = fs.readdirSync(dir); } catch { return; }        // a file, a refusal, a vanished folder
     for (const name of names) {
+      if (out.length >= limit) return;                            // the caller asked for a few
       if (name === 'node_modules' || name === '.git') continue;
       const abs = path.join(dir, name);
       let stat;
@@ -431,11 +432,45 @@ export function driftNote(drift) {
 }
 
 /**
+ * Files every kit version has shipped, since the repository's first commit: a folder holding all
+ * three is a deployment of some kit. One was not enough - a project of somebody's own with a
+ * `lib/core.mjs` was taken for a kit, and its other files were pruned (found 2026-10-01).
+ */
+const KIT_MARKERS = Object.freeze(['lib/core.mjs', 'bin/gate.mjs', 'bin/preflight.mjs']);
+
+/**
+ * Why `kitHome` may not be mirrored into, or null when it may (ADR-0111).
+ *
+ * The mirror removes every file the kit does not ship, and it asked nothing of the folder
+ * first: RESEARCH_KIT_HOME naming a folder of somebody's own files - a typo, a parent folder, a
+ * shared tools directory - had them deleted and reported as "retired" (found 2026-10-01,
+ * break-test). A folder may be mirrored into when it holds nothing, when it holds a kit, or when
+ * the install state says the kit was deployed there.
+ */
+function mirrorRefusal(kitHome, env) {
+  const isFile = (rel) => { try { return fs.statSync(path.join(kitHome, ...rel.split('/'))).isFile(); } catch { return false; } };
+  if (KIT_MARKERS.every(isFile)) return null;
+  const recorded = readInstallState(env)?.kitHome;
+  if (typeof recorded === 'string' && path.resolve(recorded) === path.resolve(kitHome)) return null;
+  // A few files are all the refusal names. Listing every one to count them took 1.6 s for /usr
+  // (77,000 files), and a home directory holds millions (found 2026-10-01).
+  const present = listTree(kitHome, { limit: 4 });
+  if (present.length === 0) return null;
+  const sample = present.slice(0, 3).join(', ');
+  return `${kitHome} is not a kit deployment - it holds files the kit does not ship (${sample}${present.length > 3 ? ', ...' : ''}), `
+    + 'and a deploy mirrors, removing every file it does not ship. Nothing was changed. '
+    + 'Point RESEARCH_KIT_HOME at an empty or new folder, or unset it to use the default.';
+}
+
+/**
  * Copy the kit to `~/.agents/research-kit` and the skill to the personal root(s).
  * Overwrites by default - a stale deployed copy silently defeats an update - and prunes
  * kit files a past version shipped, because a copy-over deploy never removes anything.
+ * Refuses, touching nothing, a folder that is not a kit deployment (`mirrorRefusal`).
  */
 export function deploy({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env, dryRun = false, into = '' } = {}) {
+  const refused = mirrorRefusal(kitHome, env);
+  if (refused) return { ok: false, dryRun, from, to: kitHome, refused };
   // What the deploy below would prune, computed the same way: retired files that are there, and
   // the mirror's extras. It listed every retired name whether or not it existed, and none of the
   // extras (2026-09-29, Arena break test: "would prune" three files on a machine never installed).

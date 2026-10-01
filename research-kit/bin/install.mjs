@@ -25,7 +25,8 @@ if (flags.help) {
   --into <project>   also bind the skill into that project's skill directory
 
 Overwrites by default: a stale deployed copy silently defeats an update. Files a past
-version shipped are pruned, because a copy-over deploy never removes anything.
+version shipped are pruned, because a copy-over deploy never removes anything. A folder
+that holds other files and no kit is refused, and nothing in it is touched (ADR-0111).
 `);
   process.exit(0);
 }
@@ -41,6 +42,11 @@ try {
   const why = writeFailure(err);
   if (!why) throw err;
   process.stderr.write(`${why} The deploy stopped part-way; fix that and run this again - it overwrites what is there.\n`);
+  process.exit(2);
+}
+
+if (result.refused) {
+  process.stderr.write(`install: refused - ${result.refused}\n`);
   process.exit(2);
 }
 
