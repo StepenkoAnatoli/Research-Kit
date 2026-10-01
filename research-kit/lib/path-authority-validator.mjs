@@ -3,6 +3,7 @@
 // snapshots, transcripts, profiles, Git config, or release pointers.
 import fs from 'node:fs';
 import path from 'node:path';
+import { compareText } from './release/order.mjs';
 import {
   DEFAULT_SCHEMA_DIR,
   canonicalJson,
@@ -172,7 +173,7 @@ export function validatePathAuthoritySnapshot(snapshot, { schemaPath = SNAPSHOT_
 
 export function runPathAuthorityConformance({ files = [], schemaPath = SNAPSHOT_SCHEMA } = {}) {
   const errors = [];
-  const ordered = [...files].sort((a, b) => String(a).localeCompare(String(b)));
+  const ordered = [...files].sort(compareText);
   if (!ordered.length) add(errors, 'SCHEMA-NO-FILES', 'at least one JSON file is required', '$', 'INCOMPLETE');
   const schema = loadSchema(schemaPath);
   if (schema?.error) add(errors, 'SCHEMA-READ', schema.error.message, schemaPath, 'INCOMPLETE');

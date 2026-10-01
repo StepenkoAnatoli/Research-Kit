@@ -34,6 +34,14 @@ const TEMP_ENV_NAMES = Object.freeze(['TMPDIR', 'TEMP', 'TMP']);
  */
 export const KIT_VERSION = '0.9.0';
 
+/**
+ * The one order for identifiers - slugs, file names, ids, ISO dates: by UTF-16 code unit
+ * (`lib/release/order.mjs`, so the ported validators may use it too). `localeCompare` with no
+ * locale named reads the machine's, and the order then differed from machine to machine
+ * (break-test PR #185, 2026-10-01).
+ */
+export { compareText } from './release/order.mjs';
+
 export const PATHS = Object.freeze({
   agents: 'AGENTS.md',
   architecture: 'docs/ARCHITECTURE.md',

@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { compareText } from './release/order.mjs';
 import {
   canonicalJson,
   computeDescendantInvalidation,
@@ -279,7 +280,7 @@ function replayGraph(regression, input) {
   const rejected = computeDescendantInvalidation({ pointers: cycle, invalidationRoots: [root] });
   const missing = computeDescendantInvalidation({ pointers, invalidationRoots: [token(`missing-${regression.iteration}`)] });
   const duplicate = computeDescendantInvalidation({ pointers: [...pointers, { ...pointers[0] }], invalidationRoots: [root] });
-  const expectedOrder = [...first.affectedPointers].sort((left, right) => first.rank[left] - first.rank[right] || left.localeCompare(right));
+  const expectedOrder = [...first.affectedPointers].sort((left, right) => first.rank[left] - first.rank[right] || compareText(left, right));
   return [
     check('graph.base-pass', first.status === 'PASS'),
     check('graph.affected-unique', new Set(first.affectedPointers).size === first.affectedPointers.length),
@@ -322,5 +323,5 @@ export function listPropertyRegressions(directory = DEFAULT_PROPERTY_REGRESSION_
   return fs.readdirSync(directory, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
     .map((entry) => path.join(directory, entry.name))
-    .sort((left, right) => left.localeCompare(right));
+    .sort(compareText);
 }
