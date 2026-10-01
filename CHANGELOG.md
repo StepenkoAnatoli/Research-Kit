@@ -11,6 +11,14 @@ Bug fixes after 0.9.0, under the freeze (ADR-0117).
   replaced stdout's after EPIPE returned without calling back, and `exitAfterFlush` waits on
   exactly that callback: `selftest.mjs | head -n 1` finished green, then exited 13 on an
   unsettled top-level await after its result file had recorded 0 (break-test PR #186).
+- `runChecks` appends each check's findings one at a time. It used a spread, which passes
+  every finding as an argument: a corpus that produced more findings from one check than the
+  engine's argument limit (measured between 60,000 and 63,000) made `preflight`, `doctor`,
+  `brief` and `audit` print a raw `RangeError: Maximum call stack size exceeded` instead of a
+  verdict, and the commit gate answer "internal error" (break-test, 2026-10-01).
+- `makeSlug` prefixes a name Windows reserves (`con`, `aux`, `lpt1` …), so the
+  "filename-safe slug" it documents is one on every supported platform. No caller passed a
+  bare slug to the filesystem, so nothing existing changes (break-test, 2026-10-01).
 
 ## 0.9.0 — 2026-10-01
 

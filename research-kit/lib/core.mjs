@@ -672,17 +672,27 @@ export function ageInDays(value, now = new Date()) {
  * dangling - which is why every audit file in this repository is named
  * `…-metered-primary--d-1-access-model-…`, with a double hyphen nobody chose. Order
  * matters: slice, then trim.
+ *
+ * A name Windows reserves is prefixed. `con`, `con.md` and `con/` all reach the console
+ * device there whatever follows them, so a base name that is one of these is not creatable
+ * at all - a "filename-safe" slug that cannot be a filename on a supported platform is not
+ * one (2026-10-01, break-test). No caller passes a bare slug to the filesystem today, so
+ * this changes nothing that exists; it closes the contract.
  */
+// Case-insensitive: Windows reserves these whatever their case, and the FALLBACK path is
+// not lowercased the way the slug path is.
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
 export function makeSlug(text, fallback = 'topic', limit = 60) {
-  const slug = String(text ?? '')
+  const cut = (value) => String(value).slice(0, limit).replace(/-+$/g, '');
+  const slug = cut(String(text ?? '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, limit)
-    .replace(/-+$/g, '');
+    .replace(/^-+|-+$/g, ''));
   // The fallback keeps the same limit: it came back whole, longer than the caller allowed
   // (2026-09-29, Arena break test).
-  return slug || String(fallback).slice(0, limit).replace(/-+$/g, '');
+  const chosen = slug || cut(fallback);
+  return WINDOWS_RESERVED.test(chosen) ? `_${chosen}`.slice(0, limit) : chosen;
 }
 
 /** A short, stable id for a URL - used in capture filenames. */

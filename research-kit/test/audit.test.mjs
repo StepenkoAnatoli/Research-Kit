@@ -372,6 +372,29 @@ test('makeSlug keeps its limit when it falls back', () => {
   assert.equal(makeSlug('', 'topic'), 'topic');
 });
 
+// Found 2026-10-01 (break-test, latent): Windows refuses to create a file or folder whose base
+// name is one of the reserved device names, whatever extension it carries - `con`, `con.md`
+// and `con/` all reach the console. The helper documents itself as "filename-safe", and no
+// caller passes a bare slug to the filesystem today, so this closes the contract rather than
+// repairing an observed failure. Both paths are covered, and the limit still holds.
+test('makeSlug prefixes a name Windows reserves, on the slug and fallback paths alike', () => {
+  for (const reserved of ['CON', 'prn', 'aux', 'nul', 'com1', 'COM9', 'lpt1', 'LPT9']) {
+    const out = makeSlug(reserved);
+    assert.equal(/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(out), false,
+      `${reserved} came back as a device name: ${out}`);
+    assert.equal(out, `_${reserved.toLowerCase()}`, `${reserved} was not prefixed: ${out}`);
+  }
+  assert.equal(makeSlug('', 'aux'), '_aux', 'the fallback path is covered too');
+  // The fallback is not lowercased the way the slug path is, and Windows reserves these
+  // names whatever their case.
+  assert.equal(makeSlug('', 'AUX'), '_AUX');
+  assert.equal(makeSlug('con', 'topic', 3), '_co', 'the prefix still respects an explicit limit');
+  // A normal slug is untouched, and one that merely STARTS with a reserved word is not one.
+  assert.equal(makeSlug('console'), 'console');
+  assert.equal(makeSlug('com10'), 'com10');
+  assert.equal(makeSlug('normal topic'), 'normal-topic');
+});
+
 test('a generated audit path stays inside the budget, however long the inputs', () => {
   const dir = makePassingProject();
   // Names far longer than anything a person would type.

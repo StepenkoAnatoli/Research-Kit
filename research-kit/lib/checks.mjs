@@ -969,7 +969,13 @@ export function runChecks(corpus, options = {}) {
   const findings = [];
   for (const check of CHECKS) {
     if (!only.includes(check.name)) continue;
-    findings.push(...check.run(corpus, options));
+    // Appended one by one, NOT `findings.push(...check.run(...))`. A spread passes every
+    // finding as an ARGUMENT, and an array past the engine's argument limit (measured:
+    // between 60,000 and 63,000 on this Node) throws `RangeError: Maximum call stack size
+    // exceeded` - so a corpus big enough to produce that many findings from ONE check
+    // crashed preflight, doctor, brief and audit with a raw V8 stack instead of a verdict
+    // (2026-10-01, break-test). A loop has no argument count and no limit.
+    for (const finding of check.run(corpus, options)) findings.push(finding);
   }
   return findings;
 }

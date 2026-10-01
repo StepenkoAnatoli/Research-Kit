@@ -847,6 +847,25 @@ test('a closure resting only on secondary rows is flagged', () => {
   assert.equal(runCheck('unknown-closure', readCorpus(makePassingProject())).find((f) => f.rule === 'secondary-only'), undefined);
 });
 
+// Found 2026-10-01 (break-test): runChecks appended each check's findings with a SPREAD
+// (`findings.push(...check.run(corpus, options))`). A spread passes every element as an
+// argument, and an array past the engine's argument limit threw `RangeError: Maximum call
+// stack size exceeded` - so a corpus that produced that many findings from one check crashed
+// preflight, doctor, brief and audit with a raw V8 stack instead of a verdict (measured here
+// between 60,000 and 63,000; the fixture below is 66,000 rows, one finding each, deliberately
+// past it). The assertion is on the COUNT as well as the absence of a throw, so a future
+// spread that happens to survive on some engine would still fail this test.
+test('a check returning more findings than the engine argument limit is appended, not spread', () => {
+  const dir = makeProject();
+  const rows = ['# Evidence', '', '| ID | Date | Class | URL | Finding | Raw |', '|---|---|---|---|---|---|'];
+  for (let i = 0; i < 66000; i += 1) {
+    rows.push(`| E-${i} | 2026-01-01 | S | https://example.invalid/${i} | Finding ${i} | research/raw/missing-${i}.md |`);
+  }
+  writeText(resolve(dir, PATHS.evidence), `${rows.join('\n')}\n`);
+  const findings = runChecks(snapshot(dir));
+  assert.ok(findings.length > 65535, `every finding must be returned, got ${findings.length}`);
+});
+
 // Found 2026-09-28: citing docs.firecrawl.dev (E-21) beside www.firecrawl.dev (E-13) turned
 // the root corpus's U-8 "independent" on hostname alone - the exact trap its own
 // [single-witness: ...] note warned about ("one company describing itself"). Independence is
