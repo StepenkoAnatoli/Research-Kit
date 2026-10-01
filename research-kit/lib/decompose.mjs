@@ -14,7 +14,7 @@ import {
 import { readCorpus, cacheDecision, tableRow, appendJsonLine, parseCapture } from './corpus.mjs';
 import { seedRows, UNIVERSAL_DIMENSIONS } from './dimensions.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
-import { urlKey, matchesQuery, mergeByRank } from './research-run.mjs';
+import { urlKey, matchesQuery, mergeByRank, searchPatiently, canSearch } from './research-run.mjs';
 import { KIT_ROOT, UNTITLED_TOPIC } from './scaffold.mjs';
 import { fallbackCost } from './runtime.mjs';
 
@@ -461,7 +461,7 @@ export function decompose(root, {
         const lists = [];
         const missed = [];
         for (const one of searchers) {
-          const r = one.search(query, { limit });
+          const r = searchPatiently(one, query, { limit, maxRateLimitRetries: 0 });
           countOn(one.name, r?.searchesUsed);
           if (Number.isFinite(r?.creditsEstimate)) searchCreditsEstimate += r.creditsEstimate;
           if (!r?.ok) {
@@ -481,16 +481,18 @@ export function decompose(root, {
         }
         continue;
       }
-      let found = searcher.search(query, { limit });
+      // One call, as before (no retries); a provider that cannot search is a named failure
+      // rather than a TypeError - the browser fetches only (ADR-0088, found 2026-10-01).
+      let found = searchPatiently(searcher, query, { limit, maxRateLimitRetries: 0 });
       countOn(searcher.name, found?.searchesUsed);
       if (Number.isFinite(found?.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
       let ranker = searcher.name;
       // One bounded fallback, reported rather than absorbed (RR-1, RR-2).
-      if (!found.ok && searcher !== adapter) {
+      if (!found.ok && searcher !== adapter && canSearch(adapter)) {
         failures.push({ query, error: found.error, provider: searcher.name, degraded: true, fellBackTo: adapter.name });
         log(`  search failed on ${searcher.name}: ${found.error}`);
         log(`  degrading to ${adapter.name} for this query - ${fallbackCost(adapter.name)}`);
-        found = adapter.search(query, { limit });
+        found = searchPatiently(adapter, query, { limit, maxRateLimitRetries: 0 });
         countOn(adapter.name, found?.searchesUsed);
         if (Number.isFinite(found?.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
         ranker = adapter.name;

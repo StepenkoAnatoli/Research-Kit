@@ -777,3 +777,32 @@ test('a remembered 404 takes no slot of the scrape budget', () => {
   assert.deepEqual(run.results.map((r) => r.status), ['gone', 'collected'], JSON.stringify(run.results.map((r) => [r.url, r.status, r.reason])));
   assert.equal(run.spent, 1);
 });
+
+// Found 2026-10-01 (break-test, PR #178): the browser transport fetches and does not search
+// (ADR-0088), and two paths still called .search() on it - degrading a failed search to the
+// fetch provider, and switching searches to an out-of-credits fallback - so an ordinary
+// outage (DuckDuckGo's bot check) or a spent Firecrawl balance ended the run with
+// "provider.search is not a function". A provider that cannot search is never asked to; the
+// failure that happened is the one recorded.
+test('a fetch-only transport is never asked to search, and the real search failure is the one recorded', () => {
+  const failuresOf = (dir) => readText(resolve(dir, PATHS.failures)).trim().split('\n').map((line) => JSON.parse(line));
+  const plan = { topic: 'Fixture', depth: 'normal', queries: [{ q: 'rate limits plan' }], urls: [] };
+  const browser = { name: 'browser', runScrape: (url) => ({ ok: false, url, error: 'not fetched in this test', transport: 'browser' }) };
+
+  // A separate search provider fails; the fetch provider beside it cannot search.
+  const outage = makeProject();
+  writeJson(resolve(outage, PATHS.plan), plan);
+  const bot = { name: 'http-keyless', search: () => ({ ok: false, error: 'DuckDuckGo served its bot check' }) };
+  runResearch(outage, { adapter: browser, searchAdapter: bot });
+  const searched = failuresOf(outage).filter((f) => f.op === 'search');
+  assert.ok(searched.some((f) => f.provider === 'http-keyless' && /bot check/.test(f.error)), JSON.stringify(searched));
+  assert.ok(!searched.some((f) => f.provider === 'browser'), `the browser was asked to search: ${JSON.stringify(searched)}`);
+
+  // Credits run out on the search; the fallback fetches but cannot search.
+  const spent = makeProject();
+  writeJson(resolve(spent, PATHS.plan), { ...plan, queries: [{ q: 'rate limits plan' }, { q: 'quota per minute' }] });
+  runResearch(spent, { adapter: exhaustingAdapter({ searchExhausted: true }), fallbackAdapter: browser });
+  const after = failuresOf(spent);
+  assert.ok(after.some((f) => f.op === 'credits-exhausted'), JSON.stringify(after));
+  assert.equal(after.filter((f) => f.op === 'search').length, 2, `each query's search failure is recorded: ${JSON.stringify(after)}`);
+});
