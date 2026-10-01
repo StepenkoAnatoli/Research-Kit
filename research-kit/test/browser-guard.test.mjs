@@ -173,6 +173,32 @@ test('behind a configured proxy every request is forwarded to it, CONNECT includ
   assert.equal(parseUpstream(''), null);
 });
 
+// Found 2026-10-01 on CI: the suite's first Chromium launch ran to its deadline on three
+// Windows runs in a row, and nothing said what it had been waiting for. The guard is the one
+// place every request passes through, so it keeps a record: what was asked, and whether it
+// was answered. What is still unanswered when the render ends is the diagnosis.
+test('the guard records every request it carried, and reports the ones still unanswered', async () => {
+  const pages = await site({ '/quick': '<html><body>quick</body></html>' });
+  const silent = http.createServer(() => { /* never answers */ });
+  await new Promise((resolve) => silent.listen(0, '127.0.0.1', resolve));
+  const guard = await startGuard({ allowInternal: true });
+  try {
+    const quick = await viaProxy(guard.port, `${pages.base}/quick`);
+    assert.equal(quick.status, 200);
+    const stalled = viaProxy(guard.port, `http://127.0.0.1:${silent.address().port}/never`).catch((err) => ({ error: err.code }));
+    await new Promise((r) => setTimeout(r, 150));
+    const pending = guard.pending();
+    assert.deepEqual(pending.map((e) => [e.kind, e.target]), [['http', `http://127.0.0.1:${silent.address().port}/never`]], JSON.stringify(guard.seen));
+    assert.ok(pending[0].ms >= 100, 'how long it has waited is part of the record');
+    assert.equal(guard.seen.length, 2, 'the answered request is on the record too');
+    assert.equal(guard.seen[0].outcome, '200');
+    await guard.close();
+    await stalled;
+    assert.equal(guard.pending().length, 0, 'closing ends every request');
+    assert.equal(guard.seen[1].outcome, 'unanswered');
+  } finally { await guard.close(); await pages.close(); await new Promise((r) => { silent.closeAllConnections?.(); silent.close(r); }); }
+});
+
 /**
  * Two page servers in a process of their own: the transport blocks this one in spawnSync while
  * the guard child renders, so a server here would never answer. `inner` holds the page a page
@@ -261,13 +287,16 @@ test('LIVE: a real Chromium cannot be led into this machine\'s network by a scri
   // Nothing inherited from the machine running the suite: a configured proxy would become the guard's upstream.
   const env = { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? '', HOME: process.env.HOME ?? '', USERPROFILE: process.env.USERPROFILE ?? '' };
   try {
+    // A render that ran long is said on stderr, with what the guard saw still unanswered:
+    // that line in a CI log is the diagnosis of a stall nobody can reproduce elsewhere.
+    const timed = (route, run) => { const t0 = Date.now(); const r = run(); const ms = Date.now() - t0; if (ms > 20_000) process.stderr.write(`browser-guard LIVE ${route} took ${ms} ms: ${r.error ?? r.omitted ?? 'no note'}\n`); return r; };
     for (const route of ['/jump', '/meta']) {
-      const r = browser.scrape(`${pages.outer}${route}`, { browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 });
+      const r = timed(route, () => browser.scrape(`${pages.outer}${route}`, { browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 }));
       assert.equal(r.ok, false, `${route}: the browser reached the page it was sent to: ${JSON.stringify(r).slice(0, 300)}`);
       assert.match(r.error, new RegExp(`127\\.0\\.0\\.1:${pages.innerPort} - 127\\.0\\.0\\.1 is an internal address`), `${route}: ${r.error}`);
       assert.doesNotMatch(JSON.stringify(r), /SECRET-TOKEN/, `${route}: the internal page reached the result`);
     }
-    const plain = browser.scrape(`${pages.outer}/plain`, { browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 });
+    const plain = timed('/plain', () => browser.scrape(`${pages.outer}/plain`, { browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 }));
     assert.equal(plain.ok, true, `the control page failed: ${plain.error}`);
     assert.equal(plain.title, 'Plain');
     assert.match(plain.markdown, /rendered through the guard/);

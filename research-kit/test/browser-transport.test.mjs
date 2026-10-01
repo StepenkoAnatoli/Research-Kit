@@ -132,6 +132,28 @@ test('the browser is given its own deadline under the transport timeout, so a pa
   assert.ok(browserArgs('https://x.invalid/a', { uid: 1000 }).includes(`--timeout=${TIMEOUT_MS - 10_000}`), 'no timeout given means the default one');
 });
 
+test('a render cut at the deadline is graded partial, and says what was still unanswered', () => {
+  const page = `<html><head><title>Late</title></head><body><main><p>${'Rendered words that are enough to be graded as content. '.repeat(40)}</p></main></body></html>`;
+  // The guard's record is the signal: Chromium logs "Page load timed out" only when the
+  // navigation itself never committed, not for a resource that stalled.
+  const at = (extra) => browser.scrape('https://x.invalid/a', { render: () => ({ status: 0, signal: null, stdout: page, stderr: '', refused: [], requests: 7, pending: [], elapsedMs: 35_060, ...extra }), browserPath: '/opt/chrome', env: {}, timeout: 45_000 });
+  const stalled = at({ pending: [{ kind: 'http', target: 'https://cdn.x.invalid/slow.js', ms: 34_900 }] });
+  assert.equal(stalled.ok, true);
+  assert.equal(stalled.completeness, 'partial');
+  assert.match(stalled.omitted, /stopped loading at its 35 s deadline/);
+  assert.match(stalled.omitted, /still unanswered through the guard: https:\/\/cdn\.x\.invalid\/slow\.js \(35 s\)/);
+  const inside = at({ pending: [] });
+  assert.equal(inside.completeness, 'partial');
+  assert.match(inside.omitted, /every one of the 7 requests through the guard had been answered, so the wait was inside the browser/);
+  // Printed early with a load still open (the virtual-time budget ran out first): partial, and named.
+  const early = at({ elapsedMs: 9_000, pending: [{ kind: 'connect', target: 'cdn.x.invalid:443', ms: 8_500 }] });
+  assert.equal(early.completeness, 'partial');
+  assert.match(early.omitted, /printed the page before every load was answered; still unanswered through the guard: cdn\.x\.invalid:443 \(9 s\)/);
+  // Settled on its own, everything answered: the grade is the extractor's own.
+  const settled = browser.scrape('https://x.invalid/a', { render: () => ({ status: 0, signal: null, stdout: page, stderr: '', refused: [], requests: 2, pending: [], elapsedMs: 1_200 }), browserPath: '/opt/chrome', env: {} });
+  assert.equal(settled.completeness, 'full', settled.omitted);
+});
+
 test('LIVE: a page whose resource never arrives is captured at the deadline, not lost to the kill', async () => {
   const chromium = findBrowser();
   requireCapability(chromium, 'NO-BROWSER', 'no Chromium or Chrome on this host');
@@ -160,6 +182,8 @@ server.listen(0, '127.0.0.1', () => process.stdout.write('PORT ' + server.addres
     assert.equal(r.title, 'Stalled');
     assert.match(r.markdown, /arrived before a resource that never does/);
     assert.ok(Date.now() - t0 < 15_000, 'the render ran into the kill timeout instead of the deadline');
+    assert.equal(r.completeness, 'partial', 'a page cut at the deadline is not a full capture');
+    assert.match(r.omitted, /still unanswered through the guard: http:\/\/127\.0\.0\.1:\d+\/never/, r.omitted);
   } finally { proc.kill(); }
 });
 

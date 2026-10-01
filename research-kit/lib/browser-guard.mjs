@@ -90,40 +90,52 @@ export async function startGuard({ allowInternal = false, exempt = [], upstream 
   const outgoing = new Set();
   const judgeHost = (host, port) => judge(host, port, { allowInternal, exempt: skip, lookup, upstream: up });
   const refusal = (host, why) => { refused.push({ host, why }); return `${REFUSAL_MARKER}: ${host} - ${why}`; };
+  // Every request the guard carried, and whether it was answered: the one place all of a
+  // page's loads pass through, so what is still unanswered when the render ends is what the
+  // browser was waiting for (found 2026-10-01: three Windows CI runs in a row ran to the
+  // deadline, and nothing said on what).
+  const seen = [];
+  const note = (kind, target) => { const entry = { kind, target, started: Date.now(), ended: null, outcome: null }; seen.push(entry); return entry; };
+  const done = (entry, outcome) => { if (entry.ended === null) { entry.ended = Date.now(); entry.outcome = outcome; } };
+  const pending = () => seen.filter((e) => e.ended === null).map((e) => ({ kind: e.kind, target: e.target, ms: Date.now() - e.started }));
 
   const server = http.createServer(async (req, res) => {
+    const entry = note('http', String(req.url));
     let target;
-    try { target = new URL(req.url); } catch { res.writeHead(400); res.end(`${REFUSAL_MARKER}: not a proxy request`); return; }
-    if (!/^https?:$/.test(target.protocol)) { res.writeHead(400); res.end(`${REFUSAL_MARKER}: ${target.protocol} is not carried`); return; }
+    try { target = new URL(req.url); } catch { done(entry, 'refused'); res.writeHead(400); res.end(`${REFUSAL_MARKER}: not a proxy request`); return; }
+    if (!/^https?:$/.test(target.protocol)) { done(entry, 'refused'); res.writeHead(400); res.end(`${REFUSAL_MARKER}: ${target.protocol} is not carried`); return; }
     const verdict = await judgeHost(target.hostname, Number(target.port) || 80);
-    if (verdict.refused) { res.writeHead(403, { 'content-type': 'text/plain' }); res.end(refusal(target.host, verdict.refused)); return; }
+    if (verdict.refused) { done(entry, 'refused'); res.writeHead(403, { 'content-type': 'text/plain' }); res.end(refusal(target.host, verdict.refused)); return; }
     const headers = { ...req.headers };
     delete headers['proxy-connection'];
     const options = up
       ? { host: up.host, port: up.port, path: req.url, method: req.method, headers: up.auth ? { ...headers, 'proxy-authorization': up.auth } : headers }
       : { host: verdict.address, port: Number(target.port) || 80, path: `${target.pathname}${target.search}`, method: req.method, headers: { ...headers, host: target.host } };
-    const upstreamRequest = http.request(options, (answer) => { res.writeHead(answer.statusCode, answer.headers); answer.pipe(res); });
+    const upstreamRequest = http.request(options, (answer) => { done(entry, String(answer.statusCode)); res.writeHead(answer.statusCode, answer.headers); answer.pipe(res); });
     outgoing.add(upstreamRequest);
-    upstreamRequest.on('error', (err) => { if (!res.headersSent) res.writeHead(502, { 'content-type': 'text/plain' }); res.end(`${target.host}: ${err.code ?? err.message}`); });
+    upstreamRequest.on('error', (err) => { done(entry, `error ${err.code ?? err.message}`); if (!res.headersSent) res.writeHead(502, { 'content-type': 'text/plain' }); res.end(`${target.host}: ${err.code ?? err.message}`); });
     upstreamRequest.on('close', () => outgoing.delete(upstreamRequest));
     req.pipe(upstreamRequest);
   });
 
   server.on('connect', async (req, client, head) => {
+    const entry = note('connect', String(req.url));
     const at = splitHostPort(req.url);
     const fail = (status, body = '') => { client.end(`HTTP/1.1 ${status}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n${body}`); };
-    if (!at) { fail('400 Bad Request'); return; }
+    if (!at) { done(entry, 'refused'); fail('400 Bad Request'); return; }
     const verdict = await judgeHost(at.host, at.port);
-    if (verdict.refused) { fail('403 Forbidden', refusal(req.url, verdict.refused)); return; }
+    if (verdict.refused) { done(entry, 'refused'); fail('403 Forbidden', refusal(req.url, verdict.refused)); return; }
     const tunnel = up
       ? net.connect(up.port, up.host, () => {
         // The upstream's own answer to the CONNECT goes back to Chromium as it is.
+        done(entry, 'tunnel');
         tunnel.write(`CONNECT ${req.url} HTTP/1.1\r\nHost: ${req.url}\r\n${up.auth ? `Proxy-Authorization: ${up.auth}\r\n` : ''}\r\n`);
         if (head.length) tunnel.write(head);
         tunnel.pipe(client);
         client.pipe(tunnel);
       })
       : net.connect(at.port, verdict.address, () => {
+        done(entry, 'tunnel');
         client.write('HTTP/1.1 200 Connection Established\r\n\r\n');
         if (head.length) tunnel.write(head);
         tunnel.pipe(client);
@@ -131,7 +143,7 @@ export async function startGuard({ allowInternal = false, exempt = [], upstream 
       });
     tunnels.add(client);
     tunnels.add(tunnel);
-    tunnel.on('error', (err) => fail('502 Bad Gateway', `${req.url}: ${err.code ?? err.message}`));
+    tunnel.on('error', (err) => { done(entry, `error ${err.code ?? err.message}`); fail('502 Bad Gateway', `${req.url}: ${err.code ?? err.message}`); });
     tunnel.on('close', () => tunnels.delete(tunnel));
     client.on('error', () => tunnel.destroy());
     client.on('close', () => { tunnels.delete(client); tunnel.destroy(); });
@@ -145,10 +157,11 @@ export async function startGuard({ allowInternal = false, exempt = [], upstream 
     tunnels.clear();
     for (const request of outgoing) request.destroy();
     outgoing.clear();
+    for (const entry of seen) done(entry, 'unanswered');
     server.closeAllConnections?.();
     server.close(() => resolve());
   });
-  return { port: server.address().port, refused, close };
+  return { port: server.address().port, refused, seen, pending, close };
 }
 
 /** Chromium's flags that send every request through the guard, and nothing around it. */
@@ -187,6 +200,7 @@ export async function renderThroughGuard({ binary, args, url, timeout = 60_000, 
         try { if (detached) process.kill(-child.pid, 'SIGKILL'); else child.kill(); } catch { /* already gone */ }
       };
       const timer = setTimeout(() => { timedOut = true; kill(); }, timeout);
+      const started = Date.now();
       const settle = (status, signal) => {
         if (settled) return;
         settled = true;
@@ -194,7 +208,7 @@ export async function renderThroughGuard({ binary, args, url, timeout = 60_000, 
         resolve({
           status, signal, stdout: Buffer.concat(out).toString('utf8'), stderr: errLines.join('\n'),
           errorCode: timedOut ? 'ETIMEDOUT' : null, errorMessage: timedOut ? `the browser did not finish within ${timeout}ms` : null,
-          refused: guard.refused, truncated,
+          refused: guard.refused, truncated, requests: guard.seen.length, pending: guard.pending(), elapsedMs: Date.now() - started,
         });
       };
       child.stdout.on('data', (chunk) => {
