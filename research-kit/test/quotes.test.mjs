@@ -75,3 +75,28 @@ test('a row citing an error-status capture is flagged', async () => {
   corrupt(dir, PATHS.evidence, (t) => t.replace('| The free plan allows', '| The guessed URL answered HTTP 404; kept as the record of a failed lookup. The free plan allows'));
   assert.equal(runCheck('citations', readCorpus(dir)).find((f) => f.rule === 'raw-error-status'), undefined);
 });
+
+// Found 2026-10-01 by a cold end-to-end trial: an agent wrote
+// `[quote: "The primary rate limit for unauthenticated requests is 60 requests per hour."]` -
+// the sentence word for word, in quotation marks, as one writes a quotation - and the gate said
+// quote-not-found. The agent concluded quotes were too strict and removed every one, leaving
+// claims the gate could no longer check. Quotation marks around the whole passage are how it
+// was written down, not part of it.
+test('quotation marks around the whole passage are not part of the quote', () => {
+  const body = 'The primary rate limit for unauthenticated requests is 60 requests per hour. Authenticated: 5,000.';
+  for (const marker of [
+    '[quote: "The primary rate limit for unauthenticated requests is 60 requests per hour."]',
+    '[quote: “The primary rate limit for unauthenticated requests is 60 requests per hour.”]',
+    "[quote: 'The primary rate limit for unauthenticated requests is 60 requests per hour.']",
+    '[quote: «The primary rate limit for unauthenticated requests is 60 requests per hour.»]',
+  ]) {
+    const [anchor] = quoteAnchors(marker);
+    assert.ok(anchorFound(anchor.fragments, body), `not found once wrapped: ${marker}`);
+  }
+  // Only a wrapping pair: quotation marks inside the passage are the capture's, and still checked.
+  const [inner] = quoteAnchors('[quote: the "primary" rate limit for unauthenticated requests]');
+  assert.equal(anchorFound(inner.fragments, body), false, 'quotation marks the capture does not have were ignored');
+  // And a passage the capture does not hold is still refused, quoted or not.
+  const [invented] = quoteAnchors('[quote: "The primary rate limit for unauthenticated requests is 600 requests per hour."]');
+  assert.equal(anchorFound(invented.fragments, body), false, 'an invented quote was accepted');
+});

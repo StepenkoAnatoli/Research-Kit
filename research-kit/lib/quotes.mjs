@@ -25,11 +25,26 @@ const QUOTE_RE = /\[quote:\s*((?:[^[\]]|\[[^[\]]*\])*)\]/gi;
 export function quoteAnchors(text) {
   const out = [];
   for (const match of String(text ?? '').matchAll(QUOTE_RE)) {
-    const quote = match[1].trim();
+    const quote = unwrap(match[1].trim());
     const fragments = quote.split(/\s*(?:\.\.\.|…)\s*/).map((f) => f.trim()).filter(Boolean);
     if (fragments.length) out.push({ quote, fragments });
   }
   return out;
+}
+
+/** Quotation-mark pairs a writer puts around a whole passage: straight, curly and guillemets. */
+const WRAPPERS = [['"', '"'], ["'", "'"], ['“', '”'], ['‘', '’'], ['«', '»'], ['„', '“']];
+
+/**
+ * A quote with one pair of quotation marks around the whole of it taken off: they are how the
+ * passage was written down, not part of it. `[quote: "the sentence"]` was quote-not-found for a
+ * sentence the capture held word for word, and the agent who wrote it removed every quote rather
+ * than learn why (found 2026-10-01 by a cold end-to-end trial). Taking marks off can only shorten
+ * what is searched for, so it cannot make an invented passage match.
+ */
+function unwrap(quote) {
+  const pair = WRAPPERS.find(([open, close]) => quote.length > 2 && quote.startsWith(open) && quote.endsWith(close));
+  return pair ? quote.slice(pair[0].length, -pair[1].length).trim() : quote;
 }
 
 /**
