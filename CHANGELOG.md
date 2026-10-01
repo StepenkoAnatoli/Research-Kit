@@ -7,6 +7,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- A lock the kit judges stale and cannot remove is a named refusal (`LOCK_STUCK`), not a
+  livelock. The failed removal fell through to `continue`, which skipped both the deadline and
+  the sleep, so a read-only `research/raw` holding a dead pid's lock - or a `.fetches.lock`
+  that is a directory - spun at 100% of a core forever, printing nothing and unreachable even by
+  `--report-on-signal`, because a synchronous loop never returns to the event loop. The held
+  case is coded `LOCK_HELD` too (break-test 2026-10-01, PR #193, redone on main).
 - `skillRoots` is checked as a list of paths, not only as an array. A number or a null left in
   a hand-edited machine config reached `path.join` and killed `doctor` with a raw
   `ERR_INVALID_ARG_TYPE` stack - the one command whose job is to name every problem and print
