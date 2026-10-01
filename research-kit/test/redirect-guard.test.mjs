@@ -139,17 +139,3 @@ test('the fetch child guards its lookups, and names the refusal', () => {
   const child = src.slice(src.indexOf('async function child()'));
   assert.match(child, /dns\.lookup = guardedLookup\(/, 'the child does not guard the lookups its fetch makes');
 });
-
-test('redirectTarget follows a URL\'s redirects without reading the page, and names a hop inward', async () => {
-  await withServer((base) => {
-    for (const route of ['/hop', '/hop-absolute']) {
-      const r = httpKeyless.redirectTarget(`${base}${route}`, { env, allowInternalRedirects: false });
-      assert.match(r.refused ?? '', /refused to follow a redirect .*127\.0\.0\.1/, `${route}: ${JSON.stringify(r)}`);
-      assert.doesNotMatch(JSON.stringify(r), /SECRET-TOKEN/, 'the page behind the redirect was read');
-    }
-    const asked = httpKeyless.redirectTarget(`${base}/hop`, { env });
-    assert.equal(asked.refused, undefined, 'an internal URL the operator asked for was refused');
-    assert.equal(asked.url, `${base}/secret`, 'the final URL is reported');
-    assert.doesNotMatch(JSON.stringify(asked), /SECRET-TOKEN/, 'the page was read: only the redirects are wanted');
-  });
-});

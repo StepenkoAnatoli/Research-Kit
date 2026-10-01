@@ -26,7 +26,9 @@ GitHub Actions (`collect-remote`, with `--run-id` to pick a run up again).
   ADR-0113);
 - `install` refuses to mirror into a folder that is not a kit (ADR-0111);
 - the keyless fetch judges the address it connects to, closing DNS rebinding (ADR-0114);
-- the browser transport checks a URL's redirects before Chromium starts (ADR-0115);
+- the browser transport renders through a guard proxy the kit runs, so every request Chromium
+  makes - redirects, script navigation, meta refreshes, images, frames - is judged before it is
+  sent (ADR-0118);
 - writes retry a rename Windows holds for a moment.
 
 **Found by a cold end-to-end trial.** A fresh agent with only the docs took a real question to
@@ -43,6 +45,5 @@ best-effort with no CI leg (ADR-0101).
 - The gate proves evidence was fetched and quoted, not that it was read correctly: the
   review is the agent's own declaration (ADR-0107).
 - The edit-time gate is a Claude Code hook; other agents meet only the commit gate.
-- Navigation a page makes after it loads is not checked by the browser transport (ADR-0115).
 
 **License.** All rights reserved (`LICENSE`).

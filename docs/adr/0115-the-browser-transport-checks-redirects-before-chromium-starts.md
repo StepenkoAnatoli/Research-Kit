@@ -1,7 +1,7 @@
 # ADR-0115 — The browser transport checks a URL's redirects before Chromium starts
 
 - **Date:** 2026-10-01
-- **Status:** accepted; supersedes the "browser transport" bullet of ADR-0110
+- **Status:** superseded by ADR-0118 (the guard proxy judges every request, so this pre-check was removed); had superseded the "browser transport" bullet of ADR-0110
 - **Area:** `lib/browser-transport.mjs` (`scrape`), `lib/http-transport.mjs` (`redirectTarget`)
 
 ## Context
