@@ -163,6 +163,12 @@ export function selectSearch({ explicit = '', env = process.env, config = null, 
   const settings = config ?? loadConfig(env);
   const side = fetchSide ?? selectFetch({ env, probe, config: settings });
   const asked = explicit || env.RESEARCH_KIT_SEARCH_TRANSPORT || settings.searchTransport || '';
+  // A fetch provider that cannot search: a fetch-only transport (the browser), or a Firecrawl
+  // CLI with no key, which Firecrawl still lets scrape but no longer lets search ("Alexandria
+  // requires a Firecrawl API key with access enabled.", CLI 1.24.6, found 2026-10-01 by a cold
+  // trial: every search of a fresh keyless project failed). The keyless route searches for it.
+  const searchless = typeof side.adapter?.search !== 'function' ? `${side.name} does not search`
+    : side.name === firecrawl.ANONYMOUS_NAME ? `${side.name} cannot search without a key` : '';
 
   if (asked) {
     const adapter = SEARCH_PROVIDERS[asked];
@@ -216,7 +222,7 @@ export function selectSearch({ explicit = '', env = process.env, config = null, 
     // The partner must be able to search: a fetch-only transport (the browser) hands its
     // share to the keyless route, as the no-key branch below does. Put on the search side,
     // it crashed the first live browser run (2026-09-29).
-    const partner = typeof side.adapter?.search === 'function' ? side.adapter : httpKeyless;
+    const partner = searchless ? httpKeyless : side.adapter;
     const partnerName = partner === side.adapter ? side.name : httpKeyless.name;
     return {
       name: serpapi.name,
@@ -228,12 +234,12 @@ export function selectSearch({ explicit = '', env = process.env, config = null, 
     };
   }
 
-  // A fetch-only transport has no search of its own; the keyless route searches for it.
-  if (typeof side.adapter?.search !== 'function') {
+  // A fetch provider that cannot search hands its searches to the keyless route.
+  if (searchless) {
     return {
       name: httpKeyless.name,
       adapter: httpKeyless,
-      why: `${side.name} does not search - searching with ${httpKeyless.name}`,
+      why: `${searchless} - searching with ${httpKeyless.name}`,
       searchOnly: false,
     };
   }

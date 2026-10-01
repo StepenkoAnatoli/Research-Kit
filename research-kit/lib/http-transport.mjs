@@ -555,7 +555,7 @@ const INTERNAL = (() => {
   return list;
 })();
 
-const isInternal = (address) => {
+export const isInternal = (address) => {
   // IPv4 written as IPv6 (`::ffff:127.0.0.1`, which the URL parser spells `::ffff:7f00:1`) is
   // judged as the IPv4 it is. A ::ffff:0:0/96 rule would not do: BlockList applies it to every
   // IPv4 address, which made 8.8.8.8 internal.
@@ -581,6 +581,39 @@ export async function internalTarget(hostname) {
   try { addresses = await dns.promises.lookup(host, { all: true, verbatim: true }); } catch { return null; }
   const inside = addresses.find((a) => isInternal(a.address));
   return inside ? `${host} resolves to ${inside.address}, an internal address` : null;
+}
+
+/**
+ * `lookup`, refusing an internal answer (ADR-0114). Node's fetch resolves a name through
+ * `dns.lookup` when it connects, so the fetch child wraps it: the addresses judged are the
+ * addresses connected to. `internalTarget` alone resolved a name to judge it, and fetch resolved
+ * it again - a name server answering "public" first and "internal" second got the collector
+ * into this machine's network (DNS rebinding, left open by ADR-0110).
+ *
+ * `allowInternal()` is read at each lookup: an internal URL the operator asked for is theirs.
+ * `exempt` names the proxy hosts: behind a proxy the connection goes to the proxy, which may well
+ * sit on an internal network, and the proxy resolves the target.
+ */
+export function guardedLookup(lookup, { allowInternal = () => false, exempt = [] } = {}) {
+  const skip = new Set(exempt.map((h) => String(h).toLowerCase()));
+  return function lookupGuarded(hostname, options, callback) {
+    const cb = typeof options === 'function' ? options : callback;
+    const opts = typeof options === 'function' ? {} : options;
+    lookup(hostname, opts, (err, address, family) => {
+      if (err || allowInternal() || skip.has(String(hostname).toLowerCase())) return cb(err, address, family);
+      const found = (Array.isArray(address) ? address : [{ address }]).find((a) => isInternal(a.address));
+      if (!found) return cb(null, address, family);
+      return cb(Object.assign(new Error(`${hostname} resolved to ${found.address}, an internal address, when it was fetched - `
+        + 'a page on the web may not send the collector into this machine\'s network'), { code: 'EINTERNAL', hostname }));
+    });
+  };
+}
+
+/** The hosts of the proxy variables: the connection behind a proxy goes to one of them. */
+function proxyHosts(env) {
+  return ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].flatMap((name) => {
+    try { return env[name] ? [new URL(env[name].includes('://') ? env[name] : `http://${env[name]}`).hostname.replace(/^\[|\]$/g, '')] : []; } catch { return []; }
+  });
 }
 
 // ---------------------------------------------------------------- the child half
@@ -610,6 +643,9 @@ async function child() {
     // the operator asked for is theirs, and so are the redirects that stay inside it.
     const allowInternal = job.allowInternalRedirects === true
       || (job.allowInternalRedirects !== false && await internalTarget(new URL(job.url).hostname) !== null);
+    // Every connection fetch makes is judged where it is made: a second resolution of a name
+    // cannot answer differently from the one judged (ADR-0114).
+    dns.lookup = guardedLookup(dns.lookup, { allowInternal: () => allowInternal, exempt: proxyHosts(process.env) });
     const init = {
       redirect: 'manual',
       headers: { 'user-agent': USER_AGENT, accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8' },

@@ -164,7 +164,7 @@ The sequence is decompose -> contract -> collect -> gate -> brief.
    ```
 
    Prefer the page that *owns* the fact (official docs, repo, pricing page, statute) over any write-up about it. Raw page text is cached under `research/raw/`; rows are appended to `research/EVIDENCE.md`.
-4. Rewrite each auto-extracted `Finding` cell into a real claim, with the URL and retrieval date that support it. Keep the `Raw` cell pointing at the cached page - that is what makes the claim checkable. Where a claim rests on one sentence, add it as `[quote: the sentence, copied from the capture]`: the gate checks the quote occurs in the capture (ADR-0087).
+4. Rewrite each auto-extracted `Finding` cell into a real claim, with the URL and retrieval date that support it. Keep the `Raw` cell pointing at the cached page - that is what makes the claim checkable. Where a claim rests on one sentence, add it as `[quote: the sentence, copied from the capture]` - word for word; quotation marks around it are optional - and the gate checks the quote occurs in the capture (ADR-0087).
 5. Run the gate:
 
    ```
@@ -259,6 +259,14 @@ that file is the phase-1 deliverable and the only thing phase 2 is required to r
 ## Rule 6 - secrets
 
 The Firecrawl key lives in the CLI config or your environment. Never write it into this repository, and never run `firecrawl env` inside a repo - it writes a key into `.env`.
+
+## Feature freeze (from 0.9.0)
+
+The kit is feature-frozen (ADR-0117). Bring it bug fixes, gaps an ADR already deferred whose
+trigger has fired, documentation, tests, and updates for a vendor, Node or git release. A new
+command, flag, transport, provider, configuration key, file format or check is not added unless
+an ADR lifts the freeze for that one item. When a change could be read either way, it is a
+feature.
 
 ## The standing protocol
 

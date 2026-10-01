@@ -1,0 +1,251 @@
+// lib/browser-guard.mjs - the proxy Chromium renders through, and the child that runs both
+// (ADR-0118).
+//
+// Chromium follows redirects, runs scripts that navigate, and loads images and frames, all
+// inside itself, and `--dump-dom` reports only the DOM at the end. Judging the URL asked for
+// (ADR-0115) left everything a page does after it loads unseen. So Chromium is pointed at a
+// proxy this file runs on a loopback port, with the loopback bypass turned off, and every
+// request it makes - a plain request or a CONNECT tunnel - is judged here, by the rule the
+// keyless fetch uses (ADR-0110, ADR-0114), before a byte is sent. The connection then goes to
+// the address that was judged, so a second answer from a name server has nowhere to go.
+//
+// The transport's parent half runs Chromium under spawnSync, which blocks the event loop, so a
+// proxy in that process would never answer. This file is therefore also a process entry point:
+// given one job on stdin, it starts the proxy, runs Chromium through it, and prints one JSON
+// line with the DOM, Chromium's exit, and the refusals.
+
+import http from 'node:http';
+import net from 'node:net';
+import dns from 'node:dns';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { isInternal, internalTarget } from './http-transport.mjs';
+import { proxyVariable, MAX_PAGE_BYTES } from './runtime.mjs';
+
+/** The body of a refused request: what Chromium renders in place of the page it was sent to. */
+export const REFUSAL_MARKER = 'research-kit-guard-refused';
+const STDERR_LINES = 60;
+
+const normalizeHost = (host) => String(host ?? '').replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+
+/** `host:port` as a CONNECT names it, with an IPv6 literal in brackets, or null. */
+function splitHostPort(target) {
+  const m = /^(\[[^\]]+\]|[^:]+):(\d+)$/.exec(String(target ?? ''));
+  return m ? { host: m[1].replace(/^\[|\]$/g, ''), port: Number(m[2]) } : null;
+}
+
+/** The upstream proxy a variable names: its host, port and, when the URL carries one, its credential. */
+export function parseUpstream(value) {
+  if (!value) return null;
+  let url;
+  try { url = new URL(String(value).includes('://') ? String(value) : `http://${value}`); } catch { return null; }
+  if (!url.hostname) return null;
+  const auth = url.username ? `Basic ${Buffer.from(`${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`, 'utf8').toString('base64')}` : null;
+  return { host: normalizeHost(url.hostname), port: Number(url.port) || (url.protocol === 'https:' ? 443 : 80), auth };
+}
+
+/**
+ * Whether `host` may be connected to, and at which address.
+ *
+ *   { refused }  why not: an internal address, or a name that resolves to one
+ *   { address }  the address to connect to - the one judged, so the connection is pinned to it
+ *   { }          not judged: behind an upstream proxy a name is resolved there, not here
+ *
+ * `exempt` holds `host:port` of the URL the operator asked for - that one, not every port on
+ * its host; `allowInternal` is the operator's own decision for the whole render.
+ */
+export async function judge(host, port, { allowInternal = false, exempt = new Set(), lookup = dns.lookup, upstream = null } = {}) {
+  const name = normalizeHost(host);
+  const skip = allowInternal || exempt.has(`${name}:${port}`);
+  if (net.isIP(name)) {
+    if (!skip && isInternal(name)) return { refused: `${name} is an internal address` };
+    return { address: name };
+  }
+  if (!skip && (name === 'localhost' || name.endsWith('.localhost'))) return { refused: `${name} is this machine` };
+  let found;
+  try {
+    found = await new Promise((resolve, reject) => lookup(name, { all: true }, (err, addresses) => (err ? reject(err) : resolve(addresses))));
+  } catch (err) {
+    // Direct, a name this machine cannot resolve cannot be connected to either; through a
+    // proxy it is the proxy's to resolve, and is not this machine's network (ADR-0110).
+    return upstream ? {} : { refused: `${name} could not be resolved (${err.code ?? err.message})` };
+  }
+  const list = Array.isArray(found) ? found : [{ address: found }];
+  const inside = list.find((a) => isInternal(a.address));
+  if (!skip && inside) return { refused: `${name} resolves to ${inside.address}, an internal address` };
+  return upstream ? {} : { address: list[0]?.address };
+}
+
+/**
+ * Start the guard on a loopback port. Returns `{ port, refused, close }`; `refused` grows with
+ * every request turned away, as `{ host, why }`.
+ */
+export async function startGuard({ allowInternal = false, exempt = [], upstream = null, lookup = dns.lookup } = {}) {
+  const up = parseUpstream(upstream);
+  const skip = new Set(exempt.map((entry) => { const at = splitHostPort(entry); return at ? `${normalizeHost(at.host)}:${at.port}` : normalizeHost(entry); }));
+  const refused = [];
+  // The sockets a CONNECT hands over are not the server's to close: tracked, so `close` can end
+  // them, or a tunnel the browser left half-open would keep the child alive past its timeout.
+  const tunnels = new Set();
+  const outgoing = new Set();
+  const judgeHost = (host, port) => judge(host, port, { allowInternal, exempt: skip, lookup, upstream: up });
+  const refusal = (host, why) => { refused.push({ host, why }); return `${REFUSAL_MARKER}: ${host} - ${why}`; };
+
+  const server = http.createServer(async (req, res) => {
+    let target;
+    try { target = new URL(req.url); } catch { res.writeHead(400); res.end(`${REFUSAL_MARKER}: not a proxy request`); return; }
+    if (!/^https?:$/.test(target.protocol)) { res.writeHead(400); res.end(`${REFUSAL_MARKER}: ${target.protocol} is not carried`); return; }
+    const verdict = await judgeHost(target.hostname, Number(target.port) || 80);
+    if (verdict.refused) { res.writeHead(403, { 'content-type': 'text/plain' }); res.end(refusal(target.host, verdict.refused)); return; }
+    const headers = { ...req.headers };
+    delete headers['proxy-connection'];
+    const options = up
+      ? { host: up.host, port: up.port, path: req.url, method: req.method, headers: up.auth ? { ...headers, 'proxy-authorization': up.auth } : headers }
+      : { host: verdict.address, port: Number(target.port) || 80, path: `${target.pathname}${target.search}`, method: req.method, headers: { ...headers, host: target.host } };
+    const upstreamRequest = http.request(options, (answer) => { res.writeHead(answer.statusCode, answer.headers); answer.pipe(res); });
+    outgoing.add(upstreamRequest);
+    upstreamRequest.on('error', (err) => { if (!res.headersSent) res.writeHead(502, { 'content-type': 'text/plain' }); res.end(`${target.host}: ${err.code ?? err.message}`); });
+    upstreamRequest.on('close', () => outgoing.delete(upstreamRequest));
+    req.pipe(upstreamRequest);
+  });
+
+  server.on('connect', async (req, client, head) => {
+    const at = splitHostPort(req.url);
+    const fail = (status, body = '') => { client.end(`HTTP/1.1 ${status}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n${body}`); };
+    if (!at) { fail('400 Bad Request'); return; }
+    const verdict = await judgeHost(at.host, at.port);
+    if (verdict.refused) { fail('403 Forbidden', refusal(req.url, verdict.refused)); return; }
+    const tunnel = up
+      ? net.connect(up.port, up.host, () => {
+        // The upstream's own answer to the CONNECT goes back to Chromium as it is.
+        tunnel.write(`CONNECT ${req.url} HTTP/1.1\r\nHost: ${req.url}\r\n${up.auth ? `Proxy-Authorization: ${up.auth}\r\n` : ''}\r\n`);
+        if (head.length) tunnel.write(head);
+        tunnel.pipe(client);
+        client.pipe(tunnel);
+      })
+      : net.connect(at.port, verdict.address, () => {
+        client.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+        if (head.length) tunnel.write(head);
+        tunnel.pipe(client);
+        client.pipe(tunnel);
+      });
+    tunnels.add(client);
+    tunnels.add(tunnel);
+    tunnel.on('error', (err) => fail('502 Bad Gateway', `${req.url}: ${err.code ?? err.message}`));
+    tunnel.on('close', () => tunnels.delete(tunnel));
+    client.on('error', () => tunnel.destroy());
+    client.on('close', () => { tunnels.delete(client); tunnel.destroy(); });
+  });
+
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
+  // A request to a server that never answers would otherwise outlive the browser and keep
+  // the child alive past its timeout (found by a probe with a silent server, 2026-10-01).
+  const close = () => new Promise((resolve) => {
+    for (const socket of tunnels) socket.destroy();
+    tunnels.clear();
+    for (const request of outgoing) request.destroy();
+    outgoing.clear();
+    server.closeAllConnections?.();
+    server.close(() => resolve());
+  });
+  return { port: server.address().port, refused, close };
+}
+
+/** Chromium's flags that send every request through the guard, and nothing around it. */
+export function guardFlags(port) {
+  return [`--proxy-server=127.0.0.1:${port}`, '--proxy-bypass-list=<-loopback>'];
+}
+
+/**
+ * Run `binary` through a guard that exempts only the `host:port` of `url`: `args` are its flags
+ * ending in `--dump-dom <url>`; the guard's flags are inserted before those two. Resolves to Chromium's exit as spawnSync would report
+ * it, plus `refused` and `truncated`.
+ */
+export async function renderThroughGuard({ binary, args, url, timeout = 60_000, allowInternal = false, upstream = null, lookup = dns.lookup } = {}) {
+  const asked = new URL(url);
+  const guard = await startGuard({ allowInternal, exempt: [`${asked.hostname.replace(/^\[|\]$/g, '').includes(':') ? `[${asked.hostname.replace(/^\[|\]$/g, '')}]` : asked.hostname}:${asked.port || (asked.protocol === 'https:' ? 443 : 80)}`], upstream, lookup });
+  try {
+    const argv = [...args.slice(0, -2), ...guardFlags(guard.port), ...args.slice(-2)];
+    return await new Promise((resolve) => {
+      let child;
+      // Its own process group on POSIX, so a timeout kills the helpers Chromium forks too: left
+      // alive, they hold its stdout open and the 'close' event never comes.
+      const detached = process.platform !== 'win32';
+      try {
+        child = spawn(binary, argv, { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, detached });
+      } catch (err) {
+        resolve({ status: null, signal: null, stdout: '', stderr: '', errorCode: err.code ?? 'SPAWN', errorMessage: err.message, refused: guard.refused, truncated: false });
+        return;
+      }
+      const out = [];
+      let size = 0;
+      let truncated = false;
+      const errLines = [];
+      let timedOut = false;
+      let settled = false;
+      const kill = () => {
+        try { if (detached) process.kill(-child.pid, 'SIGKILL'); else child.kill(); } catch { /* already gone */ }
+      };
+      const timer = setTimeout(() => { timedOut = true; kill(); }, timeout);
+      const settle = (status, signal) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({
+          status, signal, stdout: Buffer.concat(out).toString('utf8'), stderr: errLines.join('\n'),
+          errorCode: timedOut ? 'ETIMEDOUT' : null, errorMessage: timedOut ? `the browser did not finish within ${timeout}ms` : null,
+          refused: guard.refused, truncated,
+        });
+      };
+      child.stdout.on('data', (chunk) => {
+        if (truncated) return;
+        size += chunk.length;
+        if (size > MAX_PAGE_BYTES) { truncated = true; out.length = 0; kill(); return; }
+        out.push(chunk);
+      });
+      child.stderr.on('data', (chunk) => {
+        for (const line of String(chunk).split('\n')) { if (line) errLines.push(line); }
+        if (errLines.length > STDERR_LINES) errLines.splice(0, errLines.length - STDERR_LINES);
+      });
+      child.on('error', (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve({ status: null, signal: null, stdout: '', stderr: errLines.join('\n'), errorCode: err.code ?? 'SPAWN', errorMessage: err.message, refused: guard.refused, truncated });
+      });
+      // 'close' follows 'exit' once the pipes drain; a helper that outlived the browser would
+      // hold them open, so the exit is reported after a short grace either way.
+      child.on('close', (status, signal) => settle(status, signal));
+      child.on('exit', (status, signal) => { setTimeout(() => settle(status, signal), 1000).unref(); });
+    });
+  } finally {
+    await guard.close();
+  }
+}
+
+// ---------------------------------------------------------------- the child half
+
+async function child() {
+  const chunks = [];
+  for await (const chunk of process.stdin) chunks.push(chunk);
+  let job;
+  try { job = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch (err) {
+    process.stdout.write(JSON.stringify({ errorCode: 'BAD_JOB', errorMessage: `unparseable job: ${err.message}` }));
+    return;
+  }
+  try {
+    // ADR-0110: an internal URL the operator asked for is theirs, redirects and all, unless the
+    // caller decided otherwise; RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS=1 lifts the check.
+    const allowInternal = job.allowInternalRedirects === true
+      || (job.allowInternalRedirects !== false && await internalTarget(new URL(job.url).hostname) !== null);
+    const variable = proxyVariable(process.env);
+    const result = await renderThroughGuard({ ...job, allowInternal, upstream: variable ? process.env[variable] : null });
+    process.stdout.write(JSON.stringify(result), () => process.exit(0));
+  } catch (err) {
+    process.stdout.write(JSON.stringify({ errorCode: err.code ?? 'GUARD', errorMessage: err.message }), () => process.exit(0));
+  }
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  await child();
+}

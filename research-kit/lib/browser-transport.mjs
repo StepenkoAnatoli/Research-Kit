@@ -7,12 +7,20 @@
 // 2026-09-28 a GitHub Discussion answered the keyless client HTTP 403 and rendered here in full.
 //
 // Fetch only. It does not search; a run on it searches with the keyless route (transport.mjs).
+//
+// Every request Chromium makes goes through a guard proxy the kit runs (ADR-0118), in a child
+// process (`browser-guard.mjs`): a page on the web cannot send the browser into this machine's
+// network, whether by a redirect, a script, a meta refresh or an image.
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { mainContent, htmlToMarkdown, titleOf, gradeCompleteness } from './http-transport.mjs';
 import httpKeyless from './http-transport.mjs';
-import { CHILD_OUTPUT_LIMIT } from './runtime.mjs';
+import { REFUSAL_MARKER } from './browser-guard.mjs';
+import { CHILD_OUTPUT_LIMIT, MAX_PAGE_BYTES, outputOverflow } from './runtime.mjs';
+
+const GUARD_CHILD = fileURLToPath(new URL('./browser-guard.mjs', import.meta.url));
 
 export const name = 'browser';
 export const CONTRACTS = Object.freeze(['fetch']);
@@ -46,18 +54,49 @@ export function findBrowser({ config = {}, env = process.env, exists = isFile, p
 }
 
 /**
- * The argv, URL last. `--proxy-server` from the configured proxy (E-03); `--no-sandbox` only
- * as root, where Chromium refuses to start with its sandbox (U-03, a known unknown). There is
- * no flag that weakens TLS: a TLS-intercepting proxy is trusted by adding its CA to the
- * browser's store, never by `--ignore-certificate-errors`.
+ * The argv, URL last. The guard child adds `--proxy-server` for its own proxy (ADR-0118); a
+ * configured proxy (E-03) is the guard's upstream, never Chromium's directly. The background
+ * traffic Chromium makes on its own - update checks, time sync - is switched off: each such
+ * request would otherwise go through the guard too. `--no-sandbox` only as root, where
+ * Chromium refuses to start with its sandbox (U-03, a known unknown). There is no flag that
+ * weakens TLS: a TLS-intercepting proxy is trusted by adding its CA to the browser's store,
+ * never by `--ignore-certificate-errors`.
  */
-export function browserArgs(url, { env = process.env, uid = typeof process.getuid === 'function' ? process.getuid() : -1 } = {}) {
-  const args = ['--headless', '--disable-gpu', '--no-first-run', `--virtual-time-budget=${VIRTUAL_TIME_MS}`];
-  const proxy = env.HTTPS_PROXY || env.https_proxy || env.HTTP_PROXY || env.http_proxy || '';
-  if (proxy) args.push(`--proxy-server=${proxy}`);
+export function browserArgs(url, { uid = typeof process.getuid === 'function' ? process.getuid() : -1 } = {}) {
+  const args = ['--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
+    '--disable-component-update', '--disable-sync', `--virtual-time-budget=${VIRTUAL_TIME_MS}`];
   if (uid === 0) args.push('--no-sandbox');
   args.push('--dump-dom', String(url));
   return args;
+}
+
+/**
+ * Run the browser through the guard child, and report its exit as spawnSync would: `status`,
+ * `signal`, `stdout`, `stderr`, `error`, plus `refused` (the requests the guard turned away)
+ * and `truncated` (a DOM past MAX_PAGE_BYTES, dropped rather than kept in part, ADR-0082).
+ */
+export function renderGuarded(binary, args, { url, env = process.env, timeout = TIMEOUT_MS, allowInternalRedirects, nodePath = process.execPath, spawn = spawnSync } = {}) {
+  // ADR-0110: undefined lets the child decide from the URL asked for; the operator's opt-out,
+  // or a caller's explicit choice, overrides it.
+  const allow = allowInternalRedirects ?? (env.RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS === '1' ? true : undefined);
+  const job = { binary, args, url: String(url), timeout, ...(allow === undefined ? {} : { allowInternalRedirects: allow }) };
+  const result = spawn(nodePath, [GUARD_CHILD], {
+    input: JSON.stringify(job), encoding: 'utf8', timeout: timeout + 10_000, windowsHide: true, maxBuffer: CHILD_OUTPUT_LIMIT, env,
+  });
+  const failed = (code, message) => ({ status: null, signal: null, stdout: '', stderr: '', error: Object.assign(new Error(message), { code }), refused: [] });
+  if (result.error?.code === 'ETIMEDOUT') return failed('ETIMEDOUT', 'the guard child did not finish');
+  const overflow = outputOverflow(result, 'the browser');
+  if (overflow) return failed('ENOBUFS', overflow);
+  if (result.error) return failed(result.error.code ?? 'SPAWN', result.error.message);
+  let report;
+  try { report = JSON.parse(String(result.stdout ?? '').trim() || '{}'); } catch (err) {
+    return failed('GUARD', `the guard child emitted unparseable output: ${err.message}${result.stderr ? ` (${String(result.stderr).trim().slice(0, 200)})` : ''}`);
+  }
+  return {
+    status: report.status ?? null, signal: report.signal ?? null, stdout: report.stdout ?? '', stderr: report.stderr ?? '',
+    error: report.errorCode ? Object.assign(new Error(report.errorMessage ?? report.errorCode), { code: report.errorCode }) : undefined,
+    refused: report.refused ?? [], truncated: Boolean(report.truncated),
+  };
 }
 
 /**
@@ -82,7 +121,8 @@ export function command(argv) {
   return ['browser', ...argv.slice(-1)].map((p) => (/\s/.test(p) ? JSON.stringify(p) : p)).join(' ');
 }
 
-export function scrape(url, { spawn = spawnSync, browserPath = null, env = process.env, config = {}, exists, timeout = TIMEOUT_MS, uid } = {}) {
+export function scrape(url, { render = renderGuarded, browserPath = null, env = process.env, config = {}, exists, timeout = TIMEOUT_MS, uid,
+  allowInternalRedirects } = {}) {
   const target = String(url);
   const binary = browserPath ?? findBrowser({ config, env, exists });
   const cmd = command([target]);
@@ -90,9 +130,7 @@ export function scrape(url, { spawn = spawnSync, browserPath = null, env = proce
     return { ok: false, url: target, transport: name, cmd,
       error: 'no Chromium or Chrome found - set browserPath in the machine config or RESEARCH_KIT_BROWSER to the browser executable' };
   }
-  const result = spawn(binary, browserArgs(target, { env, ...(uid === undefined ? {} : { uid }) }), {
-    encoding: 'utf8', timeout, maxBuffer: CHILD_OUTPUT_LIMIT, windowsHide: true,
-  });
+  const result = render(binary, browserArgs(target, uid === undefined ? {} : { uid }), { url: target, env, timeout, allowInternalRedirects });
   // Why the browser stopped, in its own words: the last FATAL line, else the last ERROR line,
   // else the last line. Learned from live runs on 2026-09-29: a crash ends its stderr with a
   // stack dump ("[end of stack trace]"), and the crash handler then logs ERROR noise of its
@@ -103,6 +141,22 @@ export function scrape(url, { spawn = spawnSync, browserPath = null, env = proce
   const said = cause ? `: ${cause.trim().slice(0, 200)}` : '';
   if (result.error?.code === 'ETIMEDOUT') {
     return { ok: false, url: target, transport: name, cmd, error: `the browser did not finish rendering ${target} within ${Math.round(timeout / 1000)}s` };
+  }
+  // The guard turned a request away, and the page that rendered is the refusal, or Chromium's
+  // own error page for a tunnel it could not open: the page led the browser into this
+  // machine's network, and nothing from there was read (ADR-0118). A refused image or frame on
+  // a page that still rendered is not a failure of the capture.
+  const refused = Array.isArray(result.refused) ? result.refused : [];
+  const html = String(result.stdout ?? '');
+  const landedOnRefusal = refused.length && (html.includes(REFUSAL_MARKER) || (chromeErrorOf(html) && !result.signal && result.status === 0));
+  if (landedOnRefusal) {
+    const last = refused[refused.length - 1];
+    return { ok: false, url: target, transport: name, cmd,
+      error: `refused to let the page reach ${last.host} - ${last.why}. A page on the web may not send the browser into this machine's network; `
+        + 'if you meant that address, fetch it directly, or set RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS=1.' };
+  }
+  if (result.truncated) {
+    return { ok: false, url: target, transport: name, cmd, error: `the rendered page is larger than ${MAX_PAGE_BYTES / (1024 * 1024)} MiB - not kept (ADR-0082)` };
   }
   // A signal that is not the timeout's is a crash, and says so (found 2026-09-29: a SIGTRAP
   // 21 seconds in was reported as the 60-second timeout).
@@ -121,7 +175,6 @@ export function scrape(url, { spawn = spawnSync, browserPath = null, env = proce
   if (result.status !== 0) {
     return { ok: false, url: target, transport: name, cmd, error: `the browser exited ${result.status}${said}` };
   }
-  const html = String(result.stdout ?? '');
   const chromeError = chromeErrorOf(html);
   if (chromeError) {
     return { ok: false, url: target, transport: name, cmd, error: `the browser showed its own error page (${chromeError}) instead of ${target}` };

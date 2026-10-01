@@ -7,7 +7,7 @@
 // A check emits findings. It never decides what a finding MEANS for the build - that is
 // the verdict's single judgement, in lib/preflight.mjs.
 
-import { hostOf, siteOf, PATHS, resolve, exists, ageInDays, urlKey, readText, kitCommand } from './core.mjs';
+import { hostOf, siteOf, PATHS, resolve, exists, ageInDays, urlKey, readText, kitCommand, compareText } from './core.mjs';
 import { captureOf, traceOf, citedIds, parseCapture } from './corpus.mjs';
 import { documentGroups, closestPair } from './similarity.mjs';
 import { coverageOfUniversals } from './dimensions.mjs';
@@ -568,7 +568,7 @@ export function supersededRows(corpus) {
   const superseded = new Map();
   for (const rows of byUrl.values()) {
     if (rows.length < 2) continue;
-    const ordered = [...rows].sort((a, b) => String(a.retrieved).localeCompare(String(b.retrieved)));
+    const ordered = [...rows].sort((a, b) => compareText(a.retrieved, b.retrieved));
     const current = ordered[ordered.length - 1];
     // A row is never superseded by itself: a row pasted twice read "E-01 has been superseded
     // by E-01" (found 2026-09-27). The duplicate ID is hygiene's to name.
@@ -682,7 +682,7 @@ function hygiene(corpus) {
       }
     }
     // The LATEST row for a URL is the one a further duplicate should be compared against.
-    if (!held || String(row.retrieved).localeCompare(String(held.retrieved)) >= 0) seenUrl.set(row.url, row);
+    if (!held || compareText(row.retrieved, held.retrieved) >= 0) seenUrl.set(row.url, row);
   }
 
   const ids = new Set();

@@ -7,7 +7,7 @@
 // is refused now, unless the URL the operator asked for was itself internal.
 
 import { spawn } from 'node:child_process';
-import { test, describe, assert, tempDir, fs, path } from './harness.mjs';
+import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
 import * as httpKeyless from '../lib/http-transport.mjs';
 
 describe('redirect-guard');
@@ -82,4 +82,60 @@ test('what counts as internal: loopback, private, link-local, metadata, localhos
   const external = ['8.8.8.8', '93.184.216.34', '172.32.0.1', '192.169.0.1', '[2606:4700:4700::1111]'];
   for (const host of internal) assert.ok(await httpKeyless.internalTarget(host), `${host} was not recognised as internal`);
   for (const host of external) assert.equal(await httpKeyless.internalTarget(host), null, `${host} was taken for internal`);
+});
+
+// ADR-0110 left DNS rebinding open: a name was resolved to judge it, then resolved again by
+// fetch, and a hostile name server can answer "public" the first time and "internal" the
+// second. The fetch child now judges the addresses fetch itself connects to: dns.lookup, which
+// Node's fetch calls at connect time, is wrapped there (ADR-0114).
+const fakeLookup = (answers) => (host, opts, cb) => {
+  const address = answers[host] ?? '93.184.216.34';
+  if (opts.all) cb(null, [{ address, family: address.includes(':') ? 6 : 4 }]);
+  else cb(null, address, address.includes(':') ? 6 : 4);
+};
+const ask = (lookup, host, opts = { all: true }) => new Promise((resolve) => lookup(host, opts, (err, result) => resolve({ err, result })));
+
+test('the guarded lookup refuses an internal answer, unless internal was asked for or it is the proxy', async () => {
+  const { guardedLookup } = httpKeyless;
+  const answers = { 'rebind.example': '127.0.0.1', 'meta.example': '169.254.169.254', 'proxy.corp': '10.0.0.8', 'public.example': '93.184.216.34' };
+  const guard = guardedLookup(fakeLookup(answers), { allowInternal: () => false, exempt: ['proxy.corp'] });
+  for (const opts of [{ all: true }, {}]) {
+    for (const host of ['rebind.example', 'meta.example']) {
+      const { err } = await ask(guard, host, opts);
+      assert.equal(err?.code, 'EINTERNAL', `${host} (${JSON.stringify(opts)}) resolved inward and was connected to`);
+      assert.match(err.message, new RegExp(`${host}.*${answers[host].replace(/\./g, '\\.')}`));
+    }
+    assert.equal((await ask(guard, 'public.example', opts)).err, null);
+    assert.equal((await ask(guard, 'proxy.corp', opts)).err, null, 'the proxy itself was refused');
+  }
+  const asked = guardedLookup(fakeLookup(answers), { allowInternal: () => true, exempt: [] });
+  assert.equal((await ask(asked, 'rebind.example')).err, null, 'an internal URL the operator asked for was refused');
+});
+
+test('Node\'s fetch connects through the guarded lookup, so the address judged is the address used', async () => {
+  const { guardedLookup } = httpKeyless;
+  const dns = (await import('node:dns')).default;
+  const http = (await import('node:http')).default;
+  const server = http.createServer((req, res) => res.end('INTERNAL-PAGE')).listen(0, '127.0.0.1');
+  await new Promise((r) => server.on('listening', r));
+  const original = dns.lookup;
+  try {
+    const url = `http://rebind.example:${server.address().port}/`;
+    dns.lookup = guardedLookup(fakeLookup({ 'rebind.example': '127.0.0.1' }), { allowInternal: () => false, exempt: [] });
+    const refused = await fetch(url).then((r) => r.text(), (err) => err);
+    assert.ok(refused instanceof Error, `fetch connected to an internal answer: ${refused}`);
+    assert.equal(refused.cause?.code, 'EINTERNAL', `fetch failed some other way: ${refused.cause?.message ?? refused.message}`);
+    // The control: the same lookup, allowed, reaches the page - so the refusal above was the guard's.
+    dns.lookup = guardedLookup(fakeLookup({ 'rebind.example': '127.0.0.1' }), { allowInternal: () => true, exempt: [] });
+    assert.equal(await fetch(url).then((r) => r.text()), 'INTERNAL-PAGE');
+  } finally {
+    dns.lookup = original;
+    server.close();
+  }
+});
+
+test('the fetch child guards its lookups, and names the refusal', () => {
+  const src = fs.readFileSync(path.join(KIT_ROOT, 'lib', 'http-transport.mjs'), 'utf8');
+  const child = src.slice(src.indexOf('async function child()'));
+  assert.match(child, /dns\.lookup = guardedLookup\(/, 'the child does not guard the lookups its fetch makes');
 });

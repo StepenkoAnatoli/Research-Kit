@@ -28,6 +28,20 @@ const START_CWD = (() => {
 const TEMP_ENV_NAMES = Object.freeze(['TMPDIR', 'TEMP', 'TMP']);
 
 /** Every artifact the kit knows, project-relative and POSIX-spelled. */
+/**
+ * The kit's version - the one place it is stated (ADR-0116). The MCP server announces it, doctor
+ * reports it, the changelog has an entry for it, and a release is tagged `v<KIT_VERSION>`.
+ */
+export const KIT_VERSION = '0.9.0';
+
+/**
+ * The one order for identifiers - slugs, file names, ids, ISO dates: by UTF-16 code unit
+ * (`lib/release/order.mjs`, so the ported validators may use it too). `localeCompare` with no
+ * locale named reads the machine's, and the order then differed from machine to machine
+ * (break-test PR #185, 2026-10-01).
+ */
+export { compareText } from './release/order.mjs';
+
 export const PATHS = Object.freeze({
   agents: 'AGENTS.md',
   architecture: 'docs/ARCHITECTURE.md',
@@ -322,6 +336,31 @@ function scratchStem(name) {
   return bytes.subarray(0, end).toString('utf8');
 }
 
+/** How many times a held rename is tried again before its error stands. */
+export const RENAME_RETRIES = 5;
+const HELD = new Set(['EPERM', 'EBUSY', 'EACCES']);
+
+/**
+ * `fs.renameSync`, tried again while Windows holds the file for a moment.
+ *
+ * On Windows an antivirus scanner or the search indexer can open a file it has just seen
+ * written, and a rename onto or from it then fails with EPERM, EBUSY or EACCES - where a moment
+ * later it would succeed. Every write in this kit ends in this rename, so one such moment was a
+ * failed write (break-test PR #182, a static finding: not reproduced, since no CI runner holds
+ * files that way). Waits of 20 ms doubling, about 0.6 s in all. Anywhere else those codes are a
+ * real refusal, and every other code is one everywhere: both fail at once.
+ */
+export function renameRetrying(from, to, { rename = fs.renameSync, sleep = sleepSync, platform = process.platform } = {}) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return rename(from, to);
+    } catch (err) {
+      if (platform !== 'win32' || !HELD.has(err?.code) || attempt >= RENAME_RETRIES) throw err;
+      sleep(20 * 2 ** attempt);
+    }
+  }
+}
+
 export function writeBytes(p, data, encoding = null) {
   ensureDir(path.dirname(p));
   let target = p;
@@ -344,7 +383,7 @@ export function writeBytes(p, data, encoding = null) {
     if (encoding === null) fs.writeFileSync(scratch, data);
     else fs.writeFileSync(scratch, data, encoding);
     if (mode !== null) fs.chmodSync(scratch, mode);
-    fs.renameSync(scratch, target);
+    renameRetrying(scratch, target);
   } catch (err) {
     try { fs.rmSync(scratch, { force: true }); } catch { /* already gone */ }
     err.target = p;   // the file the caller asked for, not the scratch name a rename reports

@@ -44,6 +44,7 @@
 // this protocol has already broken compatibility once.
 
 import { dispatchCollection, getRunSummary, fetchCorpus, tokenFromEnv, redact, DispatchError, queriesInput, usableOutDir } from './dispatch.mjs';
+import { KIT_VERSION } from './core.mjs';
 
 /**
  * DUAL-ERA, and the reason is that the specification is ahead of every client.
@@ -95,7 +96,7 @@ export const ERRORS = Object.freeze({
 export const SERVER_INFO = Object.freeze({
   name: 'research-kit',
   title: 'Research-Kit collector',
-  version: '1.0.0',
+  version: KIT_VERSION,
 });
 
 /**

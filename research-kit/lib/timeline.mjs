@@ -3,7 +3,7 @@
 // `research/TIMELINE.md` is deliberately OUTSIDE the chain and never part of a gate
 // decision: it exists so a person can read what happened in order.
 
-import { PATHS, resolve, writeText, nowIso, appendLine, documentCommand } from './core.mjs';
+import { PATHS, resolve, writeText, nowIso, appendLine, documentCommand, compareText } from './core.mjs';
 import { readCorpus } from './corpus.mjs';
 
 /** The gate records through here, so nothing else has to know where the log lives. */
@@ -41,7 +41,7 @@ export function buildTimeline(root, { corpus = null } = {}) {
     events.push({ at: override.at, kind: 'override', detail: `${override.kind} ${override.detail}`.trim() });
   }
 
-  events.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  events.sort((a, b) => compareText(a.at, b.at));
   return events;
 }
 

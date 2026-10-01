@@ -222,3 +222,17 @@ test('every shipped git hook is tracked executable', () => {
     'git SKIPS a non-executable hook without saying so, which reports a bad commit as clean.\n'
     + '  fix: git update-index --chmod=+x <path>\n  ' + notExecutable.join('\n  '));
 });
+
+// ADR-0116: the kit has one version, KIT_VERSION, and everything that states a version reads it.
+// The MCP server announced 1.0.0 while nothing else named a version at all, so a tag, the
+// server and the changelog could each say something different.
+test('one kit version: the MCP server, doctor and the changelog all state KIT_VERSION', async () => {
+  const { KIT_VERSION } = await import('../lib/core.mjs');
+  const { SERVER_INFO } = await import('../lib/mcp.mjs');
+  assert.match(KIT_VERSION ?? '', /^\d+\.\d+\.\d+$/, `KIT_VERSION is not a version: ${KIT_VERSION}`);
+  assert.equal(SERVER_INFO.version, KIT_VERSION, 'the MCP server announces a different version');
+  const changelog = fs.readFileSync(path.join(KIT_ROOT, '..', 'CHANGELOG.md'), 'utf8');
+  assert.match(changelog, new RegExp(`^## ${KIT_VERSION.replace(/\./g, '\\.')} `, 'm'), 'the changelog has no entry for this version');
+  const doctor = spawnSync(process.execPath, [path.join(KIT_ROOT, 'bin', 'doctor.mjs'), '--json'], { cwd: KIT_ROOT, encoding: 'utf8' });
+  assert.equal(JSON.parse(doctor.stdout).kitVersion, KIT_VERSION, 'doctor does not report the version it is');
+});

@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   PATHS, resolve, relative, isInside, exists, readJson, writeJson, writeText, readText, today,
-  makeSlug, sha256, canonicalJson,
+  makeSlug, sha256, canonicalJson, compareText,
 } from './core.mjs';
 import { readCorpus, claimOf, captureOf, traceOf } from './corpus.mjs';
 import { runPreflight } from './preflight.mjs';
@@ -85,7 +85,7 @@ export function listVersions(root) {
       latest: record.latest ?? null,
       versions: Object.keys(record.versions ?? {}).sort(compareVersions),
     }))
-    .sort((a, b) => a.slug.localeCompare(b.slug));
+    .sort((a, b) => compareText(a.slug, b.slug));
   return { known: topics.map((t) => t.slug), topics };
 }
 

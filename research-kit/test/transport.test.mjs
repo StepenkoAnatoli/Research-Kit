@@ -513,6 +513,30 @@ test('D2: the label reaches the CAPTURE, not just the selection', () => {
   assert.equal(result.transport, firecrawl.ANONYMOUS_NAME, 'the ledger records what the check will judge');
 });
 
+// Found 2026-10-01 by a cold end-to-end trial: Firecrawl no longer answers a search from a CLI
+// with no key ("Alexandria requires a Firecrawl API key with access enabled." - its own words,
+// reproduced here with CLI 1.24.6), while it still scrapes for one. Auto-detection picked the
+// anonymous CLI for both, so every search in decompose and research failed and the map was the
+// bare checklist. Its fetches stay; its searches go to the keyless route, as a fetch-only
+// transport's do.
+test('an anonymous CLI fetches, and the keyless route searches for it', async () => {
+  const anonymous = () => ({ installed: true, authenticated: false, version: '1.24.6', credits: null });
+  const chosen = selectTransport({ env: {}, probe: anonymous, config: {} });
+  assert.equal(chosen.name, firecrawl.ANONYMOUS_NAME, 'the fetch side is unchanged');
+  assert.equal(chosen.search.name, 'http-keyless', `an anonymous CLI was chosen to search: ${chosen.search.why}`);
+  assert.match(chosen.search.why, /without a key/);
+  // With a SerpAPI key, its partner is the keyless route too.
+  const merged = selectTransport({ env: { SERPAPI_API_KEY: 'offline-sentinel' }, probe: anonymous, config: {} });
+  assert.equal(merged.search.adapters[1].name, 'http-keyless', 'the anonymous CLI was paired with SerpAPI to search');
+  // An authenticated CLI still searches for itself.
+  const authed = selectTransport({ env: {}, probe: () => ({ installed: true, authenticated: true, version: '1.24.6', credits: 900 }), config: {} });
+  assert.equal(authed.search.name, firecrawl.name);
+  // And no fallback asks it to search when the keyless route fails: that search cannot succeed.
+  const { canSearch } = await import('../lib/research-run.mjs');
+  assert.equal(canSearch(chosen.adapter), false, 'a failed keyless search fell back to the anonymous CLI, which cannot search');
+  assert.equal(canSearch(authed.adapter), true);
+});
+
 test('D2: an AUTHENTICATED CLI is the metered transport, unwrapped', () => {
   const authed = () => ({ installed: true, authenticated: true, version: '1.23.3', credits: 900 });
   const chosen = selectTransport({ env: {}, probe: authed, config: {} });

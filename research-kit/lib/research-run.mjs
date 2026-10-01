@@ -314,7 +314,9 @@ export function selectCandidates(results, { prefer = [], perQuery = 3, seen = ne
  * cost, against the same cap - and a cache hit never counts against the budget.
  */
 /** Whether a transport can search: the browser fetches only (ADR-0088). */
-export const canSearch = (provider) => typeof provider?.search === 'function';
+// A Firecrawl CLI with no key has a search function and no search: Firecrawl refuses it
+// (CLI 1.24.6, 2026-10-01), so a fallback to it only adds a second failure.
+export const canSearch = (provider) => typeof provider?.search === 'function' && provider?.name !== firecrawl.ANONYMOUS_NAME;
 
 /**
  * One search, with the patience the fetch side already had (`collectOne`).
