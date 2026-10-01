@@ -482,12 +482,18 @@ export default { name, scrape, search, map, command, status, runScrape, creditsE
  * (req/min): 0" and reported them as ordinary failures. The free tier is ten requests a
  * minute; the collector did not throttle and did not retry.
  */
+/** The longest a vendor's rate limit may make the collector wait, per attempt. */
+export const MAX_RATE_LIMIT_WAIT_MS = 60_000;
+
 export function rateLimitWaitMs(errorText) {
   const text = String(errorText ?? '');
   if (!/rate limit exceeded/i.test(text)) return null;
   const retry = text.match(/retry after (\d+)\s*s/i);
-  if (retry) return (Number(retry[1]) + 1) * 1000;
+  // Capped at the minute that clears a per-minute window: the number is the vendor's text,
+  // and "retry after 999999999999s" was slept as given, with the corpus lock held, so every
+  // run on the project waited behind it (found 2026-10-01, break-test).
+  if (retry) return Math.min((Number(retry[1]) + 1) * 1000, MAX_RATE_LIMIT_WAIT_MS);
   // A rate limit with no stated delay still deserves a wait, and one minute clears a
   // per-minute window by construction.
-  return 60_000;
+  return MAX_RATE_LIMIT_WAIT_MS;
 }

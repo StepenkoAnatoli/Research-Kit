@@ -439,6 +439,7 @@ const WRITE_REFUSALS = Object.freeze({
   ENOTDIR: 'a file is where a folder should be',
   EEXIST: 'something already exists where a folder should be',
   EBUSY: 'the file is in use by another process',
+  OUTSIDE_PROJECT: 'a link in the path leads out of the project, and the kit writes only inside it',
 });
 
 // A recursive mkdir raises ENOENT only when a component of the path cannot be created, as

@@ -527,3 +527,20 @@ test('drafting a map with a fetch-only transport records the failed search inste
   const alone = decompose(makeProject(), { topic: 'Example', adapter: browser });
   assert.ok(alone.failures.some((f) => /browser .*does not search/.test(f.error)), JSON.stringify(alone.failures));
 });
+
+// Found 2026-10-01 (break-test, PR #180): drafting a map scraped search results as the vendor
+// gave them, so a `file:` or `javascript:` row reached the fetch adapter. Only http(s) pages
+// are taken into the material, and so only they are listed or scraped.
+test('a search result that is not an http(s) page is neither listed nor scraped', () => {
+  const dir = makeProject();
+  const fetched = [];
+  const adapter = {
+    name: 'stub-transport',
+    search: () => ({ ok: true, results: ['file:///etc/passwd', 'javascript:alert(1)', 'https://docs.example.com/limits']
+      .map((url) => ({ url, title: 'Example limits', description: 'Example limits' })) }),
+    runScrape: (url) => { fetched.push(url); return { ok: false, url, error: 'not fetched in this test' }; },
+  };
+  decompose(dir, { topic: 'Example', adapter, maxScrapes: 5 });
+  assert.deepEqual(fetched, ['https://docs.example.com/limits']);
+  assert.doesNotMatch(readText(resolve(dir, PATHS.map)), /file:\/\/|javascript:/);
+});

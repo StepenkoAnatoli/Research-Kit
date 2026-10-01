@@ -273,9 +273,25 @@ export function isPreferred(url, prefer = []) {
   return prefer.map(parsePreference).filter(Boolean).some((preference) => matchesPreference(url, preference));
 }
 
+/**
+ * Whether a URL a VENDOR returned may be handed to a fetch adapter: http or https, with a
+ * host. A search result is the vendor's text, and `javascript:` or `file:` rows were queued
+ * beside real pages - the browser transport passes a URL to Chromium as it is (found
+ * 2026-10-01, break-test). Plan URLs are the operator's and checked where they are read.
+ */
+export function isWebUrl(value) {
+  try {
+    const url = new URL(String(value));
+    return (url.protocol === 'http:' || url.protocol === 'https:') && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function selectCandidates(results, { prefer = [], perQuery = 3, seen = new Set(), query = '' } = {}) {
   const taken = new Set();
   return results
+    .filter((row) => isWebUrl(row?.url))
     // Only a result that carries the query is worth a scrape (RR-9). `query` is optional so
     // a caller ranking a list it built itself is not judged.
     // A domain the operator named in `prefer` is taken on their word: they said it carries the
