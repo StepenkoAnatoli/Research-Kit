@@ -139,16 +139,22 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
   const last = (pattern) => [...lines].reverse().find((line) => pattern.test(line));
   const cause = last(/FATAL/) ?? last(/ERROR:/) ?? lines.slice(-1)[0];
   const said = cause ? `: ${cause.trim().slice(0, 200)}` : '';
-  if (result.error?.code === 'ETIMEDOUT') {
-    return { ok: false, url: target, transport: name, cmd, error: `the browser did not finish rendering ${target} within ${Math.round(timeout / 1000)}s` };
-  }
+  // A timeout is judged by what Chromium printed first, not by its exit (found 2026-10-01 on
+  // CI: the suite's first launch ran its 45 s out three times in one afternoon, on Windows
+  // and on Ubuntu, with the refusal the guard had recorded and the dump thrown away). Chromium
+  // prints the DOM once, when its own budget says the page is done, so a WHOLE dump after a
+  // timeout is the render - Chromium then failed to exit, which does not unrender the page -
+  // and a dump holding the guard's refusal is the refusal. No dump at all is the timeout, and
+  // the last thing Chromium said on stderr is the only diagnostic there is, so it is kept.
+  const timedOut = result.error?.code === 'ETIMEDOUT';
+  const refused = Array.isArray(result.refused) ? result.refused : [];
+  const html = String(result.stdout ?? '');
+  const dumpedWhole = /<\/html>\s*$/i.test(html);
   // The guard turned a request away, and the page that rendered is the refusal, or Chromium's
   // own error page for a tunnel it could not open: the page led the browser into this
   // machine's network, and nothing from there was read (ADR-0118). A refused image or frame on
   // a page that still rendered is not a failure of the capture.
-  const refused = Array.isArray(result.refused) ? result.refused : [];
-  const html = String(result.stdout ?? '');
-  const landedOnRefusal = refused.length && (html.includes(REFUSAL_MARKER) || (chromeErrorOf(html) && !result.signal && result.status === 0));
+  const landedOnRefusal = refused.length && (html.includes(REFUSAL_MARKER) || (chromeErrorOf(html) && !timedOut && !result.signal && result.status === 0));
   if (landedOnRefusal) {
     const last = refused[refused.length - 1];
     return { ok: false, url: target, transport: name, cmd,
@@ -158,9 +164,13 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
   if (result.truncated) {
     return { ok: false, url: target, transport: name, cmd, error: `the rendered page is larger than ${MAX_PAGE_BYTES / (1024 * 1024)} MiB - not kept (ADR-0082)` };
   }
+  if (timedOut && !dumpedWhole) {
+    return { ok: false, url: target, transport: name, cmd, error: `the browser did not finish rendering ${target} within ${Math.round(timeout / 1000)}s${said}` };
+  }
   // A signal that is not the timeout's is a crash, and says so (found 2026-09-29: a SIGTRAP
-  // 21 seconds in was reported as the 60-second timeout).
-  if (result.signal) {
+  // 21 seconds in was reported as the 60-second timeout). The timeout's own kill, after a
+  // whole dump, is not one.
+  if (result.signal && !timedOut) {
     // The sandbox denied, as on Ubuntu 23.10+: the remedies that KEEP it, in the order
     // Chromium ranks them (ADR-0092). Never --no-sandbox - Chromium says it must never be
     // used on the open web, which is all this transport renders.
@@ -171,8 +181,8 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
       : '';
     return { ok: false, url: target, transport: name, cmd, error: `the browser was killed by ${result.signal}${said}${denied}` };
   }
-  if (result.error) return { ok: false, url: target, transport: name, cmd, error: `the browser could not start: ${result.error.message}` };
-  if (result.status !== 0) {
+  if (result.error && !timedOut) return { ok: false, url: target, transport: name, cmd, error: `the browser could not start: ${result.error.message}` };
+  if (result.status !== 0 && !timedOut) {
     return { ok: false, url: target, transport: name, cmd, error: `the browser exited ${result.status}${said}` };
   }
   const chromeError = chromeErrorOf(html);

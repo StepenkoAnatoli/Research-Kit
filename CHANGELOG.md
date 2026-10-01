@@ -7,6 +7,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- The browser transport judges a timeout by what Chromium printed, not by its exit: a whole
+  DOM dump after the render timeout is the render, a dump holding the guard's refusal is
+  the refusal, and a timeout with no dump names the last thing Chromium said on stderr.
+  Found on CI, where the suite's first Chromium launch ran its 45 s out three times in one
+  afternoon with the dump and the cause thrown away.
 - `makeSlug` never returns a name Windows reserves (`con`, `aux`, `lpt1`, ...): such a
   result is prefixed `name-` inside the slug alphabet, on the fallback path and after a cut
   too. Latent: no caller hands a bare slug to the filesystem (break-test PR #188).
