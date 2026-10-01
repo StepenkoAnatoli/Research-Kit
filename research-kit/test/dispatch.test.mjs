@@ -395,3 +395,51 @@ test('a downloaded package whose write fails leaves the package already there un
   assert.deepEqual(fs.readFileSync(target), previous, 'the package already there was damaged');
   assert.ok(!fs.readdirSync(dir).some((f) => f.includes('.tmp-')), `a scratch file was left behind: ${fs.readdirSync(dir)}`);
 });
+
+
+test('download filenames cannot escape the output directory', async () => {
+  const dir = tempDir();
+  try {
+    for (const name of ['research-kit-corpus-v1-/../../../escape', 'research-kit-corpus-v1-\\..\\escape']) {
+      const fetch = stubFetch([
+        jsonResponse(200, { artifacts: [{ id: 1, name }] }),
+        new Response('not a zip'),
+      ]);
+      await assert.rejects(() => fetchCorpus({ repository: REPO, runId: 1, token: TOKEN, outDir: dir, fetch }),
+        (e) => e instanceof DispatchError && e.code === 'ARTIFACT_NAME');
+      assert.deepEqual(fs.readdirSync(dir), []);
+    }
+    const fetch = stubFetch([
+      jsonResponse(200, { artifacts: [{ id: 1, name: 'research-kit-corpus-v1-ok' }] }),
+      new Response(rawZip([{ name: 'nested/package.zip', data: 'inner' }])),
+    ]);
+    const result = await fetchCorpus({ repository: REPO, runId: 1, token: TOKEN, outDir: dir, fetch });
+    assert.equal(result.file, path.join(dir, 'package.zip'));
+  } finally { cleanup(dir); }
+});
+
+test('a corrupt compressed wrapper is passed to validation without throwing', async () => {
+  const { buildZip } = await import('../lib/archive.mjs');
+  const bytes = buildZip([{ name: 'a.zip', data: 'hello'.repeat(100) }]);
+  bytes.fill(255, 35, 40);
+  const result = unwrapArtifact(bytes);
+  assert.equal(result.unwrapped, false);
+  assert.equal(result.bytes, bytes);
+});
+
+
+test('artifact inventory refuses directory cycles and special files', async () => {
+  const { collectProjectFiles } = await import('../lib/artifact.mjs');
+  const { execFileSync } = await import('node:child_process');
+  const dir = tempDir();
+  try {
+    fs.mkdirSync(path.join(dir, 'docs'));
+    fs.symlinkSync(path.join(dir, 'docs'), path.join(dir, 'docs/loop'), 'junction');
+    assert.throws(() => collectProjectFiles(dir), (e) => e.code === 'UNPACKAGEABLE_FILE');
+    fs.unlinkSync(path.join(dir, 'docs/loop'));
+    if (process.platform !== 'win32') {
+      execFileSync('mkfifo', [path.join(dir, 'docs/pipe')]);
+      assert.throws(() => collectProjectFiles(dir), (e) => e.code === 'UNPACKAGEABLE_FILE');
+    }
+  } finally { cleanup(dir); }
+});

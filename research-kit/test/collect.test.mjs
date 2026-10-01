@@ -777,3 +777,19 @@ test('a remembered 404 takes no slot of the scrape budget', () => {
   assert.deepEqual(run.results.map((r) => r.status), ['gone', 'collected'], JSON.stringify(run.results.map((r) => [r.url, r.status, r.reason])));
   assert.equal(run.spent, 1);
 });
+
+
+test('fetch-only search fallbacks record failures instead of crashing', () => {
+  for (const exhausted of [false, true]) {
+    const dir = makeProject();
+    writeJson(resolve(dir, PATHS.plan), {
+      topic: 'Fixture', depth: 'normal', queries: [{ q: 'rate limits plan' }], urls: [],
+    });
+    const browser = { name: 'browser', runScrape: () => { throw new Error('unexpected fetch'); } };
+    const options = exhausted
+      ? { adapter: exhaustingAdapter({ searchExhausted: true }), fallbackAdapter: browser }
+      : { adapter: browser, searchAdapter: { name: 'search-only', search: () => ({ ok: false, error: 'unavailable' }) } };
+    runResearch(dir, options);
+    assert.match(readText(resolve(dir, PATHS.failures)), /does not support search/);
+  }
+});

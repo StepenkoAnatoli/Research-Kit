@@ -561,3 +561,9 @@ reduces case state with `REOPEN > FAIL > BLOCKED > ROLLED-BACK > INCOMPLETE > PA
 Its deliberately narrow XLSX reader reads ZIP/XML projection cells only; it never invokes an
 office application or changes the source package. `researcher-release fi-validate` exposes the
 same seam with explicit paths and writes a report only when `--report` is supplied.
+
+Download hardening (2026-10-01): `dispatch.mjs` rejects unsafe API-derived output filenames, flattens nested wrapper ZIP filenames to basenames, and passes corrupt compressed wrappers unchanged to artifact validation rather than leaking a ZIP-READ exception.
+
+Artifact inventory hardening (2026-10-01): `artifact.mjs` refuses non-regular files and directory symlink cycles with `UNPACKAGEABLE_FILE` before reading package payloads. Directory ancestors are tracked by real path; non-cyclic internal aliases remain supported.
+
+Search capability hardening (2026-10-01): `research-run.mjs` returns an explicit failed search from `searchPatiently` for fetch-only transports. `decompose.mjs` uses that same capability guard (with no added retries), including multi-provider searches and degradation. Browser fallbacks therefore retain failure diagnostics rather than throwing a TypeError.

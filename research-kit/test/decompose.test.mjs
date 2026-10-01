@@ -514,3 +514,15 @@ test('a duplicate topic key in plan.json is refused before decompose searches an
   assert.equal(ok.error, undefined, JSON.stringify(ok));
   assert.equal(ok.topic, 'one subject');
 });
+
+
+test('a fetch-only adapter cannot crash map drafting after search degradation', () => {
+  for (const separate of [false, true]) {
+    const dir = makeProject();
+    decompose(dir, {
+      topic: 'Example', adapter: { name: 'browser' },
+      ...(separate ? { searchAdapter: failing('search unavailable') } : {}),
+    });
+    assert.match(readText(resolve(dir, PATHS.map)), /does not support search/);
+  }
+});

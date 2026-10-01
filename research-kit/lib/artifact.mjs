@@ -139,7 +139,19 @@ export function collectProjectFiles(root) {
   // `writeArtifact` reads its own package back: a package this kit calls good has to be
   // good by the standard of the thing that receives it.
   const refused = [];
+  const ancestors = new Set();
+  const refuseType = (rel, detail) => {
+    const err = new Error(`${rel}: ${detail}; replace it with regular files before packaging`);
+    err.code = 'UNPACKAGEABLE_FILE';
+    throw err;
+  };
+  const regular = (abs, rel) => {
+    if (!fs.statSync(abs).isFile()) refuseType(rel, 'not a regular file');
+  };
   const walk = (dir, rel) => {
+    const real = fs.realpathSync(dir);
+    if (ancestors.has(real)) refuseType(rel, 'directory symlink cycle');
+    ancestors.add(real);
     for (const name of listFiles(dir).sort()) {
       const childRel = rel ? `${rel}/${name}` : name;
       const abs = path.join(dir, name);
@@ -150,13 +162,16 @@ export function collectProjectFiles(root) {
       if (!verdict.ok) { refused.push({ rel: childRel, detail: verdict.detail }); continue; }
       if (!realInside(root, abs)) { outside.push(childRel); continue; }
       if (isDirectory(abs)) { walk(abs, childRel); continue; }
+      regular(abs, childRel);
       out.push(childRel);
     }
+    ancestors.delete(real);
   };
   for (const rel of ['AGENTS.md', 'START_HERE.md', '.gitattributes', '.gitignore']) {
     const abs = resolve(root, rel);
     if (!exists(abs) || isDirectory(abs)) continue;
     if (!realInside(root, abs)) { outside.push(rel); continue; }
+    regular(abs, rel);
     out.push(rel);
   }
   for (const top of ['research', 'docs']) {

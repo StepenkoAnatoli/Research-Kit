@@ -329,7 +329,8 @@ export function unwrapArtifact(bytes) {
   if (zip.problems.length) return { bytes, unwrapped: false };
   const inner = zip.names.filter((n) => n.endsWith('.zip'));
   if (inner.length !== 1) return { bytes, unwrapped: false };
-  return { bytes: zip.read(inner[0]), unwrapped: true, name: inner[0] };
+  try { return { bytes: zip.read(inner[0]), unwrapped: true, name: inner[0] }; }
+  catch { return { bytes, unwrapped: false }; }
 }
 
 // ---------------------------------------------------------------- bringing it home
@@ -390,7 +391,15 @@ export async function fetchCorpus({
   const bytes = await downloadArtifact({ repository, artifactId: wanted[0].id, token, fetch: doFetch, api });
   const { bytes: pkg, unwrapped, name } = unwrapArtifact(bytes);
 
-  const file = path.join(dir, unwrapped ? name : `${wanted[0].name}.zip`);
+  // Remote names are data, never filesystem paths. Flatten wrapper directories and
+  // reject separators in the API name (including Windows separators on POSIX).
+  const outputName = unwrapped ? path.posix.basename(name) : `${wanted[0].name}.zip`;
+  if (!outputName || /[\\/:\x00-\x1f]/.test(outputName) || outputName === '.' || outputName === '..') {
+    throw new DispatchError('ARTIFACT_NAME', 'the artifact has an unsafe output filename', {
+      remedy: 're-upload the corpus with a plain filename, not a path',
+    });
+  }
+  const file = path.join(dir, outputName);
   // Whole or not at all (ADR-0079), as writeArtifact is: a failed write must not empty a
   // package already at this name (Arena break test 10, 2026-09-28).
   writeBytes(file, pkg);

@@ -311,6 +311,9 @@ export function selectCandidates(results, { prefer = [], perQuery = 3, seen = ne
  * outage still costs exactly one call and still reaches the fallback and the failure log.
  */
 export function searchPatiently(provider, text, { limit, maxRateLimitRetries = 2, sleep = sleepSync, log = () => {} } = {}) {
+  if (typeof provider?.search !== 'function') {
+    return { ok: false, results: [], error: `${provider?.name ?? 'transport'} does not support search` };
+  }
   for (let attempt = 0; ; attempt += 1) {
     const r = provider.search(text, { limit });
     if (r?.ok || attempt >= maxRateLimitRetries) return r;
