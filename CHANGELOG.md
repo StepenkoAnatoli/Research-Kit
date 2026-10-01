@@ -38,6 +38,11 @@ PASS and a brief. On the way:
 - quotation marks around a `[quote: ...]` passage no longer make it fail;
 - the walkthrough gained the step where findings are rewritten.
 
+**Found by break-test PR #185, redone here.**
+- identifiers - slugs, file names, ids, dates - sort by code unit on every machine; they
+  sorted by the machine's locale, and two machines listed one corpus in two orders;
+- the edit gate answers a terminal stdin at once instead of waiting for input forever.
+
 **Supported.** Linux and Windows, Node 22, 24 and 26, all tested on every commit. macOS is
 best-effort with no CI leg (ADR-0101).
 
