@@ -7,6 +7,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- The extractor's `comparison-row` rule is three linear scans, not one backtracking regex.
+  `\b(plan|tier)\b.*\b(month|year|user)\b.*\d` is quadratic in a table row's length, and a row's
+  length is a captured page's own doing: 400 KB took 24.1 s in `firstFinding`, which the collector
+  runs over every page and the artifact producer over every row, and this repository's corpus
+  already holds a capture with a single 308,705-character line. The same row now costs 28 ms, and
+  the rewrite is pinned against the old pattern over 4,000 generated rows (break-test 2026-10-01).
 - The browser transport judges a timeout by what Chromium printed, not by its exit: a whole
   DOM dump after the render timeout is the render, a dump holding the guard's refusal is
   the refusal, and a timeout with no dump names the last thing Chromium said on stderr.

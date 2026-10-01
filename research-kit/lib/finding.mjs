@@ -190,8 +190,45 @@ function COMPARISON_ROW_TEST(text) {
   // The table reader builds these rows itself, joining `name: value` with ", ". So the
   // honest test is to count the pairs it made, not to describe them with a pattern that
   // has now been wrong twice.
-  const pairs = (String(text).match(/: /g) ?? []).length;
-  return pairs >= 3 || /\b(plan|tier)\b.*\b(month|year|user)\b.*\d/i.test(text);
+  const source = String(text);
+  const pairs = (source.match(/: /g) ?? []).length;
+  return pairs >= 3 || tierThenPeriodThenDigit(source);
+}
+
+/**
+ * A tier word, then a period word, then a digit, in that order and on one line - the
+ * question `/\b(plan|tier)\b.*\b(month|year|user)\b.*\d/i` asked, answered in three
+ * linear scans instead of one backtracking match.
+ *
+ * That regex is QUADRATIC in the row's length. On a row that does not match, every tier
+ * word starts a scan that runs to the end of the row before it can fail, so the cost is
+ * the number of tier words times the length. Measured on this machine, one row:
+ *
+ *    50 KB      0.4 s
+ *   100 KB      1.6 s
+ *   200 KB      6.0 s
+ *   400 KB     24.1 s     <- and the rule runs TWICE per row, as `comparison-row` and
+ *                            again, negated, as `table-row`
+ *
+ * The row is a captured page's own content, so its length is the vendor's choice, and
+ * this is inside the extractor the collector runs over EVERY page it fetches
+ * (`lib/collect.mjs`) and the artifact producer runs over every row (`lib/artifact.mjs`).
+ * This repository's own corpus already holds a capture with a single 308,705-character
+ * line, so a row of that size is not a hypothesis (found 2026-10-01, break-test).
+ *
+ * Splitting on `\n` first keeps the answer identical: `.` does not cross a line, so the
+ * regex only ever matched inside one.
+ */
+function tierThenPeriodThenDigit(text) {
+  for (const line of String(text).split('\n')) {
+    const tier = line.search(/\b(?:plan|tier)\b/i);
+    if (tier < 0) continue;
+    const afterTier = line.slice(tier);
+    const period = afterTier.search(/\b(?:month|year|user)\b/i);
+    if (period < 0) continue;
+    if (/\d/.test(afterTier.slice(period))) return true;
+  }
+  return false;
 }
 const COMPARISON_ROW = { test: COMPARISON_ROW_TEST };
 
