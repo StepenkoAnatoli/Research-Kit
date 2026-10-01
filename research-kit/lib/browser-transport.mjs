@@ -62,9 +62,17 @@ export function findBrowser({ config = {}, env = process.env, exists = isFile, p
  * weakens TLS: a TLS-intercepting proxy is trusted by adding its CA to the browser's store,
  * never by `--ignore-certificate-errors`.
  */
-export function browserArgs(url, { uid = typeof process.getuid === 'function' ? process.getuid() : -1 } = {}) {
+export function browserArgs(url, { uid = typeof process.getuid === 'function' ? process.getuid() : -1, timeout = TIMEOUT_MS } = {}) {
+  // Chromium's own deadline, under the transport's kill timeout. With --virtual-time-budget
+  // alone, headless waits on a pending load for ever - virtual time advances only when the
+  // page is idle - so one resource that never answers meant no dump, no stderr, and a kill
+  // with nothing to show (CI, 2026-10-01, four times in an afternoon on Windows and Ubuntu;
+  // reproduced with a page whose image never arrives). At the deadline Chromium stops
+  // loading, dumps the DOM it has and exits: the page is captured as it stands. The kill is
+  // for a browser that is not answering at all, ten seconds later.
+  const deadline = deadlineFor(timeout);
   const args = ['--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
-    '--disable-component-update', '--disable-sync', `--virtual-time-budget=${VIRTUAL_TIME_MS}`];
+    '--disable-component-update', '--disable-sync', `--virtual-time-budget=${VIRTUAL_TIME_MS}`, `--timeout=${deadline}`];
   if (uid === 0) args.push('--no-sandbox');
   args.push('--dump-dom', String(url));
   return args;
@@ -96,7 +104,36 @@ export function renderGuarded(binary, args, { url, env = process.env, timeout = 
     status: report.status ?? null, signal: report.signal ?? null, stdout: report.stdout ?? '', stderr: report.stderr ?? '',
     error: report.errorCode ? Object.assign(new Error(report.errorMessage ?? report.errorCode), { code: report.errorCode }) : undefined,
     refused: report.refused ?? [], truncated: Boolean(report.truncated),
+    requests: Number(report.requests) || 0, pending: Array.isArray(report.pending) ? report.pending : [], elapsedMs: Number(report.elapsedMs) || 0,
+    seen: Array.isArray(report.seen) ? report.seen : [], startedAt: typeof report.startedAt === 'string' ? report.startedAt : '',
+    startupMs: Number.isFinite(report.startupMs) ? report.startupMs : null,
   };
+}
+
+/** Chromium's own deadline for a render: ten seconds under the kill timeout, never below five. */
+export function deadlineFor(timeout = TIMEOUT_MS) {
+  return Math.max(5_000, timeout - 10_000);
+}
+
+/**
+ * When Chromium printed the page before every load was answered - at its deadline, or
+ * with a request still open at the guard - what it was waiting for, from the guard's
+ * record; or, when the guard had answered everything and the render still ran to the
+ * deadline, that the wait was inside the browser. Null for a render that settled on its
+ * own. The guard's record is the signal, not Chromium's stderr: it logs "Page load timed
+ * out" only when the navigation itself never committed, not for a stalled resource.
+ */
+export function cutAtDeadline(result, timeout) {
+  const pending = Array.isArray(result.pending) ? result.pending : [];
+  const deadline = deadlineFor(timeout);
+  // The render's own time: from the browser's first request, not from the launch (ADR-0119).
+  const ranToDeadline = ((Number(result.elapsedMs) || 0) - (Number(result.startupMs) || 0)) >= deadline - 500;
+  if (!pending.length && !ranToDeadline) return null;
+  if (pending.length) {
+    const head = ranToDeadline ? `the browser stopped loading at its ${Math.round(deadline / 1000)} s deadline` : 'the browser printed the page before every load was answered';
+    return `${head}; still unanswered through the guard: ${pending.map((p) => `${p.target} (${Math.round(p.ms / 1000)} s)`).join(', ')}`;
+  }
+  return `the browser stopped loading at its ${Math.round(deadline / 1000)} s deadline; every one of the ${Number(result.requests) || 0} requests through the guard had been answered, so the wait was inside the browser`;
 }
 
 /**
@@ -130,7 +167,7 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
     return { ok: false, url: target, transport: name, cmd,
       error: 'no Chromium or Chrome found - set browserPath in the machine config or RESEARCH_KIT_BROWSER to the browser executable' };
   }
-  const result = render(binary, browserArgs(target, uid === undefined ? {} : { uid }), { url: target, env, timeout, allowInternalRedirects });
+  const result = render(binary, browserArgs(target, { ...(uid === undefined ? {} : { uid }), timeout }), { url: target, env, timeout, allowInternalRedirects });
   // Why the browser stopped, in its own words: the last FATAL line, else the last ERROR line,
   // else the last line. Learned from live runs on 2026-09-29: a crash ends its stderr with a
   // stack dump ("[end of stack trace]"), and the crash handler then logs ERROR noise of its
@@ -157,15 +194,21 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
   const landedOnRefusal = refused.length && (html.includes(REFUSAL_MARKER) || (chromeErrorOf(html) && !timedOut && !result.signal && result.status === 0));
   if (landedOnRefusal) {
     const last = refused[refused.length - 1];
+    const waited = cutAtDeadline(result, timeout);
     return { ok: false, url: target, transport: name, cmd,
       error: `refused to let the page reach ${last.host} - ${last.why}. A page on the web may not send the browser into this machine's network; `
-        + 'if you meant that address, fetch it directly, or set RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS=1.' };
+        + `if you meant that address, fetch it directly, or set RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS=1.${waited ? ` (${waited})` : ''}` };
   }
   if (result.truncated) {
     return { ok: false, url: target, transport: name, cmd, error: `the rendered page is larger than ${MAX_PAGE_BYTES / (1024 * 1024)} MiB - not kept (ADR-0082)` };
   }
   if (timedOut && !dumpedWhole) {
-    return { ok: false, url: target, transport: name, cmd, error: `the browser did not finish rendering ${target} within ${Math.round(timeout / 1000)}s${said}` };
+    // Where the time went: a browser that never asked for anything is a launch that did not
+    // finish, which is not the page's doing (ADR-0119).
+    const startup = Number.isFinite(result.startupMs) && result.startupMs !== null
+      ? `: the browser took ${Math.round(result.startupMs / 1000)} s to make its first request`
+      : `: the browser never made a request in ${Math.round((Number(result.elapsedMs) || 0) / 1000)} s`;
+    return { ok: false, url: target, transport: name, cmd, error: `the browser did not finish rendering ${target} within ${Math.round(timeout / 1000)}s${startup}${said}` };
   }
   // A signal that is not the timeout's is a crash, and says so (found 2026-09-29: a SIGTRAP
   // 21 seconds in was reported as the 60-second timeout). The timeout's own kill, after a
@@ -191,6 +234,11 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
   }
   const extraction = mainContent(html);
   const markdown = htmlToMarkdown(extraction.html);
+  const graded = gradeCompleteness(markdown, extraction);
+  // A page Chromium gave up on at its deadline is what it was when the wait ended, not what
+  // it would have been: partial, and the grade says what was still outstanding.
+  const waited = cutAtDeadline(result, timeout);
+  if (waited) { graded.completeness = 'partial'; graded.omitted = [graded.omitted, waited].filter(Boolean).join('; '); }
   return {
     ok: true,
     url: target,
@@ -200,7 +248,7 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
     statusCode: '',
     transport: name,
     cmd,
-    ...gradeCompleteness(markdown, extraction),
+    ...graded,
   };
 }
 

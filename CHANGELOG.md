@@ -40,6 +40,19 @@ Bug fixes after 0.9.0, under the freeze (ADR-0117).
   array as an object literal; both exited 1, which this kit reserves for FAIL, checked and wrong.
   `NAMED_RUN_REFUSALS` in `core.mjs` is the four codes, answered with their message and exit 2, as
   `prior.mjs` and `doctor --fix-arity` already answered them (break-test 2026-10-01).
+- The render timeout starts at the browser's first request through the guard, and the
+  launch is allowed as long again (ADR-0119). On the CI runners Chromium's process startup
+  took 4 to 43 s before any request, out of the render budget, so the page was killed
+  before it had been asked for. A timeout now says what the launch cost.
+- The guard records every request it carried and reports the ones still unanswered when
+  the render ends. A page Chromium printed before every load was answered, or at its
+  deadline, is graded partial and names those loads, or says every request had been
+  answered and the wait was inside the browser; a refusal's message carries the same note.
+- Chromium is given its own deadline (`--timeout`), ten seconds under the transport's kill
+  timeout. With the virtual-time budget alone, one resource that never answered froze the
+  budget, so headless never dumped and was killed with nothing to show: the intermittent
+  "did not finish rendering" on CI, reproduced with a page whose image never arrives. At
+  the deadline Chromium dumps the DOM it has, so such a page is captured as it stands.
 - The browser transport judges a timeout by what Chromium printed, not by its exit: a whole
   DOM dump after the render timeout is the render, a dump holding the guard's refusal is
   the refusal, and a timeout with no dump names the last thing Chromium said on stderr.

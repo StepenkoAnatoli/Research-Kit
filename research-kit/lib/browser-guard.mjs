@@ -25,6 +25,8 @@ import { proxyVariable, MAX_PAGE_BYTES } from './runtime.mjs';
 /** The body of a refused request: what Chromium renders in place of the page it was sent to. */
 export const REFUSAL_MARKER = 'research-kit-guard-refused';
 const STDERR_LINES = 60;
+/** The first lines of the browser's stderr are kept too: a slow start shows there, not in the tail. */
+const STDERR_HEAD_LINES = 30;
 
 const normalizeHost = (host) => String(host ?? '').replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
 
@@ -80,7 +82,7 @@ export async function judge(host, port, { allowInternal = false, exempt = new Se
  * Start the guard on a loopback port. Returns `{ port, refused, close }`; `refused` grows with
  * every request turned away, as `{ host, why }`.
  */
-export async function startGuard({ allowInternal = false, exempt = [], upstream = null, lookup = dns.lookup } = {}) {
+export async function startGuard({ allowInternal = false, exempt = [], upstream = null, lookup = dns.lookup, onFirstRequest = null } = {}) {
   const up = parseUpstream(upstream);
   const skip = new Set(exempt.map((entry) => { const at = splitHostPort(entry); return at ? `${normalizeHost(at.host)}:${at.port}` : normalizeHost(entry); }));
   const refused = [];
@@ -90,40 +92,52 @@ export async function startGuard({ allowInternal = false, exempt = [], upstream 
   const outgoing = new Set();
   const judgeHost = (host, port) => judge(host, port, { allowInternal, exempt: skip, lookup, upstream: up });
   const refusal = (host, why) => { refused.push({ host, why }); return `${REFUSAL_MARKER}: ${host} - ${why}`; };
+  // Every request the guard carried, and whether it was answered: the one place all of a
+  // page's loads pass through, so what is still unanswered when the render ends is what the
+  // browser was waiting for (found 2026-10-01: three Windows CI runs in a row ran to the
+  // deadline, and nothing said on what).
+  const seen = [];
+  const note = (kind, target) => { const entry = { kind, target, started: Date.now(), ended: null, outcome: null }; seen.push(entry); if (seen.length === 1 && onFirstRequest) onFirstRequest(entry); return entry; };
+  const done = (entry, outcome) => { if (entry.ended === null) { entry.ended = Date.now(); entry.outcome = outcome; } };
+  const pending = () => seen.filter((e) => e.ended === null).map((e) => ({ kind: e.kind, target: e.target, ms: Date.now() - e.started }));
 
   const server = http.createServer(async (req, res) => {
+    const entry = note('http', String(req.url));
     let target;
-    try { target = new URL(req.url); } catch { res.writeHead(400); res.end(`${REFUSAL_MARKER}: not a proxy request`); return; }
-    if (!/^https?:$/.test(target.protocol)) { res.writeHead(400); res.end(`${REFUSAL_MARKER}: ${target.protocol} is not carried`); return; }
+    try { target = new URL(req.url); } catch { done(entry, 'refused'); res.writeHead(400); res.end(`${REFUSAL_MARKER}: not a proxy request`); return; }
+    if (!/^https?:$/.test(target.protocol)) { done(entry, 'refused'); res.writeHead(400); res.end(`${REFUSAL_MARKER}: ${target.protocol} is not carried`); return; }
     const verdict = await judgeHost(target.hostname, Number(target.port) || 80);
-    if (verdict.refused) { res.writeHead(403, { 'content-type': 'text/plain' }); res.end(refusal(target.host, verdict.refused)); return; }
+    if (verdict.refused) { done(entry, 'refused'); res.writeHead(403, { 'content-type': 'text/plain' }); res.end(refusal(target.host, verdict.refused)); return; }
     const headers = { ...req.headers };
     delete headers['proxy-connection'];
     const options = up
       ? { host: up.host, port: up.port, path: req.url, method: req.method, headers: up.auth ? { ...headers, 'proxy-authorization': up.auth } : headers }
       : { host: verdict.address, port: Number(target.port) || 80, path: `${target.pathname}${target.search}`, method: req.method, headers: { ...headers, host: target.host } };
-    const upstreamRequest = http.request(options, (answer) => { res.writeHead(answer.statusCode, answer.headers); answer.pipe(res); });
+    const upstreamRequest = http.request(options, (answer) => { done(entry, String(answer.statusCode)); res.writeHead(answer.statusCode, answer.headers); answer.pipe(res); });
     outgoing.add(upstreamRequest);
-    upstreamRequest.on('error', (err) => { if (!res.headersSent) res.writeHead(502, { 'content-type': 'text/plain' }); res.end(`${target.host}: ${err.code ?? err.message}`); });
+    upstreamRequest.on('error', (err) => { done(entry, `error ${err.code ?? err.message}`); if (!res.headersSent) res.writeHead(502, { 'content-type': 'text/plain' }); res.end(`${target.host}: ${err.code ?? err.message}`); });
     upstreamRequest.on('close', () => outgoing.delete(upstreamRequest));
     req.pipe(upstreamRequest);
   });
 
   server.on('connect', async (req, client, head) => {
+    const entry = note('connect', String(req.url));
     const at = splitHostPort(req.url);
     const fail = (status, body = '') => { client.end(`HTTP/1.1 ${status}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n${body}`); };
-    if (!at) { fail('400 Bad Request'); return; }
+    if (!at) { done(entry, 'refused'); fail('400 Bad Request'); return; }
     const verdict = await judgeHost(at.host, at.port);
-    if (verdict.refused) { fail('403 Forbidden', refusal(req.url, verdict.refused)); return; }
+    if (verdict.refused) { done(entry, 'refused'); fail('403 Forbidden', refusal(req.url, verdict.refused)); return; }
     const tunnel = up
       ? net.connect(up.port, up.host, () => {
         // The upstream's own answer to the CONNECT goes back to Chromium as it is.
+        done(entry, 'tunnel');
         tunnel.write(`CONNECT ${req.url} HTTP/1.1\r\nHost: ${req.url}\r\n${up.auth ? `Proxy-Authorization: ${up.auth}\r\n` : ''}\r\n`);
         if (head.length) tunnel.write(head);
         tunnel.pipe(client);
         client.pipe(tunnel);
       })
       : net.connect(at.port, verdict.address, () => {
+        done(entry, 'tunnel');
         client.write('HTTP/1.1 200 Connection Established\r\n\r\n');
         if (head.length) tunnel.write(head);
         tunnel.pipe(client);
@@ -131,7 +145,7 @@ export async function startGuard({ allowInternal = false, exempt = [], upstream 
       });
     tunnels.add(client);
     tunnels.add(tunnel);
-    tunnel.on('error', (err) => fail('502 Bad Gateway', `${req.url}: ${err.code ?? err.message}`));
+    tunnel.on('error', (err) => { done(entry, `error ${err.code ?? err.message}`); fail('502 Bad Gateway', `${req.url}: ${err.code ?? err.message}`); });
     tunnel.on('close', () => tunnels.delete(tunnel));
     client.on('error', () => tunnel.destroy());
     client.on('close', () => { tunnels.delete(client); tunnel.destroy(); });
@@ -145,10 +159,11 @@ export async function startGuard({ allowInternal = false, exempt = [], upstream 
     tunnels.clear();
     for (const request of outgoing) request.destroy();
     outgoing.clear();
+    for (const entry of seen) done(entry, 'unanswered');
     server.closeAllConnections?.();
     server.close(() => resolve());
   });
-  return { port: server.address().port, refused, close };
+  return { port: server.address().port, refused, seen, pending, close };
 }
 
 /** Chromium's flags that send every request through the guard, and nothing around it. */
@@ -163,7 +178,13 @@ export function guardFlags(port) {
  */
 export async function renderThroughGuard({ binary, args, url, timeout = 60_000, allowInternal = false, upstream = null, lookup = dns.lookup } = {}) {
   const asked = new URL(url);
-  const guard = await startGuard({ allowInternal, exempt: [`${asked.hostname.replace(/^\[|\]$/g, '').includes(':') ? `[${asked.hostname.replace(/^\[|\]$/g, '')}]` : asked.hostname}:${asked.port || (asked.protocol === 'https:' ? 443 : 80)}`], upstream, lookup });
+  // The render timeout starts at the browser's first request through the guard; the launch
+  // is allowed as long again, and no more (ADR-0119): on the CI runners Chromium's process
+  // startup took 4 to 43 s before its first request, out of the render budget, and the page
+  // was killed before it had been asked for.
+  const clock = { timer: null, started: 0, firstRequestAt: null, timedOut: false, kill: () => {} };
+  const arm = () => { clearTimeout(clock.timer); clock.timer = setTimeout(() => { clock.timedOut = true; clock.kill(); }, timeout); };
+  const guard = await startGuard({ allowInternal, exempt: [`${asked.hostname.replace(/^\[|\]$/g, '').includes(':') ? `[${asked.hostname.replace(/^\[|\]$/g, '')}]` : asked.hostname}:${asked.port || (asked.protocol === 'https:' ? 443 : 80)}`], upstream, lookup , onFirstRequest: () => { if (clock.firstRequestAt !== null) return; clock.firstRequestAt = Date.now(); arm(); } });
   try {
     const argv = [...args.slice(0, -2), ...guardFlags(guard.port), ...args.slice(-2)];
     return await new Promise((resolve) => {
@@ -180,21 +201,30 @@ export async function renderThroughGuard({ binary, args, url, timeout = 60_000, 
       const out = [];
       let size = 0;
       let truncated = false;
+      const errHead = [];
       const errLines = [];
-      let timedOut = false;
+      let errDropped = 0;
       let settled = false;
+      const stderrKept = () => [...errHead, ...(errDropped ? [`... ${errDropped} lines omitted ...`] : []), ...errLines].join('\n');
       const kill = () => {
         try { if (detached) process.kill(-child.pid, 'SIGKILL'); else child.kill(); } catch { /* already gone */ }
       };
-      const timer = setTimeout(() => { timedOut = true; kill(); }, timeout);
+      clock.kill = kill;
+      arm();
+      const started = Date.now();
+      clock.started = started;
       const settle = (status, signal) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        clearTimeout(clock.timer);
+        const timedOut = clock.timedOut;
         resolve({
-          status, signal, stdout: Buffer.concat(out).toString('utf8'), stderr: errLines.join('\n'),
+          status, signal, stdout: Buffer.concat(out).toString('utf8'), stderr: stderrKept(),
           errorCode: timedOut ? 'ETIMEDOUT' : null, errorMessage: timedOut ? `the browser did not finish within ${timeout}ms` : null,
-          refused: guard.refused, truncated,
+          refused: guard.refused, truncated, requests: guard.seen.length, pending: guard.pending(), elapsedMs: Date.now() - started, startedAt: new Date(started).toISOString(),
+          startupMs: clock.firstRequestAt === null ? null : clock.firstRequestAt - started,
+          // The whole record as a timeline from the launch: where a slow render's time went.
+          seen: guard.seen.map((e) => ({ kind: e.kind, target: e.target, outcome: e.outcome, startedMs: Math.max(0, e.started - started), ms: (e.ended ?? Date.now()) - e.started })),
         });
       };
       child.stdout.on('data', (chunk) => {
@@ -204,14 +234,18 @@ export async function renderThroughGuard({ binary, args, url, timeout = 60_000, 
         out.push(chunk);
       });
       child.stderr.on('data', (chunk) => {
-        for (const line of String(chunk).split('\n')) { if (line) errLines.push(line); }
-        if (errLines.length > STDERR_LINES) errLines.splice(0, errLines.length - STDERR_LINES);
+        for (const line of String(chunk).split('\n')) {
+          if (!line) continue;
+          if (errHead.length < STDERR_HEAD_LINES) { errHead.push(line); continue; }
+          errLines.push(line);
+        }
+        if (errLines.length > STDERR_LINES) { errDropped += errLines.length - STDERR_LINES; errLines.splice(0, errLines.length - STDERR_LINES); }
       });
       child.on('error', (err) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
-        resolve({ status: null, signal: null, stdout: '', stderr: errLines.join('\n'), errorCode: err.code ?? 'SPAWN', errorMessage: err.message, refused: guard.refused, truncated });
+        clearTimeout(clock.timer);
+        resolve({ status: null, signal: null, stdout: '', stderr: stderrKept(), errorCode: err.code ?? 'SPAWN', errorMessage: err.message, refused: guard.refused, truncated });
       });
       // 'close' follows 'exit' once the pipes drain; a helper that outlived the browser would
       // hold them open, so the exit is reported after a short grace either way.

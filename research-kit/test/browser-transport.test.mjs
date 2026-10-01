@@ -1,8 +1,9 @@
 // ADR-0088: a fetch-only transport that renders pages with a local Chromium from the command
 // line. Research: docs/decisions/2026-09-28-browser-transport. Offline: the renderer is a stub.
 
-import { test, describe, assert, fs, path, KIT_ROOT } from './harness.mjs';
-import browser, { browserArgs, chromeErrorOf, findBrowser, renderGuarded } from '../lib/browser-transport.mjs';
+import { spawn } from 'node:child_process';
+import { test, describe, assert, fs, path, KIT_ROOT, requireCapability, tempDir } from './harness.mjs';
+import browser, { browserArgs, chromeErrorOf, findBrowser, renderGuarded, TIMEOUT_MS } from '../lib/browser-transport.mjs';
 import { REFUSAL_MARKER } from '../lib/browser-guard.mjs';
 import { TRANSPORTS, satisfies, FETCH_SHAPE, selectTransport } from '../lib/transport.mjs';
 
@@ -99,7 +100,7 @@ test('a timeout with no dump names the last thing the browser said', () => {
   const stderr = 'DevTools listening on ws://127.0.0.1:1/x\n[1:1:ERROR:network_service.cc(1)] the proxy never answered\n[1:1:INFO:x] later noise';
   const r = browser.scrape('https://x.invalid/a', { render: () => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' }), stdout: '', stderr, refused: [] }), browserPath: '/opt/chrome', env: {} });
   assert.equal(r.ok, false);
-  assert.match(r.error, /did not finish rendering https:\/\/x\.invalid\/a within 60s: \[1:1:ERROR:network_service\.cc\(1\)\] the proxy never answered/);
+  assert.match(r.error, /did not finish rendering https:\/\/x\.invalid\/a within 60s: the browser never made a request in 0 s: \[1:1:ERROR:network_service\.cc\(1\)\] the proxy never answered/);
 });
 
 test('Chromium is never pointed at the configured proxy itself: the guard is its proxy, and the sandbox is off only for root', () => {
@@ -112,6 +113,96 @@ test('Chromium is never pointed at the configured proxy itself: the guard is its
   assert.ok(!browserArgs('https://x.invalid/a', { uid: 0 }).includes('--ignore-certificate-errors'), 'TLS is never weakened');
   assert.ok(asUser.includes('--disable-background-networking'), 'Chromium\'s own update and time traffic would go through the guard too');
   assert.deepEqual(asUser.slice(-2), ['--dump-dom', 'https://x.invalid/a'], 'the guard child inserts its flags before these two');
+});
+
+// Found 2026-10-01 on CI, four times in one afternoon (Windows three times, Ubuntu once): the
+// suite's first Chromium launch printed nothing - no DOM, no stderr - for its whole 45 s and
+// was killed. Reproduced here with a page whose one resource never answers: with
+// --virtual-time-budget alone, headless Chromium waits on the pending load for ever, since
+// virtual time only advances when the page is idle, so it never dumps and only the kill ends
+// it, with nothing to show. Chrome's own `--timeout` is the deadline for that wait: when it
+// fires, Chromium stops loading, dumps the DOM it has and exits. The deadline sits under the
+// transport's kill timeout, so a page that never settles is captured as it stands rather
+// than lost, and a kill is for a browser that is not answering at all.
+test('the browser is given its own deadline under the transport timeout, so a page that never settles is still dumped', () => {
+  const args = browserArgs('https://x.invalid/a', { uid: 1000, timeout: 45_000 });
+  assert.ok(args.includes('--timeout=35000'), `no deadline in ${args.join(' ')}`);
+  assert.deepEqual(args.slice(-2), ['--dump-dom', 'https://x.invalid/a'], 'the guard child inserts its flags before these two');
+  assert.ok(browserArgs('https://x.invalid/a', { uid: 1000, timeout: 6_000 }).includes('--timeout=5000'), 'a short timeout keeps a floor under the deadline');
+  assert.ok(browserArgs('https://x.invalid/a', { uid: 1000 }).includes(`--timeout=${TIMEOUT_MS - 10_000}`), 'no timeout given means the default one');
+});
+
+test('a render cut at the deadline is graded partial, and says what was still unanswered', () => {
+  const page = `<html><head><title>Late</title></head><body><main><p>${'Rendered words that are enough to be graded as content. '.repeat(40)}</p></main></body></html>`;
+  // The guard's record is the signal: Chromium logs "Page load timed out" only when the
+  // navigation itself never committed, not for a resource that stalled.
+  const at = (extra) => browser.scrape('https://x.invalid/a', { render: () => ({ status: 0, signal: null, stdout: page, stderr: '', refused: [], requests: 7, pending: [], elapsedMs: 35_060, ...extra }), browserPath: '/opt/chrome', env: {}, timeout: 45_000 });
+  const stalled = at({ pending: [{ kind: 'http', target: 'https://cdn.x.invalid/slow.js', ms: 34_900 }] });
+  assert.equal(stalled.ok, true);
+  assert.equal(stalled.completeness, 'partial');
+  assert.match(stalled.omitted, /stopped loading at its 35 s deadline/);
+  assert.match(stalled.omitted, /still unanswered through the guard: https:\/\/cdn\.x\.invalid\/slow\.js \(35 s\)/);
+  const inside = at({ pending: [] });
+  assert.equal(inside.completeness, 'partial');
+  assert.match(inside.omitted, /every one of the 7 requests through the guard had been answered, so the wait was inside the browser/);
+  // Printed early with a load still open (the virtual-time budget ran out first): partial, and named.
+  const early = at({ elapsedMs: 9_000, pending: [{ kind: 'connect', target: 'cdn.x.invalid:443', ms: 8_500 }] });
+  assert.equal(early.completeness, 'partial');
+  assert.match(early.omitted, /printed the page before every load was answered; still unanswered through the guard: cdn\.x\.invalid:443 \(9 s\)/);
+  // Settled on its own, everything answered: the grade is the extractor's own.
+  const settled = browser.scrape('https://x.invalid/a', { render: () => ({ status: 0, signal: null, stdout: page, stderr: '', refused: [], requests: 2, pending: [], elapsedMs: 1_200 }), browserPath: '/opt/chrome', env: {} });
+  assert.equal(settled.completeness, 'full', settled.omitted);
+});
+
+test('a timeout says how long the browser took to make its first request, and the deadline is judged from it', () => {
+  const page = `<html><head><title>Late</title></head><body><main><p>${'Rendered words that are enough to be graded as content. '.repeat(40)}</p></main></body></html>`;
+  const late = browser.scrape('https://x.invalid/a', { render: () => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' }), stdout: '', stderr: '', refused: [], requests: 0, pending: [], elapsedMs: 90_000, startupMs: null }), browserPath: '/opt/chrome', env: {}, timeout: 45_000 });
+  assert.match(late.error, /did not finish rendering https:\/\/x\.invalid\/a within 45s: the browser never made a request in 90 s/);
+  const slowStart = browser.scrape('https://x.invalid/a', { render: () => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' }), stdout: '', stderr: '', refused: [], requests: 3, pending: [], elapsedMs: 88_000, startupMs: 43_000 }), browserPath: '/opt/chrome', env: {}, timeout: 45_000 });
+  assert.match(slowStart.error, /did not finish rendering https:\/\/x\.invalid\/a within 45s: the browser took 43 s to make its first request/);
+  // Forty seconds of wall time with a thirty-second start is a ten-second render: settled, not cut at the 35 s deadline.
+  const settled = browser.scrape('https://x.invalid/a', { render: () => ({ status: 0, signal: null, stdout: page, stderr: '', refused: [], requests: 2, pending: [], elapsedMs: 40_000, startupMs: 30_000 }), browserPath: '/opt/chrome', env: {}, timeout: 45_000 });
+  assert.equal(settled.completeness, 'full', settled.omitted);
+});
+
+test('LIVE: a page whose resource never arrives is captured at the deadline, not lost to the kill', async () => {
+  const chromium = findBrowser();
+  requireCapability(chromium, 'NO-BROWSER', 'no Chromium or Chrome on this host');
+  // The page server lives in a process of its own: this one blocks in spawnSync while the
+  // guard child renders, so a server here would never answer (as browser-guard's does).
+  const file = path.join(tempDir('rk-stalled-pages-'), 'pages.mjs');
+  fs.writeFileSync(file, `
+import http from 'node:http';
+const server = http.createServer((req, res) => {
+  if (req.url === '/never') return;                      // a resource that never answers
+  res.writeHead(200, { 'content-type': 'text/html' });
+  res.end('<html><head><title>Stalled</title></head><body><main><p>' + 'Body text that arrived before a resource that never does. '.repeat(20) + '</p><img src="/never"></main></body></html>');
+});
+server.listen(0, '127.0.0.1', () => process.stdout.write('PORT ' + server.address().port + '\\n'));
+`);
+  const proc = spawn(process.execPath, [file], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const port = await new Promise((resolve, reject) => {
+    let out = '';
+    proc.stdout.on('data', (d) => { out += d; const m = out.match(/PORT (\d+)/); if (m) resolve(Number(m[1])); });
+    proc.on('exit', (code) => reject(new Error(`the page server exited ${code}`)));
+  });
+  try {
+    // Chromium's own log rides the launch, and is printed for a render that ran past its
+    // deadline (see the guard's LIVE test): a startup hang shows nothing anywhere else.
+    let last;
+    const render = (b, a, o) => { const args = [...a]; args.splice(-2, 0, '--enable-logging=stderr', '--v=1'); last = renderGuarded(b, args, o); return last; };
+    const t0 = Date.now();
+    // 30 s: the deadline is then 20 s, room for a renderer that is slow to start on a CI runner
+    // (one took over 5 s to make the page request, and a 5 s deadline dumped an empty document).
+    const r = browser.scrape(`http://127.0.0.1:${port}/stalled`, { render, browserPath: chromium, env: { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? '', HOME: process.env.HOME ?? '', USERPROFILE: process.env.USERPROFILE ?? '' }, allowInternalRedirects: true, timeout: 30_000 });
+    if (Date.now() - t0 > 25_000) process.stderr.write(`browser-transport LIVE /stalled took ${Date.now() - t0} ms (browser ${last?.elapsedMs ?? '?'} ms, first request after ${last?.startupMs ?? '?'} ms, launched ${last?.startedAt ?? '?'}): ${r.error ?? r.omitted ?? 'no note'} | requests ${last?.requests ?? '?'}\n  chromium log (head and tail):\n    ${String(last?.stderr ?? '').split('\n').filter((l) => l && !/^Histogram: |^\d+\s+[-.O ]+\(|^\d+\s+\.\.\. $/.test(l)).join('\n    ')}\n`);
+    assert.equal(r.ok, true, `the page was lost: ${r.error}`);
+    assert.equal(r.title, 'Stalled');
+    assert.match(r.markdown, /arrived before a resource that never does/);
+    assert.ok((last?.elapsedMs ?? 0) - (last?.startupMs ?? 0) < 30_000, 'the render ran into the kill timeout instead of the deadline');
+    assert.equal(r.completeness, 'partial', 'a page cut at the deadline is not a full capture');
+    assert.match(r.omitted, /still unanswered through the guard: http:\/\/127\.0\.0\.1:\d+\/never/, r.omitted);
+  } finally { proc.kill(); }
 });
 
 test('the browser is found by config, then environment, then the usual install paths', () => {
