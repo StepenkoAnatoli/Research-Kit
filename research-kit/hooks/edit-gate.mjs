@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { evaluate, isGated, isPhaseOneEdit } from '../lib/gate.mjs';
+import { evaluate, isGated, isPhaseOneEdit, stdinIsReadable } from '../lib/gate.mjs';
 import { loadConfig } from '../lib/machine.mjs';
 import { PATHS } from '../lib/core.mjs';
 
@@ -30,6 +30,13 @@ function emit(decision, reason) {
 
 let payload = {};
 try {
+  // A terminal on stdin is not a payload, it is somebody running this hook by hand to see
+  // what it does - and `readFileSync(0)` on a TTY waits for an EOF that never arrives, so
+  // the hook sat there printing nothing at all until it was killed (found 2026-10-01,
+  // break-test). `bin/gate.mjs` refuses the same guess for the same reason
+  // ("--staged-stdin was given but stdin is a terminal"). The edit gate answers instead:
+  // no payload is no payload, which is the fail-open path this catch already implements.
+  if (!stdinIsReadable()) throw new Error('stdin is a terminal, not a payload');
   payload = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
 } catch (err) {
   // A payload shape that changes upstream must not block the operator's work.

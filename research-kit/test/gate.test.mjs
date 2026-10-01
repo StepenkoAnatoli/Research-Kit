@@ -2,6 +2,7 @@
 // overrides. Plus the one that matters: it actually blocks.
 
 import { spawnSync } from 'node:child_process';
+import os from 'node:os';
 import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, KIT_ROOT, requireGit } from './harness.mjs';
 import { PATHS, resolve, writeText, readText, writeJson } from '../lib/core.mjs';
 import { evaluate, isGated, splitPathList, architectureMapBreach, loadGateConfig, DEFAULT_CODE_PATHS } from '../lib/gate.mjs';
@@ -186,6 +187,38 @@ test('the edit gate answers a non-object payload or a non-string cwd instead of 
     const out = JSON.parse(r.stdout).hookSpecificOutput;
     assert.ok(['allow', 'ask', 'deny'].includes(out.permissionDecision), `payload ${input}: ${r.stdout}`);
   }
+});
+
+// Found 2026-10-01 (break-test): `fs.readFileSync(0)` on a TERMINAL waits for an EOF that
+// never arrives, so running the hook by hand - the first thing an operator does when a gate
+// misbehaves - sat there printing nothing until it was killed. `bin/gate.mjs` refuses the
+// same guess for the same reason ("--staged-stdin was given but stdin is a terminal"). The
+// edit gate answers instead, through the fail-open path an unparsable payload already takes.
+//
+// A pty is what makes stdin a terminal, and only POSIX can allocate one from a test:
+// `script` gives its child a pty whatever its own stdin is, and Windows has no `script`.
+// So the return-early below is not a skip of an inconvenient case - it is the honest limit
+// of what this platform can prove, and the comment says so rather than letting the test
+// pass by asserting nothing.
+test('the edit gate answers instead of hanging when stdin is a terminal', () => {
+  if (process.platform === 'win32') return; // no `script` on Windows, so no pty to hand the hook
+  const dir = makeProject();
+  const r = spawnSync('script', ['-qec', `${process.execPath} ${JSON.stringify(path.join(KIT_ROOT, 'hooks', 'edit-gate.mjs'))}`, os.devNull], {
+    input: '', cwd: dir, encoding: 'utf8', timeout: 20_000,
+    env: { ...process.env, RESEARCH_KIT_CONFIG: path.join(tempDir(), 'absent.json') },
+  });
+  assert.equal(r.error, undefined, `the hook could not be run under a pty: ${r.error?.message}`);
+  assert.notEqual(r.status, null, 'the hook was killed - it hung on a terminal stdin');
+  assert.equal(r.status, 0, `the hook exited ${r.status}:\n${r.stderr.slice(0, 300)}`);
+  // `script` hands its child a pty, so stdout and stderr arrive as ONE stream: the note and
+  // the JSON are interleaved in r.stdout and r.stderr is empty. The reason is the note, and
+  // the decision is the line that parses.
+  const merged = `${r.stdout ?? ''}${r.stderr ?? ''}`.replace(/\r/g, '');
+  assert.match(merged, /stdin is a terminal, not a payload/, `the reason was not named: ${merged.slice(0, 300)}`);
+  const line = merged.split('\n').find((l) => l.startsWith('{'));
+  assert.ok(line, `the hook emitted no decision: ${merged.slice(0, 300)}`);
+  assert.equal(JSON.parse(line).hookSpecificOutput.permissionDecision, 'allow',
+    `a terminal is no payload, so nothing is judged: ${line.slice(0, 200)}`);
 });
 
 test('the edit gate lets phase-1 work through and still stops code', () => {
