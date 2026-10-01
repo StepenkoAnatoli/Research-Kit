@@ -299,10 +299,17 @@ test('LIVE: a real Chromium cannot be led into this machine\'s network by a scri
     // A render that ran long is said on stderr, with the guard's whole timeline - what was
     // asked, when, how long, how it ended - and what the transport made of it: that line in a
     // CI log is the diagnosis of a stall nobody can reproduce elsewhere.
+    // Chromium's own log, at INFO, rides the launch (2026-10-01: an Ubuntu CI run sat the whole
+    // 45 s with the timeline EMPTY - no request ever reached the guard, and Chromium's deadline
+    // never fired - so the wait is in startup, before any navigation, and only Chromium's log
+    // says where). It is printed only for a render over 20 s, as the last lines before the end.
     let last;
-    const render = (b, a, o) => { last = renderGuarded(b, a, o); return last; };
+    const render = (b, a, o) => { const args = [...a]; args.splice(-2, 0, '--enable-logging=stderr', '--v=1'); last = renderGuarded(b, args, o); return last; };
     const timeline = () => (last?.seen ?? []).map((e) => `${e.startedMs}ms ${e.kind} ${e.target} -> ${e.outcome ?? 'open'} (${e.ms}ms)`).join('; ');
-    const timed = (route, run) => { const t0 = Date.now(); const r = run(); const ms = Date.now() - t0; if (ms > 20_000) process.stderr.write(`browser-guard LIVE ${route} took ${ms} ms (browser ${last?.elapsedMs ?? '?'} ms): ${r.error ?? r.omitted ?? 'no note'} | timeline: ${timeline()}\n`); return r; };
+    // Chromium prints its histograms at a normal exit; a killed one never gets there, so the
+    // tail of a hang is its last live lines, and the histogram lines are dropped either way.
+    const tail = () => String(last?.stderr ?? '').split('\n').filter((l) => l && !/^Histogram: |^\d+\s+[-.O ]+\(|^\d+\s+\.\.\. $/.test(l)).slice(-40).join('\n    ');
+    const timed = (route, run) => { const t0 = Date.now(); const r = run(); const ms = Date.now() - t0; if (ms > 20_000) process.stderr.write(`browser-guard LIVE ${route} took ${ms} ms (browser ${last?.elapsedMs ?? '?'} ms): ${r.error ?? r.omitted ?? 'no note'} | timeline: ${timeline()}\n  chromium log tail:\n    ${tail()}\n`); return r; };
     for (const route of ['/jump', '/meta']) {
       const r = timed(route, () => browser.scrape(`${pages.outer}${route}`, { render, browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 }));
       assert.equal(r.ok, false, `${route}: the browser reached the page it was sent to: ${JSON.stringify(r).slice(0, 300)}`);

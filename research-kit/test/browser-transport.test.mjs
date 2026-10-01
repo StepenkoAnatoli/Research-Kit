@@ -176,8 +176,13 @@ server.listen(0, '127.0.0.1', () => process.stdout.write('PORT ' + server.addres
     proc.on('exit', (code) => reject(new Error(`the page server exited ${code}`)));
   });
   try {
+    // Chromium's own log rides the launch, and is printed for a render that ran past its
+    // deadline (see the guard's LIVE test): a startup hang shows nothing anywhere else.
+    let last;
+    const render = (b, a, o) => { const args = [...a]; args.splice(-2, 0, '--enable-logging=stderr', '--v=1'); last = renderGuarded(b, args, o); return last; };
     const t0 = Date.now();
-    const r = browser.scrape(`http://127.0.0.1:${port}/stalled`, { browserPath: chromium, env: { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? '', HOME: process.env.HOME ?? '', USERPROFILE: process.env.USERPROFILE ?? '' }, allowInternalRedirects: true, timeout: 15_000 });
+    const r = browser.scrape(`http://127.0.0.1:${port}/stalled`, { render, browserPath: chromium, env: { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? '', HOME: process.env.HOME ?? '', USERPROFILE: process.env.USERPROFILE ?? '' }, allowInternalRedirects: true, timeout: 15_000 });
+    if (Date.now() - t0 > 10_000) process.stderr.write(`browser-transport LIVE /stalled took ${Date.now() - t0} ms (browser ${last?.elapsedMs ?? '?'} ms): ${r.error ?? r.omitted ?? 'no note'} | requests ${last?.requests ?? '?'}\n  chromium log tail:\n    ${String(last?.stderr ?? '').split('\n').filter((l) => l && !/^Histogram: |^\d+\s+[-.O ]+\(|^\d+\s+\.\.\. $/.test(l)).slice(-40).join('\n    ')}\n`);
     assert.equal(r.ok, true, `the page was lost: ${r.error}`);
     assert.equal(r.title, 'Stalled');
     assert.match(r.markdown, /arrived before a resource that never does/);
