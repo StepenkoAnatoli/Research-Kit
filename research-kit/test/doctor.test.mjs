@@ -474,6 +474,59 @@ test('deploy --dry-run names exactly what a real deploy would prune, and nothing
   assert.deepEqual(preview, real, 'the preview and the deploy disagree about what is pruned');
 });
 
+// Found 2026-10-01 (break-test, PR #182): the mirror removes whatever the kit does not ship, and
+// it asked nothing of the folder first. RESEARCH_KIT_HOME pointed at a folder of somebody's own
+// files - a typo, a parent folder, a shared tools directory - had them deleted (3 of 4 in the
+// report). A folder that is not a kit deployment is refused, and nothing in it is touched.
+test('deploy refuses to mirror into a folder of other files, and touches nothing there', async () => {
+  const { deploy } = await import('../lib/installer.mjs');
+  const source = tempDir('research-kit-src-');
+  writeText(path.join(source, 'lib', 'core.mjs'), 'export const a = 1;\n');
+  writeText(path.join(source, 'README.md'), '# kit\n');
+  const env = { ...process.env, RESEARCH_KIT_INSTALL_STATE: path.join(tempDir('research-kit-state-'), 'install.json') };
+
+  const theirs = tempDir('research-kit-theirs-');
+  const files = ['notes.txt', 'README.md', 'photos/cat.jpg', 'lib/util.js'];
+  for (const rel of files) writeText(path.join(theirs, ...rel.split('/')), `${rel}\n`);
+
+  for (const dryRun of [true, false]) {
+    const result = deploy({ from: source, kitHome: theirs, env, dryRun });
+    assert.equal(result.ok, false, `dryRun=${dryRun}: a folder of other files was mirrored into`);
+    assert.match(result.refused, /not a kit deployment/);
+    assert.match(result.refused, new RegExp(theirs.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')), 'the refusal names the folder');
+  }
+  for (const rel of files) assert.equal(readText(path.join(theirs, ...rel.split('/'))), `${rel}\n`, `${rel} was changed or deleted`);
+  assert.equal(fs.existsSync(path.join(theirs, 'lib', 'core.mjs')), false, 'the kit was written into it anyway');
+
+  // An empty folder, an absent one and an earlier deployment are all still deployed into.
+  for (const target of [tempDir('research-kit-empty-'), path.join(tempDir('research-kit-new-'), 'kit')]) {
+    assert.equal(deploy({ from: source, kitHome: target, env }).ok, true, `${target} was refused`);
+  }
+  const earlier = tempDir('research-kit-old-');
+  writeText(path.join(earlier, 'lib', 'core.mjs'), 'export const a = 0;\n');
+  writeText(path.join(earlier, 'lib', 'gone.mjs'), 'old\n');
+  assert.equal(deploy({ from: source, kitHome: earlier, env }).ok, true, 'an earlier deployment was refused');
+  assert.equal(fs.existsSync(path.join(earlier, 'lib', 'gone.mjs')), false, 'and is still mirrored');
+});
+
+test('install names a refused folder and exits 2', () => {
+  const theirs = tempDir('research-kit-theirs-');
+  writeText(path.join(theirs, 'notes.txt'), 'mine\n');
+  // Every machine path the installer could reach is a temp one, the skill roots included, so a
+  // deploy that is NOT refused writes nowhere real.
+  const state = tempDir('research-kit-state-');
+  const skills = path.join(state, 'skills');
+  writeText(path.join(state, 'config.json'), `${JSON.stringify({ skillRoots: [skills] })}\n`);
+  const r = spawnSync(process.execPath, [path.join(KIT_ROOT, 'bin', 'install.mjs')], {
+    encoding: 'utf8',
+    env: { ...process.env, RESEARCH_KIT_HOME: theirs, RESEARCH_KIT_CONFIG: path.join(state, 'config.json'), RESEARCH_KIT_INSTALL_STATE: path.join(state, 'install.json') },
+  });
+  assert.equal(r.status, 2, r.stdout + r.stderr);
+  assert.match(r.stderr, /not a kit deployment/);
+  assert.equal(readText(path.join(theirs, 'notes.txt')), 'mine\n');
+  assert.equal(fs.existsSync(skills), false, 'a refused deploy still installed the skill');
+});
+
 test('deploy does NOT mirror a skill root - it holds other people\'s skills too', async () => {
   const { deploy } = await import('../lib/installer.mjs');
   const source = tempDir('research-kit-src2-');

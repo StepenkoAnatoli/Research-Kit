@@ -430,12 +430,38 @@ export function driftNote(drift) {
   return `${parts.join('; ')}${sample.length ? ` (e.g. ${sample.join(', ')})` : ''}`;
 }
 
+/** A file every kit version has shipped: a folder holding it is a deployment of some kit. */
+const KIT_MARKER = 'lib/core.mjs';
+
+/**
+ * Why `kitHome` may not be mirrored into, or null when it may (ADR-0111).
+ *
+ * The mirror removes every file the kit does not ship, and it asked nothing of the folder
+ * first: RESEARCH_KIT_HOME naming a folder of somebody's own files - a typo, a parent folder, a
+ * shared tools directory - had them deleted and reported as "retired" (found 2026-10-01,
+ * break-test). A folder may be mirrored into when it holds nothing, when it holds a kit, or when
+ * the install state says the kit was deployed there.
+ */
+function mirrorRefusal(kitHome, env) {
+  const present = listTree(kitHome);
+  if (present.length === 0 || present.includes(KIT_MARKER)) return null;
+  const recorded = readInstallState(env)?.kitHome;
+  if (typeof recorded === 'string' && path.resolve(recorded) === path.resolve(kitHome)) return null;
+  const sample = present.slice(0, 3).join(', ');
+  return `${kitHome} is not a kit deployment - it holds ${present.length} file(s) the kit does not ship (${sample}${present.length > 3 ? ', ...' : ''}), `
+    + 'and a deploy mirrors, removing every file it does not ship. Nothing was changed. '
+    + 'Point RESEARCH_KIT_HOME at an empty or new folder, or unset it to use the default.';
+}
+
 /**
  * Copy the kit to `~/.agents/research-kit` and the skill to the personal root(s).
  * Overwrites by default - a stale deployed copy silently defeats an update - and prunes
  * kit files a past version shipped, because a copy-over deploy never removes anything.
+ * Refuses, touching nothing, a folder that is not a kit deployment (`mirrorRefusal`).
  */
 export function deploy({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env, dryRun = false, into = '' } = {}) {
+  const refused = mirrorRefusal(kitHome, env);
+  if (refused) return { ok: false, dryRun, from, to: kitHome, refused };
   // What the deploy below would prune, computed the same way: retired files that are there, and
   // the mirror's extras. It listed every retired name whether or not it existed, and none of the
   // extras (2026-09-29, Arena break test: "would prune" three files on a machine never installed).
