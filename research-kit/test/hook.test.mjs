@@ -151,6 +151,49 @@ test('moving product code into research/ is BLOCKED while the verdict fails, exa
   assert.notEqual(moved.status, 0, `moving product code into research/ got past the gate: ${moved.stdout}${moved.stderr}`);
 });
 
+// Found 2026-10-01 (break-test): the staged list is the FIRST stage of a pipeline, and sh reports
+// only the LAST stage's status. A `git diff` that failed reached the gate as an EMPTY list -
+// "nothing outside research/ is staged" - so product code was ALLOWED while the verdict failed,
+// on a fail-CLOSED machine too, with the one rule that needs the list switched off and the hook
+// saying the commit was "confined to research/". A `diff.orderFile` naming a file that is not
+// there makes `git diff` exit 128 while every other git command the gate uses still works: a real
+// failure, no shim, the same on every platform. The list is then UNKNOWN, which the gate already
+// reads as "cannot prove it is confined" (blocks while the verdict fails, ADR-0024's direction).
+function breakGitDiff(dir) {
+  git(dir, ['config', 'diff.orderFile', path.join(dir, 'no-such-orderfile')]);
+  assert.throws(() => git(dir, ['diff', '--cached', '--name-only', '-z']), /orderfile/i,
+    'the fixture did not break git diff, so this test proves nothing');
+}
+
+test('a git that cannot list the staged paths is not read as "nothing outside research/ is staged"', () => {
+  requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
+  const dir = makeRepo();
+  corrupt(dir, PATHS.discovery, (text) => text.replace('CLOSED', 'OPEN'));
+  writeText(resolve(dir, 'src/index.js'), 'export const x = 1;\n');
+  git(dir, ['add', PATHS.discovery, 'src/index.js']);
+  breakGitDiff(dir);
+
+  const closed = path.join(tempDir(), 'config.json');
+  writeText(closed, `${JSON.stringify({ failOpen: false }, null, 2)}\n`);
+  for (const [machine, env] of [['a fail-closed machine', { RESEARCH_KIT_CONFIG: closed }], ['the default posture', {}]]) {
+    const result = runHook(dir, { env });
+    assert.notEqual(result.status, 0, `${machine} let staged product code through while the verdict fails: ${result.stdout}${result.stderr}`);
+    assert.match(result.stderr, /could not list the staged paths/, `${machine}: the refusal must say why`);
+  }
+});
+
+test('a git that cannot list the staged paths does not stop a healthy project committing, and says so', () => {
+  requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
+  const dir = makeRepo();
+  writeText(resolve(dir, 'README.md'), '# fixture\n');
+  git(dir, ['add', 'README.md']);
+  breakGitDiff(dir);
+
+  const result = runHook(dir);
+  assert.equal(result.status, 0, `a passing project was refused because git diff failed: ${result.stdout}${result.stderr}`);
+  assert.match(result.stderr, /could not list the staged paths/, 'the hook must be loud about judging without a list');
+});
+
 test('a fresh project\'s first commit - scaffold and corpus together - is ALLOWED while the verdict fails', () => {
   requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
   const dir = tempDir('rk-fresh-');
