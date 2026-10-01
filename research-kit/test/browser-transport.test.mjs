@@ -66,6 +66,42 @@ test('a timeout, a non-zero exit and a missing browser are failures that say whi
   assert.match(none.error, /no Chromium or Chrome found.*RESEARCH_KIT_BROWSER/);
 });
 
+// Found 2026-10-01 on CI, three times in one afternoon (two Windows legs on PR #189, one
+// Ubuntu Node 26 leg on main): the first Chromium launch of the suite ran its 45 s render
+// timeout out on a page whose script led it to an internal address. The guard had refused
+// the navigation, and what Chromium printed before it stopped exiting was thrown away with
+// its stderr: the timeout branch returned before the dump or the cause was read, so the
+// verdict was "did not finish" with nothing to go on. Chromium prints the DOM once, when
+// its own budget says the page is done; a whole dump after a timeout is therefore the
+// render, and a hang at exit does not unrender it. No dump at all is still a timeout, and
+// then the last thing Chromium said is the only diagnostic there is.
+test('a browser that printed the page and then hung is a render, not a timeout', () => {
+  const page = `<html><head><title>Late</title></head><body><main><p>${'Rendered words that are enough to be graded as content. '.repeat(20)}</p></main></body></html>`;
+  const timedOut = (extra) => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('the browser did not finish within 45000ms'), { code: 'ETIMEDOUT' }), stderr: '', refused: [], ...extra });
+  const r = browser.scrape('https://x.invalid/a', { render: () => timedOut({ stdout: page }), browserPath: '/opt/chrome', env: {} });
+  assert.equal(r.ok, true, r.error);
+  assert.equal(r.title, 'Late');
+  // A dump cut short is not a render: Chromium prints the document whole, so a missing end is a partial read.
+  const cut = browser.scrape('https://x.invalid/a', { render: () => timedOut({ stdout: page.slice(0, 120) }), browserPath: '/opt/chrome', env: {} });
+  assert.equal(cut.ok, false);
+  assert.match(cut.error, /did not finish rendering/);
+});
+
+test('a refusal the guard recorded is the verdict even when the browser then hung', () => {
+  const refusal = `<html><head></head><body><pre>${REFUSAL_MARKER}: 127.0.0.1:9 - 127.0.0.1 is an internal address</pre></body></html>`;
+  const r = browser.scrape('https://x.invalid/a', { render: () => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' }), stdout: refusal, stderr: '', refused: [{ host: '127.0.0.1:9', why: '127.0.0.1 is an internal address' }] }), browserPath: '/opt/chrome', env: {} });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /refused to let the page reach 127\.0\.0\.1:9 - 127\.0\.0\.1 is an internal address/);
+  assert.doesNotMatch(r.error, /did not finish/);
+});
+
+test('a timeout with no dump names the last thing the browser said', () => {
+  const stderr = 'DevTools listening on ws://127.0.0.1:1/x\n[1:1:ERROR:network_service.cc(1)] the proxy never answered\n[1:1:INFO:x] later noise';
+  const r = browser.scrape('https://x.invalid/a', { render: () => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' }), stdout: '', stderr, refused: [] }), browserPath: '/opt/chrome', env: {} });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /did not finish rendering https:\/\/x\.invalid\/a within 60s: \[1:1:ERROR:network_service\.cc\(1\)\] the proxy never answered/);
+});
+
 test('Chromium is never pointed at the configured proxy itself: the guard is its proxy, and the sandbox is off only for root', () => {
   // The guard child adds --proxy-server for its own port (ADR-0118); a configured proxy is the
   // guard's upstream. Pointing Chromium at it directly would carry every request around the guard.

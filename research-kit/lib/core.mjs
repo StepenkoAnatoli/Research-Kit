@@ -674,16 +674,25 @@ export function ageInDays(value, now = new Date()) {
  * matters: slice, then trim.
  */
 export function makeSlug(text, fallback = 'topic', limit = 60) {
-  const slug = String(text ?? '')
+  const cut = (value) => String(value).slice(0, limit).replace(/-+$/g, '');
+  const slug = cut(String(text ?? '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, limit)
-    .replace(/-+$/g, '');
+    .replace(/^-+|-+$/g, ''));
   // The fallback keeps the same limit: it came back whole, longer than the caller allowed
   // (2026-09-29, Arena break test).
-  return slug || String(fallback).slice(0, limit).replace(/-+$/g, '');
+  const chosen = slug || cut(fallback);
+  // A name Windows reserves for a device - `con`, `aux`, `lpt1` - is not creatable there
+  // whatever follows it, so a "filename-safe" slug cannot be one (2026-10-01, break-test
+  // PR #188; latent, no caller hands a bare slug to the filesystem). Prefixed inside the
+  // slug's own alphabet and cut again: `name-` sliced to any limit is never reserved, so the
+  // rule holds at every limit, including a cut that lands on one (`console` at 3).
+  // Case-insensitive, because the fallback path keeps its case.
+  return WINDOWS_RESERVED.test(chosen) ? cut(`name-${chosen}`) : chosen;
 }
+
+/** Device names Windows reserves as base names, whatever the extension (Win32 naming rules). */
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
 
 /** A short, stable id for a URL - used in capture filenames. */
 export function urlDigest(url, length = 8) {

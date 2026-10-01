@@ -3,7 +3,7 @@
 // tests (ADR-0004).
 
 import path from 'node:path';
-import { test, describe, assert, makeProject, makePassingProject, corrupt, fs } from './harness.mjs';
+import { test, describe, assert, makeProject, makePassingProject, corrupt, fs, tempDir } from './harness.mjs';
 import { PATHS, resolve, writeText, readText } from '../lib/core.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 import { writeRaw, collectOne } from '../lib/collect.mjs';
@@ -857,4 +857,26 @@ test('two subdomains of one company are one voice; two owners on one platform ar
   assert.equal(siteOf('https://api.example.co.uk/x'), 'example.co.uk');
   assert.notEqual(siteOf('https://alice.github.io/a'), siteOf('https://bob.github.io/b'));
   assert.notEqual(siteOf('https://firecrawl.dev/'), siteOf('https://serpapi.com/'));
+});
+
+// Found 2026-10-01 (break-test, PR #188): `findings.push(...check.run(...))` passes every
+// finding as an ARGUMENT, and an engine takes only so many - between 60,000 and 130,000
+// depending on the Node line and its stack. One check over a corpus big enough to produce
+// that many findings threw `RangeError: Maximum call stack size exceeded` out of runChecks,
+// so preflight, doctor, brief and audit died with a raw V8 stack instead of a verdict, and
+// the commit gate answered "internal error" (exit 2, closed). 66,000 rows with no URL, no
+// claim and no capture give `citations` alone about three findings each - past the limit of
+// every engine measured - and read in under two seconds.
+test('a check that yields more findings than an engine takes as arguments still reaches a verdict', () => {
+  const dir = makeProject(tempDir('rk-checks-wide-'), { content: true });
+  const evidence = resolve(dir, PATHS.evidence);
+  const header = readText(evidence).split('\n').filter((line) => line.startsWith('|')).slice(0, 2);
+  const rows = [];
+  for (let i = 0; i < 66_000; i += 1) rows.push(`| E-${i} | 2026-10-01 | P |  |  | raw/missing-${i}.md |`);
+  writeText(evidence, `# Evidence\n\n${header.join('\n')}\n${rows.join('\n')}\n`);
+  const corpus = readCorpus(dir);
+  assert.equal(corpus.evidence.length, 66_000, 'the fixture did not parse as 66,000 rows, so it proves nothing');
+  let findings;
+  assert.doesNotThrow(() => { findings = runChecks(corpus, { only: ['citations'] }); }, 'the verdict died with a RangeError');
+  assert.ok(findings.length >= 130_000, `only ${findings.length} findings: below the largest engine limit measured, so a spread might not have thrown`);
 });
