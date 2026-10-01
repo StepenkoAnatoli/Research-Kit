@@ -267,6 +267,15 @@ test('through the child, a page that navigates inward by script lands on the ref
     assert.match(jumped.stdout, new RegExp(REFUSAL_MARKER), 'the navigation inward reached the page');
     assert.doesNotMatch(jumped.stdout, /SECRET-TOKEN/);
     assert.deepEqual(jumped.refused.map((r) => r.host), [`127.0.0.1:${pages.innerPort}`]);
+    // The child reports the guard's whole record, as a timeline from the launch: what was
+    // asked, when, how long it took, and how it ended (2026-10-01: a Windows run stalled 28 s
+    // with nothing pending at the guard, so where the time went is the next question).
+    assert.deepEqual(jumped.seen.map((e) => [e.kind, e.target, e.outcome]), [
+      ['http', `${pages.outer}/jump`, '200'],
+      ['http', `${pages.inner}/secret`, 'refused'],
+    ], JSON.stringify(jumped.seen));
+    for (const e of jumped.seen) { assert.ok(e.startedMs >= 0 && e.ms >= 0, JSON.stringify(e)); }
+    assert.ok(jumped.elapsedMs > 0 && jumped.seen[0].startedMs <= jumped.elapsedMs);
 
     // The same, as the transport reports it: the render goes through the real child process.
     const refused = browser.scrape(`${pages.outer}/jump`, { render, browserPath: process.execPath, env: {}, allowInternalRedirects: false, timeout: 20_000 });
@@ -287,16 +296,20 @@ test('LIVE: a real Chromium cannot be led into this machine\'s network by a scri
   // Nothing inherited from the machine running the suite: a configured proxy would become the guard's upstream.
   const env = { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? '', HOME: process.env.HOME ?? '', USERPROFILE: process.env.USERPROFILE ?? '' };
   try {
-    // A render that ran long is said on stderr, with what the guard saw still unanswered:
-    // that line in a CI log is the diagnosis of a stall nobody can reproduce elsewhere.
-    const timed = (route, run) => { const t0 = Date.now(); const r = run(); const ms = Date.now() - t0; if (ms > 20_000) process.stderr.write(`browser-guard LIVE ${route} took ${ms} ms: ${r.error ?? r.omitted ?? 'no note'}\n`); return r; };
+    // A render that ran long is said on stderr, with the guard's whole timeline - what was
+    // asked, when, how long, how it ended - and what the transport made of it: that line in a
+    // CI log is the diagnosis of a stall nobody can reproduce elsewhere.
+    let last;
+    const render = (b, a, o) => { last = renderGuarded(b, a, o); return last; };
+    const timeline = () => (last?.seen ?? []).map((e) => `${e.startedMs}ms ${e.kind} ${e.target} -> ${e.outcome ?? 'open'} (${e.ms}ms)`).join('; ');
+    const timed = (route, run) => { const t0 = Date.now(); const r = run(); const ms = Date.now() - t0; if (ms > 20_000) process.stderr.write(`browser-guard LIVE ${route} took ${ms} ms (browser ${last?.elapsedMs ?? '?'} ms): ${r.error ?? r.omitted ?? 'no note'} | timeline: ${timeline()}\n`); return r; };
     for (const route of ['/jump', '/meta']) {
-      const r = timed(route, () => browser.scrape(`${pages.outer}${route}`, { browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 }));
+      const r = timed(route, () => browser.scrape(`${pages.outer}${route}`, { render, browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 }));
       assert.equal(r.ok, false, `${route}: the browser reached the page it was sent to: ${JSON.stringify(r).slice(0, 300)}`);
       assert.match(r.error, new RegExp(`127\\.0\\.0\\.1:${pages.innerPort} - 127\\.0\\.0\\.1 is an internal address`), `${route}: ${r.error}`);
       assert.doesNotMatch(JSON.stringify(r), /SECRET-TOKEN/, `${route}: the internal page reached the result`);
     }
-    const plain = timed('/plain', () => browser.scrape(`${pages.outer}/plain`, { browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 }));
+    const plain = timed('/plain', () => browser.scrape(`${pages.outer}/plain`, { render, browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 }));
     assert.equal(plain.ok, true, `the control page failed: ${plain.error}`);
     assert.equal(plain.title, 'Plain');
     assert.match(plain.markdown, /rendered through the guard/);

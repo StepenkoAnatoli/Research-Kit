@@ -209,6 +209,8 @@ export async function renderThroughGuard({ binary, args, url, timeout = 60_000, 
           status, signal, stdout: Buffer.concat(out).toString('utf8'), stderr: errLines.join('\n'),
           errorCode: timedOut ? 'ETIMEDOUT' : null, errorMessage: timedOut ? `the browser did not finish within ${timeout}ms` : null,
           refused: guard.refused, truncated, requests: guard.seen.length, pending: guard.pending(), elapsedMs: Date.now() - started,
+          // The whole record as a timeline from the launch: where a slow render's time went.
+          seen: guard.seen.map((e) => ({ kind: e.kind, target: e.target, outcome: e.outcome, startedMs: Math.max(0, e.started - started), ms: (e.ended ?? Date.now()) - e.started })),
         });
       };
       child.stdout.on('data', (chunk) => {
