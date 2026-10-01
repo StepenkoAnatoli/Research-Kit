@@ -630,6 +630,30 @@ test('tolerateClosedStdout drops writes after EPIPE and lets other errors throug
   );
 });
 
+// Found 2026-10-01 (break-test, PR #186): the write that replaced stdout's after EPIPE
+// returned true and did nothing else - so a write given a callback never heard back. Every
+// command ends through `exitAfterFlush`, which waits on exactly such a callback: the suite
+// finished green, then sat on an unsettled top-level await, and Node exited 13 over it. A
+// dropped write still answers its callback, a tick later, as a real one would.
+test('a write dropped after EPIPE still calls its callback, so a flush can settle', async () => {
+  const { EventEmitter } = await import('node:events');
+  const stream = new EventEmitter();
+  stream.write = () => true;
+  tolerateClosedStdout(stream);
+  stream.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }));
+  const answered = await Promise.race([
+    new Promise((done) => { stream.write('', () => done('callback')); }),
+    new Promise((done) => setTimeout(() => done('nothing'), 200)),
+  ]);
+  assert.equal(answered, 'callback', 'the callback of a dropped write never ran');
+  // The two-argument form as well: write(chunk, encoding, callback).
+  const encoded = await Promise.race([
+    new Promise((done) => { stream.write('x', 'utf8', () => done('callback')); }),
+    new Promise((done) => setTimeout(() => done('nothing'), 200)),
+  ]);
+  assert.equal(encoded, 'callback');
+});
+
 // Found 2026-09-29 (break-test): the same handler threw on a stdout the ENVIRONMENT
 // refused - `selftest.mjs > /dev/full`, a full disk, a quota - so an uncaught exception
 // arrived in the middle of the report and the run exited 1. Exit 1 is "the suite is red",

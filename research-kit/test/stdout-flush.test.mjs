@@ -144,6 +144,30 @@ process.stdout.write('UNREACHABLE\\n');
   return file;
 }
 
+// Found 2026-10-01 (break-test, PR #186): `selftest.mjs | head -n 1`. The reader left, the
+// guard tolerated the EPIPE and dropped every later write - including the empty one
+// `exitAfterFlush` makes to learn that stdout has drained, whose callback it waits for. The
+// callback never came: a green run ended in "Detected unsettled top-level await", exit 13,
+// after its result file had recorded exit 0. The EPIPE is raised on the real process.stdout
+// here, as the kernel would, so the test runs the same on every platform.
+test('a command whose reader left still ends through exitAfterFlush with the code it was given', () => {
+  const file = path.join(tempDir('rk-flush-epipe-'), 'report.mjs');
+  fs.writeFileSync(file, `import { tolerateClosedStdout, exitAfterFlush } from ${JSON.stringify(pathToFileURL(path.join(KIT_ROOT, 'lib', 'core.mjs')).href)};
+tolerateClosedStdout();
+process.stdout.write('the report\\n');
+process.stdout.emit('error', Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }));
+process.stdout.write('dropped\\n');
+await exitAfterFlush(Number(process.argv[2]));
+process.stderr.write('UNREACHABLE\\n');
+`);
+  for (const code of [0, 3]) {
+    const result = spawnSync(process.execPath, [file, String(code)], { cwd: tempDir('rk-flush-epipe-cwd-'), encoding: 'utf8', timeout: 10_000, windowsHide: true });
+    assert.ifError(result.error);
+    assert.equal(result.status, code, `exit ${result.status}, not ${code}:\n${result.stderr.slice(0, 400)}`);
+    assert.doesNotMatch(result.stderr, /unsettled top-level await|UNREACHABLE/, result.stderr.slice(0, 400));
+  }
+});
+
 test('exitAfterFlush delivers every line to a slow reader, then exits with the code it was given', async () => {
   const file = fixture();
   const results = await Promise.all([0, 1, 3].map((code) => throughSlowPipe([file, String(code)], tempDir('rk-flush-cwd-'))));
