@@ -7,6 +7,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- `skillRoots` is checked as a list of paths, not only as an array. A number or a null left in
+  a hand-edited machine config reached `path.join` and killed `doctor` with a raw
+  `ERR_INVALID_ARG_TYPE` stack - the one command whose job is to name every problem and print
+  its fix. An entry that is not a path is dropped, and with nothing left the documented defaults
+  are in charge (break-test 2026-10-01, PR #193, redone on main).
 - `fetchFailure` cuts a URL to its host in the failure's own message, not only in its cause.
   Node throws some refusals with no cause and the whole URL in the message - a URL carrying
   credentials, one that will not parse - so a signed URL in a plan was printed to the terminal

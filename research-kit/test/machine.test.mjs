@@ -140,6 +140,36 @@ test('the anchors are DEFAULTS the machine config overrides', () => {
   assert.deepEqual(skillLocations(env), [path.join('/custom/skills', 'research-first')]);
 });
 
+// Found 2026-10-01 (break-test): every other key this file shapes is type-checked, and
+// `skillRoots` was checked as an ARRAY but never as a list of paths. `{"skillRoots": [42]}`
+// - or a null left behind in a hand-edited list - reached `path.join` and killed `doctor`
+// with a raw ERR_INVALID_ARG_TYPE stack trace and Node's version footer: exit 1, nothing
+// named, and the one command whose whole job is to name every problem and print its fix was
+// the casualty. The front README is where an operator is told to hand-edit this file.
+test('a skillRoots entry that is not a path is dropped, and doctor still answers', () => {
+  assert.deepEqual(loadConfig(envWith(JSON.stringify({ skillRoots: [42] })).env).skillRoots, [],
+    'a number is not a path, and it is not passed to path.join either');
+  assert.deepEqual(
+    loadConfig(envWith(JSON.stringify({ skillRoots: ['/ok', null, { root: '/x' }, '', '  ', '/also'] })).env).skillRoots,
+    ['/ok', '/also'], 'the paths in the list survive; whatever is not one goes');
+
+  // With nothing left, the documented defaults are in charge rather than a crash.
+  const hostile = envWith(JSON.stringify({ skillRoots: [42] }));
+  assert.deepEqual(skillLocations(hostile.env),
+    RUNTIME_ANCHORS.skillRoots.map((root) => path.join(root, 'research-first')),
+    'a config that names no usable root falls back to the anchors');
+
+  // And the command the operator is told to run answers, in the shape it promises, with no
+  // stack trace on either stream.
+  const run = spawnSync(process.execPath, [path.join(KIT_ROOT, 'bin', 'doctor.mjs'), '--json'], {
+    cwd: tempDir('rk-doctor-hostile-'), encoding: 'utf8', timeout: 60_000, windowsHide: true,
+    env: { ...process.env, RESEARCH_KIT_CONFIG: hostile.file },
+  });
+  assert.doesNotMatch(`${run.stdout}${run.stderr}`, /ERR_INVALID_ARG_TYPE|at file:\/\//,
+    `doctor died on a config typo instead of naming it: ${String(run.stderr).slice(0, 300)}`);
+  assert.equal(typeof JSON.parse(String(run.stdout)).kitVersion, 'string', 'doctor did not report');
+});
+
 test('an unset role defaults to collector; a declared one is taken; ROLES stays the two', () => {
   assert.equal(machineRole(envWith(null).env), 'collector');
   assert.equal(machineRole(envWith(JSON.stringify({ role: 'builder' })).env), 'builder');
