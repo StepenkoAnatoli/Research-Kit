@@ -93,6 +93,15 @@ decide_without_gate() {
 command -v node >/dev/null 2>&1 || decide_without_gate "node is not on PATH"
 [ -f "$KIT_HOME/bin/gate.mjs" ] || decide_without_gate "the kit is not deployed at $KIT_HOME"
 
+# In the kit's OWN checkout a commit touching research-kit/ runs the suite before it is allowed
+# (the suite rule, ADR-0120), and the suite takes minutes, not seconds: the default watchdog
+# would kill it and report an internal error on every such commit. So the checkout is
+# recognised here, by the same markers lib/gate.mjs uses, and the watchdog widened - unless the
+# operator set one, which is theirs to set.
+if [ -z "${RESEARCH_KIT_GATE_TIMEOUT:-}" ] && [ -f research-kit/bin/selftest.mjs ] && [ -d research-kit/test ] && [ -f research-kit/lib/core.mjs ]; then
+  GATE_TIMEOUT=1500
+fi
+
 # --- the watchdog -----------------------------------------------------------------
 
 WATCHDOG=""

@@ -7,7 +7,7 @@
 
 import fs from 'node:fs';
 import { parseFlags, flagList, refuseUnknownFlags, checkFlagValues } from '../lib/core.mjs';
-import { evaluate, splitPathList, stdinIsReadable, isGated } from '../lib/gate.mjs';
+import { evaluate, splitPathList, stdinIsReadable, isGated, SUITE_RULE } from '../lib/gate.mjs';
 import { posture } from '../lib/machine.mjs';
 import { recordDiagnostic } from '../lib/timeline.mjs';
 
@@ -75,7 +75,10 @@ if (flags['staged-stdin']) {
 
 let verdict;
 try {
-  verdict = evaluate(root, { gate, stagedPaths });
+  // Minutes of silence from a commit hook read as git being broken (the hook says the same of
+  // its watchdog), so the suite rule says the suite is running, as it starts it (ADR-0120).
+  verdict = evaluate(root, { gate, stagedPaths, announceSuite: () => process.stderr.write(
+    'research gate: the rest of the gate passes; this is the kit\'s own checkout and the commit touches research-kit/, so the suite runs before the commit is allowed (ADR-0120) ...\n') });
 } catch (err) {
   process.stderr.write(`gate: internal error - ${err.message}\n`);
   process.exit(2);
@@ -112,10 +115,12 @@ research gate: BLOCKED - ${verdict.reason}
 for (const finding of verdict.findings.slice(0, 10)) {
   process.stderr.write(`  ${finding.severity}  ${finding.check}/${finding.rule}  ${finding.detail}\n`);
 }
-// A map-rule block happens only when the gate PASSES, so the phase-1 line would be false there.
-const why = verdict.breach
-  ? 'The research gate passes. This is the architecture-map rule: a commit touching a declared\ncode path (research/kit.json) stages docs/ARCHITECTURE.md with it. Overrides, all recorded:'
-  : 'Phase 1 is not done until preflight prints PASS. Overrides, all recorded:';
+// A rule block happens only when the gate PASSES, so the phase-1 line would be false there.
+const why = verdict.breach?.rule === SUITE_RULE
+  ? 'The research gate passes. This is the suite rule: in the kit\'s own checkout, a commit\ntouching research-kit/ needs a green suite (ADR-0120). Overrides, all recorded:'
+  : verdict.breach
+    ? 'The research gate passes. This is the architecture-map rule: a commit touching a declared\ncode path (research/kit.json) stages docs/ARCHITECTURE.md with it. Overrides, all recorded:'
+    : 'Phase 1 is not done until preflight prints PASS. Overrides, all recorded:';
 process.stderr.write(`
 Fix: ${verdict.fix}
 
