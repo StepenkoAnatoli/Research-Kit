@@ -29,6 +29,13 @@ GitHub Actions (`collect-remote`, with `--run-id` to pick a run up again).
 - the browser transport checks a URL's redirects before Chromium starts (ADR-0115);
 - writes retry a rename Windows holds for a moment.
 
+**Found by a cold end-to-end trial.** A fresh agent with only the docs took a real question to
+PASS and a brief. On the way:
+- a Firecrawl CLI with no key now fetches while the keyless route searches for it, because
+  Firecrawl stopped answering keyless searches;
+- quotation marks around a `[quote: ...]` passage no longer make it fail;
+- the walkthrough gained the step where findings are rewritten.
+
 **Supported.** Linux and Windows, Node 22, 24 and 26, all tested on every commit. macOS is
 best-effort with no CI leg (ADR-0101).
 
