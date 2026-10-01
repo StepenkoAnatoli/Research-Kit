@@ -5,7 +5,8 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## 0.9.0 — 2026-10-01
 
-The first tagged release.
+The first tagged release. Research-Kit is feature-frozen from here: changes are bug fixes,
+until a new ADR lifts the freeze for a named item (ADR-0117).
 
 **What it is.** A zero-dependency Node toolkit that makes research a blocking phase before
 an agent builds anything:

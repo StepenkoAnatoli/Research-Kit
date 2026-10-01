@@ -260,6 +260,14 @@ that file is the phase-1 deliverable and the only thing phase 2 is required to r
 
 The Firecrawl key lives in the CLI config or your environment. Never write it into this repository, and never run `firecrawl env` inside a repo - it writes a key into `.env`.
 
+## Feature freeze (from 0.9.0)
+
+The kit is feature-frozen (ADR-0117). Bring it bug fixes, gaps an ADR already deferred whose
+trigger has fired, documentation, tests, and updates for a vendor, Node or git release. A new
+command, flag, transport, provider, configuration key, file format or check is not added unless
+an ADR lifts the freeze for that one item. When a change could be read either way, it is a
+feature.
+
 ## The standing protocol
 
 Five rules for how work in this project is committed and recorded. They bind
