@@ -364,6 +364,28 @@ test('makeSlug honours an explicit limit and keeps its old default', () => {
   assert.equal(makeSlug('!!!', 'fallback'), 'fallback', 'a slug of pure punctuation must fall back');
 });
 
+// Found 2026-10-01 (break-test PR #188, latent): makeSlug is documented as a filename-safe
+// slug, and returned `con`, `aux`, `lpt1` - names Windows reserves for devices whatever
+// follows them, so a file by that base name cannot be created there. No caller hands a bare
+// slug to the filesystem today (every audit name composes one with other parts), so nothing
+// that exists changes; the contract is closed where it is stated. A reserved name gets a
+// prefix inside the slug's own alphabet, on the slug path and the fallback path alike, and
+// a cut that lands on one (`console` at limit 3) is caught after the cut.
+test('makeSlug never returns a name Windows reserves, on either path or after a cut', () => {
+  const reserved = ['con', 'prn', 'aux', 'nul', ...[...Array(10).keys()].flatMap((n) => [`com${n}`, `lpt${n}`])];
+  for (const name of reserved) {
+    for (const got of [makeSlug(name), makeSlug(name.toUpperCase()), makeSlug('', name), makeSlug('', name.toUpperCase())]) {
+      assert.notEqual(got.toLowerCase(), name, `${name} came back as a bare reserved name: ${got}`);
+      assert.match(got, /^[a-z0-9-]+$/i, `the escape left the slug alphabet: ${got}`);
+      assert.ok(got.length <= 60, `the escape broke the limit: ${got}`);
+    }
+  }
+  assert.equal(makeSlug('con'), 'name-con');
+  assert.equal(makeSlug('', 'AUX'), 'name-AUX', 'the fallback keeps its case, and still gets the prefix');
+  assert.equal(makeSlug('Console', 'topic', 3), 'nam', 'a cut that lands on a reserved name is escaped after the cut, inside the limit');
+  assert.equal(makeSlug('con-text'), 'con-text', 'a name that merely starts with one is not reserved');
+  assert.equal(makeSlug('com'), 'com', 'com without a digit is not reserved');
+});
 // Found 2026-09-29 (Arena break test, latent): the fallback came back whole, past the limit the
 // caller asked for - a length contract the slug path kept and the fallback path did not.
 test('makeSlug keeps its limit when it falls back', () => {
