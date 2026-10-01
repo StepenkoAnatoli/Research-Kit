@@ -25,6 +25,8 @@ import { proxyVariable, MAX_PAGE_BYTES } from './runtime.mjs';
 /** The body of a refused request: what Chromium renders in place of the page it was sent to. */
 export const REFUSAL_MARKER = 'research-kit-guard-refused';
 const STDERR_LINES = 60;
+/** The first lines of the browser's stderr are kept too: a slow start shows there, not in the tail. */
+const STDERR_HEAD_LINES = 30;
 
 const normalizeHost = (host) => String(host ?? '').replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
 
@@ -80,7 +82,7 @@ export async function judge(host, port, { allowInternal = false, exempt = new Se
  * Start the guard on a loopback port. Returns `{ port, refused, close }`; `refused` grows with
  * every request turned away, as `{ host, why }`.
  */
-export async function startGuard({ allowInternal = false, exempt = [], upstream = null, lookup = dns.lookup } = {}) {
+export async function startGuard({ allowInternal = false, exempt = [], upstream = null, lookup = dns.lookup, onFirstRequest = null } = {}) {
   const up = parseUpstream(upstream);
   const skip = new Set(exempt.map((entry) => { const at = splitHostPort(entry); return at ? `${normalizeHost(at.host)}:${at.port}` : normalizeHost(entry); }));
   const refused = [];
@@ -95,7 +97,7 @@ export async function startGuard({ allowInternal = false, exempt = [], upstream 
   // browser was waiting for (found 2026-10-01: three Windows CI runs in a row ran to the
   // deadline, and nothing said on what).
   const seen = [];
-  const note = (kind, target) => { const entry = { kind, target, started: Date.now(), ended: null, outcome: null }; seen.push(entry); return entry; };
+  const note = (kind, target) => { const entry = { kind, target, started: Date.now(), ended: null, outcome: null }; seen.push(entry); if (seen.length === 1 && onFirstRequest) onFirstRequest(entry); return entry; };
   const done = (entry, outcome) => { if (entry.ended === null) { entry.ended = Date.now(); entry.outcome = outcome; } };
   const pending = () => seen.filter((e) => e.ended === null).map((e) => ({ kind: e.kind, target: e.target, ms: Date.now() - e.started }));
 
@@ -176,7 +178,13 @@ export function guardFlags(port) {
  */
 export async function renderThroughGuard({ binary, args, url, timeout = 60_000, allowInternal = false, upstream = null, lookup = dns.lookup } = {}) {
   const asked = new URL(url);
-  const guard = await startGuard({ allowInternal, exempt: [`${asked.hostname.replace(/^\[|\]$/g, '').includes(':') ? `[${asked.hostname.replace(/^\[|\]$/g, '')}]` : asked.hostname}:${asked.port || (asked.protocol === 'https:' ? 443 : 80)}`], upstream, lookup });
+  // The render timeout starts at the browser's first request through the guard; the launch
+  // is allowed as long again, and no more (ADR-0119): on the CI runners Chromium's process
+  // startup took 4 to 43 s before its first request, out of the render budget, and the page
+  // was killed before it had been asked for.
+  const clock = { timer: null, started: 0, firstRequestAt: null, timedOut: false, kill: () => {} };
+  const arm = () => { clearTimeout(clock.timer); clock.timer = setTimeout(() => { clock.timedOut = true; clock.kill(); }, timeout); };
+  const guard = await startGuard({ allowInternal, exempt: [`${asked.hostname.replace(/^\[|\]$/g, '').includes(':') ? `[${asked.hostname.replace(/^\[|\]$/g, '')}]` : asked.hostname}:${asked.port || (asked.protocol === 'https:' ? 443 : 80)}`], upstream, lookup , onFirstRequest: () => { if (clock.firstRequestAt !== null) return; clock.firstRequestAt = Date.now(); arm(); } });
   try {
     const argv = [...args.slice(0, -2), ...guardFlags(guard.port), ...args.slice(-2)];
     return await new Promise((resolve) => {
@@ -193,22 +201,30 @@ export async function renderThroughGuard({ binary, args, url, timeout = 60_000, 
       const out = [];
       let size = 0;
       let truncated = false;
+      const errHead = [];
       const errLines = [];
-      let timedOut = false;
+      let errDropped = 0;
       let settled = false;
+      const stderrKept = () => [...errHead, ...(errDropped ? [`... ${errDropped} lines omitted ...`] : []), ...errLines].join('\n');
       const kill = () => {
         try { if (detached) process.kill(-child.pid, 'SIGKILL'); else child.kill(); } catch { /* already gone */ }
       };
-      const timer = setTimeout(() => { timedOut = true; kill(); }, timeout);
+      clock.kill = kill;
+      arm();
       const started = Date.now();
+      clock.started = started;
       const settle = (status, signal) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        clearTimeout(clock.timer);
+        const timedOut = clock.timedOut;
         resolve({
-          status, signal, stdout: Buffer.concat(out).toString('utf8'), stderr: errLines.join('\n'),
+          status, signal, stdout: Buffer.concat(out).toString('utf8'), stderr: stderrKept(),
           errorCode: timedOut ? 'ETIMEDOUT' : null, errorMessage: timedOut ? `the browser did not finish within ${timeout}ms` : null,
-          refused: guard.refused, truncated, requests: guard.seen.length, pending: guard.pending(), elapsedMs: Date.now() - started,
+          refused: guard.refused, truncated, requests: guard.seen.length, pending: guard.pending(), elapsedMs: Date.now() - started, startedAt: new Date(started).toISOString(),
+          startupMs: clock.firstRequestAt === null ? null : clock.firstRequestAt - started,
+          // The whole record as a timeline from the launch: where a slow render's time went.
+          seen: guard.seen.map((e) => ({ kind: e.kind, target: e.target, outcome: e.outcome, startedMs: Math.max(0, e.started - started), ms: (e.ended ?? Date.now()) - e.started })),
         });
       };
       child.stdout.on('data', (chunk) => {
@@ -218,14 +234,18 @@ export async function renderThroughGuard({ binary, args, url, timeout = 60_000, 
         out.push(chunk);
       });
       child.stderr.on('data', (chunk) => {
-        for (const line of String(chunk).split('\n')) { if (line) errLines.push(line); }
-        if (errLines.length > STDERR_LINES) errLines.splice(0, errLines.length - STDERR_LINES);
+        for (const line of String(chunk).split('\n')) {
+          if (!line) continue;
+          if (errHead.length < STDERR_HEAD_LINES) { errHead.push(line); continue; }
+          errLines.push(line);
+        }
+        if (errLines.length > STDERR_LINES) { errDropped += errLines.length - STDERR_LINES; errLines.splice(0, errLines.length - STDERR_LINES); }
       });
       child.on('error', (err) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
-        resolve({ status: null, signal: null, stdout: '', stderr: errLines.join('\n'), errorCode: err.code ?? 'SPAWN', errorMessage: err.message, refused: guard.refused, truncated });
+        clearTimeout(clock.timer);
+        resolve({ status: null, signal: null, stdout: '', stderr: stderrKept(), errorCode: err.code ?? 'SPAWN', errorMessage: err.message, refused: guard.refused, truncated });
       });
       // 'close' follows 'exit' once the pipes drain; a helper that outlived the browser would
       // hold them open, so the exit is reported after a short grace either way.

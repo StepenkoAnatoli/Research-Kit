@@ -199,6 +199,65 @@ test('the guard records every request it carried, and reports the ones still una
   } finally { await guard.close(); await pages.close(); await new Promise((r) => { silent.closeAllConnections?.(); silent.close(r); }); }
 });
 
+// Found 2026-10-01 on CI (Windows): a hung launch's log tail showed profile creation 43 s
+// after the launch and normal progress after it, so the wait was in the first 43 s - which
+// the tail, the last 60 lines, could not show. The child keeps the HEAD of the browser's
+// stderr as well as the tail, and stamps the launch, so the first lines and the first gap
+// are readable against the browser's own timestamps.
+test('the child keeps the head and the tail of the browser\'s stderr, and stamps the launch', async () => {
+  const noisy = path.join(tempDir('rk-noisy-browser-'), 'browser.mjs');
+  fs.writeFileSync(noisy, `
+for (let i = 1; i <= 300; i += 1) process.stderr.write('line ' + i + '\\n');
+process.stdout.write('<html><body>done</body></html>');
+`);
+  const before = Date.now();
+  const r = await renderThroughGuard({ binary: process.execPath, args: [noisy, '--dump-dom', 'http://127.0.0.1:9/none'], url: 'http://127.0.0.1:9/none', allowInternal: true, timeout: 10_000 });
+  const lines = r.stderr.split('\n');
+  assert.equal(lines[0], 'line 1', 'the head is gone');
+  assert.equal(lines[lines.length - 1], 'line 300', 'the tail is gone');
+  assert.ok(lines.includes('line 30') && !lines.includes('line 31'), 'the head keeps 30 lines');
+  assert.ok(lines.includes('line 241') && !lines.includes('line 240'), 'the tail keeps 60 lines');
+  assert.ok(lines.some((l) => /210 lines omitted/.test(l)), `the omission is said: ${lines.slice(28, 33).join(' | ')}`);
+  assert.ok(typeof r.startedAt === 'string' && Date.parse(r.startedAt) >= before - 5 && Date.parse(r.startedAt) <= Date.now(), `startedAt: ${r.startedAt}`);
+});
+
+// Found 2026-10-01 on CI: Chromium's process startup on the runners takes anything from 4 s
+// to 43 s before the browser makes its first request - the Windows legs, and once an Ubuntu
+// one - and that time came out of the render timeout, so the page was killed before it
+// could be asked for. The render timeout now starts at the browser's first request through
+// the guard; the launch is allowed as long again, and no more (ADR-0119).
+test('the render timeout starts at the browser\'s first request, and the launch is allowed as long again', async () => {
+  const pages = await site({ '/slow': () => '<html><body>slow but whole</body></html>' });
+  // The page answers after 1 s; the browser takes 1.2 s to start. Together past a 2 s timeout, apart inside it.
+  const slowSite = http.createServer((req, res) => setTimeout(() => { res.writeHead(200, { 'content-type': 'text/html' }); res.end('<html><body>slow but whole</body></html>'); }, 1000));
+  await new Promise((resolve) => slowSite.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${slowSite.address().port}/slow`;
+  const sleepy = path.join(tempDir('rk-sleepy-browser-'), 'browser.mjs');
+  fs.writeFileSync(sleepy, `
+import http from 'node:http';
+const args = process.argv.slice(2);
+const proxy = Number(args.find((a) => a.startsWith('--proxy-server=')).split(':').pop());
+await new Promise((r) => setTimeout(r, 1200));
+const url = args.at(-1);
+http.request({ host: '127.0.0.1', port: proxy, path: url, headers: { host: new URL(url).host } }, (res) => { let b = ''; res.on('data', (d) => { b += d; }); res.on('end', () => { process.stdout.write(b); }); }).end();
+`);
+  try {
+    const r = await renderThroughGuard({ binary: process.execPath, args: [sleepy, '--dump-dom', url], url, allowInternal: true, timeout: 2_000 });
+    assert.equal(r.errorCode, null, `the launch ate the render budget: ${r.errorMessage}`);
+    assert.match(r.stdout, /slow but whole/);
+    assert.ok(r.startupMs >= 1100 && r.startupMs < 2000, `startupMs ${r.startupMs}`);
+    assert.ok(r.elapsedMs > 2000, `elapsed ${r.elapsedMs}: the page cannot have arrived inside 2 s`);
+    // A browser that never makes a request has only its launch allowance - one timeout - then the kill.
+    const mute = path.join(tempDir('rk-mute-browser-'), 'browser.mjs');
+    fs.writeFileSync(mute, 'await new Promise((r) => setTimeout(r, 60_000));');
+    const t0 = Date.now();
+    const m = await renderThroughGuard({ binary: process.execPath, args: [mute, '--dump-dom', url], url, allowInternal: true, timeout: 700 });
+    assert.equal(m.errorCode, 'ETIMEDOUT');
+    assert.ok(Date.now() - t0 >= 650 && Date.now() - t0 < 3000, `a mute browser is killed at one timeout, took ${Date.now() - t0} ms`);
+    assert.equal(m.startupMs, null, 'no first request, no startup time');
+  } finally { await pages.close(); await new Promise((r) => { slowSite.closeAllConnections?.(); slowSite.close(r); }); }
+});
+
 /**
  * Two page servers in a process of their own: the transport blocks this one in spawnSync while
  * the guard child renders, so a server here would never answer. `inner` holds the page a page
@@ -267,6 +326,15 @@ test('through the child, a page that navigates inward by script lands on the ref
     assert.match(jumped.stdout, new RegExp(REFUSAL_MARKER), 'the navigation inward reached the page');
     assert.doesNotMatch(jumped.stdout, /SECRET-TOKEN/);
     assert.deepEqual(jumped.refused.map((r) => r.host), [`127.0.0.1:${pages.innerPort}`]);
+    // The child reports the guard's whole record, as a timeline from the launch: what was
+    // asked, when, how long it took, and how it ended (2026-10-01: a Windows run stalled 28 s
+    // with nothing pending at the guard, so where the time went is the next question).
+    assert.deepEqual(jumped.seen.map((e) => [e.kind, e.target, e.outcome]), [
+      ['http', `${pages.outer}/jump`, '200'],
+      ['http', `${pages.inner}/secret`, 'refused'],
+    ], JSON.stringify(jumped.seen));
+    for (const e of jumped.seen) { assert.ok(e.startedMs >= 0 && e.ms >= 0, JSON.stringify(e)); }
+    assert.ok(jumped.elapsedMs > 0 && jumped.seen[0].startedMs <= jumped.elapsedMs);
 
     // The same, as the transport reports it: the render goes through the real child process.
     const refused = browser.scrape(`${pages.outer}/jump`, { render, browserPath: process.execPath, env: {}, allowInternalRedirects: false, timeout: 20_000 });
@@ -287,16 +355,27 @@ test('LIVE: a real Chromium cannot be led into this machine\'s network by a scri
   // Nothing inherited from the machine running the suite: a configured proxy would become the guard's upstream.
   const env = { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? '', HOME: process.env.HOME ?? '', USERPROFILE: process.env.USERPROFILE ?? '' };
   try {
-    // A render that ran long is said on stderr, with what the guard saw still unanswered:
-    // that line in a CI log is the diagnosis of a stall nobody can reproduce elsewhere.
-    const timed = (route, run) => { const t0 = Date.now(); const r = run(); const ms = Date.now() - t0; if (ms > 20_000) process.stderr.write(`browser-guard LIVE ${route} took ${ms} ms: ${r.error ?? r.omitted ?? 'no note'}\n`); return r; };
+    // A render that ran long is said on stderr, with the guard's whole timeline - what was
+    // asked, when, how long, how it ended - and what the transport made of it: that line in a
+    // CI log is the diagnosis of a stall nobody can reproduce elsewhere.
+    // Chromium's own log, at INFO, rides the launch (2026-10-01: an Ubuntu CI run sat the whole
+    // 45 s with the timeline EMPTY - no request ever reached the guard, and Chromium's deadline
+    // never fired - so the wait is in startup, before any navigation, and only Chromium's log
+    // says where). It is printed only for a render over 20 s, as the last lines before the end.
+    let last;
+    const render = (b, a, o) => { const args = [...a]; args.splice(-2, 0, '--enable-logging=stderr', '--v=1'); last = renderGuarded(b, args, o); return last; };
+    const timeline = () => (last?.seen ?? []).map((e) => `${e.startedMs}ms ${e.kind} ${e.target} -> ${e.outcome ?? 'open'} (${e.ms}ms)`).join('; ');
+    // Chromium prints its histograms at a normal exit; a killed one never gets there, so the
+    // tail of a hang is its last live lines, and the histogram lines are dropped either way.
+    const kept = () => String(last?.stderr ?? '').split('\n').filter((l) => l && !/^Histogram: |^\d+\s+[-.O ]+\(|^\d+\s+\.\.\. $/.test(l)).join('\n    ');
+    const timed = (route, run) => { const t0 = Date.now(); const r = run(); const ms = Date.now() - t0; if (ms > 20_000) process.stderr.write(`browser-guard LIVE ${route} took ${ms} ms (browser ${last?.elapsedMs ?? '?'} ms, launched ${last?.startedAt ?? '?'}): ${r.error ?? r.omitted ?? 'no note'} | timeline: ${timeline()}\n  chromium log (head and tail):\n    ${kept()}\n`); return r; };
     for (const route of ['/jump', '/meta']) {
-      const r = timed(route, () => browser.scrape(`${pages.outer}${route}`, { browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 }));
+      const r = timed(route, () => browser.scrape(`${pages.outer}${route}`, { render, browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 }));
       assert.equal(r.ok, false, `${route}: the browser reached the page it was sent to: ${JSON.stringify(r).slice(0, 300)}`);
       assert.match(r.error, new RegExp(`127\\.0\\.0\\.1:${pages.innerPort} - 127\\.0\\.0\\.1 is an internal address`), `${route}: ${r.error}`);
       assert.doesNotMatch(JSON.stringify(r), /SECRET-TOKEN/, `${route}: the internal page reached the result`);
     }
-    const plain = timed('/plain', () => browser.scrape(`${pages.outer}/plain`, { browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 }));
+    const plain = timed('/plain', () => browser.scrape(`${pages.outer}/plain`, { render, browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 }));
     assert.equal(plain.ok, true, `the control page failed: ${plain.error}`);
     assert.equal(plain.title, 'Plain');
     assert.match(plain.markdown, /rendered through the guard/);
