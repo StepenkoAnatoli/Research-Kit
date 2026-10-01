@@ -7,6 +7,44 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- `research.mjs` names the refusals the kit wrote instead of re-throwing them. A torn ledger
+  tail - what an interrupted collection leaves behind - printed its own remedy under a source
+  line, a caret, six frames and Node's version footer, and a damaged chain dumped its internal
+  `problems` array as an object literal; both exited 1, which this kit reserves for FAIL,
+  checked and wrong. `NAMED_RUN_REFUSALS` in `core.mjs` is the four codes (LEDGER_DAMAGED,
+  LEDGER_TORN_TAIL, LOCK_HELD, LOCK_STUCK), answered with their message and exit 2, as
+  `prior.mjs` and `doctor --fix-arity` already answered them (break-test 2026-10-01, PR #193,
+  redone on main).
+- A lock the kit judges stale and cannot remove is a named refusal (`LOCK_STUCK`), not a
+  livelock. The failed removal fell through to `continue`, which skipped both the deadline and
+  the sleep, so a read-only `research/raw` holding a dead pid's lock - or a `.fetches.lock`
+  that is a directory - spun at 100% of a core forever, printing nothing and unreachable even by
+  `--report-on-signal`, because a synchronous loop never returns to the event loop. The held
+  case is coded `LOCK_HELD` too (break-test 2026-10-01, PR #193, redone on main).
+- `skillRoots` is checked as a list of paths, not only as an array. A number or a null left in
+  a hand-edited machine config reached `path.join` and killed `doctor` with a raw
+  `ERR_INVALID_ARG_TYPE` stack - the one command whose job is to name every problem and print
+  its fix. An entry that is not a path is dropped, and with nothing left the documented defaults
+  are in charge (break-test 2026-10-01, PR #193, redone on main).
+- `fetchFailure` cuts a URL to its host in the failure's own message, not only in its cause.
+  Node throws some refusals with no cause and the whole URL in the message - a URL carrying
+  credentials, one that will not parse - so a signed URL in a plan was printed to the terminal
+  and written into `research/raw/.fetches.jsonl` as that entry's error: the file that must
+  travel, in the one directory `doctor`'s secret scan excludes (break-test 2026-10-01, PR #193,
+  redone on main).
+- A quote anchor no longer misses a passage over a character nobody can see. Unicode's format
+  characters - the zero-width space a docs site puts inside a heading's anchor link, a soft
+  hyphen from a PDF extractor, a word joiner - survive NFKC and `\s`, so
+  `[quote: ## Bundled skills]` was quote-not-found against the heading that displays it, in a
+  capture this repository holds. `normalizeForMatch` drops `\p{Cf}` on both sides, which can
+  only shorten what is searched for, so an invented passage stays invented (break-test
+  2026-10-01, PR #193, redone on main).
+- The extractor's `comparison-row` rule is three linear scans, not one backtracking regex.
+  `\b(plan|tier)\b.*\b(month|year|user)\b.*\d` was quadratic in a table row's length, and a
+  row's length is the captured page's own doing: a 309 KB row, the size of a line this
+  repository's corpus already holds, took 15 s in `firstFinding`, which the collector runs over
+  every page. The same row now costs milliseconds, and the rewrite is pinned against the old
+  pattern over 4,000 generated rows (break-test 2026-10-01, PR #193, redone on main).
 - In the kit's own checkout a commit staging anything under `research-kit/` is allowed
   only when the suite is green (ADR-0120, which lifts the freeze for this one check). The
   commit gate runs `bin/selftest.mjs` and reads its result file: an unsupported test is

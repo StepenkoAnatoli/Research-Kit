@@ -132,7 +132,14 @@ function shape(raw) {
     serpapiKey: typeof raw.serpapiKey === 'string' ? raw.serpapiKey : DEFAULTS.serpapiKey,
     // The SearXNG instance the searxng search provider asks (ADR-0104). A URL, not a secret.
     searxngUrl: typeof raw.searxngUrl === 'string' ? raw.searxngUrl : DEFAULTS.searxngUrl,
-    skillRoots: Array.isArray(raw.skillRoots) ? raw.skillRoots.slice() : [],
+    // Checked as a list of PATHS, not only as an array. Every other key here is
+    // type-checked, and this one was not, so `{"skillRoots": [42]}` - or a null left in a
+    // hand-edited list - reached `path.join` in skillLocations() and killed `doctor` with a
+    // raw ERR_INVALID_ARG_TYPE stack and Node's version footer: the one command whose whole
+    // job is to name every problem and print its fix, dead on a config typo it should have
+    // named (found 2026-10-01, break-test). An entry that is not a path is dropped, which
+    // leaves the defaults in charge when nothing is left.
+    skillRoots: Array.isArray(raw.skillRoots) ? raw.skillRoots.filter((root) => typeof root === 'string' && root.trim() !== '') : [],
     projectSkillDir: typeof raw.projectSkillDir === 'string' ? raw.projectSkillDir : '',
     maxAgeDays: Number.isFinite(raw.maxAgeDays) ? raw.maxAgeDays : DEFAULTS.maxAgeDays,
   };

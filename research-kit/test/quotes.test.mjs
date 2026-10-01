@@ -100,3 +100,40 @@ test('quotation marks around the whole passage are not part of the quote', () =>
   const [invented] = quoteAnchors('[quote: "The primary rate limit for unauthenticated requests is 600 requests per hour."]');
   assert.equal(anchorFound(invented.fragments, body), false, 'an invented quote was accepted');
 });
+
+// Found 2026-10-01 (break-test), on this repository's own corpus rather than on a hypothesis:
+// 32 of its 188 captures hold 558 zero-width spaces between them, and one heading in
+// research/raw/2026-09-13-extend-claude-with-skills-claude-code-docs-*.md reads
+// `## [<U+200B>](https://code.claude.com/docs/en/skills#bundled-skills)  Bundled skills`, so
+// `[quote: ## Bundled skills]` - the heading the page displays - was quote-not-found. A soft
+// hyphen left by a PDF extractor and a word joiner do the same. This is the unwrap above one
+// character class wider: what a page's own tooling inserts, and nobody can see.
+test('invisible formatting characters are not part of the passage either', async () => {
+  const heading = '## [\u200B](https://x.invalid/docs#bundled-skills)  Bundled skills';
+  assert.equal(anchorFound(['## Bundled skills'], heading), true, 'the zero-width space inside a heading anchor');
+
+  const sentence = 'The free plan allows 10 requests per minute.';
+  for (const [name, mark] of [['a soft hyphen', '\u00AD'], ['a zero-width space', '\u200B'],
+    ['a word joiner', '\u2060'], ['a zero-width non-joiner', '\u200C']]) {
+    // Both directions: a converter leaves them in the CAPTURE, a copy-paste puts them in the QUOTE.
+    assert.equal(anchorFound(['The free plan allows 10 requests'], sentence.replace('free', `free${mark}`)), true, `${name} in the capture`);
+    assert.equal(anchorFound([`The free${mark} plan allows 10 requests`], sentence), true, `${name} in the quote`);
+  }
+
+  // Nothing looser. Dropping what nobody can see shortens both sides alike, so an invented
+  // passage is still invented - the property the unwrap fix is argued on.
+  assert.equal(anchorFound(['the second plan allows 10 requests'], sentence), false, 'an invented word is not drift');
+  assert.equal(anchorFound(['The free plan allows 100 requests'], sentence), false, 'an invented number is not drift');
+  assert.equal(normalizeForMatch('a\u200Bb'), normalizeForMatch('ab'), 'the class is dropped, not merely matched');
+
+  // And end to end, through the check the gate runs: the capture holds the character, the
+  // Finding cell quotes the sentence the way a person would type it.
+  const dir = makePassingProject();
+  const capture = readCorpus(dir).captures.entries[0].file;
+  corrupt(dir, capture, (t) => t.replace('The free plan allows', 'The free\u200B plan allows'));
+  const { rebuildLedger } = await import('../lib/provenance.mjs');
+  rebuildLedger?.(dir);
+  const judged = quoted('Free tier limits. [quote: The free plan allows 10 requests per minute]');
+  assert.deepEqual(judged.filter((f) => f.rule === 'quote-not-found').map((f) => f.detail), [],
+    'a passage the capture holds word for word was refused over a character nobody can see');
+});

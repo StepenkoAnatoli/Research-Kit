@@ -1,7 +1,7 @@
 // F14, F13 and F12's residual — the collection critical section, and the lease that
 // decides who holds it (ADR-0025).
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { test, describe, assert, makeProject, makePassingProject, tempDir, cleanup, fs, path, KIT_ROOT } from './harness.mjs';
@@ -333,4 +333,107 @@ test('a lock whose write fails closes its descriptor, removes its own file, and 
   const lockDir = resolve(root, PATHS.raw);
   const leftovers = fs.existsSync(lockDir) ? fs.readdirSync(lockDir).filter((n) => /lock/i.test(n)) : [];
   assert.deepEqual(leftovers, [], `an empty lock file was left behind: ${leftovers.join(', ')}`);
+});
+
+// Found 2026-10-01 (break-test). `acquire()` judged a lock stale, tried to remove it, and on
+// any failure that was not "already gone" fell through to `continue` - which skipped BOTH the
+// deadline check and the 50 ms sleep below it. The run then spun forever: a whole core, nothing
+// printed, no exit code, and not even answerable with `--report-on-signal`, because a
+// synchronous loop never returns to the event loop. Two ways in, both measured: a `research/raw`
+// this process cannot write, holding a lock whose pid is dead (EACCES on the removal - 8 s of
+// wall time costing 6.1 s user and 1.8 s sys), and a `.fetches.lock` that is a DIRECTORY (EISDIR
+// - killed from outside at 250 s). The commit gate has a 120 s watchdog; `research.mjs` and
+// `prior.mjs` have none, so a spin ends only when a person kills it.
+
+/**
+ * One `withLock` attempt, in a CHILD process with its own deadline.
+ *
+ * The failure these pin is a synchronous spin, which is the one thing the harness's watchdog
+ * cannot catch: the callback that would time the test out is queued on an event loop the spin
+ * never returns to. In-process, a regression here hangs the whole suite printing nothing - the
+ * exact trap the runner's own header names. So the attempt is contained, killed at its deadline,
+ * and its answer read back as data.
+ */
+function lockAttempt(dir, body) {
+  const script = `
+    const dir = process.argv[1];
+    const { withLock } = await import(${JSON.stringify(pathToFileURL(path.join(KIT_ROOT, 'lib', 'provenance.mjs')).href)});
+    ${body}
+    let entered = false;
+    let error = null;
+    const started = Date.now();
+    try { withLock(dir, () => { entered = true; }); }
+    catch (err) { error = { code: err.code ?? null, message: String(err.message ?? err) }; }
+    process.stdout.write(JSON.stringify({ entered, error, ms: Date.now() - started }));
+  `;
+  const child = spawnSync(process.execPath, ['--input-type=module', '-e', script, dir], {
+    encoding: 'utf8', timeout: 20_000, windowsHide: true,
+    env: { ...process.env, HOME: process.env.HOME, USERPROFILE: process.env.USERPROFILE },
+  });
+  assert.equal(child.signal, null, `the attempt was still spinning when it was killed at 20s: ${child.stderr?.slice(0, 200)}`);
+  assert.equal(child.status, 0, `the attempt died instead of answering: ${String(child.stderr).slice(0, 300)}`);
+  return JSON.parse(String(child.stdout));
+}
+
+test('a stale lock this process cannot remove is named, not spun on forever', () => {
+  const dir = makeProject();
+  const lock = resolve(dir, PATHS.lock);
+  writeText(lock, JSON.stringify({ pid: 999_999, host: os.hostname(), nonce: 'dead', at: new Date().toISOString() }));
+  assert.equal(lockRecoverable(lock, JSON.parse(readText(lock))).recoverable, true,
+    'the premise: a holder whose pid is gone is recoverable at once');
+
+  // A read-only research/raw, a mount that went away, or Windows holding the file open: each
+  // reaches the removal as something other than ENOENT. Stubbed rather than chmod-ed, because
+  // a directory's permission bits do not mean the same thing on every supported platform.
+  const attempt = lockAttempt(dir, `
+    const fs = (await import('node:fs')).default;
+    fs.unlinkSync = (target) => { const err = new Error('EACCES: permission denied, unlink ' + target); err.code = 'EACCES'; throw err; };
+  `);
+
+  assert.equal(attempt.entered, false, 'the section was entered through a lock that was never removed');
+  assert.equal(attempt.error?.code, 'LOCK_STUCK', `the refusal was not named: ${JSON.stringify(attempt.error)}`);
+  assert.match(attempt.error.message, /EACCES/, 'why the removal failed is the operator\'s clue');
+  assert.match(attempt.error.message, /\brm\b|\bdel\b/, 'and so is the command that clears it');
+  assert.ok(attempt.ms < 10_000, `${attempt.ms}ms: the loop spun instead of refusing`);
+});
+
+test('a .fetches.lock that is a DIRECTORY is named, not a hang', () => {
+  const dir = makeProject();
+  const lock = resolve(dir, PATHS.lock);
+  fs.mkdirSync(lock, { recursive: true });
+  // Past the stub bound, so a holder-less lock is judged recoverable and the removal is tried.
+  // A sync tool, or a `mkdir -p` one level too deep, leaves exactly this.
+  const old = new Date(Date.now() - 60_000);
+  fs.utimesSync(lock, old, old);
+
+  let attempt = null;
+  try {
+    attempt = lockAttempt(dir, '');
+  } finally {
+    fs.rmSync(lock, { recursive: true, force: true });
+  }
+
+  assert.equal(attempt.entered, false, 'a directory is not a lock, and it is not the section either');
+  assert.equal(attempt.error?.code, 'LOCK_STUCK', `a directory where the lock goes was not named: ${JSON.stringify(attempt.error)}`);
+  assert.ok(attempt.ms < 10_000, `${attempt.ms}ms: the run spun instead of refusing`);
+});
+
+test('a lock held by a live process names itself when the wait runs out', () => {
+  const dir = makeProject();
+  const lock = resolve(dir, PATHS.lock);
+  // This process as the holder: same host, pid alive, so never recoverable - the case ADR-0025
+  // refuses to evict however old the lock looks. No spin here: the wait sleeps, so this one is
+  // safe to run in-process.
+  writeText(lock, JSON.stringify({ pid: process.pid, host: os.hostname(), nonce: 'unreleased', at: new Date().toISOString() }));
+
+  let error = null;
+  const started = Date.now();
+  // `waitMs` is the seam: the production wait is 120 s, and a refusal reachable only by waiting
+  // it out is a refusal no test can afford to pin.
+  try { withLock(dir, () => {}, { waitMs: 100 }); } catch (err) { error = err; } finally { fs.rmSync(lock, { force: true }); }
+
+  assert.equal(error?.code, 'LOCK_HELD', `the wait ran out without naming itself: ${error?.message ?? 'no error at all'}`);
+  assert.match(error.message, /still held/, 'the message is the diagnosis');
+  assert.match(error.message, /delete the lock file/, 'and it says the way out');
+  assert.ok(Date.now() - started < 10_000, 'the seam did not shorten the wait');
 });

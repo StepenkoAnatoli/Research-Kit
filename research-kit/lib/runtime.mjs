@@ -359,18 +359,29 @@ export function fallbackCost(name) {
   return FREE_FETCH_TRANSPORTS.includes(name) ? `free on ${name}, which has no meter` : 'this spends fetch credits';
 }
 
+/** A URL cut to its host, so a query string - a key - and a password never ride along. */
+const hostOnly = (text) => String(text).replace(/https?:\/\/[^\s)'"]+/g, (u) => { try { return new URL(u).host; } catch { return 'a URL'; } });
+
 /**
  * A failed fetch in words: Node's `fetch failed` plus the reason it keeps on `err.cause` -
  * `getaddrinfo ENOTFOUND host`, `ECONNREFUSED`, `redirect count exceeded` (found 2026-09-30:
- * an offline machine, a mistyped host and a refused port all read "fetch failed"). A URL in
- * the cause is cut to its host, so a query string - a key - never rides along.
+ * an offline machine, a mistyped host and a refused port all read "fetch failed"). A URL is
+ * cut to its host wherever it appears, in the cause OR in the failure's own message, so a
+ * query string - a key - never rides along.
+ *
+ * The message was returned verbatim until 2026-10-01, on the reasoning that the URL worth
+ * cutting was the one in the cause. Node throws some fetch refusals with NO cause and the
+ * whole URL in the message - `Request cannot be constructed from a URL that includes
+ * credentials: http://user:pass@host/?api_key=...`, `Failed to parse URL from ...` - so a
+ * signed or credential-bearing URL in a plan was printed to the terminal and written into
+ * `research/raw/.fetches.jsonl` as that entry's error: nine copies of one token, in the one
+ * directory `doctor`'s secret scan excludes by design (found 2026-10-01, break-test).
  */
 export function fetchFailure(err) {
   const message = String(err?.message ?? err);
   const cause = err?.cause;
   const first = Array.isArray(cause?.errors) ? cause.errors[0] : null;
   const detail = cause ? String(cause.message || cause.code || first?.message || first?.code || '').trim() : '';
-  if (!detail || message.includes(detail)) return message;
-  const hostOnly = detail.replace(/https?:\/\/[^\s)'"]+/g, (u) => { try { return new URL(u).host; } catch { return 'a URL'; } });
-  return `${message} (${hostOnly})`;
+  if (!detail || message.includes(detail)) return hostOnly(message);
+  return `${hostOnly(message)} (${hostOnly(detail)})`;
 }

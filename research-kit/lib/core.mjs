@@ -511,6 +511,26 @@ export function writeFailure(err, cwd = process.cwd()) {
   return `could not write ${shown}: ${err.code} (${why}).`;
 }
 
+/**
+ * The kit's OWN refusals: an error that arrives with its diagnosis and its remedy already
+ * written, so all an entrypoint owes the operator is that message and a documented exit code.
+ * `writeFailure` answers the environment's refusals by code; these are the kit's, and an
+ * entrypoint that runs a collection catches on them for the same reason.
+ *
+ * Re-thrown instead, they print the sentence under a source line, a caret, six stack frames
+ * and Node's version footer, and exit 1 - which this kit's vocabulary reserves for FAIL,
+ * checked and wrong (found 2026-10-01, break-test: `research.mjs` on a ledger whose last line
+ * was never finished, which is what an interrupted collection leaves behind, dumped its
+ * internal `problems` array as a JavaScript object literal; `bin/prior.mjs` already answered
+ * the same two refusals with their message and exit 2).
+ */
+export const NAMED_RUN_REFUSALS = Object.freeze(new Set([
+  'LEDGER_DAMAGED',     // appendFetch: the chain holds lines that do not parse
+  'LEDGER_TORN_TAIL',   // appendFetch: the last line was never finished
+  'LOCK_HELD',          // acquire: the section is held, and the wait ran out
+  'LOCK_STUCK',         // acquire: judged stale, and this process cannot remove it
+]));
+
 /** Append one line, creating the file and its directory when absent. */
 export function appendLine(p, line) {
   ensureDir(path.dirname(p));

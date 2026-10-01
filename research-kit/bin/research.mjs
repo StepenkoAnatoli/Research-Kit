@@ -7,7 +7,7 @@
 //
 // `--dry-run` and `--status` still work there, because they spend nothing.
 
-import { parseFlags, flagList, refuseUnknownFlags, checkFlagValues, resolve, readText, parseJson, operatorPath, kitCommand, writeFailure } from '../lib/core.mjs';
+import { parseFlags, flagList, refuseUnknownFlags, checkFlagValues, resolve, readText, parseJson, operatorPath, kitCommand, writeFailure, NAMED_RUN_REFUSALS } from '../lib/core.mjs';
 import { collectionPolicy, collectionRefusal, loadConfig } from '../lib/machine.mjs';
 import { findBrowser } from '../lib/browser-transport.mjs';
 import { selectTransport, TRANSPORTS, TRANSPORT_NAMES, SEARCH_PROVIDER_NAMES, unusedKeyNote } from '../lib/transport.mjs';
@@ -220,9 +220,19 @@ try {
   });
 } catch (err) {
   const why = writeFailure(err, root);
-  if (!why) throw err;
-  process.stderr.write(`${why}\n`);
-  process.exit(2);
+  if (why) {
+    process.stderr.write(`${why}\n`);
+    process.exit(2);
+  }
+  // A refusal the kit wrote itself: its message already names the damage, the reason and the
+  // command that repairs it, and 2 is the documented "could not be checked" - the answer
+  // bin/prior.mjs gives the same two ledger refusals. Re-thrown, that sentence arrived under
+  // a stack trace and exit 1, which reads as FAIL, checked and wrong (found 2026-10-01).
+  if (NAMED_RUN_REFUSALS.has(err?.code)) {
+    process.stderr.write(`research: ${err.message}\n`);
+    process.exit(2);
+  }
+  throw err;
 }
 
 // Which cap bound the run, and what lifts it (found 2026-09-28): a scaffolded plan says depth

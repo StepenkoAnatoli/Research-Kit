@@ -153,11 +153,14 @@ export function lockRecoverable(file, holder) {
     : { recoverable: false, why: `held by ${holder.host}, which this machine cannot ask about` };
 }
 
-function acquire(root) {
+function acquire(root, { waitMs = LOCK_WAIT_MS } = {}) {
   const file = lockFile(root);
   ensureDir(path.dirname(file));
   const token = { pid: process.pid, host: os.hostname(), nonce: crypto.randomBytes(8).toString('hex'), at: nowIso() };
-  const deadline = Date.now() + LOCK_WAIT_MS;
+  // `waitMs` is a test seam in the same spirit as `materializeIndex`'s injectable git: the
+  // wait is 120 s, and a refusal that can only be reached by waiting it out is a refusal no
+  // test can afford to pin. Nothing outside the suite passes it.
+  const deadline = Date.now() + waitMs;
   for (;;) {
     try {
       const fd = fs.openSync(file, 'wx');
@@ -184,7 +187,27 @@ function acquire(root) {
       // empty lock timed out instead of being recovered.
       const { recoverable, why } = lockRecoverable(file, holder);
       if (recoverable) {
-        try { fs.unlinkSync(file); } catch { /* raced with another recoverer */ }
+        try {
+          fs.unlinkSync(file);
+        } catch (err) {
+          // Already gone is the race this loop exists to retry: another process recovered it
+          // a moment ago, and the next open either takes the section or finds who did.
+          if (err.code !== 'ENOENT') {
+            // Anything else is a lock this process has judged stale and CANNOT remove - and
+            // the `continue` below skipped both the deadline check and the sleep, so the run
+            // spun forever: a whole core, nothing printed, no exit, and not even reachable by
+            // `--report-on-signal`, because a synchronous loop never returns to the event loop
+            // (found 2026-10-01, break-test: a read-only research/raw holding a stale lock, and
+            // a .fetches.lock that is a DIRECTORY, each hung until they were killed from
+            // outside - 250 s and 8 s measured, at 100% of a core).
+            const stuck = new Error(
+              `the collector's lock looks stale (${why}) but could not be removed (${err.code}): ${file}. Nothing was collected.\n`
+              + `No collector is holding it, so remove it by hand: ${process.platform === 'win32' ? `del "${file}"` : `rm ${file}`}`,
+            );
+            stuck.code = 'LOCK_STUCK';
+            throw stuck;
+          }
+        }
         continue;
       }
 
@@ -201,7 +224,7 @@ function acquire(root) {
         // catch a reused pid would evict a legitimately long collection, which is worse.
         // So the message hands over the one check a person can make and a machine cannot.
         const age = Math.round(lockAge(file) / 60_000);
-        throw new Error(
+        const held = new Error(
           `the collector's exclusive section is still held (${why}): ${file}. Nothing was collected.\n`
           + `The lock is ${age}m old.\n`
           + (holder?.pid
@@ -211,6 +234,11 @@ function acquire(root) {
             : '')
           + 'If that holder is genuinely gone, delete the lock file.',
         );
+        // Coded, so an entrypoint can tell a refusal the kit wrote from a bug: this message
+        // already carries the diagnosis, the pid check and the remedy, and re-throwing it as
+        // an uncaught error buried all three under a stack trace (found 2026-10-01).
+        held.code = 'LOCK_HELD';
+        throw held;
       }
       sleep(50);
     }
@@ -247,7 +275,7 @@ function release(root, token) {
  * boundary. A slow fetch never looks like a crash, because what is asked is whether the
  * holder still EXISTS, not how long it has been there.
  */
-export function withLock(root, fn) {
+export function withLock(root, fn, { waitMs } = {}) {
   const key = path.resolve(root);
   const current = held.get(key);
   if (current) {
@@ -255,7 +283,7 @@ export function withLock(root, fn) {
     try { return fn(); } finally { current.depth -= 1; }
   }
 
-  const token = acquire(root);
+  const token = acquire(root, waitMs === undefined ? {} : { waitMs });
   held.set(key, { token, depth: 1 });
 
   try {
