@@ -277,6 +277,72 @@ test('a timeout says the run is still going, not that it failed', async () => {
   );
 });
 
+// Found 2026-10-01 (break-test, PR #182): every failed poll was fatal. A watch can last 30 minutes
+// - up to 180 polls - and one dropped connection, one 502 or one HTML maintenance page ended it
+// with RUN_FAILED while the run, and the credits it spends, went on unwatched.
+const dropped = () => { throw new TypeError('fetch failed'); };
+const htmlPage = { ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected token <'); }, text: async () => '<html>' };
+
+test('a transient failure while polling is retried, and the watch goes on to the result', async () => {
+  for (const [what, transient] of [['a dropped connection', dropped], ['502', jsonResponse(502, {})], ['503', jsonResponse(503, {})],
+    ['429', jsonResponse(429, {})], ['an HTML body on a 200', htmlPage]]) {
+    const retries = [];
+    const doFetch = stubFetch([
+      jsonResponse(200, { status: 'in_progress' }),
+      transient,
+      transient,
+      jsonResponse(200, { status: 'completed', conclusion: 'success' }),
+    ]);
+    const run = await waitForRun({
+      repository: REPO, runId: 1, token: TOKEN, fetch: doFetch,
+      intervalMs: 0, sleep: async () => {}, onRetry: (err, n) => retries.push(n),
+    });
+    assert.equal(run.conclusion, 'success', `${what} ended the watch`);
+    assert.deepEqual(retries, [1, 2], `${what}: each retry is reported, numbered`);
+  }
+});
+
+test('a poll that keeps failing gives up after five retries in a row, and a success resets the count', async () => {
+  const fail = jsonResponse(503, {});
+  const ok = jsonResponse(200, { status: 'in_progress' });
+  // Four failures, a success, four more: never five in a row, so the watch reaches the result.
+  const recovering = stubFetch([fail, fail, fail, fail, ok, fail, fail, fail, fail, jsonResponse(200, { status: 'completed', conclusion: 'success' })]);
+  const run = await waitForRun({ repository: REPO, runId: 1, token: TOKEN, fetch: recovering, intervalMs: 0, sleep: async () => {} });
+  assert.equal(run.conclusion, 'success', 'the count of failures in a row was not reset by a success');
+
+  const down = stubFetch([fail]);
+  await assert.rejects(
+    () => waitForRun({ repository: REPO, runId: 1, token: TOKEN, fetch: down, intervalMs: 0, sleep: async () => {} }),
+    (err) => { assert.equal(err.status, 503); return true; },
+  );
+  assert.equal(down.calls.length, 6, 'one poll and five retries, then the error');
+});
+
+test('a poll refused for the token or the run is not retried', async () => {
+  for (const status of [401, 403, 404]) {
+    const doFetch = stubFetch([jsonResponse(status, {})]);
+    await assert.rejects(
+      () => waitForRun({ repository: REPO, runId: 1, token: TOKEN, fetch: doFetch, intervalMs: 0, sleep: async () => {} }),
+      (err) => { assert.equal(err.status, status); return true; },
+    );
+    assert.equal(doFetch.calls.length, 1, `HTTP ${status} was retried: a retry cannot change the answer`);
+  }
+});
+
+test('retrying a failing poll does not outlast the deadline', async () => {
+  let clock = 0;
+  const doFetch = stubFetch([jsonResponse(502, {})]);
+  await assert.rejects(
+    () => waitForRun({
+      repository: REPO, runId: 1, token: TOKEN, fetch: doFetch,
+      intervalMs: 1, timeoutMs: 10, sleep: async () => { clock += 20; }, now: () => clock,
+    }),
+    (err) => { assert.equal(err.status, 502); return true; },
+  );
+  // As with a run still in progress: the poll after the sleep that crosses the deadline is the last.
+  assert.equal(doFetch.calls.length, 2, 'retries went on after the deadline had passed');
+});
+
 // ---------------------------------------------------------------- the artifact
 
 test('an expired artifact is named as expired, with the reason it is gone', async () => {

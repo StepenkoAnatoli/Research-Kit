@@ -264,7 +264,21 @@ export async function getRun({ repository, runId, token, fetch: doFetch = global
  * `waiting` is a status, not a stall: it means a deployment protection rule is holding the
  * job, and a caller that treated it as failure would give up on a run that is fine. It is
  * reported through `onStatus` so an agent can say so rather than sitting mute.
+ *
+ * A failed poll that may pass on its own - no connection, a 429 or 5xx, a body that is not
+ * JSON - is retried, up to MAX_POLL_RETRIES in a row, each reported through `onRetry`. A watch
+ * lasts up to 30 minutes, and every failed poll used to be fatal: one dropped connection ended
+ * it with RUN_FAILED while the run went on unwatched (found 2026-10-01, break-test). A refusal
+ * a retry cannot change - 401, 403, 404 - still ends it at once, and no retry outlasts the deadline.
  */
+export const MAX_POLL_RETRIES = 5;
+
+function transientPoll(err) {
+  if (!(err instanceof DispatchError)) return false;
+  if (err.code === 'NETWORK' || err.code === 'BAD_BODY') return true;
+  return err.code === 'HTTP' && (err.status === 429 || err.status >= 500);
+}
+
 export async function waitForRun({
   repository, runId, token,
   fetch: doFetch = globalThis.fetch,
@@ -274,11 +288,23 @@ export async function waitForRun({
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   now = () => Date.now(),
   onStatus = () => {},
+  onRetry = () => {},
 } = {}) {
   const deadline = now() + timeoutMs;
   let last = null;
+  let failures = 0;
   for (;;) {
-    const run = await getRun({ repository, runId, token, fetch: doFetch, api });
+    let run;
+    try {
+      run = await getRun({ repository, runId, token, fetch: doFetch, api });
+    } catch (err) {
+      failures += 1;
+      if (!transientPoll(err) || failures > MAX_POLL_RETRIES || now() >= deadline) throw err;
+      onRetry(err, failures);
+      await sleep(intervalMs);
+      continue;
+    }
+    failures = 0;
     if (run.status !== last) { last = run.status; onStatus(run); }
     if (run.status === 'completed') return run;
     if (now() >= deadline) {

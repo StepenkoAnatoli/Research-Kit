@@ -26,7 +26,7 @@ import path from 'node:path';
 import { parseFlags, flagList, canonicalJson, checkFlagValues } from '../lib/core.mjs';
 import { requireRuntime, honourEnvProxy } from '../lib/runtime.mjs';
 import {
-  dispatchCollection, waitForRun, fetchCorpus, queriesInput, usableOutDir,
+  dispatchCollection, waitForRun, MAX_POLL_RETRIES, fetchCorpus, queriesInput, usableOutDir,
   tokenFromEnv, redact, DispatchError, API_VERSION, TOKEN_VARS,
 } from '../lib/dispatch.mjs';
 
@@ -206,6 +206,8 @@ try {
       // holding the job, which is a person's decision and not a stall to retry through.
       ? 'status: waiting - a deployment protection rule is holding this run for approval'
       : `status: ${r.status}`),
+    // A failed poll the watch survives is still worth a line: a silent retry and a hang look alike.
+    onRetry: (err, n) => say(`poll failed (${err.message}) - retrying, ${n} of ${MAX_POLL_RETRIES}`),
   });
 } catch (err) {
   const e = err instanceof DispatchError ? err : new DispatchError('UNKNOWN', err.message);
