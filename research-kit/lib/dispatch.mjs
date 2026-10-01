@@ -390,7 +390,17 @@ export async function fetchCorpus({
   const bytes = await downloadArtifact({ repository, artifactId: wanted[0].id, token, fetch: doFetch, api });
   const { bytes: pkg, unwrapped, name } = unwrapArtifact(bytes);
 
-  const file = path.join(dir, unwrapped ? name : `${wanted[0].name}.zip`);
+  // A name from the API is data, never a path (found 2026-10-01, break-test): joined as it
+  // came, `research-kit-corpus-v1-/../../../pwned` wrote the package outside --out. A wrapper's
+  // entry is flattened to its file name; an artifact name that is not a plain file name is
+  // refused. Both separators and ':' everywhere - a name is judged the same on every host.
+  const fileName = unwrapped ? String(name).split(/[\\/]/).pop() : `${wanted[0].name}.zip`;
+  if (!fileName || fileName === '.' || fileName === '..' || /[\\/:\x00-\x1f]/.test(fileName)) {
+    throw new DispatchError('ARTIFACT_NAME', `the artifact's name is not a plain file name: ${JSON.stringify(unwrapped ? name : wanted[0].name)}`, {
+      remedy: 'nothing was written. The corpus artifact must be named research-kit-corpus-v1-<id> - check what uploaded it',
+    });
+  }
+  const file = path.join(dir, fileName);
   // Whole or not at all (ADR-0079), as writeArtifact is: a failed write must not empty a
   // package already at this name (Arena break test 10, 2026-09-28).
   writeBytes(file, pkg);
