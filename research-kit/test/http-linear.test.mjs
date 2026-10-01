@@ -60,29 +60,41 @@ test('the linear extractor gives the same capture as the regex one on 3,000 edge
   assert.deepEqual(differ, [], 'the linear extractor captured a page differently from the regexes it replaced');
 });
 
-/** The fastest of three timed runs of the whole extraction, in ms: noise only ever adds time. */
-function extractMs(html, { over = Infinity } = {}) {
+/** The fastest of three timed runs of `work`, in ms: noise only ever adds time. */
+function fastestMs(work, { over = Infinity } = {}) {
   const runs = [];
   for (let r = 0; r < 3; r += 1) {
     // A run already over the bound has answered: a quadratic regression would otherwise spend
     // minutes repeating it, where no watchdog reaches synchronous code.
     if (runs.length && runs[0] > over) break;
     const t = performance.now();
-    const main = linear.mainContent(html);
-    linear.htmlToMarkdown(main.html);
-    linear.htmlToMarkdown(html);
-    linear.titleOf(html);
-    linear.resultLinks(html);
+    work();
     runs.push(performance.now() - t);
   }
   return Math.min(...runs);
 }
 
-// A ratio, not a wall-clock budget, so a slow CI runner does not fail it: eight times the page
-// takes about eight times as long when the work is linear, and about sixty-four when it is
-// quadratic. It was four times the page against a bound of 9, and a ~11 ms small page let one
-// pause push a linear shape to 8.2x - an intermittent red (2026-10-01). At 8x the worst of six
-// local runs was 13.9x against a bound of 24.
+/** The whole extraction of one page. */
+function extractAll(html) {
+  const main = linear.mainContent(html);
+  linear.htmlToMarkdown(main.html);
+  linear.htmlToMarkdown(html);
+  linear.titleOf(html);
+  linear.resultLinks(html);
+}
+
+// EQUAL WORK, not one page against one bigger page. Eight small pages hold the text of one page
+// eight times the size. Linear work takes about as long for both (measured 0.66-1.37x); quadratic
+// work takes about eight times as long for the big one (the regex extractor, kept as the oracle:
+// 5.4-8.1x on an idle machine, 4.1-8.7x under load). Both sides last ~100 ms, so a loaded machine
+// slows them alike.
+//
+// The design before this timed one ~11 ms page against one page eight times the size. One full run
+// read 8.2x of a 9x bound (2026-10-01) and the bound was widened to 24x - and it then read 31-40x on
+// CORRECT code with six busy loops on two cores (3 of 12 runs red, break-test 2026-10-01). A short
+// run slips through a scheduler slice and a long one is preempted all the way through, so
+// contention inflates exactly the ratio under test, by about the oversubscription factor. With
+// equal work the same six busy loops read at most 1.37x.
 test('extraction time grows linearly with a page of unclosed tags, not quadratically', () => {
   const shapes = {
     'unclosed <div>': (n) => '<div>word '.repeat(n),
@@ -95,13 +107,16 @@ test('extraction time grows linearly with a page of unclosed tags, not quadratic
   };
   const slow = [];
   for (const [name, make] of Object.entries(shapes)) {
-    const small = extractMs(`<title>t</title>${make(10_000)}`);
+    const small = `<title>t</title>${make(10_000)}`;
+    const large = `<title>t</title>${make(80_000)}`;
     // Extraction is synchronous, so the watchdog cannot stop it: a quadratic regression would
     // spend minutes on the large page. A small page this slow has already answered.
-    if (small > 1500) { slow.push(`${name}: ${small.toFixed(0)} ms for ~100 KB - superlinear, the large page was not tried`); continue; }
-    const large = extractMs(`<title>t</title>${make(80_000)}`, { over: 24 * Math.max(small, 1) });
-    const ratio = large / Math.max(small, 1);
-    if (ratio > 24) slow.push(`${name}: 8x the page took ${ratio.toFixed(1)}x as long (${small.toFixed(0)} ms -> ${large.toFixed(0)} ms)`);
+    const one = fastestMs(() => extractAll(small));
+    if (one > 1500) { slow.push(`${name}: ${one.toFixed(0)} ms for ~100 KB - superlinear, the large page was not tried`); continue; }
+    const eight = Math.max(fastestMs(() => { for (let i = 0; i < 8; i += 1) extractAll(small); }), 1);
+    const big = fastestMs(() => extractAll(large), { over: 3 * eight });
+    const ratio = big / eight;
+    if (ratio > 3) slow.push(`${name}: one page with the text of eight took ${ratio.toFixed(1)}x as long (${eight.toFixed(0)} ms -> ${big.toFixed(0)} ms)`);
   }
   assert.deepEqual(slow, [], `extraction is superlinear:\n  ${slow.join('\n  ')}`);
 });
