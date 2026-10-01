@@ -4,7 +4,7 @@
 // It asks the arrival question and names whatever is missing. It cannot repair anything:
 // the machine that asks cannot collect the missing bytes.
 
-import { parseFlags, refuseUnknownFlags, kitCommand } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, kitCommand, exitAfterFlush } from '../lib/core.mjs';
 import { verifyHandoff, handoffRemedy } from '../lib/handoff.mjs';
 import { machineRole } from '../lib/machine.mjs';
 import { heading } from '../lib/render.mjs';
@@ -29,7 +29,7 @@ const report = verifyHandoff(root);
 
 if (flags.json) {
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  process.exit(report.ok ? 0 : 1);
+  await exitAfterFlush(report.ok ? 0 : 1);
 }
 
 if (report.ok) {
@@ -59,4 +59,4 @@ for (const finding of report.findings.filter((f) => f.name !== 'handoff-remedy')
 }
 const remedy = handoffRemedy(report);
 if (remedy) process.stdout.write(`\n${remedy}\n`);
-process.exit(1);
+await exitAfterFlush(1);

@@ -13,6 +13,8 @@
 
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import net from 'node:net';
+import dns from 'node:dns';
 import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow, fetchFailure } from './runtime.mjs';
 
 export const name = 'http-keyless';
@@ -24,9 +26,12 @@ const USER_AGENT = 'research-kit/1.0 (+keyless transport; https://example.invali
 const SELF = fileURLToPath(import.meta.url);
 
 // The child's fetch uses a configured proxy only when told to: fetchEnv (runtime.mjs).
-function runJob(job, { timeout = 60_000, spawn = spawnSync, nodePath = process.execPath, env = process.env } = {}) {
+function runJob(job, { timeout = 60_000, spawn = spawnSync, nodePath = process.execPath, env = process.env, allowInternalRedirects } = {}) {
+  // ADR-0110: undefined lets the child decide from the URL asked for; the operator's opt-out,
+  // or a caller's explicit choice, overrides it.
+  const allow = allowInternalRedirects ?? (env.RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS === '1' ? true : undefined);
   const result = spawn(nodePath, [SELF], {
-    input: JSON.stringify(job),
+    input: JSON.stringify(allow === undefined ? job : { ...job, allowInternalRedirects: allow }),
     encoding: 'utf8',
     timeout,
     windowsHide: true,
@@ -47,9 +52,134 @@ function runJob(job, { timeout = 60_000, spawn = spawnSync, nodePath = process.e
   }
 }
 
+// ---------------------------------------------------------------- tag pairs, in linear time
+
+/**
+ * Every span a lazy pair regex would match - `/<(names)\b[^>]*>([\s\S]*?)<\/\1>/gi` and its
+ * relatives - in order and non-overlapping, found in time linear in the page.
+ *
+ * The regexes themselves were quadratic on a page with unclosed tags (found 2026-09-30,
+ * break-test): an opening tag with no closing tag after it scans to the end of the page, fails,
+ * and the next opening tag scans again - 9.4 s for 391 KB of `<div>word`, minutes for a larger
+ * page, in the collecting process with no timeout. Here the next '>' and the next closing tag
+ * are remembered as the scan moves forward, so no stretch of the page is searched twice.
+ *
+ *   open   a global regex for where a pair may start; `close(match)` names its closing tag
+ *   tag    'attributes' - `[^>]*>` follows: the tag ends at the first '>' after the name
+ *          'none'       - the body starts right after the name (`<script\b[\s\S]*?</script>`)
+ *          { find, match } - `[^>]*` then a required attribute: `find` (global) locates where
+ *          the attribute may start, `match` (sticky) matches from there to the tag's end
+ *   close  (openMatch) => the closing pattern's regex source, searched case-insensitively
+ *
+ * The attribute form is the one that needs care. `<a\b[^>]*href=...` backtracks to the
+ * RIGHTMOST href before the first '>' where the rest matches - and every `<a` before that same
+ * '>' searches the same stretch. So the stretch is searched once, and each `<a` in it takes the
+ * rightmost hit after itself; without that, `<a <a <a ...` with one '>' was quadratic again.
+ */
+function tagPairs(text, { open, tag = 'attributes', close }) {
+  const pairs = [];
+  const closers = new Map();
+  const nextClose = (source, from) => {
+    let c = closers.get(source);
+    if (!c) { c = { re: new RegExp(source, 'gi'), from: -1, at: -1, len: 0 }; closers.set(source, c); }
+    // No closer starts inside [c.from, c.at), so for any `from` in that range the next is c.at.
+    if (c.from === -1 || from < c.from || (c.at !== -1 && from > c.at)) {
+      c.re.lastIndex = from;
+      const m = c.re.exec(text);
+      c.from = from;
+      c.at = m ? m.index : -1;
+      c.len = m ? m[0].length : 0;
+    }
+    return { at: c.at, len: c.len };
+  };
+  let gtFrom = -1;
+  let gtAt = -1;
+  let region = { gt: -1, hits: [] };
+  const nextGt = (from) => {
+    if (gtFrom === -1 || from < gtFrom || (gtAt !== -1 && from > gtAt)) { gtFrom = from; gtAt = text.indexOf('>', from); }
+    return gtAt;
+  };
+  const starts = new RegExp(open.source, open.flags.includes('g') ? open.flags : `${open.flags}g`);
+  let pos = 0;
+  while (pos < text.length) {
+    starts.lastIndex = pos;
+    const m = starts.exec(text);
+    if (!m) break;
+    const at = m.index;
+    let bodyStart;
+    let tagMatch = null;
+    if (tag === 'none') {
+      bodyStart = at + m[0].length;
+    } else if (tag === 'attributes') {
+      const gt = nextGt(at + m[0].length);
+      if (gt === -1) break;                 // no '>' from here on: no later tag can end either
+      bodyStart = gt + 1;
+    } else {
+      const from = at + m[0].length;
+      const gt = nextGt(from);
+      if (gt === -1) break;
+      if (region.gt !== gt) {
+        region = { gt, hits: [] };
+        tag.find.lastIndex = from;
+        for (let f = tag.find.exec(text); f && f.index < gt; f = tag.find.exec(text)) {
+          tag.match.lastIndex = f.index;
+          const hit = tag.match.exec(text);
+          if (hit) region.hits.push({ at: f.index, hit });
+          tag.find.lastIndex = f.index + 1;
+        }
+      }
+      // Rightmost first, as the regex backtracks; an earlier hit is tried only if a later one
+      // leaves no closing tag after it.
+      let found = null;
+      for (let h = region.hits.length - 1; h >= 0 && region.hits[h].at >= from; h -= 1) {
+        const end = region.hits[h].at + region.hits[h].hit[0].length;
+        const c = nextClose(close(m), end);
+        if (c.at !== -1) { found = { hit: region.hits[h].hit, end, c }; break; }
+      }
+      if (!found) { pos = at + 1; continue; }
+      tagMatch = found.hit;
+      bodyStart = found.end;
+    }
+    const c = nextClose(close(m), bodyStart);
+    if (c.at === -1) { pos = at + 1; continue; }   // as the regex does: fail here, try the next position
+    const end = c.at + c.len;
+    pairs.push({ index: at, end, open: m, tag: tagMatch, body: text.slice(bodyStart, c.at), whole: text.slice(at, end) });
+    pos = end;
+  }
+  return pairs;
+}
+
+/**
+ * `text.replace(/<[^>]+>/g, by)`, and the number of tags it replaced. After the last '>' no tag
+ * can end, and there each '<' made the regex scan to the end of the page and fail - quadratic in
+ * a run of `<li <a ...` with no '>' (found 2026-09-30). So it runs only up to that last '>'.
+ */
+function stripTags(text, by) {
+  const last = text.lastIndexOf('>');
+  if (last === -1) return { text, tags: 0 };
+  let tags = 0;
+  const head = text.slice(0, last + 1).replace(/<[^>]+>/g, () => { tags += 1; return by; });
+  return { text: head + text.slice(last + 1), tags };
+}
+
+/** `text.replace(pairRegex, fn)`, through tagPairs. */
+function replacePairs(text, spec, fn) {
+  const parts = [];
+  let last = 0;
+  for (const pair of tagPairs(text, spec)) {
+    parts.push(text.slice(last, pair.index), fn(pair));
+    last = pair.end;
+  }
+  parts.push(text.slice(last));
+  return parts.join('');
+}
+
+/** `<name\b[^>]*>BODY</name>` for any of `names`, the closing tag matching the opening one. */
+const named = (names) => ({ open: new RegExp(`<(${names})\\b`, 'gi'), close: (m) => `<\\/${m[1]}>` });
+
 // ---------------------------------------------------------------- html -> markdown
 
-const BLOCK_DROP = /<(script|style|noscript|svg|iframe|form|template)\b[\s\S]*?<\/\1>/gi;
+const BLOCK_DROP = { ...named('script|style|noscript|svg|iframe|form|template'), tag: 'none' };
 
 /**
  * One numeric character reference. HTML reads 0, a surrogate, and anything past U+10FFFF
@@ -78,7 +208,7 @@ export function decodeEntities(text) {
  * So this returns the chosen block AND what it left behind, and the caller grades
  * honestly on both.
  */
-const BLOCKS = /<(article|main|section|div)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+const BLOCKS = named('article|main|section|div');
 const SEMANTIC_MIN_WORDS = 100;
 
 /**
@@ -92,15 +222,15 @@ const SEMANTIC_MIN_WORDS = 100;
  * 17,385-character <main> around it; Firecrawl captured the same page whole.
  */
 function declaredContent(html) {
-  const candidates = [...html.matchAll(/<(main|article)\b[^>]*>([\s\S]*?)<\/\1>/gi)]
-    .map((m) => m[2])
+  const candidates = tagPairs(html, named('main|article'))
+    .map((p) => p.body)
     .filter((inner) => wordsOf(inner) >= SEMANTIC_MIN_WORDS);
   if (!candidates.length) return null;
   return candidates.reduce((best, inner) => (wordsOf(inner) > wordsOf(best) ? inner : best));
 }
 
 export function mainContent(html) {
-  const cleaned = String(html).replace(BLOCK_DROP, ' ');
+  const cleaned = replacePairs(String(html), BLOCK_DROP, () => ' ');
 
   // A page that marks its content, and puts real text in it, is believed. What is dropped
   // is then whatever has words OUTSIDE that block - navigation, sidebars, footers, and any
@@ -113,13 +243,13 @@ export function mainContent(html) {
     // breadcrumbs, sidebars, "skip to content" - not content the capture lost. Counting it
     // graded every keyless docs capture `partial` (20 such blocks on the Docs page above).
     // A block of prose outside <main> is still reported: that is where a caveat box would be.
-    const dropped = [...outside.matchAll(BLOCKS)]
-      .map((m) => ({ words: wordsOf(m[2]), text: m[2] }))
+    const dropped = tagPairs(outside, BLOCKS)
+      .map((p) => ({ words: wordsOf(p.body), text: p.body }))
       .filter((entry) => entry.words >= 5 && linkShare(entry.text) < 0.5);
     return { html: declared, dropped, chosenWords: wordsOf(declared), totalWords: wordsOf(cleaned), basis: 'declared' };
   }
 
-  const blocks = [...cleaned.matchAll(BLOCKS)].map((m) => m[2]);
+  const blocks = tagPairs(cleaned, BLOCKS).map((p) => p.body);
 
   // Selection considers only substantial blocks; the DROP analysis considers them all.
   // Filtering short blocks out of both is how a 60-character caveat box - exactly the
@@ -138,7 +268,7 @@ export function mainContent(html) {
   // chosen block holds under a quarter of the page's words and the page's sections hold at
   // least half, the sections are taken together, in order.
   const totalWords = wordsOf(cleaned);
-  const sections = [...cleaned.matchAll(/<section\b[^>]*>([\s\S]*?)<\/section>/gi)].map((m) => m[0]);
+  const sections = tagPairs(cleaned, named('section')).map((p) => p.whole);
   const sectionWords = sections.reduce((sum, s) => sum + wordsOf(s), 0);
   let basis = 'densest';
   if (sections.length >= 3 && wordsOf(best) < totalWords / 4 && sectionWords >= totalWords / 2) {
@@ -160,28 +290,30 @@ export function mainContent(html) {
 function linkShare(html) {
   const total = wordsOf(html);
   if (!total) return 0;
-  const linked = [...String(html).matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/gi)].reduce((sum, m) => sum + wordsOf(m[1]), 0);
+  const linked = tagPairs(String(html), named('a')).reduce((sum, p) => sum + wordsOf(p.body), 0);
   return linked / total;
 }
 
 function wordsOf(html) {
-  return decodeEntities(String(html).replace(/<[^>]+>/g, ' ')).split(/\s+/).filter(Boolean).length;
+  return decodeEntities(stripTags(String(html), ' ').text).split(/\s+/).filter(Boolean).length;
 }
 
 function density(html) {
-  const tags = (html.match(/<[^>]+>/g) ?? []).length + 1;
-  const words = decodeEntities(html.replace(/<[^>]+>/g, ' ')).split(/\s+/).filter(Boolean).length;
+  const stripped = stripTags(html, ' ');
+  const tags = stripped.tags + 1;
+  const words = decodeEntities(stripped.text).split(/\s+/).filter(Boolean).length;
   return words / tags;
 }
 
 export function htmlToMarkdown(html) {
   let text = String(html);
-  text = text.replace(BLOCK_DROP, ' ');
-  text = text.replace(/<!--[\s\S]*?-->/g, ' ');
-  text = text.replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, level, body) => `\n\n${'#'.repeat(Number(level))} ${inline(body)}\n\n`);
-  text = text.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_, body) => `\n- ${inline(body)}`);
-  text = text.replace(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi, (_, row) => {
-    const cells = [...row.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => inline(m[1]));
+  text = replacePairs(text, BLOCK_DROP, () => ' ');
+  text = replacePairs(text, { open: /<!--/g, tag: 'none', close: () => '-->' }, () => ' ');
+  text = replacePairs(text, { open: /<h([1-6])\b/gi, close: (m) => `<\\/h${m[1]}>` },
+    (p) => `\n\n${'#'.repeat(Number(p.open[1]))} ${inline(p.body)}\n\n`);
+  text = replacePairs(text, named('li'), (p) => `\n- ${inline(p.body)}`);
+  text = replacePairs(text, named('tr'), (p) => {
+    const cells = tagPairs(p.body, { open: /<t[dh]\b/gi, close: () => '<\\/t[dh]>' }).map((c) => inline(c.body));
     return cells.length ? `\n| ${cells.join(' | ')} |` : '\n';
   });
   text = text.replace(/<br\s*\/?>/gi, '\n');
@@ -190,25 +322,26 @@ export function htmlToMarkdown(html) {
   return text.replace(/\n{3,}/g, '\n\n').split('\n').map((l) => l.replace(/[ \t]+$/, '')).join('\n').trim();
 }
 
+// An opening tag that must carry an attribute cannot end at the first '>': the attribute's
+// quoted value is matched as the regex matched it, anchored where the tag starts.
+const LINK = { open: /<a\b/gi, tag: { find: /href=/gi, match: /href=["']([^"']*)["'][^>]*>/iy }, close: () => '<\\/a>' };
+
 function inline(html) {
-  return decodeEntities(
-    String(html)
-      .replace(/<a\b[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, body) => {
-        const label = decodeEntities(body.replace(/<[^>]+>/g, '')).trim();
-        return label ? `[${label}](${href})` : '';
-      })
-      .replace(/<(strong|b)\b[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**')
-      .replace(/<(em|i)\b[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*')
-      .replace(/<code\b[^>]*>([\s\S]*?)<\/code>/gi, '`$1`')
-      .replace(/<[^>]+>/g, ' '),
-  ).replace(/[ \t]{2,}/g, ' ').trim();
+  let text = replacePairs(String(html), LINK, (p) => {
+    const label = decodeEntities(stripTags(p.body, '').text).trim();
+    return label ? `[${label}](${p.tag[1]})` : '';
+  });
+  text = replacePairs(text, named('strong|b'), (p) => `**${p.body}**`);
+  text = replacePairs(text, named('em|i'), (p) => `*${p.body}*`);
+  text = replacePairs(text, named('code'), (p) => `\`${p.body}\``);
+  return decodeEntities(stripTags(text, ' ').text).replace(/[ \t]{2,}/g, ' ').trim();
 }
 
 export function titleOf(html) {
-  const tag = String(html).match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
-  if (tag) return decodeEntities(tag[1]).replace(/\s+/g, ' ').trim();
-  const h1 = String(html).match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i);
-  return h1 ? inline(h1[1]) : '';
+  const [tag] = tagPairs(String(html), named('title'));
+  if (tag) return decodeEntities(tag.body).replace(/\s+/g, ' ').trim();
+  const [h1] = tagPairs(String(html), named('h1'));
+  return h1 ? inline(h1.body) : '';
 }
 
 /**
@@ -330,19 +463,26 @@ export function search(query, { limit = 8, ...opts } = {}) {
     };
   }
   const results = [];
-  for (const m of String(job.body ?? '').matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*class=["']result-link["'][^>]*>([\s\S]*?)<\/a>/gi)) {
-    results.push({ url: unwrapRedirect(hrefOf(m[1])), title: inline(m[2]), description: '' });
-  }
-  if (!results.length) {
-    for (const m of String(job.body ?? '').matchAll(/<a\b[^>]*href=["'](https?:\/\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
-      const href = unwrapRedirect(hrefOf(m[1]));
-      if (/duckduckgo\.com/.test(href)) continue;
-      results.push({ url: href, title: inline(m[2]), description: '' });
-    }
+  for (const link of resultLinks(job.body)) {
+    const href = unwrapRedirect(hrefOf(link.href));
+    if (!link.marked && /duckduckgo\.com/.test(href)) continue;
+    results.push({ url: href, title: link.title, description: '' });
   }
   const seen = new Set();
   const unique = results.filter((r) => r.url && !seen.has(r.url) && seen.add(r.url));
   return { ok: true, query, cmd: command(argv), results: unique.slice(0, limit) };
+}
+
+/**
+ * The result links of a keyless search page: those DuckDuckGo marks `result-link`, or, when it
+ * marks none, every absolute link. Raw hrefs and inline titles, in page order.
+ */
+export function resultLinks(body) {
+  const text = String(body ?? '');
+  const marked = tagPairs(text, { open: /<a\b/gi, tag: { find: /href=/gi, match: /href=["']([^"']+)["'][^>]*class=["']result-link["'][^>]*>/iy }, close: () => '<\\/a>' });
+  if (marked.length) return marked.map((p) => ({ href: p.tag[1], title: inline(p.body), marked: true }));
+  return tagPairs(text, { open: /<a\b/gi, tag: { find: /href=/gi, match: /href=["'](https?:\/\/[^"']+)["'][^>]*>/iy }, close: () => '<\\/a>' })
+    .map((p) => ({ href: p.tag[1], title: inline(p.body), marked: false }));
 }
 
 /**
@@ -396,6 +536,53 @@ export function runScrape(url, opts = {}) {
 
 export default { name, scrape, search, map, command, status, runScrape };
 
+// ---------------------------------------------------------------- internal addresses
+
+/**
+ * Where a page on the web may not send the collector (ADR-0110): loopback, the private ranges,
+ * link-local (the cloud metadata endpoint, 169.254.169.254), carrier-grade NAT, unspecified,
+ * multicast and reserved space, their IPv6 counterparts, and IPv4 written as IPv6.
+ */
+const INTERNAL = (() => {
+  const list = new net.BlockList();
+  for (const [address, prefix] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16],
+    ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['224.0.0.0', 4], ['240.0.0.0', 4]]) {
+    list.addSubnet(address, prefix, 'ipv4');
+  }
+  for (const [address, prefix] of [['::', 127], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8]]) {
+    list.addSubnet(address, prefix, 'ipv6');
+  }
+  return list;
+})();
+
+const isInternal = (address) => {
+  // IPv4 written as IPv6 (`::ffff:127.0.0.1`, which the URL parser spells `::ffff:7f00:1`) is
+  // judged as the IPv4 it is. A ::ffff:0:0/96 rule would not do: BlockList applies it to every
+  // IPv4 address, which made 8.8.8.8 internal.
+  const mapped = /^::ffff:(?:(\d+\.\d+\.\d+\.\d+)|([0-9a-f]{1,4}):([0-9a-f]{1,4}))$/i.exec(address);
+  if (mapped) {
+    const v4 = mapped[1] ?? [parseInt(mapped[2], 16) >> 8, parseInt(mapped[2], 16) & 255, parseInt(mapped[3], 16) >> 8, parseInt(mapped[3], 16) & 255].join('.');
+    return INTERNAL.check(v4, 'ipv4');
+  }
+  const family = net.isIP(address);
+  return family !== 0 && INTERNAL.check(address, family === 6 ? 'ipv6' : 'ipv4');
+};
+
+/**
+ * Why `hostname` is internal, or null. A name is resolved, and is internal if any address it
+ * resolves to is. A name this machine cannot resolve is not judged: through a proxy the proxy
+ * resolves it, and a name nothing here can reach is not this machine's network.
+ */
+export async function internalTarget(hostname) {
+  const host = String(hostname ?? '').replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+  if (host === 'localhost' || host.endsWith('.localhost')) return `${host} is this machine`;
+  if (net.isIP(host)) return isInternal(host) ? `${host} is an internal address` : null;
+  let addresses;
+  try { addresses = await dns.promises.lookup(host, { all: true, verbatim: true }); } catch { return null; }
+  const inside = addresses.find((a) => isInternal(a.address));
+  return inside ? `${host} resolves to ${inside.address}, an internal address` : null;
+}
+
 // ---------------------------------------------------------------- the child half
 
 /**
@@ -417,15 +604,38 @@ async function child() {
     return;
   }
   try {
-    const response = await fetch(job.url, {
-      redirect: 'follow',
+    // Redirects are followed here, one hop at a time, so each hop's destination can be judged
+    // (ADR-0110): a page on the web redirecting to 127.0.0.1 or 169.254.169.254 was captured,
+    // with whatever that internal page held (found 2026-09-30, break-test). An internal URL
+    // the operator asked for is theirs, and so are the redirects that stay inside it.
+    const allowInternal = job.allowInternalRedirects === true
+      || (job.allowInternalRedirects !== false && await internalTarget(new URL(job.url).hostname) !== null);
+    const init = {
+      redirect: 'manual',
       headers: { 'user-agent': USER_AGENT, accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8' },
       signal: AbortSignal.timeout(job.timeout ?? 45_000),
-    });
+    };
+    let url = job.url;
+    let response = await fetch(url, init);
+    for (let hops = 0; [301, 302, 303, 307, 308].includes(response.status) && response.headers.get('location'); hops += 1) {
+      if (hops === 20) throw new Error('redirect count exceeded');
+      const next = new URL(response.headers.get('location'), url);
+      await response.body?.cancel();
+      if (!/^https?:$/.test(next.protocol)) throw new Error(`a redirect to a ${next.protocol} URL is not followed`);
+      const why = allowInternal ? null : await internalTarget(next.hostname);
+      if (why) {
+        process.stdout.write(JSON.stringify({ ok: false, url: job.url, error: `refused to follow a redirect from ${new URL(url).host} to ${next.host} - ${why}. `
+          + 'A page on the web may not send the collector into this machine\'s network. If you meant that address, fetch it directly, '
+          + 'or set RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS=1.' }));
+        return;
+      }
+      url = next.href;
+      response = await fetch(url, init);
+    }
     const body = await boundedText(response, 'the page');
     process.stdout.write(JSON.stringify({
       ok: response.ok,
-      url: response.url || job.url,
+      url,
       statusCode: response.status,
       contentType: response.headers.get('content-type') ?? '',
       body,

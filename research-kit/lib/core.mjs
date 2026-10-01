@@ -392,6 +392,40 @@ export function tolerateClosedStdout(stream = process.stdout, { exit = (code) =>
   });
 }
 
+/**
+ * Resolves once everything written to `stream` so far has left the process - or once nothing
+ * more can, because the reader left or the stream is gone.
+ *
+ * `process.exit()` does not wait for a pipe. On POSIX, Node writes to one asynchronously: the
+ * kernel takes what fits, the rest stays queued in the process, and exit discards it. A reader
+ * slower than the writer got the first 65,536 bytes of a larger report and the exit status of
+ * a command that succeeded - preflight's verdict, printed last, was the part that went (found
+ * 2026-09-30, break-test). Write callbacks run in order, so an empty write's callback runs after
+ * every earlier write has been handed to the OS.
+ */
+export function flushed(stream) {
+  return new Promise((done) => {
+    if (!stream || stream.destroyed || stream.writableEnded) { done(); return; }
+    const settle = () => done();
+    // Kept: a failed write reports through its callback first and emits 'error' a tick later,
+    // and an unhandled 'error' is the raw stack this exists to prevent. The process exits next.
+    stream.on('error', settle);
+    stream.once('close', settle);
+    try { stream.write('', settle); } catch { settle(); }
+  });
+}
+
+/**
+ * `await exitAfterFlush(code)`: end the process once stdout and stderr have flushed. For the
+ * last line of a command that prints a report, where `process.exit(code)` cut it at the pipe.
+ * `process.exitCode` is set first, so the status is the same however the wait ends.
+ */
+export async function exitAfterFlush(code = 0) {
+  process.exitCode = code;
+  await Promise.all([flushed(process.stdout), flushed(process.stderr)]);
+  process.exit(code);
+}
+
 /** Why a write was refused, in words, by error code (2026-09-28). */
 const WRITE_REFUSALS = Object.freeze({
   EACCES: 'permission denied - the folder or the file is not writable by this user',

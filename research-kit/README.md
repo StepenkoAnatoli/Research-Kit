@@ -339,7 +339,7 @@ Three adapters behind one seam, chosen by `--transport`, `RESEARCH_KIT_TRANSPORT
 config, or a probe:
 
 - **`firecrawl-cli`** — metered, spawned as an argv array with no shell.
-- **`http-keyless`** — no key, no credits, grades its own capture completeness honestly.
+- **`http-keyless`** — no key, no credits, grades its own capture completeness honestly. A page on the web may not redirect it into this machine's network - loopback, private or link-local addresses - unless the URL you asked for was internal itself; `RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS=1` lifts that (ADR-0110).
 - **`browser`** — a local Chromium or Chrome renders the page (`--transport browser`); free, reads pages built by JavaScript or refused to non-browser clients; fetch only (ADR-0088).
 
 When Firecrawl's credits run out mid-run, the rest of the run switches to `browser` when a browser is installed, else `http-keyless`,
@@ -451,7 +451,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1350 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1361 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
