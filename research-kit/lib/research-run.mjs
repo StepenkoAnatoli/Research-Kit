@@ -297,6 +297,9 @@ export function selectCandidates(results, { prefer = [], perQuery = 3, seen = ne
  * Nothing is collected when `dryRun` is set - `attempts` still shows what it would
  * cost, against the same cap - and a cache hit never counts against the budget.
  */
+/** Whether a transport can search: the browser fetches only (ADR-0088). */
+export const canSearch = (provider) => typeof provider?.search === 'function';
+
 /**
  * One search, with the patience the fetch side already had (`collectOne`).
  *
@@ -311,6 +314,9 @@ export function selectCandidates(results, { prefer = [], perQuery = 3, seen = ne
  * outage still costs exactly one call and still reaches the fallback and the failure log.
  */
 export function searchPatiently(provider, text, { limit, maxRateLimitRetries = 2, sleep = sleepSync, log = () => {} } = {}) {
+  // A fetch-only transport (the browser, ADR-0088) is a failed search, said in words - never a
+  // TypeError ending the run (found 2026-10-01, break-test).
+  if (!canSearch(provider)) return { ok: false, query: text, results: [], error: `${provider?.name ?? 'this transport'} fetches pages but does not search` };
   for (let attempt = 0; ; attempt += 1) {
     const r = provider.search(text, { limit });
     if (r?.ok || attempt >= maxRateLimitRetries) return r;
@@ -463,7 +469,9 @@ ${compatibility.remedy}`);
     const r = ask(first, text);
     if (!r.ok && exhausted(first, r.error)) {
       switchToFallback(r.error, `search "${text}"`);
-      return { r: ask(fallbackAdapter, text), provider: fallbackAdapter };
+      // A fallback that fetches but cannot search takes over the fetching only; this search's
+      // failure is the exhaustion that happened.
+      if (canSearch(fallbackAdapter)) return { r: ask(fallbackAdapter, text), provider: fallbackAdapter };
     }
     return { r, provider: first };
   };
@@ -569,7 +577,9 @@ ${compatibility.remedy}`);
     // fetch provider's own search (RR-1, RR-2): it keeps the run alive, it costs fetch
     // credits, and it is REPORTED rather than absorbed - a silent fallback is a bill the
     // operator did not know they were paying.
-    if (!found.ok && firstAsk.provider !== live(adapter)) {
+    // Only to a provider that can search: degrading to the browser replaced the real failure
+    // with a TypeError (found 2026-10-01).
+    if (!found.ok && firstAsk.provider !== live(adapter) && canSearch(live(adapter))) {
       const reason = found.error;
       searchFailures += 1;
       failedOn(ranker);

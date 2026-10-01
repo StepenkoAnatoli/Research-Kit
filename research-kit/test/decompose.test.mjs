@@ -514,3 +514,16 @@ test('a duplicate topic key in plan.json is refused before decompose searches an
   assert.equal(ok.error, undefined, JSON.stringify(ok));
   assert.equal(ok.topic, 'one subject');
 });
+
+// Found 2026-10-01 (break-test, PR #178): with --transport browser, a failed search degraded
+// to `adapter.search` - and the browser does not search (ADR-0088), so drafting the map ended
+// in "adapter.search is not a function". The failure that happened is recorded instead.
+test('drafting a map with a fetch-only transport records the failed search instead of crashing', () => {
+  const browser = { name: 'browser', runScrape: () => ({ ok: false }) };
+  const withSearch = decompose(makeProject(), { topic: 'Example', adapter: browser, searchAdapter: failing('DuckDuckGo served its bot check') });
+  assert.ok(withSearch.failures.some((f) => /bot check/.test(f.error)), JSON.stringify(withSearch.failures));
+  assert.ok(!withSearch.failures.some((f) => f.provider === 'browser' && !f.degraded), 'the browser was asked to search');
+
+  const alone = decompose(makeProject(), { topic: 'Example', adapter: browser });
+  assert.ok(alone.failures.some((f) => /browser .*does not search/.test(f.error)), JSON.stringify(alone.failures));
+});

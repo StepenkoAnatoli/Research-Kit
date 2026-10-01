@@ -329,7 +329,14 @@ export function unwrapArtifact(bytes) {
   if (zip.problems.length) return { bytes, unwrapped: false };
   const inner = zip.names.filter((n) => n.endsWith('.zip'));
   if (inner.length !== 1) return { bytes, unwrapped: false };
-  return { bytes: zip.read(inner[0]), unwrapped: true, name: inner[0] };
+  // An inner package that cannot be read is handed on as it came, as a wrapper that cannot be
+  // opened is: judging such bytes is the validator's job, and a ZIP-READ thrown from here went
+  // past it (found 2026-10-01, break-test).
+  try {
+    return { bytes: zip.read(inner[0]), unwrapped: true, name: inner[0] };
+  } catch {
+    return { bytes, unwrapped: false };
+  }
 }
 
 // ---------------------------------------------------------------- bringing it home
@@ -390,7 +397,17 @@ export async function fetchCorpus({
   const bytes = await downloadArtifact({ repository, artifactId: wanted[0].id, token, fetch: doFetch, api });
   const { bytes: pkg, unwrapped, name } = unwrapArtifact(bytes);
 
-  const file = path.join(dir, unwrapped ? name : `${wanted[0].name}.zip`);
+  // A name from the API is data, never a path (found 2026-10-01, break-test): joined as it
+  // came, `research-kit-corpus-v1-/../../../pwned` wrote the package outside --out. A wrapper's
+  // entry is flattened to its file name; an artifact name that is not a plain file name is
+  // refused. Both separators and ':' everywhere - a name is judged the same on every host.
+  const fileName = unwrapped ? String(name).split(/[\\/]/).pop() : `${wanted[0].name}.zip`;
+  if (!fileName || fileName === '.' || fileName === '..' || /[\\/:\x00-\x1f]/.test(fileName)) {
+    throw new DispatchError('ARTIFACT_NAME', `the artifact's name is not a plain file name: ${JSON.stringify(unwrapped ? name : wanted[0].name)}`, {
+      remedy: 'nothing was written. The corpus artifact must be named research-kit-corpus-v1-<id> - check what uploaded it',
+    });
+  }
+  const file = path.join(dir, fileName);
   // Whole or not at all (ADR-0079), as writeArtifact is: a failed write must not empty a
   // package already at this name (Arena break test 10, 2026-09-28).
   writeBytes(file, pkg);

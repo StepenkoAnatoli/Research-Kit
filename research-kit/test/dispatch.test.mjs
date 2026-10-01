@@ -11,6 +11,7 @@ import {
   tokenFromEnv, redact, DispatchError, API_VERSION, TOKEN_VARS, fetchCorpus,
 } from '../lib/dispatch.mjs';
 import { rawZip } from './artifact-fixtures.mjs';
+import { openZip as importedOpenZip } from '../lib/artifact-zip.mjs';
 
 describe('dispatch');
 
@@ -395,3 +396,60 @@ test('a downloaded package whose write fails leaves the package already there un
   assert.deepEqual(fs.readFileSync(target), previous, 'the package already there was damaged');
   assert.ok(!fs.readdirSync(dir).some((f) => f.includes('.tmp-')), `a scratch file was left behind: ${fs.readdirSync(dir)}`);
 });
+
+// Found 2026-10-01 (break-test, PR #178): the package was written to path.join(dir, <name the
+// API returned>), and a name with separators or `..` - `research-kit-corpus-v1-/../../../pwned`
+// - put it outside the --out directory. A wrapper ZIP's inner entry name became a path the same
+// way. Names from the API are data, never paths: an unsafe one is refused, a wrapper entry is
+// flattened to its file name.
+test('a downloaded package cannot be written outside the directory asked for', async () => {
+  const parent = tempDir('rk-escape-');
+  const dir = path.join(parent, 'sub', 'out');
+  fs.mkdirSync(dir, { recursive: true });
+  const download = (name, body) => stubFetch([
+    jsonResponse(200, { artifacts: [{ id: 1, name, expired: false }] }),
+    { ok: true, status: 200, arrayBuffer: async () => body.buffer.slice(body.byteOffset, body.byteOffset + body.length) },
+  ]);
+  try {
+    for (const name of ['research-kit-corpus-v1-/../../../pwned', 'research-kit-corpus-v1-\\..\\..\\pwned', 'research-kit-corpus-v1-C:pwned', 'research-kit-corpus-v1-a\u0000b']) {
+      await assert.rejects(() => fetchCorpus({ repository: REPO, runId: 1, token: TOKEN, outDir: dir, fetch: download(name, Buffer.from('not a zip')) }),
+        (e) => e instanceof DispatchError && e.code === 'ARTIFACT_NAME', `${JSON.stringify(name)} was not refused`);
+    }
+    // A nested entry is flattened; an entry naming a parent is refused by openZip already, so
+    // the download is kept whole under the artifact's own name - inside --out either way.
+    for (const [entry, expected] of [['nested/package.zip', 'package.zip'], ['../../evil.zip', 'research-kit-corpus-v1-ok.zip']]) {
+      const r = await fetchCorpus({ repository: REPO, runId: 1, token: TOKEN, outDir: dir, fetch: download('research-kit-corpus-v1-ok', rawZip([{ name: entry, data: 'inner' }])) });
+      assert.equal(r.file, path.join(dir, expected), `the wrapper entry ${entry} was not flattened`);
+    }
+    assert.deepEqual(fs.readdirSync(parent).sort(), ['sub'], 'something was written outside --out');
+    assert.deepEqual(fs.readdirSync(path.join(parent, 'sub')), ['out'], 'something was written outside --out');
+  } finally { cleanup(parent); }
+});
+
+// Found 2026-10-01 (break-test, PR #178): unwrapArtifact caught a wrapper it could not open,
+// but not an inner entry it could not READ - an invalid deflate stream threw ZIP-READ out of
+// fetchCorpus, past the validator that exists to judge exactly such bytes.
+test('a wrapper whose inner package cannot be decompressed is judged by the validator, not thrown', async () => {
+  const { buildZip } = await import('../lib/archive.mjs');
+  const bytes = buildZip([{ name: 'package.zip', data: 'hello'.repeat(100) }]);
+  bytes.fill(255, 41, 46);                 // inside the deflated payload: an invalid block type
+  assert.throws(() => (/** the fixture must really be corrupt */ require_read(bytes)), /could not be decompressed/);
+  const r = unwrapArtifact(bytes);
+  assert.equal(r.unwrapped, false);
+  assert.equal(r.bytes, bytes, 'the bytes are handed on as they came');
+
+  const dir = tempDir('rk-corrupt-');
+  try {
+    const result = await fetchCorpus({ repository: REPO, runId: 1, token: TOKEN, outDir: dir, fetch: stubFetch([
+      jsonResponse(200, { artifacts: [{ id: 1, name: 'research-kit-corpus-v1-ok', expired: false }] }),
+      { ok: true, status: 200, arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length) },
+    ]) });
+    assert.notEqual(result.validation.status, 'PASS', 'a package that cannot be read must not validate');
+    assert.ok(result.validation.errors.length > 0, 'and the validator must say why');
+  } finally { cleanup(dir); }
+});
+
+function require_read(bytes) {
+  // openZip is what unwrapArtifact uses; reading the one entry is where the throw came from.
+  return importedOpenZip(bytes).read('package.zip');
+}
