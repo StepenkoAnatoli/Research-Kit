@@ -117,11 +117,11 @@ export function splitPathList(text) {
   return parts.map((p) => p.trim()).filter(Boolean);
 }
 
-export function stdinIsReadable() {
+export function stdinIsReadable(stdin = process.stdin) {
   try {
     // isatty(0) rather than inferring from the file type: a socketpair is not a FIFO,
     // and /dev/null is a character device that reads as immediate EOF.
-    return !process.stdin.isTTY;
+    return !stdin.isTTY;
   } catch {
     return false;
   }

@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { evaluate, isGated, isPhaseOneEdit } from '../lib/gate.mjs';
+import { evaluate, isGated, isPhaseOneEdit, stdinIsReadable } from '../lib/gate.mjs';
 import { loadConfig } from '../lib/machine.mjs';
 import { PATHS } from '../lib/core.mjs';
 
@@ -26,6 +26,14 @@ function emit(decision, reason) {
     },
   })}\n`);
   process.exit(0);
+}
+
+// Started from a terminal, with nothing piped in, there is no payload: reading would wait for an
+// end of file that never comes (break-test PR #185, 2026-10-01 - alive with no output ten seconds
+// later on a held pty). The same question bin/gate.mjs asks; a terminal carries nothing to judge.
+if (!stdinIsReadable()) {
+  process.stderr.write('edit gate: stdin is a terminal, so there is no payload to judge - allowing\n');
+  emit('allow', 'the edit gate was started from a terminal with no payload on stdin, and did not judge');
 }
 
 let payload = {};

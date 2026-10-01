@@ -500,3 +500,20 @@ test('the global hooks folder the install replaced still runs, as it did before 
   const refused = gitWithKitHooks(dir, ['commit', '-q', '-m', 'docs 2'], { GIT_CONFIG_GLOBAL: globalConfig });
   assert.notEqual(refused.status, 0, 'the replaced folder\'s pre-commit refused, and the commit went through');
 });
+
+// Break-test PR #185 (2026-10-01): started from a terminal with nothing piped in, the edit gate
+// waited forever - `fs.readFileSync(0)` on a TTY waits for an end of file that never comes;
+// held on a real pty it was alive with no output ten seconds later. `bin/gate.mjs` already
+// asked `stdinIsReadable()` before reading; the hook asks the same question now, and allows
+// with a named reason, since a terminal carries no payload to judge.
+test('the edit gate does not read a terminal stdin: it allows, with the reason, and never waits', async () => {
+  const { stdinIsReadable } = await import('../lib/gate.mjs');
+  assert.equal(stdinIsReadable({ isTTY: true }), false);
+  assert.equal(stdinIsReadable({ isTTY: false }), true);
+  assert.equal(stdinIsReadable({}), true, 'a pipe or a file has no isTTY');
+  const hook = readText(path.join(KIT_ROOT, 'hooks', 'edit-gate.mjs'));
+  const asks = hook.indexOf('stdinIsReadable()');
+  const reads = hook.indexOf('fs.readFileSync(0');
+  assert.ok(asks > 0 && asks < reads, 'the hook reads stdin before asking whether it is a terminal');
+  assert.match(hook.slice(asks, reads), /emit\('allow'/, 'a terminal stdin is allowed with a reason, not refused');
+});
