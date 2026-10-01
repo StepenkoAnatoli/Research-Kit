@@ -559,3 +559,8 @@ commit as the `.gitignore` rule that excludes it, which `.gitignore` is powerles
 once a file is in the index. The gate writes a line to it on **every** invocation, so
 every verification left the working tree dirty, and a read-only check that modifies the
 repository is a contradiction. A test now asserts that no ignored file is tracked.
+
+## License
+
+All rights reserved - see [`LICENSE`](LICENSE). The repository may be read where it is
+published; using, copying or building on it needs the copyright holder's written permission.
