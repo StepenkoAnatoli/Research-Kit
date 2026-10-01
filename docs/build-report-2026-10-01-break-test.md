@@ -32,9 +32,12 @@ unsupported test blocks, by design (ADR-0108) — and `RESEARCH_KIT_ALLOW_UNSUP=
 documented local waiver, which CI ignores. Every count in this report is a waived local run
 unless it says otherwise; the failure count, which is the one that matters, is 0 in all of them.
 
-**Final state (end of pass 2).** `1419 passed, 0 failed, 1 unsupported` — eight new tests, one
-per defect, two of them pinning a defect from both ends. `research-kit/README.md` says
-`1420 tests, offline`, which is the number the runner itself checks.
+**Final state (end of pass 2, on the base commit `427de81`).** `1419 passed, 0 failed,
+1 unsupported` — eight new tests, one per defect, two of them pinning a defect from both ends.
+`research-kit/README.md` then said `1420 tests, offline`, which is the number the runner itself
+checks. Both numbers moved when `main` was merged in after the pull request opened: on the merged
+branch the count is **1427**, and this host reports `1425 passed, 0 failed, 2 unsupported`. See
+the postscript at the end — the six findings and their fixes are unchanged by it.
 
 ---
 
@@ -578,3 +581,57 @@ are decisions, and they are written up as such.
 
 cwd: the repository root. Offline — no key, no credits, and no network beyond two loopback
 servers this pass started itself and killed.
+
+---
+
+## Postscript — merged with `main` after the pull request opened (2026-10-01, 19:55 UTC)
+
+Written after the pass above, and about the branch rather than the probing: nothing here changes a
+finding, a fix, or a recommendation.
+
+`main` moved from `427de81` to `01d99c0` while this break-test ran. PR #192 landed the browser work
+(ADR-0119's render timeout, the guard's record of every request it carried, Chromium's own
+deadline, the transport judging a timeout by what Chromium printed) plus two fixes from earlier
+break-tests, and it touched three files this branch touches. The pull request therefore opened
+**CONFLICTING**, on the two files both sides had edited in the same place:
+
+- **`CHANGELOG.md`** — both sides added bullets to `Unreleased`. Both kept, this branch's first:
+  the section is newest-first, and these entries are dated 19:09–19:17 UTC against main's 16:20 UTC.
+- **`research-kit/README.md`** — both sides changed the test count, main to `1419`, this branch to
+  `1420`. Neither survives a merge, and picking either side would have failed the runner's own
+  count check: the answer is main's suite plus this branch's eight tests, **1427**.
+
+No product code needed reconciling — the six fixes and main's browser work touch disjoint modules —
+and `docs/ARCHITECTURE.md` auto-merged, so both sides' map rows stand. Merging `main` in rather
+than rebasing keeps the six commits that were each verified green alone, byte for byte, in a
+separate worktree.
+
+**Verified on the merged tree.** `1425 passed, 0 failed, 2 unsupported` locally (the two are
+`NO-BROWSER`, and both are main's new browser tests, which this host cannot run); `preflight`
+**PASS**, 0 blocking, 0 warnings, 29 passing; release-evidence examples **6/6**; all three
+Node/Python conformance pairs **agree**; `timeline.mjs` and `export-warc.mjs` regenerating to their
+committed bytes and leaving the tree as they found it; `conformance/` and `schemas/` byte-unchanged;
+working tree clean. The kit was deployed (`bin/install.mjs`) and the commit gate installed
+machine-wide first, so the gate ran on the merge commit: `research gate: allow`.
+
+**Then CI ran it on six platforms instead of one.** All seven checks pass on the merge
+([run 36917868056](https://github.com/StepenkoAnatoli/Research-Kit/actions/runs/36917868056)):
+`platform (ubuntu-latest)`, `platform (ubuntu-26.04)`, `platform (windows-latest)`, `node (24)`,
+`node (26)`, `archive tree`, and the required `suite`. That closes part of the limitation this
+report names — the pass ran on Linux only, and three of the six fixes touch platform-specific
+behaviour. `windows-latest` now runs the whole suite including the eight new tests, so those fixes
+hold on Windows as far as tests reach. What is still not reproduced anywhere is the field case
+behind finding 5: Windows holding a lock file open, so removing a stale lock fails for a reason
+other than `ENOENT`. The fix names that refusal instead of spinning on it, and the test pins the
+naming; neither is a witness to the Windows path itself.
+
+**One thing this pass got wrong here, and it is worth keeping.** The pull request was opened from a
+sandbox that had been re-cloned shallow between turns: `git rev-parse HEAD` answered the base
+commit, not the branch tip, and a list of check runs read against it looked like CI failing *this*
+branch. It was main's own history — a `workflow_dispatch` run on `427de81` where `windows-latest`
+failed while the same commit's `push` run passed. Two habits would have caught it before it was
+believed: read the check runs' `head_sha` and `head_branch` rather than trusting that `HEAD` is the
+branch under discussion, and treat `refusing to merge unrelated histories` in a repository with a
+single visible root as a shallow clone, not as a fact about the branches. The push had landed, so
+nothing was lost; `origin` held the tip, and the working tree proved byte-identical to it before
+the branch was fast-forwarded back.
