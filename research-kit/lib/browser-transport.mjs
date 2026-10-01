@@ -62,9 +62,17 @@ export function findBrowser({ config = {}, env = process.env, exists = isFile, p
  * weakens TLS: a TLS-intercepting proxy is trusted by adding its CA to the browser's store,
  * never by `--ignore-certificate-errors`.
  */
-export function browserArgs(url, { uid = typeof process.getuid === 'function' ? process.getuid() : -1 } = {}) {
+export function browserArgs(url, { uid = typeof process.getuid === 'function' ? process.getuid() : -1, timeout = TIMEOUT_MS } = {}) {
+  // Chromium's own deadline, under the transport's kill timeout. With --virtual-time-budget
+  // alone, headless waits on a pending load for ever - virtual time advances only when the
+  // page is idle - so one resource that never answers meant no dump, no stderr, and a kill
+  // with nothing to show (CI, 2026-10-01, four times in an afternoon on Windows and Ubuntu;
+  // reproduced with a page whose image never arrives). At the deadline Chromium stops
+  // loading, dumps the DOM it has and exits: the page is captured as it stands. The kill is
+  // for a browser that is not answering at all, ten seconds later.
+  const deadline = Math.max(5_000, timeout - 10_000);
   const args = ['--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
-    '--disable-component-update', '--disable-sync', `--virtual-time-budget=${VIRTUAL_TIME_MS}`];
+    '--disable-component-update', '--disable-sync', `--virtual-time-budget=${VIRTUAL_TIME_MS}`, `--timeout=${deadline}`];
   if (uid === 0) args.push('--no-sandbox');
   args.push('--dump-dom', String(url));
   return args;
@@ -130,7 +138,7 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
     return { ok: false, url: target, transport: name, cmd,
       error: 'no Chromium or Chrome found - set browserPath in the machine config or RESEARCH_KIT_BROWSER to the browser executable' };
   }
-  const result = render(binary, browserArgs(target, uid === undefined ? {} : { uid }), { url: target, env, timeout, allowInternalRedirects });
+  const result = render(binary, browserArgs(target, { ...(uid === undefined ? {} : { uid }), timeout }), { url: target, env, timeout, allowInternalRedirects });
   // Why the browser stopped, in its own words: the last FATAL line, else the last ERROR line,
   // else the last line. Learned from live runs on 2026-09-29: a crash ends its stderr with a
   // stack dump ("[end of stack trace]"), and the crash handler then logs ERROR noise of its
