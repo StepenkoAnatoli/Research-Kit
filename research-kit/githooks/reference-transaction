@@ -1,17 +1,7 @@
 #!/bin/sh
-# research-kit: hand this hook to the repository's own (ADR-0112).
-#
-# The kit's commit gate is installed as the machine-wide core.hooksPath, and git runs hooks
-# from ONE directory: without this file, the repository's own .git/hooks/<this name> - Git LFS's
-# pre-push upload among them - stopped running, and nothing said so (found 2026-10-01,
-# break-test). Every hook git knows has a copy of this file under its own name; pre-commit is
-# the gate, and hands on the same way once it allows the commit.
-#
-# --git-common-dir, not --git-path hooks: with core.hooksPath set, the latter names this
-# directory, and the hook would call itself.
-dir=$(git rev-parse --git-common-dir 2>/dev/null) || exit 0
-hook="$dir/hooks/${0##*/}"
-[ -f "$hook" ] && [ -x "$hook" ] || exit 0
-# A repository whose own hooks directory IS this one has nothing further to hand on to.
-[ "$(cd "$dir/hooks" 2>/dev/null && pwd -P)" = "$(cd "$(dirname "$0")" && pwd -P)" ] && exit 0
-exec "$hook" "$@"
+# research-kit: hand this hook on to what git would have run without the kit (ADR-0112).
+# Every hook name git knows has a copy of this file; hand-on.sh beside it does the work.
+lib="$(dirname "$0")/hand-on.sh"
+[ -f "$lib" ] || exit 0
+. "$lib"
+hand_on "${0##*/}" "$@"

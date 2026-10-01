@@ -813,6 +813,31 @@ test('uninstall restores core.hooksPath only while it is still the kit\'s own', 
     '/opt/myhooks', 'a normal install and uninstall no longer restores the previous path');
 });
 
+// Found 2026-10-01: the install replaced a global hooks folder and kept its name only in a JSON
+// state file the sh hooks cannot read. It is recorded in git's own config now, where they can.
+test('install-hooks records the hooks folder it replaced where the hooks can read it, and uninstall clears it', () => {
+  requireCapability(spawnSync('git', ['--version']).status === 0, 'no-git', 'git is not installed');
+  const { dir, env } = machine();
+  const gitPaths = { env: { ...process.env, GIT_CONFIG_GLOBAL: path.join(dir, 'gitconfig'), GIT_CONFIG_NOSYSTEM: '1' } };
+  const get = (key) => spawnSync('git', ['config', '--global', '--get', key], { env: gitPaths.env, encoding: 'utf8' }).stdout.trim();
+  spawnSync('git', ['config', '--global', 'core.hooksPath', '/opt/myhooks'], { env: gitPaths.env });
+
+  assert.equal(installCommitGate({ kitHome: KIT_ROOT, env, gitPaths }).ok, true);
+  assert.equal(get('research-kit.previousHooksPath'), '/opt/myhooks', 'the replaced folder was not recorded where the hooks look');
+  // Installing again must not record the kit's own folder as the one it replaced: the hooks would hand on to themselves.
+  assert.equal(installCommitGate({ kitHome: KIT_ROOT, env, gitPaths }).ok, true);
+  assert.equal(get('research-kit.previousHooksPath'), '/opt/myhooks');
+  removeCommitGate({ env, gitPaths });
+  assert.equal(get('research-kit.previousHooksPath'), '', 'uninstall left the record behind');
+  assert.equal(get('core.hooksPath'), '/opt/myhooks');
+
+  const fresh = machine();
+  const freshPaths = { env: { ...process.env, GIT_CONFIG_GLOBAL: path.join(fresh.dir, 'gitconfig'), GIT_CONFIG_NOSYSTEM: '1' } };
+  assert.equal(installCommitGate({ kitHome: KIT_ROOT, env: fresh.env, gitPaths: freshPaths }).ok, true);
+  assert.equal(spawnSync('git', ['config', '--global', '--get', 'research-kit.previousHooksPath'], { env: freshPaths.env, encoding: 'utf8' }).stdout.trim(), '',
+    'a machine with no hooks folder before the kit got a record of one');
+});
+
 // Found 2026-09-27: with the kit not deployed, install-hooks refused the commit gate but
 // registered the edit gate anyway, as `node <kit>/hooks/edit-gate.mjs` - a file that did not
 // exist - so every Edit would have run a hook that crashed with MODULE_NOT_FOUND.

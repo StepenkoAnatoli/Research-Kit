@@ -323,6 +323,18 @@ export function setHooksPath(value, { scope = 'global', ...opts } = {}) {
   return git(['config', flag, 'core.hooksPath', value], opts);
 }
 
+/**
+ * The hooks folder the kit's install replaced, where the sh hooks can read it (ADR-0112): git
+ * runs one hooks folder, and `githooks/hand-on.sh` hands each hook on to this one. The install
+ * state keeps it too, as JSON, which sh cannot parse.
+ */
+export const PREVIOUS_HOOKS_KEY = 'research-kit.previousHooksPath';
+
+export function setPreviousHooksPath(value, opts = {}) {
+  if (value === null) return git(['config', '--global', '--unset', PREVIOUS_HOOKS_KEY], opts);
+  return git(['config', '--global', PREVIOUS_HOOKS_KEY, value], opts);
+}
+
 export function isGitRepo(dir) {
   return exists(path.join(dir, '.git'));
 }

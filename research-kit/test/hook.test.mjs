@@ -451,13 +451,52 @@ test('the repository\'s own pre-commit can still refuse a commit, and is not ask
 
 test('every hook git knows has a file in githooks/, tracked executable, that hands on to the repository\'s own', () => {
   const dir = path.join(KIT_ROOT, 'githooks');
-  assert.deepEqual(fs.readdirSync(dir).sort(), [...GIT_HOOK_NAMES].sort(), 'githooks/ and the hooks git knows disagree');
+  assert.deepEqual(fs.readdirSync(dir).sort(), [...GIT_HOOK_NAMES, 'hand-on.sh'].sort(), 'githooks/ and the hooks git knows disagree');
   const passOn = GIT_HOOK_NAMES.filter((name) => name !== 'pre-commit').map((name) => readText(path.join(dir, name)));
   assert.equal(new Set(passOn).size, 1, 'the pass-on files have drifted apart');
   assert.match(passOn[0], /^#!\/bin\/sh/);
-  assert.match(passOn[0], /--git-common-dir/, 'the repository\'s hooks must be found past core.hooksPath, not through it');
+  assert.match(passOn[0], /hand-on\.sh/);
+  assert.match(readText(path.join(dir, 'pre-commit')), /hand-on\.sh/, 'pre-commit hands on through the same file');
+  assert.match(readText(path.join(dir, 'hand-on.sh')), /--git-common-dir/, 'the repository\'s hooks must be found past core.hooksPath, not through it');
   const tracked = spawnSync('git', ['ls-files', '-s', '--', 'githooks'], { cwd: KIT_ROOT, encoding: 'utf8' });
   if (tracked.status === 0 && tracked.stdout.trim()) {
     for (const line of tracked.stdout.trim().split('\n')) assert.match(line, /^100755 /, `not executable in the index: ${line}`);
   }
+});
+
+// Found 2026-10-01: the hand-on above ran the repository's own hooks, but a machine that had a
+// global core.hooksPath BEFORE the kit's install ran that folder's hooks instead - git reads one
+// folder - and the install replaced it, so its hooks stopped running, with nothing said. The
+// install records it as research-kit.previousHooksPath, and the hand-on runs what git would
+// have run without the kit: that folder when there was one, else the repository's own.
+test('the global hooks folder the install replaced still runs, as it did before the kit', () => {
+  requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
+  const dir = makeRepo();
+  const log = path.join(tempDir('rk-prev-hooks-'), 'ran.log');
+  const previous = tempDir('rk-prev-hooks-dir-');
+  for (const name of ['commit-msg', 'pre-commit']) {
+    const file = path.join(previous, name);
+    fs.writeFileSync(file, `#!/bin/sh\necho "previous ${name}" >> "${log.split('\\').join('/')}"\nexit 0\n`);
+    fs.chmodSync(file, 0o755);
+  }
+  ownHook(dir, 'commit-msg', log);
+  const globalConfig = path.join(tempDir('rk-prev-hooks-cfg-'), 'gitconfig');
+  spawnSync('git', ['config', '--file', globalConfig, 'research-kit.previousHooksPath', previous]);
+
+  writeText(resolve(dir, 'README.md'), '# fixture\n');
+  git(dir, ['add', 'README.md']);
+  const commit = gitWithKitHooks(dir, ['commit', '-q', '-m', 'docs'], { GIT_CONFIG_GLOBAL: globalConfig });
+  assert.equal(commit.status, 0, commit.stdout + commit.stderr);
+  const ran = fs.existsSync(log) ? readText(log) : '';
+  assert.match(ran, /^previous pre-commit/m, `the replaced folder's pre-commit did not run:\n${ran}`);
+  assert.match(ran, /^previous commit-msg/m, 'the replaced folder\'s commit-msg did not run');
+  assert.doesNotMatch(ran, /^commit-msg /m, 'the repository\'s own hook ran, which git never did while a global folder was set');
+
+  // A refusal from that folder still refuses.
+  fs.writeFileSync(path.join(previous, 'pre-commit'), '#!/bin/sh\nexit 1\n');
+  fs.chmodSync(path.join(previous, 'pre-commit'), 0o755);
+  writeText(resolve(dir, 'README.md'), '# fixture 2\n');
+  git(dir, ['add', 'README.md']);
+  const refused = gitWithKitHooks(dir, ['commit', '-q', '-m', 'docs 2'], { GIT_CONFIG_GLOBAL: globalConfig });
+  assert.notEqual(refused.status, 0, 'the replaced folder\'s pre-commit refused, and the commit went through');
 });

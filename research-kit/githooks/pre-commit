@@ -66,16 +66,14 @@ posture_without_kit() {
   return 2
 }
 
-# Once the commit is allowed, the repository's own pre-commit has its say (ADR-0112): git runs
-# hooks from ONE directory, and the kit's core.hooksPath made it this one, so .git/hooks/pre-commit
-# stopped running (found 2026-10-01, break-test). --git-common-dir, not --git-path hooks: with
-# core.hooksPath set, the latter names this directory, and the hook would call itself.
-hand_on() {
-  _dir=$(git rev-parse --git-common-dir 2>/dev/null) || exit 0
-  _own="$_dir/hooks/pre-commit"
-  [ -f "$_own" ] && [ -x "$_own" ] || exit 0
-  [ "$(cd "$_dir/hooks" 2>/dev/null && pwd -P)" = "$(cd "$(dirname "$0")" && pwd -P)" ] && exit 0
-  exec "$_own"
+# Once the commit is allowed, what git would have run without the kit has its say (ADR-0112):
+# the hooks folder the install replaced, or the repository's own pre-commit. git runs hooks from
+# ONE folder, and the kit's core.hooksPath made it this one (found 2026-10-01, break-test).
+pass_on() {
+  _lib="$(dirname "$0")/hand-on.sh"
+  [ -f "$_lib" ] || exit 0
+  . "$_lib"
+  hand_on pre-commit
 }
 
 decide_without_gate() {
@@ -84,7 +82,7 @@ decide_without_gate() {
   _posture=$?
   if [ "$_posture" -eq 0 ]; then
     echo "research gate: $_why - allowing this commit (fail-open). Run: node $KIT_HOME/bin/doctor.mjs" >&2
-    hand_on
+    pass_on
   fi
   echo "research gate: $_why - BLOCKING (fail-closed)." >&2
   exit 1
@@ -132,5 +130,5 @@ if [ "$status" -eq 2 ]; then
   decide_without_gate "the gate reported an internal error"
 fi
 
-[ "$status" -eq 0 ] && hand_on
+[ "$status" -eq 0 ] && pass_on
 exit "$status"

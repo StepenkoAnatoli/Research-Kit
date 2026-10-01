@@ -13,7 +13,7 @@ import {
 } from './core.mjs';
 import {
   KIT_HOME, EDIT_GATE_HOOK, RETIRED_EDIT_GATE_HOOKS, RETIRED_KIT_FILES,
-  hooksPath, setHooksPath, runtimePaths, skillLocations, readInstallState, writeInstallState,
+  hooksPath, setHooksPath, setPreviousHooksPath, runtimePaths, skillLocations, readInstallState, writeInstallState,
   saveConfig, loadConfig, ROLES, namesHook,
 } from './machine.mjs';
 import { KIT_ROOT, HOOK_MODE, hookExecutability } from './scaffold.mjs';
@@ -40,7 +40,11 @@ export function installCommitGate({ kitHome = KIT_HOME, env = process.env, dryRu
 
   setHooksPath(dir, { scope: 'global', ...gitPaths });
   const state = readInstallState(env) ?? {};
-  writeInstallState({ ...state, kitHome, hooksPath: dir, previousHooksPath: state.previousHooksPath ?? previous ?? null }, env);
+  // Never the kit's own folder: an install over an install would record itself, and the hooks
+  // would hand on to themselves.
+  const replaced = [state.previousHooksPath, previous].find((p) => p && path.resolve(p) !== path.resolve(dir)) ?? null;
+  setPreviousHooksPath(replaced, gitPaths);
+  writeInstallState({ ...state, kitHome, hooksPath: dir, previousHooksPath: replaced }, env);
   return { ok: true, hooksPath: dir, previous, executable: hookExecutability(hook) };
 }
 
@@ -57,6 +61,7 @@ export function removeCommitGate({ env = process.env, gitPaths = {} } = {}) {
     return { ok: true, restored: undefined, left: current ?? null };
   }
   setHooksPath(previous ?? null, { scope: 'global', ...gitPaths });
+  setPreviousHooksPath(null, gitPaths);
   writeInstallState({ ...state, hooksPath: null, previousHooksPath: null }, env);
   return { ok: true, restored: previous };
 }
