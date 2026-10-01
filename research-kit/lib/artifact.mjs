@@ -29,7 +29,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  PATHS, resolve, exists, isDirectory, readText, sha256, canonicalJson, nowIso, listFiles, homeCommand, realInside, writeBytes,
+  PATHS, resolve, exists, isDirectory, isRegularFile, readText, sha256, canonicalJson, nowIso, listFiles, homeCommand, realInside, writeBytes,
 } from './core.mjs';
 import { buildZip } from './archive.mjs';
 import { checkEntryName } from './artifact-zip.mjs';
@@ -139,7 +139,16 @@ export function collectProjectFiles(root) {
   // `writeArtifact` reads its own package back: a package this kit calls good has to be
   // good by the standard of the thing that receives it.
   const refused = [];
+  // What the archive cannot READ to an end, refused before a byte is read (found 2026-10-01,
+  // break-test): a FIFO under research/raw/ was listed, and packaging blocked forever reading
+  // it; and `docs/loop -> .` was walked as docs/loop/loop/... until the OS refused. A folder
+  // is judged by its real path against the folders ABOVE it, so a link to a sibling folder
+  // inside the project - not a cycle - still packages, as it always did.
+  const unreadable = [];
+  const above = new Set();
   const walk = (dir, rel) => {
+    const real = fs.realpathSync(dir);
+    above.add(real);
     for (const name of listFiles(dir).sort()) {
       const childRel = rel ? `${rel}/${name}` : name;
       const abs = path.join(dir, name);
@@ -149,14 +158,21 @@ export function collectProjectFiles(root) {
       const verdict = checkEntryName(`project/${childRel}`);
       if (!verdict.ok) { refused.push({ rel: childRel, detail: verdict.detail }); continue; }
       if (!realInside(root, abs)) { outside.push(childRel); continue; }
-      if (isDirectory(abs)) { walk(abs, childRel); continue; }
+      if (isDirectory(abs)) {
+        if (above.has(fs.realpathSync(abs))) { unreadable.push({ rel: childRel, detail: 'a link back to a folder that contains it' }); continue; }
+        walk(abs, childRel);
+        continue;
+      }
+      if (!isRegularFile(abs)) { unreadable.push({ rel: childRel, detail: 'not a regular file - a FIFO, socket or device has no end to read to' }); continue; }
       out.push(childRel);
     }
+    above.delete(real);
   };
   for (const rel of ['AGENTS.md', 'START_HERE.md', '.gitattributes', '.gitignore']) {
     const abs = resolve(root, rel);
     if (!exists(abs) || isDirectory(abs)) continue;
     if (!realInside(root, abs)) { outside.push(rel); continue; }
+    if (!isRegularFile(abs)) { unreadable.push({ rel, detail: 'not a regular file - a FIFO, socket or device has no end to read to' }); continue; }
     out.push(rel);
   }
   for (const top of ['research', 'docs']) {
@@ -181,6 +197,12 @@ export function collectProjectFiles(root) {
       + 'Rename the file, then package again - the name is part of what the manifest declares, '
       + 'so the kit refuses rather than substituting another.');
     err.code = 'UNPACKAGEABLE_NAME';
+    throw err;
+  }
+  if (unreadable.length) {
+    const err = new Error(`${unreadable.map((u) => `${u.rel} (${u.detail})`).join(', ')}: `
+      + 'packaging cannot read this to an end. Replace it with an ordinary file, or remove it, then package again.');
+    err.code = 'UNPACKAGEABLE_FILE';
     throw err;
   }
   if (outside.length) {

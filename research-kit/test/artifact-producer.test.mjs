@@ -5,6 +5,7 @@
 // it is asserted against the module's whole surface rather than against one function,
 // because the way this gets lost is somebody adding a convenient option later.
 
+import { execFileSync } from 'node:child_process';
 import { test, describe, assert, fs, path, os, cleanup, tempDir } from './harness.mjs';
 import { sha256, canonicalJson, resolve, readText, writeText, today, PATHS, HEADERS } from '../lib/core.mjs';
 import {
@@ -488,6 +489,30 @@ test('a link that lands outside the project is refused, and its bytes are never 
     assert.match(error.message, /outside the project/, `${rel}: ${error.message}`);
     assert.ok(error.message.includes(rel), `${rel}: the refusal does not name the link: ${error.message}`);
   }
+});
+
+// Found 2026-10-01 (break-test, PR #178): the inventory took anything that was not a directory
+// as a file, so a FIFO under research/raw/ was listed and packaging blocked forever reading it;
+// and it followed directory links without asking where they led, so `docs/loop -> .` listed
+// docs/loop/loop/loop/... until the OS refused. Both are refused now, naming the path. The
+// inventory is asked directly: packaging a FIFO would hang this test where no watchdog reaches.
+test('a FIFO or a directory link back into its own ancestry is refused by the inventory', () => {
+  const cycle = approvedProject();
+  fs.symlinkSync(path.join(cycle, 'docs'), path.join(cycle, 'docs', 'loop'), 'junction');
+  assert.throws(() => collectProjectFiles(cycle), (e) => e.code === 'UNPACKAGEABLE_FILE' && e.message.includes('docs/loop'),
+    'a directory link to its own ancestor was walked');
+
+  // A link to another folder INSIDE the project that is not an ancestor is not a cycle: it
+  // still packages, as it did before.
+  const alias = approvedProject();
+  fs.symlinkSync(path.join(alias, 'research', 'raw'), path.join(alias, 'docs', 'raw-alias'), 'junction');
+  assert.ok(collectProjectFiles(alias).some((rel) => rel.startsWith('docs/raw-alias/')), 'a non-cyclic link inside the project was refused');
+
+  if (process.platform === 'win32') return;   // the cycle above is the Windows half; FIFOs are POSIX
+  const fifo = approvedProject();
+  execFileSync('mkfifo', [path.join(fifo, 'research', 'raw', 'pipe.md')]);
+  assert.throws(() => collectProjectFiles(fifo), (e) => e.code === 'UNPACKAGEABLE_FILE' && e.message.includes('research/raw/pipe.md'),
+    'a FIFO was listed for packaging');
 });
 
 test('readCaptures does not read a capture that links outside the project, and the gate blocks on it', () => {
