@@ -7,6 +7,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- The extractor's `comparison-row` rule is three linear scans, not one backtracking regex.
+  `\b(plan|tier)\b.*\b(month|year|user)\b.*\d` was quadratic in a table row's length, and a
+  row's length is the captured page's own doing: a 309 KB row, the size of a line this
+  repository's corpus already holds, took 15 s in `firstFinding`, which the collector runs over
+  every page. The same row now costs milliseconds, and the rewrite is pinned against the old
+  pattern over 4,000 generated rows (break-test 2026-10-01, PR #193, redone on main).
 - In the kit's own checkout a commit staging anything under `research-kit/` is allowed
   only when the suite is green (ADR-0120, which lifts the freeze for this one check). The
   commit gate runs `bin/selftest.mjs` and reads its result file: an unsupported test is

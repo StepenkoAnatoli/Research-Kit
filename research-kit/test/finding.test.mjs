@@ -351,3 +351,63 @@ test('the joined paragraph is NOT a candidate, and the comment says why', () => 
   const result = findingWithContext(page, 'x');
   assert.match(result.finding, /0\.60 per additional/, `a feature-list collage won: ${result.finding}`);
 });
+
+// Found 2026-10-01 (break-test): the `comparison-row` rule's second test was
+// `\b(plan|tier)\b.*\b(month|year|user)\b.*\d`, which is QUADRATIC in the row's length -
+// on a row that does not match, every tier word starts a scan that runs to the end of the
+// row before it can fail. One 400 KB table row took 24.1 s in `firstFinding`, and the rule
+// runs twice per row (as `comparison-row`, and negated as `table-row`). The row is a
+// captured page's own content, so its length is the vendor's choice, and this repository's
+// corpus already holds a capture with a single 308,705-character line. The collector runs
+// the extractor over every page it fetches, and the commit gate has a 120 s watchdog: a
+// page big enough turns one commit into a killed gate and one collection into a stall.
+//
+// The rule is now three linear scans that answer the same question. Both halves of that
+// claim are pinned here: the SAME answers, and a bounded cost.
+test('the comparison-row rule is linear in the row, and answers what the regex answered', () => {
+  // The rule as it was written, kept here as the oracle. `: ` counting short-circuits it in
+  // the implementation, so the oracle carries that too - the two must agree on every row.
+  const asItWas = (text) => {
+    const source = String(text);
+    return (source.match(/: /g) ?? []).length >= 3 || /\b(plan|tier)\b.*\b(month|year|user)\b.*\d/i.test(source);
+  };
+  // `comparison-row` weighs -4 and `table-row` +2, and the latter is the negation of the
+  // former, so the difference between the two contexts is -4 for a comparison row and +2
+  // for any other table row. That is the rule, read out through the public scorer.
+  const comparisonRow = (text) => {
+    const diff = score(text, { fromTable: true }) - score(text, { fromTable: false });
+    assert.ok(diff === -4 || diff === 2, `the two table rules no longer differ by exactly one of them: ${diff}`);
+    return diff === -4;
+  };
+
+  // Deterministic: a linear congruential generator over an alphabet made of the words the
+  // rule looks for, their near-misses (`users`, `monthly`, `PLAN`), the `: ` the counter
+  // looks for, a newline (`.` does not cross one) and filler. 4,000 rows, both positive and
+  // negative, chosen by a seed rather than by hand - a rewrite of a rule is exactly where a
+  // hand-picked example set passes for the wrong reason.
+  const alphabet = ['plan', 'tier', 'month', 'year', 'user', '7', ' ', 'x', '\n', 'PLAN', 'Tier',
+    'users', 'monthly', ': ', 'plan tier', 'per user', 'a-b', '.'];
+  let seed = 987654321;
+  const next = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  let positives = 0;
+  for (let i = 0; i < 4000; i += 1) {
+    let row = '';
+    const parts = 1 + Math.floor(next() * 16);
+    for (let k = 0; k < parts; k += 1) row += alphabet[Math.floor(next() * alphabet.length)];
+    const mine = comparisonRow(row);
+    if (mine) positives += 1;
+    assert.equal(mine, asItWas(row), `the linear rule and the regex disagree on ${JSON.stringify(row)}`);
+  }
+  assert.ok(positives > 20, `only ${positives} of 4,000 rows were comparison rows - the oracle is not being exercised both ways`);
+
+  // And the cost. A row the size this repository's own corpus already holds, through the
+  // extractor the collector runs on every page: 24.1 s before this fix, tens of
+  // milliseconds after. The bound is loose enough for a loaded CI runner and far below the
+  // cost that made the gate's watchdog a real risk.
+  const cell = 'a storage tier or a plan for the tier '.repeat(12000).slice(0, 400_000);
+  const page = `# Pricing\n\n| Term | Value |\n|---|---|\n| ${cell} | none |\n`;
+  const started = Date.now();
+  firstFinding(page, 'fallback');
+  const ms = Date.now() - started;
+  assert.ok(ms < 4000, `a 400 KB table row took ${ms}ms in the extractor - the rule is not linear`);
+});
