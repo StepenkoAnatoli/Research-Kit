@@ -8,7 +8,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { PATHS, resolve, exists, isDirectory, readJson, readText, tempBase } from './core.mjs';
 import { GATE_MARKERS, TEMPLATE_DIR } from './scaffold.mjs';
 import { runPreflight, verdictContext, readGateState, fixCommand } from './preflight.mjs';
@@ -105,6 +105,102 @@ export function architectureMapBreach(root, stagedPaths) {
     // followed exactly, the commit stayed blocked (found 2026-09-27).
     fix: `update ${PATHS.architecture} for what ${touched.length === 1 ? touched[0] : 'these paths'} changed, then git add ${PATHS.architecture}`,
   };
+}
+
+/**
+ * The suite rule (ADR-0120): in the kit's OWN checkout, a commit touching `research-kit/`
+ * needs a green suite. "A red suite stops work" was prose, and in one afternoon an agent
+ * committed twice while the suite was red - once reading the result through a pipe that
+ * hid the exit code, once trusting a `set -e` that did not stop. Prose did not hold; the
+ * gate does.
+ *
+ * Scope is deliberately narrow. The rule fires only where all four markers of the kit's
+ * checkout exist - a scaffolded project has none of them, so no other project ever pays
+ * for a suite it does not own - and only for a commit that stages something under
+ * `research-kit/`: a docs-only commit owes no suite. The runner is the checkout's own
+ * `bin/selftest.mjs`, read through its result file, not its stdout: an unsupported test
+ * (no Chromium, no Python - ADR-0108) is not red, and a runner that died before reporting
+ * is a block, never a pass.
+ */
+export const SUITE_RULE = 'suite-green-before-commit';
+export const SUITE_TIMEOUT_MS = 20 * 60_000;
+const KIT_DIR = 'research-kit';
+const KIT_CHECKOUT_MARKERS = Object.freeze([`${KIT_DIR}/lib/core.mjs`, `${KIT_DIR}/bin/gate.mjs`, `${KIT_DIR}/bin/selftest.mjs`, `${KIT_DIR}/test`]);
+
+/** True only in a checkout of the kit's repository: the runner, the gate, and the tests are all here. */
+export function isKitCheckout(root) {
+  return KIT_CHECKOUT_MARKERS.every((rel) => exists(resolve(root, rel)));
+}
+
+/** Whether a commit owes the suite: the kit's checkout, and a staged path under research-kit/ (or the list unknown). */
+export function suiteOwed(root, stagedPaths) {
+  if (!isKitCheckout(root)) return false;
+  // With the staged list unknown the gate judges the index as a whole, and runs the suite.
+  return !Array.isArray(stagedPaths) || stagedPaths.some((p) => withinAny(p, [KIT_DIR]));
+}
+
+// git exports its repository location to a hook (GIT_DIR, GIT_INDEX_FILE - the index being
+// committed, or a temporary one for a partial commit - GIT_PREFIX, and their kin). A suite that
+// inherited them would run every scratch repository's `git add` against THIS commit's index.
+// The same list the edit hook strips before asking git where it is (2026-09-28).
+const REPOSITORY_LOCATION = Object.freeze(['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE',
+  'GIT_OBJECT_DIRECTORY', 'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_PREFIX']);
+
+/**
+ * Run the checkout's own suite and return its result (`{ passed, failures, unsupported, exit,
+ * ... }`), `{ timedOut: true, seconds }` when it did not finish, or null when the runner
+ * produced none. The result file is the contract, as in CI: stdout is for people, and a count
+ * scraped from it cannot tell a red suite from one that never printed.
+ *
+ * The runner's exit code is read with the gate's own definition of red: an unsupported test
+ * (no Chromium, no Python - ADR-0108) is not red, so the run is given the local opt-in.
+ */
+export function runSuiteHere(root, { timeout = SUITE_TIMEOUT_MS } = {}) {
+  const resultFile = path.join(tempBase(), `rk-suite-${process.pid}-${Date.now()}.json`);
+  const env = { ...process.env, RESEARCH_KIT_RESULT_FILE: resultFile, RESEARCH_KIT_ALLOW_UNSUP: '1' };
+  for (const name of REPOSITORY_LOCATION) delete env[name];
+  try {
+    const run = spawnSync(process.execPath, [resolve(root, `${KIT_DIR}/bin/selftest.mjs`)], {
+      cwd: root, stdio: 'ignore', timeout, windowsHide: true, env,
+    });
+    if (run.error?.code === 'ETIMEDOUT') return { timedOut: true, seconds: Math.round(timeout / 1000) };
+    const result = readJson(resultFile);
+    return result && typeof result === 'object' ? result : null;
+  } catch {
+    return null;
+  } finally {
+    try { fs.rmSync(resultFile, { force: true }); } catch { /* best effort */ }
+  }
+}
+
+export function suiteBreach(root, stagedPaths, { run = () => runSuiteHere(root), announce = null } = {}) {
+  if (!suiteOwed(root, stagedPaths)) return null;
+  const fix = `make the suite green (node ${KIT_DIR}/bin/selftest.mjs), then commit again; git commit --no-verify overrides, and is recorded`;
+  // Called right before the run, so what a caller says about the suite running is true.
+  if (announce) announce();
+  const result = run();
+  if (!result) {
+    return { rule: SUITE_RULE, detail: 'the suite was run and the runner produced no result - it crashed before reporting', fix };
+  }
+  if (result.timedOut) {
+    return { rule: SUITE_RULE, detail: `the suite did not finish within ${result.seconds} s and was stopped - a suite that cannot report is not green`, fix };
+  }
+  const failures = Number(result.failures) || 0;
+  const unsupported = Number(result.unsupported) || 0;
+  if (failures > 0) {
+    return {
+      rule: SUITE_RULE,
+      detail: `the suite is red: ${failures} failed, ${Number(result.passed) || 0} passed${unsupported ? `, ${unsupported} unsupported` : ''} - a red suite stops work (ADR-0120)`,
+      fix,
+    };
+  }
+  // No failure, and still not a pass: the runner's own last check (the README's test count
+  // against the run) exits 1 with the suite green. Its output names what to fix.
+  const exit = result.exit === undefined ? 0 : Number(result.exit);
+  if (exit !== 0) {
+    return { rule: SUITE_RULE, detail: `every test passed and the runner still exited ${exit} - run it and read its last lines (a stale test count in ${KIT_DIR}/README.md exits 1 on a green run)`, fix };
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------- staged paths as data
@@ -221,7 +317,10 @@ export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = n
   // broken git is untestable is a gate whose most dangerous path is unexercised.
   materialize = materializeIndex,
   // Injectable for the same reason: the staged text of one path (the architecture map).
-  stagedText = (rel) => readStagedText(root, rel) } = {}) {
+  stagedText = (rel) => readStagedText(root, rel),
+  // The suite rule's runner (ADR-0120); null means the checkout's own selftest.mjs. The
+  // announcement runs right before it, so a caller can break the minutes of silence.
+  runSuite = null, announceSuite = null } = {}) {
   const base = { gate, root, fix: fixCommand() };
 
   if (!isGated(root)) {
@@ -326,6 +425,15 @@ export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = n
       return {
         ...base, verdict: 'block', allow: false, preflight, breach,
         reason: breach.detail, fix: breach.fix, findings: preflight.failures,
+      };
+    }
+    // The suite rule runs LAST, because it is the expensive one: a map breach is answered
+    // in a millisecond, and the suite is only paid for by a commit that can otherwise pass.
+    const suite = gate === 'commit' ? suiteBreach(root, stagedPaths, { ...(runSuite ? { run: runSuite } : {}), announce: announceSuite }) : null;
+    if (suite) {
+      return {
+        ...base, verdict: 'block', allow: false, preflight, breach: suite,
+        reason: suite.detail, fix: suite.fix, findings: preflight.failures,
       };
     }
     return { ...base, verdict: 'pass', allow: true, preflight, reason: 'the gate passes', findings: [] };

@@ -4,7 +4,7 @@
 import { spawnSync } from 'node:child_process';
 import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, KIT_ROOT, requireGit } from './harness.mjs';
 import { PATHS, resolve, writeText, readText, writeJson } from '../lib/core.mjs';
-import { evaluate, isGated, splitPathList, architectureMapBreach, loadGateConfig, DEFAULT_CODE_PATHS } from '../lib/gate.mjs';
+import { evaluate, isGated, splitPathList, architectureMapBreach, loadGateConfig, DEFAULT_CODE_PATHS, suiteBreach, suiteOwed, runSuiteHere, isKitCheckout, SUITE_RULE } from '../lib/gate.mjs';
 import { GATE_MARKERS, TEMPLATE_DIR } from '../lib/scaffold.mjs';
 
 describe('gate');
@@ -141,6 +141,142 @@ test('the architecture-map rule: a declared code path stages the map with it', (
   const verdict = evaluate(dir, { gate: 'commit', stagedPaths: ['research-kit/lib/gate.mjs'] });
   assert.equal(verdict.allow, false);
   assert.equal(verdict.breach.rule, 'architecture-map-same-commit');
+});
+
+// ADR-0120 (2026-10-01). "A red suite stops work" was a prose rule, and in one afternoon an
+// agent committed twice while the suite was red - a chain that read the result through a pipe,
+// then one whose `set -e` did not stop. In the kit's own checkout, a commit touching
+// research-kit/ now needs a green suite: the gate runs the runner and reads its result file,
+// so an unsupported test (no Chromium, ADR-0108) is not red, and a runner that crashed before
+// reporting is a block, not a pass. Nothing else: not another project, not a docs-only commit.
+test('the suite rule: in the kit\'s checkout a commit touching research-kit/ needs a green suite', () => {
+  const dir = makePassingProject();
+  writeJson(resolve(dir, PATHS.kit), { architecture: { codePaths: ['research-kit/lib'] } });
+  const calls = [];
+  const runner = (result) => () => { calls.push(result); return result; };
+  // Not the kit's checkout: no runner here is anybody's to run.
+  assert.equal(isKitCheckout(dir), false);
+  assert.equal(suiteBreach(dir, ['research-kit/lib/x.mjs'], { run: runner({ failures: 3, passed: 1 }) }), null);
+  assert.equal(calls.length, 0, 'the suite ran outside the kit\'s checkout');
+  for (const rel of ['research-kit/lib/core.mjs', 'research-kit/bin/gate.mjs', 'research-kit/bin/selftest.mjs', 'research-kit/test/.keep']) {
+    fs.mkdirSync(path.dirname(resolve(dir, rel)), { recursive: true });
+    writeText(resolve(dir, rel), '// stand-in\n');
+  }
+  assert.equal(isKitCheckout(dir), true);
+  assert.equal(suiteBreach(dir, ['docs/ARCHITECTURE.md', 'CHANGELOG.md', 'README.md'], { run: runner({ failures: 3, passed: 1 }) }), null, 'a commit outside research-kit/ owes no suite');
+  assert.equal(calls.length, 0, 'the suite ran for a docs-only commit');
+  const red = suiteBreach(dir, ['research-kit/README.md'], { run: runner({ failures: 2, passed: 1417, unsupported: 0 }) });
+  assert.equal(red.rule, SUITE_RULE);
+  assert.match(red.detail, /the suite is red: 2 failed, 1417 passed/);
+  assert.match(red.fix, /node research-kit\/bin\/selftest\.mjs/);
+  assert.equal(calls.length, 1);
+  assert.equal(suiteBreach(dir, ['research-kit/lib/x.mjs'], { run: runner({ failures: 0, passed: 1418, unsupported: 1, exit: 0 }) }), null, 'an unsupported test is not red (ADR-0108)');
+  // Green tests and a non-zero exit: the runner's README-count check. Not a pass.
+  assert.match(suiteBreach(dir, ['research-kit/lib/x.mjs'], { run: runner({ failures: 0, passed: 1422, unsupported: 0, exit: 1 }) }).detail, /still exited 1/);
+  assert.match(suiteBreach(dir, ['research-kit/lib/x.mjs'], { run: runner({ timedOut: true, seconds: 1200 }) }).detail, /did not finish within 1200 s/);
+  assert.equal(suiteOwed(dir, ['research-kit/lib/x.mjs']), true);
+  assert.equal(suiteOwed(dir, ['docs/ARCHITECTURE.md']), false);
+  assert.equal(suiteOwed(dir, null), true);
+  assert.match(suiteBreach(dir, ['research-kit/lib/x.mjs'], { run: runner(null) }).detail, /produced no result/, 'a runner that crashed is a block, not a pass');
+  assert.equal(suiteBreach(dir, null, { run: runner({ failures: 1, passed: 1 }) })?.rule, SUITE_RULE, 'with the staged list unknown, the suite is run');
+  // Through the verdict, on a passing project with the map staged: red blocks, green allows, and the edit gate never runs it.
+  const red2 = evaluate(dir, { gate: 'commit', stagedPaths: ['research-kit/lib/x.mjs', PATHS.architecture], runSuite: runner({ failures: 1, passed: 5 }) });
+  assert.equal(red2.allow, false);
+  assert.equal(red2.breach.rule, SUITE_RULE);
+  assert.match(red2.reason, /the suite is red: 1 failed/);
+  const green = evaluate(dir, { gate: 'commit', stagedPaths: ['research-kit/lib/x.mjs', PATHS.architecture], runSuite: runner({ failures: 0, passed: 5 }) });
+  assert.equal(green.allow, true, green.reason);
+  calls.length = 0;
+  const edit = evaluate(dir, { gate: 'edit', stagedPaths: ['research-kit/lib/x.mjs'], runSuite: runner({ failures: 9, passed: 0 }) });
+  assert.equal(edit.allow, true);
+  assert.equal(calls.length, 0, 'the edit gate ran the suite');
+});
+
+test('the suite rule runs the checkout\'s own runner and reads its result file', () => {
+  const dir = makePassingProject();
+  for (const rel of ['research-kit/lib/core.mjs', 'research-kit/bin/gate.mjs', 'research-kit/test/.keep']) {
+    fs.mkdirSync(path.dirname(resolve(dir, rel)), { recursive: true });
+    writeText(resolve(dir, rel), '// stand-in\n');
+  }
+  // A stand-in runner: red while a marker file exists, and it reports through the result file like
+  // the real one. It also records the environment it was given.
+  writeText(resolve(dir, 'research-kit/bin/selftest.mjs'), `
+import fs from 'node:fs';
+const red = fs.existsSync(new URL('../../RED', import.meta.url));
+fs.writeFileSync(new URL('../../ENV.json', import.meta.url), JSON.stringify(process.env));
+fs.writeFileSync(process.env.RESEARCH_KIT_RESULT_FILE, JSON.stringify({ passed: red ? 4 : 5, failures: red ? 1 : 0, unsupported: 0, exit: red ? 1 : 0 }));
+process.exit(red ? 1 : 0);
+`);
+  writeText(resolve(dir, 'RED'), '');
+  // The hook's environment: git exports the index being committed to its hooks, and a suite that
+  // inherited it would run every scratch repository's git against THIS commit's index.
+  const hookEnv = { GIT_DIR: '.git', GIT_INDEX_FILE: path.join(dir, '.git', 'index.lock'), GIT_PREFIX: '' };
+  const saved = Object.fromEntries(Object.keys(hookEnv).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, hookEnv);
+  let red;
+  try {
+    red = suiteBreach(dir, ['research-kit/lib/x.mjs']);
+  } finally {
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+  assert.equal(red?.rule, SUITE_RULE, JSON.stringify(red));
+  assert.match(red.detail, /1 failed, 4 passed/);
+  const given = JSON.parse(readText(resolve(dir, 'ENV.json')));
+  for (const k of Object.keys(hookEnv)) assert.equal(given[k], undefined, `${k} reached the suite`);
+  assert.equal(given.RESEARCH_KIT_ALLOW_UNSUP, '1', 'an unsupported test must not make the run exit 1 (ADR-0108)');
+  assert.match(given.RESEARCH_KIT_RESULT_FILE, /rk-suite-/);
+  assert.equal(fs.existsSync(given.RESEARCH_KIT_RESULT_FILE), false, 'the scratch result file was left behind');
+  fs.rmSync(resolve(dir, 'RED'));
+  assert.equal(suiteBreach(dir, ['research-kit/lib/x.mjs']), null);
+  // A runner that crashes before reporting.
+  writeText(resolve(dir, 'research-kit/bin/selftest.mjs'), 'process.exit(70);\n');
+  assert.match(suiteBreach(dir, ['research-kit/lib/x.mjs']).detail, /produced no result/);
+});
+
+test('the suite rule stops a suite that does not finish, and says so', () => {
+  const dir = makePassingProject();
+  for (const rel of ['research-kit/lib/core.mjs', 'research-kit/bin/gate.mjs', 'research-kit/test/.keep']) {
+    fs.mkdirSync(path.dirname(resolve(dir, rel)), { recursive: true });
+    writeText(resolve(dir, rel), '// stand-in\n');
+  }
+  // A runner that hangs: it never writes the result file.
+  writeText(resolve(dir, 'research-kit/bin/selftest.mjs'), 'setTimeout(() => {}, 30_000);\n');
+  const started = Date.now();
+  const breach = suiteBreach(dir, ['research-kit/lib/x.mjs'], { run: () => runSuiteHere(dir, { timeout: 1000 }) });
+  assert.ok(Date.now() - started < 15_000, 'the hung runner was not stopped');
+  assert.equal(breach?.rule, SUITE_RULE, JSON.stringify(breach));
+  assert.match(breach.detail, /did not finish within 1 s/);
+});
+
+test('bin/gate.mjs says the suite is about to run, and names the suite rule when it blocks', () => {
+  requireGit();
+  const dir = makePassingProject();
+  for (const rel of ['research-kit/lib/core.mjs', 'research-kit/bin/gate.mjs', 'research-kit/test/.keep']) {
+    fs.mkdirSync(path.dirname(resolve(dir, rel)), { recursive: true });
+    writeText(resolve(dir, rel), '// stand-in\n');
+  }
+  writeText(resolve(dir, 'research-kit/bin/selftest.mjs'), `
+import fs from 'node:fs';
+fs.writeFileSync(process.env.RESEARCH_KIT_RESULT_FILE, JSON.stringify({ passed: 7, failures: 2, unsupported: 0, exit: 1 }));
+process.exit(1);
+`);
+  // --staged is repeatable, one path each; it does not split a list.
+  const gate = (...staged) => spawnSync(process.execPath, [path.join(KIT_ROOT, 'bin', 'gate.mjs'), '--gate', 'commit', ...staged.flatMap((p) => ['--staged', p])],
+    { cwd: dir, encoding: 'utf8', env: { ...process.env, RESEARCH_KIT_GATE: '' } });
+  const blocked = gate('research-kit/lib/x.mjs', 'docs/ARCHITECTURE.md');
+  assert.equal(blocked.status, 1, blocked.stdout + blocked.stderr);
+  assert.match(blocked.stderr, /so the suite runs before the commit is allowed \(ADR-0120\)/, 'nothing said before the silence');
+  assert.match(blocked.stderr, /BLOCKED - the suite is red: 2 failed, 7 passed/);
+  assert.match(blocked.stderr, /This is the suite rule/);
+  assert.doesNotMatch(blocked.stderr, /Phase 1 is not done/);
+  const docs = gate('docs/ARCHITECTURE.md', 'CHANGELOG.md');
+  assert.equal(docs.status, 0, docs.stdout + docs.stderr);
+  assert.doesNotMatch(docs.stderr, /suite runs before/, 'a docs-only commit announced a suite it does not owe');
+  // A commit the map rule refuses never pays for the suite, and is not told it is running.
+  const map = gate('research-kit/lib/x.mjs', 'src/app.js');
+  assert.equal(map.status, 1);
+  assert.match(map.stderr, /architecture-map rule/);
+  assert.doesNotMatch(map.stderr, /suite runs before/, 'announced a suite the map rule pre-empted');
 });
 
 // Found 2026-09-27 committing product code in a project whose preflight PASSes: the block said

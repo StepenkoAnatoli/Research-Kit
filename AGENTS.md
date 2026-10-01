@@ -273,8 +273,9 @@ feature.
 Five rules for how work in this project is committed and recorded. They bind
 every contributor - agents and humans alike. This is documentation, not
 enforcement: no check judges prose, because a gate that judges prose is a
-gate that will be wrong. Rule 1 is enforced by the commit gate; the rest are
-carried by review and by the record these rules produce.
+gate that will be wrong. Rule 1 is enforced by the commit gate, and so is rule 5
+in this repository (ADR-0120, a result file, not prose); the rest are carried by
+review and by the record these rules produce.
 
 1. **Architecture map current in the same commit.** A commit that touches a
    declared code path (declared in `research/kit.json`) stages
@@ -331,6 +332,12 @@ carried by review and by the record these rules produce.
    localised. Work resumes when the red is explained - fixed, or pinned as a
    recorded defect with the reason - never when it is averaged into a
    summary.
+
+   In the kit's own repository this rule is enforced (ADR-0120): the commit gate runs
+   the suite for any commit that stages something under `research-kit/`, and blocks
+   while it is red. A docs-only commit owes nothing, an unsupported test is not red, and
+   `git commit --no-verify` still goes through, recorded. Projects built on the kit carry
+   this rule as prose, because the check does not apply to them.
 
 The record this protocol produces: decisions as ADRs under `docs/adr/`
 (including dated rejections with their expiry triggers), architecture

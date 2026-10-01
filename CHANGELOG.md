@@ -7,6 +7,13 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- In the kit's own checkout a commit staging anything under `research-kit/` is allowed
+  only when the suite is green (ADR-0120, which lifts the freeze for this one check). The
+  commit gate runs `bin/selftest.mjs` and reads its result file: an unsupported test is
+  not red, a runner that produced no result is a block, and a docs-only commit owes
+  nothing. The gate says the suite is about to run, strips git's hook environment from it,
+  and stops it after 20 minutes; the hook widens its watchdog to 1500 s there. Found by committing twice on a
+  red suite in one afternoon, both times from a chain that misread the exit code.
 - The render timeout starts at the browser's first request through the guard, and the
   launch is allowed as long again (ADR-0119). On the CI runners Chromium's process startup
   took 4 to 43 s before any request, out of the render budget, so the page was killed

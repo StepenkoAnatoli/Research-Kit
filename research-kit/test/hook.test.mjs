@@ -71,6 +71,18 @@ function runHook(dir, { env = {} } = {}) {
   });
 }
 
+// ADR-0120: in the kit's own checkout the gate may run the suite, which takes minutes, and the
+// hook's watchdog would have killed it at 120 s - "the gate exceeded 120s" is an internal error,
+// decided by posture, which on a fail-open machine ALLOWS the commit the suite would have refused.
+// So the watchdog allows for the suite there, and only there, unless the operator set it.
+test('the hook widens its watchdog only in the kit\'s own checkout, and only when the operator did not set one', () => {
+  const text = readText(HOOK);
+  assert.match(text, /research-kit\/bin\/selftest\.mjs/, 'the hook does not know the kit\'s checkout');
+  assert.match(text, /RESEARCH_KIT_GATE_TIMEOUT:-/, 'an operator\'s own timeout must win');
+  const widened = /GATE_TIMEOUT=(\d+)\s*$/m.exec(text.split('selftest.mjs')[1] ?? '');
+  assert.ok(widened && Number(widened[1]) >= 1500, `the watchdog in the kit\'s checkout must outlast a 20-minute suite: ${widened?.[0]}`);
+});
+
 test('the hook wrapper exists and is a POSIX sh script', () => {
   assert.ok(fs.existsSync(HOOK));
   assert.match(readText(HOOK), /^#!\/bin\/sh/);
