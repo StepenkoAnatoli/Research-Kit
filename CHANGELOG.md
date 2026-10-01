@@ -28,6 +28,18 @@ Bug fixes after 0.9.0, under the freeze (ADR-0117).
   hand-edited machine config reached `path.join` and killed `doctor` with a raw
   `ERR_INVALID_ARG_TYPE` stack - the one command whose job is to name every problem and print its
   fix (break-test 2026-10-01).
+- A lock the kit judges stale and cannot remove is a named refusal (`LOCK_STUCK`), not a livelock.
+  The failed removal fell through to `continue`, which skipped both the deadline and the sleep, so
+  a read-only `research/raw` holding a dead pid's lock - or a `.fetches.lock` that is a directory -
+  spun at 100% of a core forever, printing nothing and unreachable even by `--report-on-signal`,
+  because a synchronous loop never returns to the event loop. `acquire` codes the held case
+  `LOCK_HELD` too (break-test 2026-10-01).
+- `research.mjs` names the refusals the kit wrote instead of re-throwing them. A torn ledger tail -
+  what an interrupted collection leaves behind - printed its own remedy under a source line, a
+  caret, six frames and Node's version footer, and a damaged chain dumped its internal `problems`
+  array as an object literal; both exited 1, which this kit reserves for FAIL, checked and wrong.
+  `NAMED_RUN_REFUSALS` in `core.mjs` is the four codes, answered with their message and exit 2, as
+  `prior.mjs` and `doctor --fix-arity` already answered them (break-test 2026-10-01).
 - The browser transport judges a timeout by what Chromium printed, not by its exit: a whole
   DOM dump after the render timeout is the render, a dump holding the guard's refusal is
   the refusal, and a timeout with no dump names the last thing Chromium said on stderr.

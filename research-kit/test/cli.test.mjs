@@ -1308,3 +1308,53 @@ test('renderTable has no row-count ceiling', () => {
   const wide = renderTable(rows(200_000), columns);
   assert.match(wide, /check-199999\s+detail 199999/, 'the wide column was not sized to its widest cell');
 });
+
+// Found 2026-10-01 (break-test): `research.mjs` caught what `runResearch` threw and re-threw
+// everything it did not recognise as a WRITE failure, so the sentence the kit had already
+// written - "does not end with a newline - its last line was never finished. Repair it first:
+// doctor --fix-arity", which is what an interrupted collection leaves behind - arrived under a
+// source line, a caret, six stack frames and Node's version footer, with exit 1: FAIL, checked
+// and wrong, for a run that never started. `bin/prior.mjs` answered the same refusal with its
+// message and exit 2 all along, and a damaged ledger dumped its internal `problems` array as a
+// JavaScript object literal for the operator to read.
+test('research.mjs names the refusals the kit wrote, instead of dumping a stack', () => {
+  const onePage = (root) => {
+    fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({
+      topic: 'cli probe', depth: 'probe', maxScrapes: 2, refreshDays: 30, limit: 8, perQuery: 1, prefer: [],
+      queries: [],
+      // A refused loopback port, so the fetch fails at once and offline: what is under test is
+      // how the refusal to RECORD is reported, not the network.
+      urls: [{ url: 'http://127.0.0.1:9/page', type: 'P', why: 'U-1' }],
+    }));
+    fs.mkdirSync(path.join(root, 'research', 'raw'), { recursive: true });
+    return root;
+  };
+  const noStack = (r, what) => {
+    assert.doesNotMatch(r.err, /at file:\/\/|Node\.js v\d|\n\s*\^\s*\n/, `${what} arrived as a stack trace:\n${r.err.slice(0, 400)}`);
+    assert.doesNotMatch(r.err, /problems:|kind: '/, `${what} dumped an internal object:\n${r.err.slice(0, 400)}`);
+  };
+
+  // A ledger whose last line was never finished - the classic interrupted collection.
+  const torn = onePage(planned());
+  fs.writeFileSync(path.join(torn, 'research', 'raw', '.fetches.jsonl'),
+    `{"seq":1,"at":"2026-10-01T00:00:00.000Z","op":"scrape","url":"http://127.0.0.1:9/page","raw":"research/raw/x.md","bodySha256":"${'0'.repeat(64)}","prev":"${'0'.repeat(64)}","entrySha256":"${'0'.repeat(64)}"}`);
+  const first = run('research.mjs', ['--transport', 'http-keyless'], { root: torn });
+  assert.equal(first.status, 2, `expected the documented "could not be checked", got ${first.status}: ${first.all.slice(0, 300)}`);
+  assert.match(first.err, /does not end with a newline/, first.err.slice(0, 300));
+  assert.match(first.err, /--fix-arity/, 'the remedy the kit knows is the remedy the operator is given');
+  noStack(first, 'a torn ledger tail');
+
+  // And a lock the run cannot take: a directory where the lock file goes, aged past the stub
+  // bound so it is judged recoverable and the removal is attempted (EISDIR, not ENOENT).
+  const stuck = onePage(planned());
+  const lock = path.join(stuck, 'research', 'raw', '.fetches.lock');
+  fs.mkdirSync(lock, { recursive: true });
+  const old = new Date(Date.now() - 60_000);
+  fs.utimesSync(lock, old, old);
+  const second = run('research.mjs', ['--transport', 'http-keyless'], { root: stuck });
+  fs.rmSync(lock, { recursive: true, force: true });
+  assert.equal(second.status, 2, `expected a named refusal, got ${second.status}: ${second.all.slice(0, 300)}`);
+  assert.match(second.err, /could not be removed/, second.err.slice(0, 300));
+  assert.match(second.err, /Nothing was collected/);
+  noStack(second, 'a lock that could not be removed');
+});
