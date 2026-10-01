@@ -7,6 +7,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- The guard records every request it carried and reports the ones still unanswered when
+  the render ends. A page Chromium printed before every load was answered, or at its
+  deadline, is graded partial and names those loads, or says every request had been
+  answered and the wait was inside the browser; a refusal's message carries the same note.
 - Chromium is given its own deadline (`--timeout`), ten seconds under the transport's kill
   timeout. With the virtual-time budget alone, one resource that never answered froze the
   budget, so headless never dumped and was killed with nothing to show: the intermittent

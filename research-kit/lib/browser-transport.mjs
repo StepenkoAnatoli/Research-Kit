@@ -70,7 +70,7 @@ export function browserArgs(url, { uid = typeof process.getuid === 'function' ? 
   // reproduced with a page whose image never arrives). At the deadline Chromium stops
   // loading, dumps the DOM it has and exits: the page is captured as it stands. The kill is
   // for a browser that is not answering at all, ten seconds later.
-  const deadline = Math.max(5_000, timeout - 10_000);
+  const deadline = deadlineFor(timeout);
   const args = ['--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
     '--disable-component-update', '--disable-sync', `--virtual-time-budget=${VIRTUAL_TIME_MS}`, `--timeout=${deadline}`];
   if (uid === 0) args.push('--no-sandbox');
@@ -104,7 +104,33 @@ export function renderGuarded(binary, args, { url, env = process.env, timeout = 
     status: report.status ?? null, signal: report.signal ?? null, stdout: report.stdout ?? '', stderr: report.stderr ?? '',
     error: report.errorCode ? Object.assign(new Error(report.errorMessage ?? report.errorCode), { code: report.errorCode }) : undefined,
     refused: report.refused ?? [], truncated: Boolean(report.truncated),
+    requests: Number(report.requests) || 0, pending: Array.isArray(report.pending) ? report.pending : [], elapsedMs: Number(report.elapsedMs) || 0,
   };
+}
+
+/** Chromium's own deadline for a render: ten seconds under the kill timeout, never below five. */
+export function deadlineFor(timeout = TIMEOUT_MS) {
+  return Math.max(5_000, timeout - 10_000);
+}
+
+/**
+ * When Chromium printed the page before every load was answered - at its deadline, or
+ * with a request still open at the guard - what it was waiting for, from the guard's
+ * record; or, when the guard had answered everything and the render still ran to the
+ * deadline, that the wait was inside the browser. Null for a render that settled on its
+ * own. The guard's record is the signal, not Chromium's stderr: it logs "Page load timed
+ * out" only when the navigation itself never committed, not for a stalled resource.
+ */
+export function cutAtDeadline(result, timeout) {
+  const pending = Array.isArray(result.pending) ? result.pending : [];
+  const deadline = deadlineFor(timeout);
+  const ranToDeadline = (Number(result.elapsedMs) || 0) >= deadline - 500;
+  if (!pending.length && !ranToDeadline) return null;
+  if (pending.length) {
+    const head = ranToDeadline ? `the browser stopped loading at its ${Math.round(deadline / 1000)} s deadline` : 'the browser printed the page before every load was answered';
+    return `${head}; still unanswered through the guard: ${pending.map((p) => `${p.target} (${Math.round(p.ms / 1000)} s)`).join(', ')}`;
+  }
+  return `the browser stopped loading at its ${Math.round(deadline / 1000)} s deadline; every one of the ${Number(result.requests) || 0} requests through the guard had been answered, so the wait was inside the browser`;
 }
 
 /**
@@ -165,9 +191,10 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
   const landedOnRefusal = refused.length && (html.includes(REFUSAL_MARKER) || (chromeErrorOf(html) && !timedOut && !result.signal && result.status === 0));
   if (landedOnRefusal) {
     const last = refused[refused.length - 1];
+    const waited = cutAtDeadline(result, timeout);
     return { ok: false, url: target, transport: name, cmd,
       error: `refused to let the page reach ${last.host} - ${last.why}. A page on the web may not send the browser into this machine's network; `
-        + 'if you meant that address, fetch it directly, or set RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS=1.' };
+        + `if you meant that address, fetch it directly, or set RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS=1.${waited ? ` (${waited})` : ''}` };
   }
   if (result.truncated) {
     return { ok: false, url: target, transport: name, cmd, error: `the rendered page is larger than ${MAX_PAGE_BYTES / (1024 * 1024)} MiB - not kept (ADR-0082)` };
@@ -199,6 +226,11 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
   }
   const extraction = mainContent(html);
   const markdown = htmlToMarkdown(extraction.html);
+  const graded = gradeCompleteness(markdown, extraction);
+  // A page Chromium gave up on at its deadline is what it was when the wait ended, not what
+  // it would have been: partial, and the grade says what was still outstanding.
+  const waited = cutAtDeadline(result, timeout);
+  if (waited) { graded.completeness = 'partial'; graded.omitted = [graded.omitted, waited].filter(Boolean).join('; '); }
   return {
     ok: true,
     url: target,
@@ -208,7 +240,7 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
     statusCode: '',
     transport: name,
     cmd,
-    ...gradeCompleteness(markdown, extraction),
+    ...graded,
   };
 }
 
