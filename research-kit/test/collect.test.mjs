@@ -877,3 +877,13 @@ test('a value with a line break cannot add a field to a capture\'s front matter'
   assert.ok(text.endsWith(`---\n${body}\n`), 'the page body was changed');
   assert.equal(readCorpus(dir).captures.byUrl.get(url)?.file, entry.file, 'the corpus does not index the capture under its own URL');
 });
+
+// Found 2026-10-01 (break-test, PR #180): the wait came straight from the vendor's text, and
+// "retry after 999999999999s" is 31,000 years - slept in collectOne and searchPatiently while
+// the corpus lock is held, so every other run on this project would wait too. A minute clears
+// a per-minute window, which is what the documented limit is.
+test('a vendor-stated rate-limit wait is capped at one minute', () => {
+  assert.equal(rateLimitWaitMs('Rate limit exceeded; please retry after 999999999999s'), 60_000);
+  assert.equal(rateLimitWaitMs('Rate limit exceeded; retry after 59s'), 60_000, 'a stated wait under the cap is kept');
+  assert.equal(rateLimitWaitMs('Rate limit exceeded; retry after 5s'), 6_000);
+});
