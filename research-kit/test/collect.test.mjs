@@ -3,7 +3,7 @@
 
 import { test, describe, assert, makeProject, makePassingProject, fs, path, KIT_ROOT } from './harness.mjs';
 import { PATHS, resolve, readText, writeJson, today } from '../lib/core.mjs';
-import { readCorpus, parseTable } from '../lib/corpus.mjs';
+import { readCorpus, parseTable, parseCapture } from '../lib/corpus.mjs';
 import { HEADERS } from '../lib/core.mjs';
 import { collectOne, writeRaw, captureName, bodyHashOf } from '../lib/collect.mjs';
 import { rateLimitWaitMs } from '../lib/firecrawl.mjs';
@@ -51,6 +51,47 @@ test('writeRaw hands back the corpus\'s own index entry', () => {
   assert.match(text, /omitted: chunk 0 of 3/);
   assert.equal(entry.bytes, Buffer.byteLength(PAGE, 'utf8'));
   assert.equal(readCorpus(dir).captures.byUrl.get('https://x.invalid/p').file, entry.file);
+});
+
+test('writeRaw refuses a symlinked capture path before reading or writing outside the project', () => {
+  const dir = makeProject();
+  const url = 'https://x.invalid/symlinked-capture';
+  const date = '2026-10-01';
+  const target = resolve(dir, `${PATHS.raw}/${captureName(url, { date })}`);
+  const outside = path.join(path.dirname(dir), `rk-capture-outside-${process.pid}.txt`);
+  fs.writeFileSync(outside, 'DO NOT TOUCH\n');
+  try {
+    fs.symlinkSync(outside, target, 'file');
+    assert.throws(
+      () => writeRaw(dir, { url, markdown: PAGE, statusCode: 200 }, { date }),
+      (err) => err?.code === 'ELOOP' && /symlink/.test(err.message),
+    );
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'DO NOT TOUCH\n');
+  } finally {
+    fs.rmSync(outside, { force: true });
+  }
+});
+
+test('writeRaw keeps hostile metadata on one front-matter line', () => {
+  const dir = makeProject();
+  const url = 'https://x.invalid/metadata';
+  const entry = writeRaw(dir, {
+    url,
+    title: 'A title\nurl: https://attacker.invalid/claimed\nretrieved: 1999-01-01',
+    cmd: 'collector\ntransport: forged',
+    markdown: PAGE,
+    statusCode: 200,
+    transport: 'stub',
+    completeness: 'partial',
+    omitted: 'first line\nsecond line',
+  }, { date: '2026-10-01' });
+  const { front } = parseCapture(readText(resolve(dir, entry.file)));
+  assert.equal(front.url, url, 'metadata must not replace the URL recorded for the fetch');
+  assert.equal(front.retrieved, '2026-10-01');
+  assert.equal(front.transport, 'stub');
+  assert.doesNotMatch(front.title, /\n/);
+  assert.doesNotMatch(front.command, /\n/);
+  assert.doesNotMatch(front.omitted, /\n/);
 });
 
 test('collectOne writes the capture, the ledger entry, the evidence row and the source row', () => {
@@ -338,6 +379,15 @@ test('a page already in the corpus is not re-offered in another spelling, nor tw
   assert.deepEqual(picked.map((c) => c.url), ['https://z.example/p']);
 });
 
+test('selectCandidates drops non-http vendor URLs before any fetch adapter sees them', () => {
+  const picked = selectCandidates([
+    { url: 'javascript:alert(1)', title: 'Rate limits' },
+    { url: 'file:///etc/passwd', title: 'Rate limits' },
+    { url: 'https://docs.example.com/rate-limits', title: 'Rate limits' },
+  ], { perQuery: 3, seen: new Set() });
+  assert.deepEqual(picked.map((row) => row.url), ['https://docs.example.com/rate-limits']);
+});
+
 test('selectCandidates keeps the best per query and never re-offers what is collected', () => {
   const seen = new Set(['https://docs.example.com/a']);
   const picked = selectCandidates([
@@ -477,6 +527,9 @@ test('rateLimitWaitMs reads the vendor number, and refuses to invent one', () =>
 
   // A rate limit with no stated delay still waits; one minute clears a per-minute window.
   assert.equal(rateLimitWaitMs('Rate limit exceeded'), 60_000);
+  // A vendor error is untrusted text. An absurd retry value must not hold the collector lock
+  // indefinitely and starve every other run.
+  assert.equal(rateLimitWaitMs('Rate limit exceeded; please retry after 999999999999s'), 60_000);
 
   // Everything that is NOT a rate limit must return null, so ordinary failures are not
   // retried. A 404 does not become a 404 if you wait.

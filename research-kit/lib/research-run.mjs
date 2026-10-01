@@ -273,9 +273,23 @@ export function isPreferred(url, prefer = []) {
   return prefer.map(parsePreference).filter(Boolean).some((preference) => matchesPreference(url, preference));
 }
 
+function isHttpUrl(value) {
+  try {
+    const parsed = new URL(String(value));
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && Boolean(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function selectCandidates(results, { prefer = [], perQuery = 3, seen = new Set(), query = '' } = {}) {
   const taken = new Set();
   return results
+    // Search output is vendor-controlled text. A result such as `javascript:` or `file:`
+    // must never reach a fetch adapter (especially the browser transport), even when it
+    // otherwise ranks as a good answer. Direct plan URLs have their own validation, but
+    // search results need the same boundary here.
+    .filter((row) => isHttpUrl(row?.url))
     // Only a result that carries the query is worth a scrape (RR-9). `query` is optional so
     // a caller ranking a list it built itself is not judged.
     // A domain the operator named in `prefer` is taken on their word: they said it carries the

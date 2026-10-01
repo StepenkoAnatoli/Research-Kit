@@ -288,8 +288,8 @@ export function ensureDir(p) {
  * 0600); a symlinked target is written through to the file it names; a dangling link is
  * written directly, as before. The scratch file never outlives a failure.
  */
-export function writeText(p, text) {
-  return writeBytes(p, text, 'utf8');
+export function writeText(p, text, options = {}) {
+  return writeBytes(p, text, 'utf8', options);
 }
 
 /**
@@ -322,23 +322,73 @@ function scratchStem(name) {
   return bytes.subarray(0, end).toString('utf8');
 }
 
-export function writeBytes(p, data, encoding = null) {
+/**
+ * Refuse symlinks in a write path, including an existing final link and a linked parent.
+ *
+ * Most writers intentionally follow a symlink: a machine config may live behind one, and
+ * `writeText` has always promised to update that target. Capture files are different. A
+ * checked-out corpus can contain a dangling `research/raw/<generated-name>` link, and the
+ * collector would otherwise follow it while writing a newly fetched page into an arbitrary
+ * file outside the project. Walk the path before creating directories; `mkdir -p` itself
+ * would silently follow a linked parent.
+ */
+export function assertNoSymlinks(p) {
+  const absolute = path.resolve(p);
+  const parsed = path.parse(absolute);
+  let current = parsed.root;
+  for (const part of absolute.slice(parsed.root.length).split(path.sep).filter(Boolean)) {
+    current = path.join(current, part);
+    try {
+      if (fs.lstatSync(current).isSymbolicLink()) {
+        const err = new Error(`refusing to write through symlink in output path: ${current}`);
+        err.code = 'ELOOP';
+        err.path = current;
+        throw err;
+      }
+    } catch (err) {
+      if (err?.code === 'ENOENT') break;
+      throw err;
+    }
+  }
+}
+
+export function writeBytes(p, data, encoding = null, { followSymlinks = true } = {}) {
+  if (!followSymlinks) assertNoSymlinks(p);
   ensureDir(path.dirname(p));
   let target = p;
   let mode = null;
-  try {
-    target = fs.realpathSync(p);
-    mode = fs.statSync(target).mode & 0o7777;
-  } catch {
+
+  if (followSymlinks) {
     try {
-      if (fs.lstatSync(p).isSymbolicLink()) {                       // dangling link
-        if (encoding === null) fs.writeFileSync(p, data);
-        else fs.writeFileSync(p, data, encoding);
-        return p;
+      target = fs.realpathSync(p);
+      mode = fs.statSync(target).mode & 0o7777;
+    } catch {
+      try {
+        if (fs.lstatSync(p).isSymbolicLink()) {                       // dangling link
+          if (encoding === null) fs.writeFileSync(p, data);
+          else fs.writeFileSync(p, data, encoding);
+          return p;
+        }
+      } catch { /* p does not exist yet: a new file */ }
+      target = p;
+    }
+  } else {
+    try {
+      // A final link may appear after the first walk. `renameSync` replaces a link rather
+      // than following it, so keep the requested path and make the final operation safe.
+      const stat = fs.lstatSync(p);
+      if (stat.isSymbolicLink()) {
+        const err = new Error(`refusing to write through symlink in output path: ${p}`);
+        err.code = 'ELOOP';
+        err.path = p;
+        throw err;
       }
-    } catch { /* p does not exist yet: a new file */ }
-    target = p;
+      if (stat.isFile()) mode = stat.mode & 0o7777;
+    } catch (err) {
+      if (err?.code !== 'ENOENT') throw err;
+    }
   }
+
   const scratch = path.join(path.dirname(target), `.${scratchStem(path.basename(target))}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`);
   try {
     if (encoding === null) fs.writeFileSync(scratch, data);
@@ -439,6 +489,7 @@ const WRITE_REFUSALS = Object.freeze({
   ENOTDIR: 'a file is where a folder should be',
   EEXIST: 'something already exists where a folder should be',
   EBUSY: 'the file is in use by another process',
+  ELOOP: 'a symlink is in the output path; refusing to write outside the intended tree',
 });
 
 // A recursive mkdir raises ENOENT only when a component of the path cannot be created, as

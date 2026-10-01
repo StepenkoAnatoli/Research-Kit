@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import {
   PATHS, HEADERS, resolve, today, sha256, titleFromUrl, hostOf, urlDigest, writeText, readText, exists,
-  sleepSync, urlKey, ageInDays,
+  assertNoSymlinks, sleepSync, urlKey, ageInDays,
 } from './core.mjs';
 import { rateLimitWaitMs } from './firecrawl.mjs';
 import {
@@ -33,16 +33,21 @@ export function captureName(url, { date = today(), title = '' } = {}) {
  */
 export function writeRaw(root, result, { date = today() } = {}) {
   const base = captureName(result.url, { date, title: result.title });
+  // Vendor metadata and adapter errors are untrusted text. A title containing a newline
+  // used to inject a second `url:` or `retrieved:` field into the front-matter, so the
+  // reader silently indexed a different page from the one the ledger recorded. Keep every
+  // scalar on one line; the page body remains verbatim evidence.
+  const frontValue = (value) => String(value ?? '').replace(/[\r\n]+/g, ' ').trim();
   const front = [
     '---',
-    `url: ${result.url}`,
-    `retrieved: ${date}`,
-    `command: ${result.cmd ?? ''}`,
-    `statusCode: ${result.statusCode ?? ''}`,
-    `transport: ${result.transport ?? ''}`,
-    `completeness: ${result.completeness ?? 'unspecified'}`,
-    ...(result.omitted ? [`omitted: ${result.omitted}`] : []),
-    ...(result.title ? [`title: ${result.title}`] : []),
+    `url: ${frontValue(result.url)}`,
+    `retrieved: ${frontValue(date)}`,
+    `command: ${frontValue(result.cmd)}`,
+    `statusCode: ${frontValue(result.statusCode)}`,
+    `transport: ${frontValue(result.transport)}`,
+    `completeness: ${frontValue(result.completeness || 'unspecified')}`,
+    ...(result.omitted ? [`omitted: ${frontValue(result.omitted)}`] : []),
+    ...(result.title ? [`title: ${frontValue(result.title)}`] : []),
     '---',
     '',
   ].join('\n');
@@ -54,10 +59,17 @@ export function writeRaw(root, result, { date = today() } = {}) {
   // original, which is how readCaptures picks the latest of a day. Overwriting destroyed
   // the earlier reading and broke its ledger hash (found 2026-09-27).
   let file = `${PATHS.raw}/${base}`;
-  for (let n = 2; exists(resolve(root, file)) && readText(resolve(root, file)) !== text; n += 1) {
+  for (let n = 2; ; n += 1) {
+    const target = resolve(root, file);
+    // A corpus may be checked out from an untrusted tree. Do this before the cache
+    // comparison as well as before the write: readText intentionally follows symlinks for
+    // ordinary project files, but a generated capture name must never read or write a link
+    // into an arbitrary path outside the project.
+    assertNoSymlinks(target);
+    if (!exists(target) || readText(target) === text) break;
     file = `${PATHS.raw}/${base.replace(/\.md$/, `.r${n}.md`)}`;
   }
-  writeText(resolve(root, file), text);
+  writeText(resolve(root, file), text, { followSymlinks: false });
   return captureEntry({
     file,
     url: result.url,
