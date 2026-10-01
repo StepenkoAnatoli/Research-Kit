@@ -7,6 +7,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- The render timeout starts at the browser's first request through the guard, and the
+  launch is allowed as long again (ADR-0119). On the CI runners Chromium's process startup
+  took 4 to 43 s before any request, out of the render budget, so the page was killed
+  before it had been asked for. A timeout now says what the launch cost.
 - The guard records every request it carried and reports the ones still unanswered when
   the render ends. A page Chromium printed before every load was answered, or at its
   deadline, is graded partial and names those loads, or says every request had been

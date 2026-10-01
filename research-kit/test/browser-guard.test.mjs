@@ -221,6 +221,43 @@ process.stdout.write('<html><body>done</body></html>');
   assert.ok(typeof r.startedAt === 'string' && Date.parse(r.startedAt) >= before - 5 && Date.parse(r.startedAt) <= Date.now(), `startedAt: ${r.startedAt}`);
 });
 
+// Found 2026-10-01 on CI: Chromium's process startup on the runners takes anything from 4 s
+// to 43 s before the browser makes its first request - the Windows legs, and once an Ubuntu
+// one - and that time came out of the render timeout, so the page was killed before it
+// could be asked for. The render timeout now starts at the browser's first request through
+// the guard; the launch is allowed as long again, and no more (ADR-0119).
+test('the render timeout starts at the browser\'s first request, and the launch is allowed as long again', async () => {
+  const pages = await site({ '/slow': () => '<html><body>slow but whole</body></html>' });
+  // The page answers after 1 s; the browser takes 1.2 s to start. Together past a 2 s timeout, apart inside it.
+  const slowSite = http.createServer((req, res) => setTimeout(() => { res.writeHead(200, { 'content-type': 'text/html' }); res.end('<html><body>slow but whole</body></html>'); }, 1000));
+  await new Promise((resolve) => slowSite.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${slowSite.address().port}/slow`;
+  const sleepy = path.join(tempDir('rk-sleepy-browser-'), 'browser.mjs');
+  fs.writeFileSync(sleepy, `
+import http from 'node:http';
+const args = process.argv.slice(2);
+const proxy = Number(args.find((a) => a.startsWith('--proxy-server=')).split(':').pop());
+await new Promise((r) => setTimeout(r, 1200));
+const url = args.at(-1);
+http.request({ host: '127.0.0.1', port: proxy, path: url, headers: { host: new URL(url).host } }, (res) => { let b = ''; res.on('data', (d) => { b += d; }); res.on('end', () => { process.stdout.write(b); }); }).end();
+`);
+  try {
+    const r = await renderThroughGuard({ binary: process.execPath, args: [sleepy, '--dump-dom', url], url, allowInternal: true, timeout: 2_000 });
+    assert.equal(r.errorCode, null, `the launch ate the render budget: ${r.errorMessage}`);
+    assert.match(r.stdout, /slow but whole/);
+    assert.ok(r.startupMs >= 1100 && r.startupMs < 2000, `startupMs ${r.startupMs}`);
+    assert.ok(r.elapsedMs > 2000, `elapsed ${r.elapsedMs}: the page cannot have arrived inside 2 s`);
+    // A browser that never makes a request has only its launch allowance - one timeout - then the kill.
+    const mute = path.join(tempDir('rk-mute-browser-'), 'browser.mjs');
+    fs.writeFileSync(mute, 'await new Promise((r) => setTimeout(r, 60_000));');
+    const t0 = Date.now();
+    const m = await renderThroughGuard({ binary: process.execPath, args: [mute, '--dump-dom', url], url, allowInternal: true, timeout: 700 });
+    assert.equal(m.errorCode, 'ETIMEDOUT');
+    assert.ok(Date.now() - t0 >= 650 && Date.now() - t0 < 3000, `a mute browser is killed at one timeout, took ${Date.now() - t0} ms`);
+    assert.equal(m.startupMs, null, 'no first request, no startup time');
+  } finally { await pages.close(); await new Promise((r) => { slowSite.closeAllConnections?.(); slowSite.close(r); }); }
+});
+
 /**
  * Two page servers in a process of their own: the transport blocks this one in spawnSync while
  * the guard child renders, so a server here would never answer. `inner` holds the page a page

@@ -100,7 +100,7 @@ test('a timeout with no dump names the last thing the browser said', () => {
   const stderr = 'DevTools listening on ws://127.0.0.1:1/x\n[1:1:ERROR:network_service.cc(1)] the proxy never answered\n[1:1:INFO:x] later noise';
   const r = browser.scrape('https://x.invalid/a', { render: () => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' }), stdout: '', stderr, refused: [] }), browserPath: '/opt/chrome', env: {} });
   assert.equal(r.ok, false);
-  assert.match(r.error, /did not finish rendering https:\/\/x\.invalid\/a within 60s: \[1:1:ERROR:network_service\.cc\(1\)\] the proxy never answered/);
+  assert.match(r.error, /did not finish rendering https:\/\/x\.invalid\/a within 60s: the browser never made a request in 0 s: \[1:1:ERROR:network_service\.cc\(1\)\] the proxy never answered/);
 });
 
 test('Chromium is never pointed at the configured proxy itself: the guard is its proxy, and the sandbox is off only for root', () => {
@@ -154,6 +154,17 @@ test('a render cut at the deadline is graded partial, and says what was still un
   assert.equal(settled.completeness, 'full', settled.omitted);
 });
 
+test('a timeout says how long the browser took to make its first request, and the deadline is judged from it', () => {
+  const page = `<html><head><title>Late</title></head><body><main><p>${'Rendered words that are enough to be graded as content. '.repeat(40)}</p></main></body></html>`;
+  const late = browser.scrape('https://x.invalid/a', { render: () => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' }), stdout: '', stderr: '', refused: [], requests: 0, pending: [], elapsedMs: 90_000, startupMs: null }), browserPath: '/opt/chrome', env: {}, timeout: 45_000 });
+  assert.match(late.error, /did not finish rendering https:\/\/x\.invalid\/a within 45s: the browser never made a request in 90 s/);
+  const slowStart = browser.scrape('https://x.invalid/a', { render: () => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' }), stdout: '', stderr: '', refused: [], requests: 3, pending: [], elapsedMs: 88_000, startupMs: 43_000 }), browserPath: '/opt/chrome', env: {}, timeout: 45_000 });
+  assert.match(slowStart.error, /did not finish rendering https:\/\/x\.invalid\/a within 45s: the browser took 43 s to make its first request/);
+  // Forty seconds of wall time with a thirty-second start is a ten-second render: settled, not cut at the 35 s deadline.
+  const settled = browser.scrape('https://x.invalid/a', { render: () => ({ status: 0, signal: null, stdout: page, stderr: '', refused: [], requests: 2, pending: [], elapsedMs: 40_000, startupMs: 30_000 }), browserPath: '/opt/chrome', env: {}, timeout: 45_000 });
+  assert.equal(settled.completeness, 'full', settled.omitted);
+});
+
 test('LIVE: a page whose resource never arrives is captured at the deadline, not lost to the kill', async () => {
   const chromium = findBrowser();
   requireCapability(chromium, 'NO-BROWSER', 'no Chromium or Chrome on this host');
@@ -181,12 +192,14 @@ server.listen(0, '127.0.0.1', () => process.stdout.write('PORT ' + server.addres
     let last;
     const render = (b, a, o) => { const args = [...a]; args.splice(-2, 0, '--enable-logging=stderr', '--v=1'); last = renderGuarded(b, args, o); return last; };
     const t0 = Date.now();
-    const r = browser.scrape(`http://127.0.0.1:${port}/stalled`, { render, browserPath: chromium, env: { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? '', HOME: process.env.HOME ?? '', USERPROFILE: process.env.USERPROFILE ?? '' }, allowInternalRedirects: true, timeout: 15_000 });
-    if (Date.now() - t0 > 10_000) process.stderr.write(`browser-transport LIVE /stalled took ${Date.now() - t0} ms (browser ${last?.elapsedMs ?? '?'} ms): ${r.error ?? r.omitted ?? 'no note'} | requests ${last?.requests ?? '?'}\n  chromium log tail:\n    ${String(last?.stderr ?? '').split('\n').filter((l) => l && !/^Histogram: |^\d+\s+[-.O ]+\(|^\d+\s+\.\.\. $/.test(l)).slice(-40).join('\n    ')}\n`);
+    // 30 s: the deadline is then 20 s, room for a renderer that is slow to start on a CI runner
+    // (one took over 5 s to make the page request, and a 5 s deadline dumped an empty document).
+    const r = browser.scrape(`http://127.0.0.1:${port}/stalled`, { render, browserPath: chromium, env: { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? '', HOME: process.env.HOME ?? '', USERPROFILE: process.env.USERPROFILE ?? '' }, allowInternalRedirects: true, timeout: 30_000 });
+    if (Date.now() - t0 > 25_000) process.stderr.write(`browser-transport LIVE /stalled took ${Date.now() - t0} ms (browser ${last?.elapsedMs ?? '?'} ms, first request after ${last?.startupMs ?? '?'} ms, launched ${last?.startedAt ?? '?'}): ${r.error ?? r.omitted ?? 'no note'} | requests ${last?.requests ?? '?'}\n  chromium log (head and tail):\n    ${String(last?.stderr ?? '').split('\n').filter((l) => l && !/^Histogram: |^\d+\s+[-.O ]+\(|^\d+\s+\.\.\. $/.test(l)).join('\n    ')}\n`);
     assert.equal(r.ok, true, `the page was lost: ${r.error}`);
     assert.equal(r.title, 'Stalled');
     assert.match(r.markdown, /arrived before a resource that never does/);
-    assert.ok(Date.now() - t0 < 15_000, 'the render ran into the kill timeout instead of the deadline');
+    assert.ok((last?.elapsedMs ?? 0) - (last?.startupMs ?? 0) < 30_000, 'the render ran into the kill timeout instead of the deadline');
     assert.equal(r.completeness, 'partial', 'a page cut at the deadline is not a full capture');
     assert.match(r.omitted, /still unanswered through the guard: http:\/\/127\.0\.0\.1:\d+\/never/, r.omitted);
   } finally { proc.kill(); }
