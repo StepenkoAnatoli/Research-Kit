@@ -4,7 +4,7 @@
 // It describes WHEREVER IT IS RUN. A clean report from the wrong directory is a clean
 // report about the wrong project.
 
-import { parseFlags, refuseUnknownFlags, writeFailure, exitAfterFlush } from '../lib/core.mjs';
+import { parseFlags, refuseUnknownFlags, writeFailure, exitAfterFlush, KIT_VERSION } from '../lib/core.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
 import { repairLedgerTail } from '../lib/provenance.mjs';
 import { renderTable, heading } from '../lib/render.mjs';
@@ -44,7 +44,7 @@ if (flags['fix-arity']) {
   }
 }
 
-const report = runDoctor(root);
+const report = { kitVersion: KIT_VERSION, ...runDoctor(root) };
 
 if (flags.json) {
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
@@ -70,5 +70,5 @@ if (fixes.length) {
 const remedy = report.findings.find((r) => r.name === 'handoff-remedy');
 if (remedy) process.stdout.write(`${heading('handoff')}\n${remedy.detail}\n`);
 
-process.stdout.write(`\n${report.ok ? 'READY' : `${report.blocking.length} blocker(s)`}  [role=${report.role}]\n`);
+process.stdout.write(`\n${report.ok ? 'READY' : `${report.blocking.length} blocker(s)`}  [role=${report.role}, kit ${KIT_VERSION}]\n`);
 await exitAfterFlush(report.ok ? 0 : 1);

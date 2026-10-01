@@ -28,6 +28,12 @@ const START_CWD = (() => {
 const TEMP_ENV_NAMES = Object.freeze(['TMPDIR', 'TEMP', 'TMP']);
 
 /** Every artifact the kit knows, project-relative and POSIX-spelled. */
+/**
+ * The kit's version - the one place it is stated (ADR-0116). The MCP server announces it, doctor
+ * reports it, the changelog has an entry for it, and a release is tagged `v<KIT_VERSION>`.
+ */
+export const KIT_VERSION = '0.9.0';
+
 export const PATHS = Object.freeze({
   agents: 'AGENTS.md',
   architecture: 'docs/ARCHITECTURE.md',
