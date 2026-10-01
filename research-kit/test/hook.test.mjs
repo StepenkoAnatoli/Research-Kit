@@ -151,6 +151,38 @@ test('moving product code into research/ is BLOCKED while the verdict fails, exa
   assert.notEqual(moved.status, 0, `moving product code into research/ got past the gate: ${moved.stdout}${moved.stderr}`);
 });
 
+// Found 2026-10-01 (break-test, PR #182): the staged list is the first stage of a pipeline, and
+// sh reports only the last stage's status. A `git diff` that failed reached the gate as an EMPTY
+// list - "nothing outside research/ is staged" - so product code was allowed while the verdict
+// failed, on a fail-closed machine too. A diff.orderFile naming a missing file makes `git diff`
+// exit 128 while everything else the gate asks of git keeps working.
+test('a git that cannot list the staged paths does not let product code through a failing verdict', () => {
+  requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
+  const dir = makeRepo();
+  corrupt(dir, PATHS.discovery, (text) => text.replace('CLOSED', 'OPEN'));
+  writeText(resolve(dir, 'src/app.js'), 'export const app = 1;\n');
+  git(dir, ['add', PATHS.discovery, 'src/app.js']);
+  git(dir, ['config', 'diff.orderFile', path.join(dir, 'no-such-order-file')]);
+  const probe = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: dir, encoding: 'utf8' });
+  assert.notEqual(probe.status, 0, 'the fixture did not break `git diff`, so this test proves nothing');
+
+  const result = runHook(dir, { env: { RESEARCH_KIT_CONFIG: isolatedConfig({ failOpen: false }) } });
+  assert.notEqual(result.status, 0, `staged product code got past a failing verdict: ${result.stdout}${result.stderr}`);
+  assert.doesNotMatch(result.stdout, /confined to research/, 'the gate was told nothing outside research/ was staged');
+  assert.match(result.stderr, /could not list the staged paths/, 'the hook must say why it judged without a list');
+});
+
+test('a git that cannot list the staged paths still lets a passing project commit', () => {
+  requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
+  const dir = makeRepo();
+  writeText(resolve(dir, 'README.md'), '# fixture\n');
+  git(dir, ['add', 'README.md']);
+  git(dir, ['config', 'diff.orderFile', path.join(dir, 'no-such-order-file')]);
+  const result = runHook(dir);
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.match(result.stderr, /could not list the staged paths/);
+});
+
 test('a fresh project\'s first commit - scaffold and corpus together - is ALLOWED while the verdict fails', () => {
   requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
   const dir = tempDir('rk-fresh-');

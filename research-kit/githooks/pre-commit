@@ -97,8 +97,20 @@ fi
 # default, and diff.renames in the operator's config) `git mv src/app.js research/app.js`
 # listed only research/app.js, so a removal of product code that `git rm` would have blocked
 # was allowed as a move (found 2026-09-30, break-test).
-git diff --cached --name-only --no-renames -z | \
-  $WATCHDOG node "$KIT_HOME/bin/gate.mjs" --gate commit --staged-stdin
+#
+# The list is the FIRST stage of that pipeline, and sh reports only the LAST stage's status: a
+# `git diff` that failed (a diff.orderFile naming a missing file, a killed process) reached the
+# gate as an EMPTY list - "nothing outside research/ is staged" - and product code was allowed
+# while the verdict failed, on a fail-closed machine too (found 2026-10-01, break-test). So git is
+# asked first where its status is visible. When it cannot list the paths, the gate still runs,
+# with the list UNKNOWN: it judges the index, and blocks while the verdict fails.
+if git diff --cached --name-only --no-renames -z >/dev/null; then
+  git diff --cached --name-only --no-renames -z | \
+    $WATCHDOG node "$KIT_HOME/bin/gate.mjs" --gate commit --staged-stdin
+else
+  echo "research gate: git could not list the staged paths (its error is above) - judging the commit without the list, so a failing verdict blocks it. Fix git, or override: git commit --no-verify" >&2
+  $WATCHDOG node "$KIT_HOME/bin/gate.mjs" --gate commit
+fi
 status=$?
 
 if [ "$status" -eq 124 ]; then
