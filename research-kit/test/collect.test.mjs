@@ -846,3 +846,34 @@ test('a capture is never written or read through a link out of the project, and 
   const entry = writeRaw(viaLink, { url, markdown: PAGE, statusCode: 200 }, { date });
   assert.ok(fs.existsSync(resolve(real, entry.file)), 'a project reached through a link could not write its own capture');
 });
+
+// Found 2026-10-01 (break-test, PR #180): front matter is one field per line, and the values
+// came from the adapter as they were - so a page title "T\nurl: https://attacker.invalid/\n
+// retrieved: 1999-01-01" wrote two more fields, and the corpus indexed the capture under a URL
+// and date the ledger never recorded. Each value is one line now; the page itself is evidence
+// and stays byte for byte.
+test('a value with a line break cannot add a field to a capture\'s front matter', async () => {
+  const { parseCapture } = await import('../lib/corpus.mjs');
+  const dir = makeProject();
+  const url = 'https://x.invalid/metadata';
+  const body = `${PAGE}\nretrieved: 1999-01-01\nurl: https://in-the-body.invalid/\n`;
+  const entry = writeRaw(dir, {
+    url,
+    title: 'A title\nurl: https://attacker.invalid/claimed\r\nretrieved: 1999-01-01',
+    cmd: 'collector\ntransport: forged',
+    statusCode: '200\ncompleteness: full',
+    transport: 'stub',
+    completeness: 'partial',
+    omitted: 'first line\nsecond line',
+    markdown: body,
+  }, { date: '2026-10-01' });
+  const text = readText(resolve(dir, entry.file));
+  const { front } = parseCapture(text);
+  assert.equal(front.url, url, 'a title replaced the URL the capture records');
+  assert.equal(front.retrieved, '2026-10-01');
+  assert.equal(front.transport, 'stub');
+  assert.equal(front.completeness, 'partial');
+  for (const key of ['title', 'command', 'omitted', 'statusCode']) assert.doesNotMatch(String(front[key]), /[\r\n]/, `${key} spans lines`);
+  assert.ok(text.endsWith(`---\n${body}\n`), 'the page body was changed');
+  assert.equal(readCorpus(dir).captures.byUrl.get(url)?.file, entry.file, 'the corpus does not index the capture under its own URL');
+});

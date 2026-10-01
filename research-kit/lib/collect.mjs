@@ -58,16 +58,21 @@ export function captureName(url, { date = today(), title = '' } = {}) {
  */
 export function writeRaw(root, result, { date = today() } = {}) {
   const base = captureName(result.url, { date, title: result.title });
+  // Front matter is one field per line, and these values come from the adapter - a page's
+  // title, a vendor's error. A line break in one wrote more fields: a title carrying
+  // "\nurl: ...\nretrieved: ..." re-indexed the capture under a URL and date the ledger never
+  // recorded (found 2026-10-01, break-test). Each value is one line; the body stays verbatim.
+  const one = (value) => String(value ?? '').replace(/[\r\n]+/g, ' ');   // no trim: a value without a break is written as before
   const front = [
     '---',
-    `url: ${result.url}`,
-    `retrieved: ${date}`,
-    `command: ${result.cmd ?? ''}`,
-    `statusCode: ${result.statusCode ?? ''}`,
-    `transport: ${result.transport ?? ''}`,
-    `completeness: ${result.completeness ?? 'unspecified'}`,
-    ...(result.omitted ? [`omitted: ${result.omitted}`] : []),
-    ...(result.title ? [`title: ${result.title}`] : []),
+    `url: ${one(result.url)}`,
+    `retrieved: ${one(date)}`,
+    `command: ${one(result.cmd)}`,
+    `statusCode: ${one(result.statusCode)}`,
+    `transport: ${one(result.transport)}`,
+    `completeness: ${one(result.completeness ?? 'unspecified')}`,
+    ...(result.omitted ? [`omitted: ${one(result.omitted)}`] : []),
+    ...(result.title ? [`title: ${one(result.title)}`] : []),
     '---',
     '',
   ].join('\n');
