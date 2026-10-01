@@ -105,7 +105,7 @@ export function renderGuarded(binary, args, { url, env = process.env, timeout = 
     error: report.errorCode ? Object.assign(new Error(report.errorMessage ?? report.errorCode), { code: report.errorCode }) : undefined,
     refused: report.refused ?? [], truncated: Boolean(report.truncated),
     requests: Number(report.requests) || 0, pending: Array.isArray(report.pending) ? report.pending : [], elapsedMs: Number(report.elapsedMs) || 0,
-    seen: Array.isArray(report.seen) ? report.seen : [],
+    seen: Array.isArray(report.seen) ? report.seen : [], startedAt: typeof report.startedAt === 'string' ? report.startedAt : '',
   };
 }
 

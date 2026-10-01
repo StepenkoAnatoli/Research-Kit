@@ -25,6 +25,8 @@ import { proxyVariable, MAX_PAGE_BYTES } from './runtime.mjs';
 /** The body of a refused request: what Chromium renders in place of the page it was sent to. */
 export const REFUSAL_MARKER = 'research-kit-guard-refused';
 const STDERR_LINES = 60;
+/** The first lines of the browser's stderr are kept too: a slow start shows there, not in the tail. */
+const STDERR_HEAD_LINES = 30;
 
 const normalizeHost = (host) => String(host ?? '').replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
 
@@ -193,9 +195,12 @@ export async function renderThroughGuard({ binary, args, url, timeout = 60_000, 
       const out = [];
       let size = 0;
       let truncated = false;
+      const errHead = [];
       const errLines = [];
+      let errDropped = 0;
       let timedOut = false;
       let settled = false;
+      const stderrKept = () => [...errHead, ...(errDropped ? [`... ${errDropped} lines omitted ...`] : []), ...errLines].join('\n');
       const kill = () => {
         try { if (detached) process.kill(-child.pid, 'SIGKILL'); else child.kill(); } catch { /* already gone */ }
       };
@@ -206,9 +211,9 @@ export async function renderThroughGuard({ binary, args, url, timeout = 60_000, 
         settled = true;
         clearTimeout(timer);
         resolve({
-          status, signal, stdout: Buffer.concat(out).toString('utf8'), stderr: errLines.join('\n'),
+          status, signal, stdout: Buffer.concat(out).toString('utf8'), stderr: stderrKept(),
           errorCode: timedOut ? 'ETIMEDOUT' : null, errorMessage: timedOut ? `the browser did not finish within ${timeout}ms` : null,
-          refused: guard.refused, truncated, requests: guard.seen.length, pending: guard.pending(), elapsedMs: Date.now() - started,
+          refused: guard.refused, truncated, requests: guard.seen.length, pending: guard.pending(), elapsedMs: Date.now() - started, startedAt: new Date(started).toISOString(),
           // The whole record as a timeline from the launch: where a slow render's time went.
           seen: guard.seen.map((e) => ({ kind: e.kind, target: e.target, outcome: e.outcome, startedMs: Math.max(0, e.started - started), ms: (e.ended ?? Date.now()) - e.started })),
         });
@@ -220,14 +225,18 @@ export async function renderThroughGuard({ binary, args, url, timeout = 60_000, 
         out.push(chunk);
       });
       child.stderr.on('data', (chunk) => {
-        for (const line of String(chunk).split('\n')) { if (line) errLines.push(line); }
-        if (errLines.length > STDERR_LINES) errLines.splice(0, errLines.length - STDERR_LINES);
+        for (const line of String(chunk).split('\n')) {
+          if (!line) continue;
+          if (errHead.length < STDERR_HEAD_LINES) { errHead.push(line); continue; }
+          errLines.push(line);
+        }
+        if (errLines.length > STDERR_LINES) { errDropped += errLines.length - STDERR_LINES; errLines.splice(0, errLines.length - STDERR_LINES); }
       });
       child.on('error', (err) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        resolve({ status: null, signal: null, stdout: '', stderr: errLines.join('\n'), errorCode: err.code ?? 'SPAWN', errorMessage: err.message, refused: guard.refused, truncated });
+        resolve({ status: null, signal: null, stdout: '', stderr: stderrKept(), errorCode: err.code ?? 'SPAWN', errorMessage: err.message, refused: guard.refused, truncated });
       });
       // 'close' follows 'exit' once the pipes drain; a helper that outlived the browser would
       // hold them open, so the exit is reported after a short grace either way.

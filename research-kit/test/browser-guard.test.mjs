@@ -199,6 +199,28 @@ test('the guard records every request it carried, and reports the ones still una
   } finally { await guard.close(); await pages.close(); await new Promise((r) => { silent.closeAllConnections?.(); silent.close(r); }); }
 });
 
+// Found 2026-10-01 on CI (Windows): a hung launch's log tail showed profile creation 43 s
+// after the launch and normal progress after it, so the wait was in the first 43 s - which
+// the tail, the last 60 lines, could not show. The child keeps the HEAD of the browser's
+// stderr as well as the tail, and stamps the launch, so the first lines and the first gap
+// are readable against the browser's own timestamps.
+test('the child keeps the head and the tail of the browser\'s stderr, and stamps the launch', async () => {
+  const noisy = path.join(tempDir('rk-noisy-browser-'), 'browser.mjs');
+  fs.writeFileSync(noisy, `
+for (let i = 1; i <= 300; i += 1) process.stderr.write('line ' + i + '\\n');
+process.stdout.write('<html><body>done</body></html>');
+`);
+  const before = Date.now();
+  const r = await renderThroughGuard({ binary: process.execPath, args: [noisy, '--dump-dom', 'http://127.0.0.1:9/none'], url: 'http://127.0.0.1:9/none', allowInternal: true, timeout: 10_000 });
+  const lines = r.stderr.split('\n');
+  assert.equal(lines[0], 'line 1', 'the head is gone');
+  assert.equal(lines[lines.length - 1], 'line 300', 'the tail is gone');
+  assert.ok(lines.includes('line 30') && !lines.includes('line 31'), 'the head keeps 30 lines');
+  assert.ok(lines.includes('line 241') && !lines.includes('line 240'), 'the tail keeps 60 lines');
+  assert.ok(lines.some((l) => /210 lines omitted/.test(l)), `the omission is said: ${lines.slice(28, 33).join(' | ')}`);
+  assert.ok(typeof r.startedAt === 'string' && Date.parse(r.startedAt) >= before - 5 && Date.parse(r.startedAt) <= Date.now(), `startedAt: ${r.startedAt}`);
+});
+
 /**
  * Two page servers in a process of their own: the transport blocks this one in spawnSync while
  * the guard child renders, so a server here would never answer. `inner` holds the page a page
@@ -308,8 +330,8 @@ test('LIVE: a real Chromium cannot be led into this machine\'s network by a scri
     const timeline = () => (last?.seen ?? []).map((e) => `${e.startedMs}ms ${e.kind} ${e.target} -> ${e.outcome ?? 'open'} (${e.ms}ms)`).join('; ');
     // Chromium prints its histograms at a normal exit; a killed one never gets there, so the
     // tail of a hang is its last live lines, and the histogram lines are dropped either way.
-    const tail = () => String(last?.stderr ?? '').split('\n').filter((l) => l && !/^Histogram: |^\d+\s+[-.O ]+\(|^\d+\s+\.\.\. $/.test(l)).slice(-40).join('\n    ');
-    const timed = (route, run) => { const t0 = Date.now(); const r = run(); const ms = Date.now() - t0; if (ms > 20_000) process.stderr.write(`browser-guard LIVE ${route} took ${ms} ms (browser ${last?.elapsedMs ?? '?'} ms): ${r.error ?? r.omitted ?? 'no note'} | timeline: ${timeline()}\n  chromium log tail:\n    ${tail()}\n`); return r; };
+    const kept = () => String(last?.stderr ?? '').split('\n').filter((l) => l && !/^Histogram: |^\d+\s+[-.O ]+\(|^\d+\s+\.\.\. $/.test(l)).join('\n    ');
+    const timed = (route, run) => { const t0 = Date.now(); const r = run(); const ms = Date.now() - t0; if (ms > 20_000) process.stderr.write(`browser-guard LIVE ${route} took ${ms} ms (browser ${last?.elapsedMs ?? '?'} ms, launched ${last?.startedAt ?? '?'}): ${r.error ?? r.omitted ?? 'no note'} | timeline: ${timeline()}\n  chromium log (head and tail):\n    ${kept()}\n`); return r; };
     for (const route of ['/jump', '/meta']) {
       const r = timed(route, () => browser.scrape(`${pages.outer}${route}`, { render, browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 }));
       assert.equal(r.ok, false, `${route}: the browser reached the page it was sent to: ${JSON.stringify(r).slice(0, 300)}`);
