@@ -7,6 +7,13 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- A quote anchor no longer misses a passage over a character nobody can see. Unicode's format
+  characters - the zero-width space a docs site puts inside a heading's anchor link, a soft
+  hyphen from a PDF extractor, a word joiner - survive NFKC and `\s`, so
+  `[quote: ## Bundled skills]` was quote-not-found against the heading that displays it, in a
+  capture this repository holds. `normalizeForMatch` drops `\p{Cf}` on both sides, which can
+  only shorten what is searched for, so an invented passage stays invented (break-test
+  2026-10-01, PR #193, redone on main).
 - The extractor's `comparison-row` rule is three linear scans, not one backtracking regex.
   `\b(plan|tier)\b.*\b(month|year|user)\b.*\d` was quadratic in a table row's length, and a
   row's length is the captured page's own doing: a 309 KB row, the size of a line this
