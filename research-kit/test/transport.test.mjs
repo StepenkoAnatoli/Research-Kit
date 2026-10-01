@@ -853,6 +853,37 @@ test('a failed fetch names its cause, and a URL in the cause shows only its host
   assert.equal(fetchFailure('text'), 'text');
 });
 
+// Found 2026-10-01 (break-test): the redaction above ran over the CAUSE only, and Node throws
+// some fetch refusals with no cause at all and the whole URL in the message. A plan holding a
+// signed or credential-bearing URL - the thing collect.yml's own input description warns
+// against - then printed it to the terminal and wrote it into research/raw/.fetches.jsonl as
+// that entry's error: nine copies of one token in the ledger, in the one directory doctor's
+// secret scan excludes by design, and the ledger is the file that must travel.
+test('a URL in the failure itself shows only its host, not only a URL in the cause', async () => {
+  const { fetchFailure } = await import('../lib/runtime.mjs');
+
+  const credentials = new TypeError('Request cannot be constructed from a URL that includes credentials: '
+    + 'http://user:sup3rsecret@127.0.0.1:8099/?api_key=SECRET&token=ghp_SECRET');
+  const said = fetchFailure(credentials);
+  assert.doesNotMatch(said, /sup3rsecret|SECRET|api_key|token=/, said);
+  assert.match(said, /127\.0\.0\.1:8099/, 'the host survives, so the failure is still diagnosable');
+  assert.match(said, /credentials/, 'and so does the reason');
+
+  const unparsed = new TypeError('Failed to parse URL from https://example.invalid/a?token=SECRET');
+  assert.doesNotMatch(fetchFailure(unparsed), /SECRET|token/, fetchFailure(unparsed));
+  assert.match(fetchFailure(unparsed), /example\.invalid/);
+
+  // A message and a cause that both carry a key: neither copy survives, and the host does.
+  const both = Object.assign(new TypeError('fetch of https://x.invalid/s?api_key=SECRET failed'),
+    { cause: new Error('bad response from https://x.invalid/s?api_key=SECRET') });
+  assert.doesNotMatch(fetchFailure(both), /SECRET|api_key/);
+  assert.match(fetchFailure(both), /x\.invalid/);
+
+  // The cause-only path the previous test pinned, unchanged.
+  const keyed = Object.assign(new TypeError('fetch failed'), { cause: new Error('bad response from https://serpapi.com/search.json?api_key=SECRET&q=x') });
+  assert.equal(fetchFailure(keyed), 'fetch failed (bad response from serpapi.com)');
+});
+
 test('a keyless fetch of a refused port says the connection was refused', async () => {
   const http = await import('node:http');
   const server = http.createServer();

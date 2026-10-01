@@ -7,6 +7,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- `fetchFailure` cuts a URL to its host in the failure's own message, not only in its cause.
+  Node throws some refusals with no cause and the whole URL in the message - a URL carrying
+  credentials, one that will not parse - so a signed URL in a plan was printed to the terminal
+  and written into `research/raw/.fetches.jsonl` as that entry's error: the file that must
+  travel, in the one directory `doctor`'s secret scan excludes (break-test 2026-10-01, PR #193,
+  redone on main).
 - A quote anchor no longer misses a passage over a character nobody can see. Unicode's format
   characters - the zero-width space a docs site puts inside a heading's anchor link, a soft
   hyphen from a PDF extractor, a word joiner - survive NFKC and `\s`, so
