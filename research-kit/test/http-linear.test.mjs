@@ -60,10 +60,13 @@ test('the linear extractor gives the same capture as the regex one on 3,000 edge
   assert.deepEqual(differ, [], 'the linear extractor captured a page differently from the regexes it replaced');
 });
 
-/** The median of three timed runs of the whole extraction, in ms. */
-function extractMs(html) {
+/** The fastest of three timed runs of the whole extraction, in ms: noise only ever adds time. */
+function extractMs(html, { over = Infinity } = {}) {
   const runs = [];
   for (let r = 0; r < 3; r += 1) {
+    // A run already over the bound has answered: a quadratic regression would otherwise spend
+    // minutes repeating it, where no watchdog reaches synchronous code.
+    if (runs.length && runs[0] > over) break;
     const t = performance.now();
     const main = linear.mainContent(html);
     linear.htmlToMarkdown(main.html);
@@ -72,11 +75,14 @@ function extractMs(html) {
     linear.resultLinks(html);
     runs.push(performance.now() - t);
   }
-  return runs.sort((a, b) => a - b)[1];
+  return Math.min(...runs);
 }
 
-// A ratio, not a wall-clock budget, so a slow CI runner does not fail it: four times the page
-// takes about four times as long when the work is linear, and about sixteen when it is quadratic.
+// A ratio, not a wall-clock budget, so a slow CI runner does not fail it: eight times the page
+// takes about eight times as long when the work is linear, and about sixty-four when it is
+// quadratic. It was four times the page against a bound of 9, and a ~11 ms small page let one
+// pause push a linear shape to 8.2x - an intermittent red (2026-10-01). At 8x the worst of six
+// local runs was 13.9x against a bound of 24.
 test('extraction time grows linearly with a page of unclosed tags, not quadratically', () => {
   const shapes = {
     'unclosed <div>': (n) => '<div>word '.repeat(n),
@@ -93,9 +99,9 @@ test('extraction time grows linearly with a page of unclosed tags, not quadratic
     // Extraction is synchronous, so the watchdog cannot stop it: a quadratic regression would
     // spend minutes on the large page. A small page this slow has already answered.
     if (small > 1500) { slow.push(`${name}: ${small.toFixed(0)} ms for ~100 KB - superlinear, the large page was not tried`); continue; }
-    const large = extractMs(`<title>t</title>${make(40_000)}`);
+    const large = extractMs(`<title>t</title>${make(80_000)}`, { over: 24 * Math.max(small, 1) });
     const ratio = large / Math.max(small, 1);
-    if (ratio > 9) slow.push(`${name}: 4x the page took ${ratio.toFixed(1)}x as long (${small.toFixed(0)} ms -> ${large.toFixed(0)} ms)`);
+    if (ratio > 24) slow.push(`${name}: 8x the page took ${ratio.toFixed(1)}x as long (${small.toFixed(0)} ms -> ${large.toFixed(0)} ms)`);
   }
   assert.deepEqual(slow, [], `extraction is superlinear:\n  ${slow.join('\n  ')}`);
 });
