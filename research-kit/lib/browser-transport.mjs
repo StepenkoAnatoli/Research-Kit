@@ -10,7 +10,7 @@
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import { mainContent, htmlToMarkdown, titleOf, gradeCompleteness } from './http-transport.mjs';
+import { mainContent, htmlToMarkdown, titleOf, gradeCompleteness, redirectTarget } from './http-transport.mjs';
 import httpKeyless from './http-transport.mjs';
 import { CHILD_OUTPUT_LIMIT } from './runtime.mjs';
 
@@ -82,7 +82,8 @@ export function command(argv) {
   return ['browser', ...argv.slice(-1)].map((p) => (/\s/.test(p) ? JSON.stringify(p) : p)).join(' ');
 }
 
-export function scrape(url, { spawn = spawnSync, browserPath = null, env = process.env, config = {}, exists, timeout = TIMEOUT_MS, uid } = {}) {
+export function scrape(url, { spawn = spawnSync, browserPath = null, env = process.env, config = {}, exists, timeout = TIMEOUT_MS, uid,
+  redirects = redirectTarget } = {}) {
   const target = String(url);
   const binary = browserPath ?? findBrowser({ config, env, exists });
   const cmd = command([target]);
@@ -90,6 +91,12 @@ export function scrape(url, { spawn = spawnSync, browserPath = null, env = proce
     return { ok: false, url: target, transport: name, cmd,
       error: 'no Chromium or Chrome found - set browserPath in the machine config or RESEARCH_KIT_BROWSER to the browser executable' };
   }
+  // Chromium follows redirects inside itself and --dump-dom reports no final URL, so a page
+  // redirecting into this machine's network was rendered and captured (left open by ADR-0110).
+  // The URL's server redirects are followed first, with the keyless fetch and its guards, and a
+  // hop inward is refused before Chromium starts (ADR-0115).
+  const hop = redirects(target, { env });
+  if (hop?.refused) return { ok: false, url: target, transport: name, cmd, error: hop.refused };
   const result = spawn(binary, browserArgs(target, { env, ...(uid === undefined ? {} : { uid }) }), {
     encoding: 'utf8', timeout, maxBuffer: CHILD_OUTPUT_LIMIT, windowsHide: true,
   });

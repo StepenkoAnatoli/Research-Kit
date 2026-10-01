@@ -445,6 +445,18 @@ export function scrape(url, opts = {}) {
   };
 }
 
+/**
+ * Where `url`'s server redirects lead, judged hop by hop as a fetch's are (ADR-0110, ADR-0114),
+ * without reading the page: `{ url }` when they stay out of this machine's network,
+ * `{ refused }` when one leads into it, and `{ url, error }` when the redirects could not be
+ * followed - which is not a refusal: the browser may reach a page this client cannot.
+ */
+export function redirectTarget(url, opts = {}) {
+  const job = runJob({ kind: 'fetch', url: String(url), headersOnly: true }, opts);
+  if (job.refused) return { refused: job.error };
+  return job.ok ? { url: job.url ?? String(url) } : { url: String(url), error: job.error };
+}
+
 /** DuckDuckGo-lite: the keyless route to a result list, parsed from its HTML. */
 export function search(query, { limit = 8, ...opts } = {}) {
   const argv = ['search', String(query)];
@@ -660,13 +672,20 @@ async function child() {
       if (!/^https?:$/.test(next.protocol)) throw new Error(`a redirect to a ${next.protocol} URL is not followed`);
       const why = allowInternal ? null : await internalTarget(next.hostname);
       if (why) {
-        process.stdout.write(JSON.stringify({ ok: false, url: job.url, error: `refused to follow a redirect from ${new URL(url).host} to ${next.host} - ${why}. `
+        process.stdout.write(JSON.stringify({ ok: false, refused: true, url: job.url, error: `refused to follow a redirect from ${new URL(url).host} to ${next.host} - ${why}. `
           + 'A page on the web may not send the collector into this machine\'s network. If you meant that address, fetch it directly, '
           + 'or set RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS=1.' }));
         return;
       }
       url = next.href;
       response = await fetch(url, init);
+    }
+    // Where the redirects lead, and nothing more: the browser transport asks this before it
+    // starts Chromium (ADR-0115), and the page itself is the browser's to read.
+    if (job.headersOnly) {
+      await response.body?.cancel();
+      process.stdout.write(JSON.stringify({ ok: true, url, statusCode: response.status }));
+      return;
     }
     const body = await boundedText(response, 'the page');
     process.stdout.write(JSON.stringify({

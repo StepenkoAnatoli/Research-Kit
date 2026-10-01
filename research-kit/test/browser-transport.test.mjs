@@ -1,11 +1,15 @@
 // ADR-0088: a fetch-only transport that renders pages with a local Chromium from the command
 // line. Research: docs/decisions/2026-09-28-browser-transport. Offline: spawn is a stub.
 
-import { test, describe, assert } from './harness.mjs';
+import { test, describe, assert, fs, path, KIT_ROOT } from './harness.mjs';
 import browser, { browserArgs, chromeErrorOf, findBrowser } from '../lib/browser-transport.mjs';
 import { TRANSPORTS, satisfies, FETCH_SHAPE, selectTransport } from '../lib/transport.mjs';
 
 describe('browser-transport');
+
+// The server-side redirect check runs before Chromium (ADR-0115); these tests stub Chromium, so
+// they stub that check too, and the suite stays offline.
+const NO_REDIRECT = () => ({});
 
 const PAGE = `<html><head><title>File system | Node.js</title></head><body><main><h1>File system</h1>
 ${'<p>The fs.rename() method renames a file asynchronously and calls back when it is done.</p>'.repeat(40)}</main></body></html>`;
@@ -22,7 +26,7 @@ const spawnWith = (result) => {
 
 test('a rendered page becomes a graded capture through the keyless extractor', () => {
   const { spawn, calls } = spawnWith({ stdout: PAGE });
-  const r = browser.scrape('https://nodejs.org/api/fs.html', { spawn, browserPath: '/opt/chrome', env: {} });
+  const r = browser.scrape('https://nodejs.org/api/fs.html', { spawn, browserPath: '/opt/chrome', env: {}, redirects: NO_REDIRECT });
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.transport, 'browser');
   assert.equal(r.title, 'File system | Node.js');
@@ -38,7 +42,7 @@ test('a rendered page becomes a graded capture through the keyless extractor', (
 // but it is written into a committed ledger, so it names the tool that ran.
 test('the recorded command names the browser, not the keyless transport', () => {
   const { spawn } = spawnWith({ stdout: PAGE });
-  const r = browser.scrape('https://nodejs.org/api/fs.html', { spawn, browserPath: '/opt/chrome', env: {} });
+  const r = browser.scrape('https://nodejs.org/api/fs.html', { spawn, browserPath: '/opt/chrome', env: {}, redirects: NO_REDIRECT });
   assert.equal(r.cmd, 'browser https://nodejs.org/api/fs.html');
   assert.equal(browser.command(['https://x.invalid/a b']), 'browser "https://x.invalid/a b"', 'a URL with a space is quoted');
   const none = browser.scrape('https://x.invalid/a', { spawn, browserPath: null, env: {}, exists: () => false, config: {} });
@@ -49,15 +53,15 @@ test('Chromium\'s own error page is a failure that names its code, though it exi
   assert.equal(chromeErrorOf(PRIVACY), 'ERR_CERT_AUTHORITY_INVALID');
   assert.equal(chromeErrorOf(PAGE), '');
   const { spawn } = spawnWith({ stdout: PRIVACY });
-  const r = browser.scrape('https://x.invalid/a', { spawn, browserPath: '/opt/chrome', env: {} });
+  const r = browser.scrape('https://x.invalid/a', { spawn, browserPath: '/opt/chrome', env: {}, redirects: NO_REDIRECT });
   assert.equal(r.ok, false);
   assert.match(r.error, /ERR_CERT_AUTHORITY_INVALID/);
 });
 
 test('a timeout, a non-zero exit and a missing browser are failures that say which', () => {
-  const late = browser.scrape('https://x.invalid/a', { spawn: () => ({ status: null, signal: 'SIGTERM', error: Object.assign(new Error('spawnSync ETIMEDOUT'), { code: 'ETIMEDOUT' }), stdout: '' }), browserPath: '/opt/chrome', env: {} });
+  const late = browser.scrape('https://x.invalid/a', { spawn: () => ({ status: null, signal: 'SIGTERM', error: Object.assign(new Error('spawnSync ETIMEDOUT'), { code: 'ETIMEDOUT' }), stdout: '' }), browserPath: '/opt/chrome', env: {}, redirects: NO_REDIRECT });
   assert.match(late.error, /did not finish/);
-  const crashed = browser.scrape('https://x.invalid/a', { spawn: () => ({ status: 1, stdout: '', stderr: 'boom' }), browserPath: '/opt/chrome', env: {} });
+  const crashed = browser.scrape('https://x.invalid/a', { spawn: () => ({ status: 1, stdout: '', stderr: 'boom' }), browserPath: '/opt/chrome', env: {}, redirects: NO_REDIRECT });
   assert.match(crashed.error, /exited 1.*boom/);
   const none = browser.scrape('https://x.invalid/a', { browserPath: '', env: {}, exists: () => false });
   assert.equal(none.ok, false);
@@ -111,7 +115,7 @@ test('a browser killed by a signal is not reported as a timeout', () => {
   // timeout, so the one line that could name the cause named the wrong one.
   const trapped = browser.scrape('https://x.invalid/a', {
     spawn: () => ({ status: null, signal: 'SIGTRAP', stdout: '', stderr: 'noise\n[FATAL:zygote_host_impl_linux.cc] No usable sandbox!\n' }),
-    browserPath: '/opt/chrome', env: {},
+    browserPath: '/opt/chrome', env: {}, redirects: NO_REDIRECT,
   });
   assert.equal(trapped.ok, false);
   assert.doesNotMatch(trapped.error, /did not finish/);
@@ -125,7 +129,7 @@ test('a crash names Chromium\'s FATAL line, not the stack trace\'s last line', (
   const r = browser.scrape('https://x.invalid/a', {
     spawn: () => ({ status: null, signal: 'SIGABRT', stdout: '',
       stderr: '[123:123:FATAL:zygote_host_impl_linux.cc(127)] No usable sandbox! See https://x/y\n#0 0x55 base::debug::StackTrace\n#1 0x56 logging::LogMessage\n[end of stack trace]\n' }),
-    browserPath: '/opt/chrome', env: {},
+    browserPath: '/opt/chrome', env: {}, redirects: NO_REDIRECT,
   });
   assert.match(r.error, /killed by SIGABRT: .*FATAL.*No usable sandbox/);
   assert.doesNotMatch(r.error, /end of stack trace/);
@@ -138,7 +142,7 @@ test('a FATAL line outranks the ERROR noise the crash handler prints after it', 
   const r = browser.scrape('https://x.invalid/a', {
     spawn: () => ({ status: null, signal: 'SIGABRT', stdout: '',
       stderr: '[1:1:FATAL:some_file.cc(9)] Check failed: the real cause\n#0 0x1 frame\n[end of stack trace]\n[2:2:ERROR:crashpad/file_io_posix.cc:145] open /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq: No such file or directory (2)\n' }),
-    browserPath: '/opt/chrome', env: {},
+    browserPath: '/opt/chrome', env: {}, redirects: NO_REDIRECT,
   });
   assert.match(r.error, /FATAL.*the real cause/);
   assert.doesNotMatch(r.error, /cpufreq/);
@@ -158,11 +162,32 @@ test('a denied sandbox names the remedies that keep it, never --no-sandbox', () 
   const r = browser.scrape('https://x.invalid/a', {
     spawn: () => ({ status: null, signal: 'SIGTRAP', stdout: '',
       stderr: '[1:1:0929/035552.424135:FATAL:content/browser/zygote_host/zygote_host_impl_linux.cc:129] No usable sandbox! If you are running on Ubuntu 23.10+ or another Linux distro that has disabled unprivileged user namespaces with AppArmor, see https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md\n' }),
-    browserPath: '/usr/bin/chromium', env: {}, uid: 1001,
+    browserPath: '/usr/bin/chromium', env: {}, uid: 1001, redirects: NO_REDIRECT,
   });
   assert.equal(r.ok, false);
   assert.match(r.error, /No usable sandbox/);
   assert.match(r.error, /\/opt\/google\/chrome\/chrome/);
   assert.match(r.error, /CHROME_DEVEL_SANDBOX=\/opt\/google\/chrome\/chrome-sandbox/);
   assert.doesNotMatch(r.error, /--no-sandbox/);
+});
+
+// ADR-0115. ADR-0110 left the browser transport open: Chromium follows redirects inside itself and
+// --dump-dom reports no final URL, so a public page redirecting to 127.0.0.1 or the metadata
+// endpoint was rendered and captured. The URL's server redirects are now followed first, with
+// the keyless fetch and its guards, and a redirect inward is refused before Chromium starts.
+test('a URL that redirects into this machine\'s network is refused before the browser starts', () => {
+  let started = 0;
+  const spawn = () => { started += 1; return { status: 0, stdout: '<html><body><main><p>x</p></main></body></html>', stderr: '' }; };
+  const refused = 'refused to follow a redirect from evil.example to 169.254.169.254 - 169.254.169.254 is an internal address';
+  const r = browser.scrape('https://evil.example/a', { spawn, browserPath: '/opt/chrome', env: {}, redirects: () => ({ refused }) });
+  assert.equal(r.ok, false, 'the browser rendered a page that redirects inward');
+  assert.equal(r.error, refused);
+  assert.equal(started, 0, 'the browser was started for a URL already refused');
+  assert.equal(browser.scrape('https://ok.example/a', { spawn, browserPath: '/opt/chrome', env: {}, redirects: NO_REDIRECT }).ok, true);
+  assert.equal(started, 1, 'the control: a URL with no redirect inward is rendered');
+});
+
+test('by default the browser transport asks the keyless fetch where the URL redirects', () => {
+  const src = fs.readFileSync(path.join(KIT_ROOT, 'lib', 'browser-transport.mjs'), 'utf8');
+  assert.match(src, /redirects = redirectTarget\b/, 'the default is not the keyless redirect check');
 });
