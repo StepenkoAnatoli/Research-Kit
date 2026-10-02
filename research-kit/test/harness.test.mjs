@@ -8,7 +8,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { test, describe, assert, tempDir, fs, path, KIT_ROOT, importTestFiles, LEAKED_GIT_CONTEXT, stripLeakedGitContext, findPython, errorCodeOf, dominantFailureCause } from './harness.mjs';
+import { test, describe, assert, tempDir, fs, path, KIT_ROOT, importTestFiles, LEAKED_GIT_CONTEXT, stripLeakedGitContext, findPython, errorCodeOf, dominantFailureCause, requireGit, fixtureInitArgs } from './harness.mjs';
 
 describe('harness');
 
@@ -307,4 +307,31 @@ test('a run stopped by SIGTERM or SIGINT still removes its scratch, and exits 12
     assert.equal(fs.existsSync(dir), false, `${signal} left ${dir} behind`);
     assert.equal(status, code, `${signal}: exit ${status} (signal ${sig}), expected ${code}`);
   }
+});
+
+// A host whose global git config names an `init.templateDir` (what `pre-commit
+// init-templatedir` writes) hands every `git init` the template's hooks. The kit's hook
+// hands on to the repository's own (ADR-0112), so a fixture carrying the host's failing
+// pre-commit reported seven allowed commits as refused (found 2026-10-02, break-test).
+test('a fixture repository is initialised without the host\'s init.templateDir', () => {
+  requireGit('initialising a fixture repository under a hostile global config');
+  const template = tempDir('rk-template-');
+  fs.mkdirSync(path.join(template, 'hooks'), { recursive: true });
+  fs.writeFileSync(path.join(template, 'hooks', 'pre-commit'), '#!/bin/sh\nexit 1\n');
+  const home = tempDir('rk-template-home-');
+  const cfg = path.join(home, 'gitconfig');
+  fs.writeFileSync(cfg, `[init]\n\ttemplateDir = ${template.replace(/\\/g, '/')}\n`);
+  const env = { ...process.env, HOME: home, USERPROFILE: home, GIT_CONFIG_GLOBAL: cfg, GIT_CONFIG_NOSYSTEM: '1' };
+  stripLeakedGitContext(env);   // mutates in place; returns the names it removed
+
+  // The probe: a plain init on this host copies the template's hook.
+  const plain = tempDir('rk-template-plain-');
+  assert.equal(spawnSync('git', ['init', '-q'], { cwd: plain, env }).status, 0);
+  assert.equal(fs.existsSync(path.join(plain, '.git', 'hooks', 'pre-commit')), true, 'the probe did not reproduce: git init ignored init.templateDir');
+
+  const fixture = tempDir('rk-template-fixture-');
+  const r = spawnSync('git', fixtureInitArgs(), { cwd: fixture, env, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(fs.existsSync(path.join(fixture, '.git', 'HEAD')), true, 'the fixture was not initialised');
+  assert.equal(fs.existsSync(path.join(fixture, '.git', 'hooks', 'pre-commit')), false, 'the fixture repository carries the host\'s template hook');
 });

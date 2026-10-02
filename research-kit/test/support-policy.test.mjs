@@ -10,7 +10,7 @@
 // exist. Both were prose nobody could check. This one can be.
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, assertEqual, fs, path, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, assertEqual, fs, path, KIT_ROOT, tempDir } from './harness.mjs';
 import { REQUIRED_PYTHON } from '../lib/runtime.mjs';
 
 describe('support-policy');
@@ -364,4 +364,51 @@ test('RESEARCH_KIT_ALLOW_UNSUP lets a local run without Python pass, says so, an
   const ci = suite({ RESEARCH_KIT_ALLOW_UNSUP: '1', CI: 'true' });
   assert.equal(ci.status, 1, `CI honoured the opt-in:\n${ci.stdout.slice(-600)}`);
   assert.match(ci.stdout, /RESEARCH_KIT_ALLOW_UNSUP is ignored in CI/);
+});
+
+// ADR-0123: the suite describes the kit, not the machine. The runner gives the run a
+// scratch home and strips the operator's kit variables and vendor keys before the first
+// test; this pin is read from inside the run, so it is red the moment that stops.
+test('the run has a scratch home and none of the operator\'s kit variables or vendor keys', () => {
+  assert.match(String(process.env.HOME ?? ''), /rk-selftest-home-/, `HOME is ${process.env.HOME}, not the run's scratch home`);
+  assert.equal(process.env.USERPROFILE, process.env.HOME);
+  for (const name of ['RESEARCH_KIT_CONFIG', 'RESEARCH_KIT_HOME', 'RESEARCH_KIT_TRANSPORT', 'RESEARCH_KIT_SEARCH_TRANSPORT', 'RESEARCH_KIT_INSTALL_STATE', 'RESEARCH_KIT_EDIT_GATE_SETTINGS', 'FIRECRAWL_API_KEY', 'SERPAPI_API_KEY', 'TAVILY_API_KEY']) {
+    assert.equal(process.env[name], undefined, `${name} reached the suite`);
+  }
+});
+
+// Below the Node floor the suite refuses up front, as the kit's commands do: on Node 20 it
+// used to run and report 28 red tests, each saying "this kit needs 22 or newer" (break-test
+// 2026-10-02). The harness seam RESEARCH_KIT_TEST_NODE_VERSION stands in for the old Node.
+test('below the Node floor selftest refuses before any test runs, exit 2, naming the floor', () => {
+  const selftest = path.join(KIT_ROOT, 'bin', 'selftest.mjs');
+  const base = Object.fromEntries(Object.entries(process.env).filter(([k]) => !['CI', 'RESEARCH_KIT_ALLOW_UNSUP', 'RESEARCH_KIT_RESULT_FILE'].includes(k)));
+  const old = spawnSync(process.execPath, [selftest, 'canonical-float-policy'], {
+    cwd: path.resolve(KIT_ROOT, '..'), encoding: 'utf8', timeout: 120_000, env: { ...base, RESEARCH_KIT_TEST_NODE_VERSION: '20.11.0' },
+  });
+  assert.equal(old.status, 2, `an old Node was not refused:\n${old.stdout.slice(-300)}\n${old.stderr.slice(-300)}`);
+  assert.match(old.stderr, /selftest runs on Node 22 or newer: node 20\.11\.0; this kit needs 22 or newer/);
+  assert.match(old.stderr, /install Node 22\+/);
+  assert.doesNotMatch(old.stdout, /passed, /, 'tests ran under a refused Node');
+  const floor = spawnSync(process.execPath, [selftest, 'canonical-float-policy'], {
+    cwd: path.resolve(KIT_ROOT, '..'), encoding: 'utf8', timeout: 120_000, env: { ...base, RESEARCH_KIT_TEST_NODE_VERSION: '22.0.0' },
+  });
+  assert.equal(floor.status, 0, `the floor itself was refused:\n${floor.stderr.slice(-300)}`);
+});
+
+// A result file that was asked for and could not be written: the cause is printed and the
+// green run exits 2, where it exited 0 and left CI's summary reading "crashed before
+// reporting" beside a green step (break-test 2026-10-02).
+test('a result file that cannot be written is named, and a green run exits 2 for it', () => {
+  const selftest = path.join(KIT_ROOT, 'bin', 'selftest.mjs');
+  const base = Object.fromEntries(Object.entries(process.env).filter(([k]) => !['CI', 'RESEARCH_KIT_ALLOW_UNSUP', 'RESEARCH_KIT_RESULT_FILE'].includes(k)));
+  const target = path.join(tempDir('rk-result-'), 'no-such-folder', 'result.json');
+  const r = spawnSync(process.execPath, [selftest, 'canonical-float-policy'], {
+    cwd: path.resolve(KIT_ROOT, '..'), encoding: 'utf8', timeout: 120_000, env: { ...base, RESEARCH_KIT_RESULT_FILE: target },
+  });
+  assert.equal(r.status, 2, `expected exit 2 for an undelivered report, got ${r.status}:\n${r.stderr.slice(-300)}`);
+  assert.match(r.stderr, /RESEARCH_KIT_RESULT_FILE was set to .* and could not be written/);
+  assert.match(r.stderr, /a green run exits 2/);
+  assert.match(r.stdout, /all tests passed/, 'the suite result itself is still reported');
+  assert.equal(fs.existsSync(target), false);
 });

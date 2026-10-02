@@ -5,7 +5,7 @@
 // with a real staged file, and assert the process exit status.
 
 import { spawnSync, execFileSync } from 'node:child_process';
-import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, KIT_ROOT, requireCapability, requireGit, fixtureCommitArgs } from './harness.mjs';
+import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, KIT_ROOT, requireCapability, requireGit, fixtureCommitArgs, fixtureInitArgs } from './harness.mjs';
 import { PATHS, resolve, writeText, readText } from '../lib/core.mjs';
 import { posture } from '../lib/machine.mjs';
 import { hookExecutability, scaffoldProject } from '../lib/scaffold.mjs';
@@ -33,7 +33,7 @@ function git(dir, args) {
 
 function makeRepo() {
   const dir = makePassingProject();
-  git(dir, ['init', '-q']);
+  git(dir, fixtureInitArgs());
   git(dir, ['config', 'user.email', 'fixture@example.invalid']);
   git(dir, ['config', 'user.name', 'Fixture']);
   // The corpus is TRACKED, as it is in any real project - the commit gate judges the
@@ -198,7 +198,7 @@ test('a git that cannot list the staged paths still lets a passing project commi
 test('a fresh project\'s first commit - scaffold and corpus together - is ALLOWED while the verdict fails', () => {
   requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
   const dir = tempDir('rk-fresh-');
-  git(dir, ['init', '-q']);
+  git(dir, fixtureInitArgs());
   git(dir, ['config', 'user.email', 'fixture@example.invalid']);
   git(dir, ['config', 'user.name', 'Fixture']);
   scaffoldProject(dir, { topic: 'Anything', kit: KIT_ROOT });
@@ -325,7 +325,7 @@ test('the hook is watchdogged, and a watchdog kill is an internal error', () => 
 test('a commit with HOME unset is judged, not refused by a shell error', () => {
   requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
   const dir = tempDir('rk-nohome-');
-  git(dir, ['init', '-q']);
+  git(dir, fixtureInitArgs());
   const env = { ...process.env, RESEARCH_KIT_CONFIG: isolatedConfig(),
     RESEARCH_KIT_INSTALL_STATE: path.join(tempDir('research-kit-hookstate-'), 'install.json') };
   delete env.HOME;
@@ -340,7 +340,7 @@ test('a commit with HOME unset is judged, not refused by a shell error', () => {
 test('a commit with HOME empty looks for the kit in the real home, not /.agents', () => {
   requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
   const dir = tempDir('rk-emptyhome-');
-  git(dir, ['init', '-q']);
+  git(dir, fixtureInitArgs());
   const env = { ...process.env, HOME: '', RESEARCH_KIT_CONFIG: isolatedConfig(),
     RESEARCH_KIT_INSTALL_STATE: path.join(tempDir('research-kit-hookstate-'), 'install.json') };
   delete env.RESEARCH_KIT_HOME;
@@ -367,7 +367,7 @@ test('a fixture commit is immune to the host machine\'s global git config', () =
   // written as-is is "bad config line 2"; git on Windows takes C:/... as written.
   fs.writeFileSync(cfg, `[core]\n\thooksPath = ${hooks.replace(/\\/g, '/')}\n[commit]\n\tgpgsign = true\n`);
   const dir = tempDir('rk-hostrepo-');
-  git(dir, ['init', '-q']);
+  git(dir, fixtureInitArgs());
   git(dir, ['config', 'user.email', 'fixture@example.invalid']);
   git(dir, ['config', 'user.name', 'Fixture']);
   fs.writeFileSync(path.join(dir, 'file.txt'), 'fixture\n');
@@ -403,6 +403,7 @@ const GIT_HOOK_NAMES = [
 /** A hook in the repository's own .git/hooks that records that it ran, with its stdin. */
 function ownHook(dir, name, log, { exit = 0 } = {}) {
   const file = path.join(dir, '.git', 'hooks', name);
+  fs.mkdirSync(path.dirname(file), { recursive: true });   // no template created it (fixtureInitArgs)
   const to = log.split('\\').join('/');
   const stdin = name === 'pre-push' ? `cat >> "${to}"\n` : '';   // only pre-push is handed anything on stdin
   fs.writeFileSync(file, `#!/bin/sh\necho "${name} $*" >> "${to}"\n${stdin}exit ${exit}\n`);
@@ -436,7 +437,7 @@ test('under the kit\'s hooksPath, the repository\'s own pre-commit, commit-msg a
   assert.equal(commit.status, 0, commit.stdout + commit.stderr);
 
   const remote = tempDir('rk-remote-');
-  git(remote, ['init', '-q', '--bare']);
+  git(remote, fixtureInitArgs('--bare'));
   const push = gitWithKitHooks(dir, ['push', '-q', remote, 'HEAD:refs/heads/main']);
   assert.equal(push.status, 0, push.stdout + push.stderr);
 

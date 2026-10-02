@@ -2,7 +2,7 @@
 // overrides. Plus the one that matters: it actually blocks.
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, KIT_ROOT, requireGit } from './harness.mjs';
+import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, KIT_ROOT, requireGit, fixtureInitArgs } from './harness.mjs';
 import { PATHS, resolve, writeText, readText, writeJson } from '../lib/core.mjs';
 import { evaluate, isGated, splitPathList, architectureMapBreach, loadGateConfig, DEFAULT_CODE_PATHS, suiteBreach, suiteOwed, runSuiteHere, isKitCheckout, SUITE_RULE } from '../lib/gate.mjs';
 import { GATE_MARKERS, TEMPLATE_DIR } from '../lib/scaffold.mjs';
@@ -344,7 +344,7 @@ test('the edit gate lets phase-1 work through and still stops code', () => {
 test('the edit gate judges a subfolder cwd by the repository it is in', () => {
   requireGit('finding the repository a subfolder is in');
   const dir = makeProject();
-  spawnSync('git', ['init', '-q'], { cwd: dir });
+  spawnSync('git', fixtureInitArgs(), { cwd: dir });
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
   const out = editGate(dir, { file_path: 'app.js' }, path.join(dir, 'src'));
   const top = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: path.join(dir, 'src'), encoding: 'utf8' });
@@ -365,10 +365,10 @@ test('the edit gate judges a subfolder cwd by the repository it is in', () => {
 test('a leaked GIT_DIR does not make the edit gate judge another repository', () => {
   requireGit('finding the repository a subfolder is in, under a leaked GIT_DIR');
   const dir = makeProject();
-  spawnSync('git', ['init', '-q'], { cwd: dir });
+  spawnSync('git', fixtureInitArgs(), { cwd: dir });
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
   const other = tempDir('rk-other-repo-');
-  spawnSync('git', ['init', '-q'], { cwd: other });
+  spawnSync('git', fixtureInitArgs(), { cwd: other });
   const leaked = { GIT_DIR: path.join(other, '.git'), GIT_WORK_TREE: other };
   const out = editGate(dir, { file_path: 'app.js' }, path.join(dir, 'src'), undefined, leaked);
   assert.equal(out.permissionDecision, 'ask', `code edited from src/ was not judged: ${out.permissionDecisionReason}`);

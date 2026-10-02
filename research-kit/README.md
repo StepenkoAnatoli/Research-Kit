@@ -105,7 +105,7 @@ node "$HOME/.agents/research-kit/bin/handoff.mjs"     # did the corpus arrive wh
 | `collect-remote.mjs` | run the collector on GitHub and bring the result back (`--repository`, `--topic`, `--query`, `--url`, `--prefer`, `--prior`, `--json`) |
 | `mcp-server.mjs` | the collector as an MCP server over stdio, for an agent that speaks the protocol |
 | `disclosure.mjs` | what a stranger can read of a workflow run (`--repository`, `--run`, `--topic`), unauthenticated and read-only |
-| `selftest.mjs` | the whole suite, offline |
+| `selftest.mjs` | the whole suite, offline, under a scratch home with no `RESEARCH_KIT_*` variable or vendor key (ADR-0123) |
 
 ## The portable artifact
 
@@ -451,7 +451,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1442 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1453 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

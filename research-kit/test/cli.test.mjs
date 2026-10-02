@@ -12,7 +12,8 @@
 
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { test, describe, assert, tempDir, fs, path, KIT_ROOT, makePassingProject, Unsupported } from './harness.mjs';
+import { test, describe, assert, tempDir, fs, path, KIT_ROOT, makePassingProject, Unsupported, requireCapability } from './harness.mjs';
+import { resolveProgramPath } from '../lib/firecrawl.mjs';
 import { renderBrief } from '../lib/brief.mjs';
 import { scaffoldProject } from '../lib/scaffold.mjs';
 import { spellCommand, documentCommand, parseFlags, writeFailure, writeText } from '../lib/core.mjs';
@@ -73,6 +74,26 @@ function run(bin, args, { root, env = {} } = {}) {
   };
 }
 
+/**
+ * A PATH on which git is still found and the Firecrawl CLI is not.
+ *
+ * "With no key" has three host states, not two: no CLI (CI, a fresh machine), a CLI that
+ * is logged in (the collector), and a CLI that is installed and NOT logged in - which
+ * selects `firecrawl-cli-anonymous` for fetching and `http-keyless` for searching, two
+ * providers on two meters, exactly what FR-5's default-with-nothing tests say must not
+ * happen. That third state is what this container was in, and a machine config pinning
+ * `transport: http-keyless` hid it (found 2026-10-02, break-test). The tests describe the
+ * first state, so they are given it: the folder git lives in, and nothing else. Where the
+ * CLI shares that folder the premise cannot be built, and the test says so.
+ */
+function pathWithoutFirecrawl() {
+  const git = resolveProgramPath('git');
+  const only = git ? path.dirname(git) : '';
+  requireCapability(!resolveProgramPath('firecrawl', { ...process.env, PATH: only }), 'FIRECRAWL-BESIDE-GIT',
+    `the Firecrawl CLI is installed in git's own folder (${only}), so a PATH without the CLI cannot keep git`);
+  return only;
+}
+
 // ---------------------------------------------------------------- FR-6  the flag exists
 
 test('FR-6: research --help documents --search-transport and names every provider', () => {
@@ -113,7 +134,7 @@ test('FR-8: --status names BOTH providers before anything is spent', () => {
 });
 
 test('FR-5/FR-8: with no key, --status says the two sides share one meter', () => {
-  const r = run('research.mjs', ['--status'], { root: project() });
+  const r = run('research.mjs', ['--status'], { root: project(), env: { PATH: pathWithoutFirecrawl() } });
   assert.match(r.out, /search transport.*same meter as fetch/,
     `the default changed without a key being present:\n${r.out}`);
   assert.equal(/serpapi/.test(r.out), false, 'a provider nobody configured was selected');
@@ -421,7 +442,7 @@ test('FR-8: --dry-run announces both providers and spends nothing', () => {
 });
 
 test('FR-5: --dry-run with NO key does not mention a second provider at all', () => {
-  const r = run('research.mjs', ['--dry-run'], { root: planned() });
+  const r = run('research.mjs', ['--dry-run'], { root: planned(), env: { PATH: pathWithoutFirecrawl() } });
   assert.equal(r.status, 0, r.err);
   assert.equal(/^search:/m.test(r.out), false,
     `a run with one provider announced two:\n${r.out}`);

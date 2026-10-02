@@ -6,7 +6,7 @@
 
 import os from 'node:os';
 import { execFileSync } from 'node:child_process';
-import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability, requireGit, fixtureCommitArgs } from './harness.mjs';
+import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireCapability, requireGit, fixtureCommitArgs, fixtureInitArgs } from './harness.mjs';
 import { PATHS, resolve, readText, writeText } from '../lib/core.mjs';
 import { evaluate, materializeIndex } from '../lib/gate.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
@@ -29,7 +29,7 @@ function git(dir, args) {
 function makeRepo() {
   requireCapability(GIT, 'GIT-NOT-FOUND', 'git is not on PATH, so the index cannot be read');
   const dir = makePassingProject();
-  git(dir, ['init', '-q']);
+  git(dir, fixtureInitArgs());
   git(dir, ['config', 'user.email', 'fixture@example.invalid']);
   git(dir, ['config', 'user.name', 'Fixture']);
   git(dir, ['add', '-A', '-f']);
@@ -160,7 +160,7 @@ test('the empty-index verdict takes its scratch with it too', () => {
   // harness exists to report (found 2026-09-29, break-test).
   requireGit('the empty-index verdict over an untracked corpus');
   const dir = makePassingProject();
-  git(dir, ['init', '-q']);                 // a repository whose research/ is UNTRACKED
+  git(dir, fixtureInitArgs());                 // a repository whose research/ is UNTRACKED
   git(dir, ['config', 'user.email', 'fixture@example.invalid']);
   git(dir, ['config', 'user.name', 'Fixture']);
   const scratch = tempDir('rk-index-empty-');

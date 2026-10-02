@@ -193,7 +193,13 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
   // a page that still rendered is not a failure of the capture.
   const landedOnRefusal = refused.length && (html.includes(REFUSAL_MARKER) || (chromeErrorOf(html) && !timedOut && !result.signal && result.status === 0));
   if (landedOnRefusal) {
-    const last = refused[refused.length - 1];
+    // The refusal the page landed on, not the last one recorded: the guard's refusal page
+    // carries its host and reason, and a dump holding them names that refusal. A later refusal
+    // - a dead third-party host the page also referenced - was named instead (found
+    // 2026-10-02, break-test: on a no-network host the browser's own www.google.com, refused as
+    // unresolvable after the navigation, was reported as what the page had reached for). Where
+    // the dump is Chromium's own error page there is nothing to match, and the last stands.
+    const last = refused.find((entry) => html.includes(`${REFUSAL_MARKER}: ${entry.host} - ${entry.why}`)) ?? refused[refused.length - 1];
     const waited = cutAtDeadline(result, timeout);
     return { ok: false, url: target, transport: name, cmd,
       error: `refused to let the page reach ${last.host} - ${last.why}. A page on the web may not send the browser into this machine's network; `

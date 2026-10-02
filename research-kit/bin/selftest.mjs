@@ -9,8 +9,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseFlags, listFiles, refuseUnknownFlags, exists, kitCommand, tolerateClosedStdout, tempBase, tempFreeSpace, exitAfterFlush } from '../lib/core.mjs';
-import { runPending, TEST_TIMEOUT, importTestFiles, describe, test, dominantFailureCause } from '../test/harness.mjs';
+import { runPending, TEST_TIMEOUT, importTestFiles, describe, test, dominantFailureCause, tempDir } from '../test/harness.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
+import { checkNode, REQUIRED_NODE_MAJOR } from '../lib/runtime.mjs';
 
 // Before the first write: a reader that quits early (`| head -1`) must not turn this run
 // into an EPIPE crash, because that reads exactly like a red suite (2026-09-28).
@@ -27,9 +28,21 @@ if (flags.help) {
 
   name   run only the test files whose name contains this text
 
-Every test runs offline: no key, no credits, no network.
+Every test runs offline: no key, no credits, no network - and none of this machine's
+  settings: the run has a scratch home and no RESEARCH_KIT_* variable (ADR-0123).
 `);
   process.exit(0);
+}
+
+// The README promises Node 22 or newer, and the kit's commands refuse below it by name. The
+// suite did not: on Node 20 it ran, and 28 tests went red, each carrying the same "this kit
+// needs 22 or newer" where one refusal up front would do (break-test 2026-10-02). Exit 2:
+// misuse, not a red suite, as for a run outside the checkout. RESEARCH_KIT_TEST_NODE_VERSION
+// is the harness's seam, so the refusal can be exercised on the Node that runs the suite.
+const nodeFloor = checkNode(process.env.RESEARCH_KIT_TEST_NODE_VERSION ?? process.versions.node);
+if (!nodeFloor.ok) {
+  process.stderr.write(`selftest runs on Node ${REQUIRED_NODE_MAJOR} or newer: ${nodeFloor.detail}.\n${nodeFloor.fix ? `${nodeFloor.fix}\n` : ''}`);
+  process.exit(2);
 }
 
 const files = listFiles(dir)
@@ -84,6 +97,35 @@ const tempProblem = (() => {
   }
 })();
 if (tempProblem) process.stderr.write(`\n${tempProblem}\n\n`);
+
+// The suite describes the kit, not the machine it runs on (ADR-0123). A test that reads
+// the operator's own settings - the machine config under ~/.agents, a deployed kit there,
+// the Firecrawl CLI's login, RESEARCH_KIT_* variables, a vendor key - describes that
+// machine, and this container's `transport: http-keyless` config hid, for weeks, that two
+// cli tests go red on any host with the CLI installed and not logged in; a `strict`
+// posture config turned 18 gate, preflight and cli tests red (found 2026-10-02,
+// break-test). So the run gets a scratch home of its own and none of those variables.
+// What stays is what describes the HOST or this RUN rather than the operator's setup: the
+// result file and the unsupported opt-in (this runner's), the browser the operator pointed
+// the kit at, the gate timeout, the live-test opt-ins, and the harness's own
+// RESEARCH_KIT_TEST_* seams. If the scratch home cannot be made the temp problem above has
+// already said why, and the real home stays.
+const RUN_VARIABLES = new Set(['RESEARCH_KIT_RESULT_FILE', 'RESEARCH_KIT_ALLOW_UNSUP', 'RESEARCH_KIT_BROWSER', 'RESEARCH_KIT_GATE_TIMEOUT', 'RESEARCH_KIT_COLLECTION_ENV']);
+const VENDOR_KEYS = new Set(['FIRECRAWL_API_KEY', 'SERPAPI_API_KEY', 'TAVILY_API_KEY']);
+const describesTheRun = (name) => RUN_VARIABLES.has(name) || name.startsWith('RESEARCH_KIT_TEST_') || name.startsWith('RESEARCH_KIT_LIVE');
+for (const name of Object.keys(process.env)) {
+  if ((name.startsWith('RESEARCH_KIT_') && !describesTheRun(name)) || VENDOR_KEYS.has(name)) delete process.env[name];
+}
+if (!tempProblem) {
+  // Through the harness's tempDir, so the run removes it with its other scratch when it ends.
+  const home = tempDir('rk-selftest-home-');
+  process.env.HOME = home;
+  process.env.USERPROFILE = home;
+  if (process.platform === 'win32') {
+    process.env.APPDATA = path.join(home, 'AppData', 'Roaming');
+    process.env.LOCALAPPDATA = path.join(home, 'AppData', 'Local');
+  }
+}
 
 /**
  * How much room the temp folder actually has, in words - `tempFreeSpace()` in core.mjs,
@@ -146,11 +188,18 @@ function writeResultFile(code) {
     // same absence, CI would report a crash that did not happen, and the real cause -
     // which is right here - would be invisible. Saying so on stderr costs nothing and
     // makes the two indistinguishable cases distinguishable again.
+    //
+    // And a green run then exits 2 (2026-10-02, break-test): the report was asked for and
+    // not delivered, and a step that exits 0 beside a summary reading "crashed before
+    // reporting" is two statements that cannot both be true. A red run keeps its 1 - red is
+    // the louder fact, and its cause is in the log either way.
+    resultUnwritten = true;
     process.stderr.write(
       `RESEARCH_KIT_RESULT_FILE was set to ${JSON.stringify(target)} and could not be written: ${err.message}\n`
-      + 'The suite result below is still authoritative; only the machine-readable copy is missing.\n');
+      + 'The suite result below is still authoritative; only the machine-readable copy is missing - and a green run exits 2 for it.\n');
   }
 }
+let resultUnwritten = false;
 
 const seconds = ((Date.now() - started) / 1000).toFixed(1);
 
@@ -220,4 +269,4 @@ writeResultFile(0);
 process.stdout.write(waiveUnsupported
   ? `NOT a full pass: every test that ran passed, and ${unsupported.length} could not run on this host (RESEARCH_KIT_ALLOW_UNSUP=1)\n`
   : 'all tests passed\n');
-await exitAfterFlush(0);
+await exitAfterFlush(resultUnwritten ? 2 : 0);

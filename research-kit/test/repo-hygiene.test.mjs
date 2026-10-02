@@ -48,7 +48,17 @@ function git(args) {
  */
 function inRepository() {
   requireGit("reading this repository's index");
-  return git(['rev-parse', '--is-inside-work-tree'])?.trim() === 'true';
+  if (git(['rev-parse', '--is-inside-work-tree'])?.trim() !== 'true') return false;
+  // Inside SOME work tree is not inside THIS repository's. A `git archive` tree or a ZIP
+  // unpacked under a folder that is itself a repository - a monorepo, a home directory under
+  // git - answers `true` here and every `git ls-files` below then describes that outer
+  // repository, where the kit's files are untracked: "the fetch ledger is not tracked", "no
+  // git hook is tracked", three red tests about a repository the kit is not in (found
+  // 2026-10-02, break-test: the archive tree extracted into a scratch folder with a .git).
+  const top = git(['rev-parse', '--show-toplevel'])?.trim();
+  if (!top) return false;
+  const same = (a, b) => { try { return fs.realpathSync(a) === fs.realpathSync(b); } catch { return false; } };
+  return same(top, REPO);
 }
 
 /** Each path, with the ignore rule that matched it and the file that declared it. */

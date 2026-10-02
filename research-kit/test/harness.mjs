@@ -419,6 +419,22 @@ export function fixtureCommitArgs(message) {
   return ['-c', 'commit.gpgsign=false', 'commit', '-q', '--no-verify', '-m', message];
 }
 
+/**
+ * The argv for a fixture's `git init`, immune to the host machine's `init.templateDir`.
+ *
+ * `git init` copies the template folder the global config names into every new repository.
+ * `pre-commit init-templatedir` and corporate setups point it at a folder whose `hooks/`
+ * holds a hook, so a fixture repository carried the host's hook; the kit's own hook hands
+ * on to the repository's (ADR-0112), and seven hook tests reported the kit refusing a
+ * commit it had allowed. A custom template ships no `info/exclude` either, and two handoff
+ * tests died on ENOENT (found 2026-10-02, break-test: GIT_CONFIG_GLOBAL naming such a
+ * template). An empty templateDir copies nothing - no hooks, no description, no
+ * `info/exclude` - and a fixture that needs one of those creates it.
+ */
+export function fixtureInitArgs(...extra) {
+  return ['-c', 'init.templateDir=', 'init', '-q', ...extra];
+}
+
 /** A project that passes the gate: one unknown, one row, one capture, one ledger entry. */
 export function makePassingProject(dir = tempDir(), { date = today() } = {}) {
   makeProject(dir, { content: true });

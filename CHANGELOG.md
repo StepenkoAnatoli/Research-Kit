@@ -7,6 +7,36 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- The browser guard survives a CONNECT the browser resets while the guard answers it: the
+  socket had no error listener on the dropped and refused paths, and an ECONNRESET killed the
+  guard child mid-render ("the browser exited null" on three CI legs, 2026-10-02).
+- The browser guard drops every request made before the page asked for has been requested
+  (ADR-0125): CI's Chrome stable preconnected to `www.gstatic.com` before the page, a host real
+  pages use too, so the service-host list could not settle it; the order can.
+- A `RESEARCH_KIT_RESULT_FILE` that cannot be written makes a green `selftest.mjs` run exit 2, where
+  it exited 0 and left CI's summary reading "crashed before reporting" beside a green step.
+- `selftest.mjs` refuses below the Node floor before any test runs (exit 2, naming the floor), where
+  on Node 20 it ran and reported 28 red tests each saying "this kit needs 22 or newer".
+- The drafted finding keeps an underscore inside a word: `return_run_details` had been drafted as
+  "returnrundetails", a parameter no page carries, and a quote copied from the draft could never
+  be found in the capture (found running the kit on MoonAliza, 2026-10-02).
+- The browser guard drops Chromium's own service traffic (ADR-0124). Rendering a plain page,
+  Chromium 141 made nine connections no page asked for - the component updater's clock, the
+  default-search preconnect, `accounts.google.com`, the Cloud Messaging check-in and push
+  channel - and the guard carried them as external; on a no-network host the last of them
+  became a LIVE test's verdict. A request to one of `BROWSER_SERVICE_HOSTS` is now answered
+  403, logged `dropped`, and never judged, carried or counted as a refusal; the page asked for
+  is exempt by host and port. Flags and profile preferences were measured first and left most
+  of the traffic.
+- `selftest.mjs` describes the kit, not the machine (ADR-0123): the run gets a scratch home and
+  loses every `RESEARCH_KIT_*` variable but the ones that describe the host or the run, and
+  the vendor keys. The tests that spawn kit commands read the operator's machine config, deployed kit and
+  Firecrawl login, so a `strict` posture config turned 18 tests red, `role: builder` 7, and a
+  Firecrawl CLI installed and not logged in turned two `cli` tests red that a `transport:
+  http-keyless` config had been hiding. Those two now run on a PATH without the CLI. Fixture
+  repositories are initialised with an empty `init.templateDir`: a host whose global git config
+  names a template with hooks (what `pre-commit init-templatedir` writes) turned 9 hook and
+  handoff tests red.
 - `selftest.mjs` no longer calls a run with zero failures a red suite. When every blocker is a
   test the host could not run (no Chromium, no Python), it ends "No test failed. N tests could
   not run on this host, and an incomplete run is not a pass (ADR-0108) - this is not a red
