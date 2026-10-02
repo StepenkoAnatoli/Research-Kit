@@ -365,3 +365,14 @@ test('RESEARCH_KIT_ALLOW_UNSUP lets a local run without Python pass, says so, an
   assert.equal(ci.status, 1, `CI honoured the opt-in:\n${ci.stdout.slice(-600)}`);
   assert.match(ci.stdout, /RESEARCH_KIT_ALLOW_UNSUP is ignored in CI/);
 });
+
+// ADR-0123: the suite describes the kit, not the machine. The runner gives the run a
+// scratch home and strips the operator's kit variables and vendor keys before the first
+// test; this pin is read from inside the run, so it is red the moment that stops.
+test('the run has a scratch home and none of the operator\'s kit variables or vendor keys', () => {
+  assert.match(String(process.env.HOME ?? ''), /rk-selftest-home-/, `HOME is ${process.env.HOME}, not the run's scratch home`);
+  assert.equal(process.env.USERPROFILE, process.env.HOME);
+  for (const name of ['RESEARCH_KIT_CONFIG', 'RESEARCH_KIT_HOME', 'RESEARCH_KIT_TRANSPORT', 'RESEARCH_KIT_SEARCH_TRANSPORT', 'RESEARCH_KIT_INSTALL_STATE', 'RESEARCH_KIT_EDIT_GATE_SETTINGS', 'FIRECRAWL_API_KEY', 'SERPAPI_API_KEY', 'TAVILY_API_KEY']) {
+    assert.equal(process.env[name], undefined, `${name} reached the suite`);
+  }
+});

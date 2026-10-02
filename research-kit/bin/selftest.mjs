@@ -27,7 +27,8 @@ if (flags.help) {
 
   name   run only the test files whose name contains this text
 
-Every test runs offline: no key, no credits, no network.
+Every test runs offline: no key, no credits, no network - and none of this machine's
+  settings: the run has a scratch home and no RESEARCH_KIT_* variable (ADR-0123).
 `);
   process.exit(0);
 }
@@ -84,6 +85,34 @@ const tempProblem = (() => {
   }
 })();
 if (tempProblem) process.stderr.write(`\n${tempProblem}\n\n`);
+
+// The suite describes the kit, not the machine it runs on (ADR-0123). A test that reads
+// the operator's own settings - the machine config under ~/.agents, a deployed kit there,
+// the Firecrawl CLI's login, RESEARCH_KIT_* variables, a vendor key - describes that
+// machine, and this container's `transport: http-keyless` config hid, for weeks, that two
+// cli tests go red on any host with the CLI installed and not logged in; a `strict`
+// posture config turned 18 gate, preflight and cli tests red (found 2026-10-02,
+// break-test). So the run gets a scratch home of its own and none of those variables.
+// What stays is what describes the HOST or this RUN rather than the operator's setup: the
+// result file and the unsupported opt-in (this runner's), the browser the operator pointed
+// the kit at, the gate timeout, the live-test opt-ins, and the harness's own
+// RESEARCH_KIT_TEST_* seams. If the scratch home cannot be made the temp problem above has
+// already said why, and the real home stays.
+const RUN_VARIABLES = new Set(['RESEARCH_KIT_RESULT_FILE', 'RESEARCH_KIT_ALLOW_UNSUP', 'RESEARCH_KIT_BROWSER', 'RESEARCH_KIT_GATE_TIMEOUT', 'RESEARCH_KIT_COLLECTION_ENV']);
+const VENDOR_KEYS = new Set(['FIRECRAWL_API_KEY', 'SERPAPI_API_KEY', 'TAVILY_API_KEY']);
+const describesTheRun = (name) => RUN_VARIABLES.has(name) || name.startsWith('RESEARCH_KIT_TEST_') || name.startsWith('RESEARCH_KIT_LIVE');
+for (const name of Object.keys(process.env)) {
+  if ((name.startsWith('RESEARCH_KIT_') && !describesTheRun(name)) || VENDOR_KEYS.has(name)) delete process.env[name];
+}
+if (!tempProblem) {
+  const home = fs.mkdtempSync(path.join(tempBase(), 'rk-selftest-home-'));
+  process.env.HOME = home;
+  process.env.USERPROFILE = home;
+  if (process.platform === 'win32') {
+    process.env.APPDATA = path.join(home, 'AppData', 'Roaming');
+    process.env.LOCALAPPDATA = path.join(home, 'AppData', 'Local');
+  }
+}
 
 /**
  * How much room the temp folder actually has, in words - `tempFreeSpace()` in core.mjs,

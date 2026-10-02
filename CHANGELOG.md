@@ -7,6 +7,15 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- `selftest.mjs` describes the kit, not the machine (ADR-0123): the run gets a scratch home and
+  loses every `RESEARCH_KIT_*` variable but the ones that describe the host or the run, and
+  the vendor keys. The tests that spawn kit commands read the operator's machine config, deployed kit and
+  Firecrawl login, so a `strict` posture config turned 18 tests red, `role: builder` 7, and a
+  Firecrawl CLI installed and not logged in turned two `cli` tests red that a `transport:
+  http-keyless` config had been hiding. Those two now run on a PATH without the CLI. Fixture
+  repositories are initialised with an empty `init.templateDir`: a host whose global git config
+  names a template with hooks (what `pre-commit init-templatedir` writes) turned 9 hook and
+  handoff tests red.
 - `selftest.mjs` no longer calls a run with zero failures a red suite. When every blocker is a
   test the host could not run (no Chromium, no Python), it ends "No test failed. N tests could
   not run on this host, and an incomplete run is not a pass (ADR-0108) - this is not a red
