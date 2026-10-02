@@ -74,8 +74,25 @@ test('the fetch ledger is tracked, and is NOT ignored', () => {
   const listed = (git(['ls-files', '--', ledger]) ?? '').trim();
   assert.equal(listed, ledger, `${ledger} is not tracked - the provenance chain would not travel`);
 
-  const ignored = git(['check-ignore', '-q', ledger]);
+  // `--no-index` is load-bearing, not decoration. `git check-ignore` SKIPS tracked
+  // paths unless it is given that flag - "tracked paths are not shown at all since
+  // they are not subject to exclude rules" - and the ledger is tracked. Without it
+  // this assertion answered "not ignored" for every rule anybody could write, so the
+  // one regression it exists to catch (an ignore rule sweeping the ledger up with
+  // its neighbours) sailed straight through. Reproduced 2026-10-02 (break-test):
+  // deleting the `!research/raw/.fetches.jsonl` negation from .gitignore turned the
+  // ledger into an ignored, tracked path, `git check-ignore -q` still exited 1, and
+  // this test still printed `ok`.
+  const ignored = git(['check-ignore', '-q', '--no-index', ledger]);
   assert.equal(ignored, null, `${ledger} is matched by an ignore rule; it is evidence and must travel`);
+
+  // And the flag is still being passed. `-v` names the pattern that decided it; in a
+  // healthy repository that is the negation in .gitignore, so a drop of `--no-index`
+  // (empty output) and a positive rule (no `!`) both fail here rather than leaving a
+  // check that cannot fail again.
+  const decided = git(['check-ignore', '-v', '--no-index', ledger]);
+  assert.match(decided ?? '', /:!research\/raw\/\.fetches\.jsonl\b/,
+    `the ledger is decided by a positive ignore rule, or by nothing at all - the negation that keeps it travelling is gone:\n  ${decided ?? '(no output: git cannot answer, or --no-index was dropped)'}`);
 });
 
 test('the gate writes only to paths git is told to ignore', () => {
@@ -207,7 +224,9 @@ test('the ledger is still not swept up by the broader rules', () => {
 
   assert.ok(ledgers.length >= 1, 'no fetch ledger is tracked anywhere; the corpus cannot prove itself');
   for (const ledger of ledgers) {
-    assert.equal(git(['check-ignore', '-q', ledger]), null, `${ledger} is matched by an ignore rule; it is evidence and must travel`);
+    // `--no-index` for the same reason as above: every one of these is TRACKED, and
+    // `git check-ignore` does not judge a tracked path without it.
+    assert.equal(git(['check-ignore', '-q', '--no-index', ledger]), null, `${ledger} is matched by an ignore rule; it is evidence and must travel`);
   }
 });
 
