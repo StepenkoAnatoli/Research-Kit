@@ -1,7 +1,7 @@
 // One URL's journey, and many URLs in one run. Offline: the adapter is a stub behind
 // the runScrape seam, so no key, no credits, no network.
 
-import { test, describe, assert, makeProject, makePassingProject, fs, path, KIT_ROOT, tempDir } from './harness.mjs';
+import { test, describe, assert, makeProject, makePassingProject, fs, path, KIT_ROOT, tempDir, requireSymlink } from './harness.mjs';
 import { PATHS, resolve, readText, writeText, writeJson, today } from '../lib/core.mjs';
 import { readCorpus, parseTable, cacheDecision, CAPTURE_MAX_BYTES } from '../lib/corpus.mjs';
 import { HEADERS } from '../lib/core.mjs';
@@ -1089,12 +1089,12 @@ test('a capture is never written or read through a link out of the project, and 
   const refused = (err) => err?.code === 'OUTSIDE_PROJECT' && /link/.test(err.message);
 
   const dangling = makeProject();
-  fs.symlinkSync(path.join(elsewhere, 'created.md'), name(dangling), 'file');
+  requireSymlink(path.join(elsewhere, 'created.md'), name(dangling), 'a capture name that is a link out of the project');
   assert.throws(() => writeRaw(dangling, { url, markdown: PAGE, statusCode: 200 }, { date }), refused);
   assert.equal(fs.existsSync(path.join(elsewhere, 'created.md')), false, 'the capture was created outside the project');
 
   const pointing = makeProject();
-  fs.symlinkSync(victim, name(pointing), 'file');
+  requireSymlink(victim, name(pointing), 'a capture name that is a link out of the project');
   assert.throws(() => writeRaw(pointing, { url, markdown: PAGE, statusCode: 200 }, { date }), refused);
   assert.equal(fs.readFileSync(victim, 'utf8'), 'DO NOT TOUCH\n');
 
