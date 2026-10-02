@@ -246,7 +246,7 @@ export function duplicateKey(text) {
   }
 }
 
-export function readCaptures(root) {
+export function readCaptures(root, { known = null, sketches: wantSketches = true } = {}) {
   const dir = resolve(root, PATHS.raw);
   const entries = [];
   const problems = [];
@@ -256,6 +256,13 @@ export function readCaptures(root) {
     if (name.startsWith('.')) continue;
     const abs = path.join(dir, name);
     const rel = `${PATHS.raw}/${name}`;
+    // A caller that already holds a capture does not read it again: a capture is never
+    // rewritten (writeRaw), so what it holds is still true. The collector refreshes its
+    // snapshot inside the lock before every fetch, and until 2026-10-02 that re-read, parsed
+    // and sketched every capture on disk each time - 41% of a 2000-page run was sketching
+    // pages the run had indexed already (break-test pass 3, F6). Sketches serve one gate
+    // check (`corroboration`), so the collector leaves them to the gate.
+    if (known?.has(rel)) continue;
     // A link that lands outside the project is not read (ADR-0076): git stores symlinks,
     // and research/raw/x.md -> ~/.ssh/id_rsa would otherwise be read as a capture.
     if (!realInside(root, abs)) {
@@ -280,7 +287,7 @@ export function readCaptures(root) {
     if (!front.url) {
       problems.push({ kind: 'capture-no-url', file: rel, detail: 'capture has no url in its front-matter' });
     }
-    sketches.set(rel, sketch(body));
+    if (wantSketches) sketches.set(rel, sketch(body));
     renderFailures.set(rel, countRenderFailures(body));
     entries.push(captureEntry({
       file: rel,
@@ -338,6 +345,9 @@ function indexByKey(byKey, url, entry) {
 /** The one writer of the in-memory index, for a URL collected mid-run. */
 export function rememberCapture(captures, entry) {
   if (!captures || !entry) return entry;
+  // A capture is remembered once: the refresh before every fetch used to push every entry
+  // on disk again, and the index held n(n+1)/2 copies after n fetches (2026-10-02).
+  if (entry.file && captures.byFile?.has(entry.file)) return captures.byFile.get(entry.file);
   captures.entries.push(entry);
   captures.byFile.set(entry.file, entry);
   if (entry.url) captures.byUrl.set(entry.url, entry);

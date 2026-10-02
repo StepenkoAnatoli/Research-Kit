@@ -45,6 +45,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   a second row that superseded the first, so every unknown citing unchanged content failed
   `evidence-supersession` and had to be re-cited for nothing (break-test pass 3, 2026-10-02).
   A changed page is still a second capture with a row of its own.
+- The collector's refresh before every fetch reads only the captures its snapshot does not
+  hold and sketches none of them (`readCaptures(root, { known, sketches })`), and a capture
+  is remembered once: it had re-read, parsed and MinHash-sketched every capture on disk
+  inside the lock on every fetch, and pushed every entry into the index again. Per-capture
+  cost at 400 rows: 74 ms before, 13 ms after; a 2000-page run had spent 41% of 585 s
+  sketching pages it had already indexed (break-test pass 3, 2026-10-02).
 
 ## 0.9.2 — 2026-10-02
 

@@ -197,6 +197,23 @@ test('a page over the capture size limit is a failed fetch, never a capture the 
   assert.equal(fresh.evidence.length, 0, 'no row');
 });
 
+// Found 2026-10-02 (break-test pass 3, F6, then profiled): each collectOne re-read EVERY
+// capture on disk inside the lock - parsed and MinHash-sketched it - and pushed every entry
+// into the in-memory index again. 2000 pages took 585 s, 41% of it sketching pages the run
+// had already indexed; the entries array held n(n+1)/2 copies. A refresh reads only what
+// the snapshot does not hold, and a capture it holds is remembered once.
+test('collecting many pages through one snapshot keeps one index entry per capture, and the refresh reads only new files', () => {
+  const dir = makeProject();
+  const corpus = readCorpus(dir);
+  const n = 30;
+  for (let i = 0; i < n; i += 1) {
+    collectOne(dir, `https://x.invalid/p${i}`, { corpus, runScrape: stubAdapter().runScrape });
+  }
+  assert.equal(corpus.captures.entries.length, n, 'one entry per capture, however many refreshes ran');
+  assert.equal(new Set(corpus.captures.entries.map((e) => e.file)).size, n);
+  assert.equal(readCorpus(dir).captures.entries.length, n, 'the disk agrees');
+});
+
 test('--force collects again; the cache is a decision, not a law', () => {
   const dir = makeProject();
   const corpus = readCorpus(dir);

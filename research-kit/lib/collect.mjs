@@ -316,7 +316,8 @@ export function collectOne(root, url, {
  * paid for again.
  */
 function refreshCaptures(root, corpus) {
-  const current = readCaptures(root);
+  // Only what the snapshot does not hold, and no sketches: those are the gate's (ADR-0036).
+  const current = readCaptures(root, { known: new Set(corpus.captures.byFile.keys()), sketches: false });
   for (const entry of current.entries) rememberCapture(corpus.captures, entry);
   return corpus.captures;
 }
