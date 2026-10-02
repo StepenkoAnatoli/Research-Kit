@@ -10,6 +10,9 @@ It exists for the facts an agent would otherwise guess: API limits, pricing, wha
 permits, whether a platform can do the thing the design depends on. Plain Node, no
 dependencies, no `package.json`. Everything except the collection itself runs offline.
 
+**In a hurry?** [`QUICKSTART.md`](QUICKSTART.md) is the two-minute setup: the agent collects
+through GitHub with one token, and you only read the brief.
+
 ## Contents
 
 - [How it works](#how-it-works)
@@ -605,6 +608,8 @@ CHANGELOG.md             what changed in each release
 
 ## Documentation
 
+- [`QUICKSTART.md`](QUICKSTART.md): the two-minute setup through the MCP server, where the
+  agent collects on GitHub and you hand over one token.
 - [`research-kit/README.md`](research-kit/README.md): the reference for every command,
   the portable artifact, the GitHub collector, and the test suite.
 - [`AGENTS.md`](AGENTS.md): the rules an agent follows, and the standing protocol for
