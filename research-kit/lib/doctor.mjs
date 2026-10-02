@@ -33,6 +33,12 @@ function f(severity, name, detail, fix = '') {
   return { severity, name, detail, ...(fix ? { fix } : {}) };
 }
 
+/** Two paths name one directory, by real path: node runs a symlinked kit from its target. */
+function samePath(a, b) {
+  const real = (p) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
+  return real(a) === real(b);
+}
+
 // ---------------------------------------------------------------- machine
 
 export function machineHealth({ env = process.env, gitPaths = {}, probe = probeFirecrawl, nodeVersion = process.versions.node } = {}) {
@@ -489,16 +495,27 @@ export function runDoctor(root, { env = process.env, gitPaths = {}, probe = prob
   // Diagnosed, never repaired. `install.mjs` acts; a health check that quietly rewrote what
   // it was measuring would erase the evidence of the problem it just found.
   const installed = readInstallState(env);
-  const drift = deployedDrift({ env });
+  // Measured against the home the install recorded - the one the hooks point at, which
+  // `commitGateState` reads the same way - so the measurement and the message agree.
+  const deployHome = installed?.kitHome ?? KIT_HOME;
+  const drift = deployedDrift({ env, kitHome: deployHome });
   if (!installed) {
     findings.push(f('warn', 'deploy', `no install state recorded - run: node ${path.join(KIT_ROOT, 'bin', 'install.mjs')}`));
+  } else if (samePath(KIT_ROOT, deployHome)) {
+    // Found 2026-10-02 (break-test pass 3): run from the deployed copy - the copy an agent
+    // runs - after a line was appended to its lib/core.mjs, doctor printed "matches this
+    // tree". It did: a tree compared with itself always matches, and the check had measured
+    // nothing. Said as such, with the command that does measure.
+    findings.push(f('info', 'deploy',
+      `doctor is running from the deployed kit itself (${deployHome}) - a tree compared with itself always matches, so drift against the repository is not measured here. `
+      + 'To measure it, run the repository\'s copy: node <repository>/research-kit/bin/doctor.mjs'));
   } else if (drift.drifted) {
     findings.push(f('warn', 'deploy',
       `the deployed kit is NOT this one - ${driftNote(drift)}. `
       + `Recorded ${installed.at ?? 'at an unknown time'}; an agent runs the deployed copy, not this tree. `
       + `Fix: node ${path.join(KIT_ROOT, 'bin', 'install.mjs')}`));
   } else {
-    findings.push(f('pass', 'deploy', `kit deployed ${installed.at ?? ''} to ${installed.kitHome ?? KIT_HOME}, and it matches this tree`));
+    findings.push(f('pass', 'deploy', `kit deployed ${installed.at ?? ''} to ${deployHome}, and it matches this tree`));
   }
   for (const location of skillLocations(env)) {
     if (!exists(location)) {

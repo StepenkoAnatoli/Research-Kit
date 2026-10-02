@@ -35,6 +35,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   spelling, and the plan's own URLs were never compared with each other, so such a plan
   paid for the page once per spelling, with a ledger entry and a row each (break-test pass
   3, 2026-10-02).
+- `doctor` run from the deployed kit itself says the deploy was not measured (`info`, with
+  the command that does measure) instead of `pass ... matches this tree`: a tree compared
+  with itself always matches, and a line appended to the deployed `lib/core.mjs` passed that
+  way. The drift is measured against the home the install state recorded, which the message
+  already named (break-test pass 3, 2026-10-02).
 
 ## 0.9.2 — 2026-10-02
 
