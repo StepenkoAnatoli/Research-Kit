@@ -16,6 +16,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   been recorded as `HTTP 403` alone; the body named the refuser (a sandbox proxy, not
   GitHub), and it took a second tool to learn that
   (`docs/decisions/2026-10-02-github-plain-fetch-refusal`, 2026-10-02).
+- The secret scan treats a binary as a binary (ADR-0128): a file with a NUL byte in its
+  first 8000 bytes is skipped and counted in the coverage line, in `doctor` and in the
+  package validator, instead of having credential patterns matched against an executable's
+  string table. `doctor` run on a Windows home folder had reported fourteen committed keys,
+  every one the PEM marker OpenSSH and libssh2 parse or random bytes spelling `sk-`
+  (2026-10-02). A `.pem` is text and stays caught.
 
 ## 0.9.3 — 2026-10-02
 
