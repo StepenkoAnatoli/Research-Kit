@@ -32,10 +32,16 @@ const UNFAMILIAR_SHAPE = 'hooks.PreToolUse is not the shape this installer walks
 export function installCommitGate({ kitHome = KIT_HOME, env = process.env, dryRun = false, gitPaths = {} } = {}) {
   const dir = path.join(kitHome, 'githooks');
   const previous = hooksPath('global', gitPaths);
-  if (dryRun) return { dryRun: true, would: dir, previous };
-
   const hook = path.join(dir, 'pre-commit');
-  if (!exists(hook)) return { ok: false, reason: `${hook} is not deployed - run bin/install.mjs first` };
+  // The precondition is checked BEFORE the dry run answers. A dry run is the answer an
+  // operator trusts INSTEAD of running the thing, so it has to report the refusal the real
+  // run would give rather than preview a hooksPath that would never be set (found
+  // 2026-10-01, break-test: `--dry-run` printed "would set core.hooksPath=..." and exited 0
+  // on a machine with nothing deployed, while the real run exited 1 and set nothing).
+  if (!exists(hook)) return { ok: false, dryRun, reason: `${hook} is not deployed - run bin/install.mjs first` };
+  // `ok: true` on the preview as well, so the result has one shape whichever way it went and
+  // a caller can ask `result.ok` without knowing whether it was a dry run.
+  if (dryRun) return { ok: true, dryRun: true, would: dir, previous };
   if (process.platform !== 'win32') { try { fs.chmodSync(hook, HOOK_MODE); } catch { /* best effort */ } }
 
   setHooksPath(dir, { scope: 'global', ...gitPaths });
@@ -155,8 +161,12 @@ export function installEditGate({ kitHome = KIT_HOME, env = process.env, dryRun 
   // The hook must exist before anything names it: a registration pointing at a missing
   // file makes every Edit run a hook that crashes (found 2026-09-27, kit not deployed). The
   // commit gate refused in that state; this half registered anyway.
+  //
+  // The check covers the DRY RUN too (found 2026-10-01, break-test). It used to read
+  // `!dryRun && !exists(hook)`, which let `--dry-run` promise a registration the real run
+  // would refuse - and a dry run is the answer an operator trusts instead of running it.
   const hook = path.join(kitHome, ...EDIT_GATE_HOOK.split('/'));
-  if (!dryRun && !exists(hook)) return { ok: false, reason: `${hook} is not deployed - run bin/install.mjs first` };
+  if (!exists(hook)) return { ok: false, dryRun, reason: `${hook} is not deployed - run bin/install.mjs first` };
 
   const command = hookCommand(kitHome);
   const removed = [];
@@ -174,7 +184,7 @@ export function installEditGate({ kitHome = KIT_HOME, env = process.env, dryRun 
   kept.push({ matcher: MATCHER, hooks: [{ type: 'command', command }] });
 
   const next = { ...read.settings, hooks: { ...(read.settings.hooks ?? {}), PreToolUse: kept } };
-  if (dryRun) return { dryRun: true, file, would: command, removed, repaired: read.state === 'repairable' };
+  if (dryRun) return { ok: true, dryRun: true, file, would: command, removed, repaired: read.state === 'repairable' };
 
   if (exists(file)) {
     const backup = `${file}.bak-${today()}`;

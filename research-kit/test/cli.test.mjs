@@ -1358,3 +1358,42 @@ test('research.mjs names the refusals the kit wrote, instead of dumping a stack'
   assert.match(second.err, /Nothing was collected/);
   noStack(second, 'a lock that could not be removed');
 });
+
+// Found 2026-10-01 (arena break-test #196, redone on main): on a machine where the kit was NOT
+// deployed, `install-hooks --dry-run` printed "would set core.hooksPath=..." and "would register
+// in .../settings.json: ..." and exited 0, while the real run refused both gates and exited 1.
+// A dry run is the answer an operator trusts instead of running the thing, so it answers the
+// question the real run answers. Through the real binary, in both states: the first fix of
+// this defect made a healthy deployed machine print `commit gate: undefined` and exit 1, and
+// no test drove the CLI over a deployed kit to catch it.
+test('install-hooks --dry-run answers what the real run answers, deployed or not', () => {
+  const home = tempDir('rk-dryrun-home-');
+  const kit = path.join(home, '.agents', 'research-kit');
+  // git's global config is a scratch file: a dry run reads core.hooksPath, and nothing here may
+  // set the real one.
+  const env = { HOME: home, USERPROFILE: home, RESEARCH_KIT_HOME: kit, RESEARCH_KIT_CONFIG: path.join(home, 'absent.json'),
+    GIT_CONFIG_GLOBAL: path.join(home, 'gitconfig'), GIT_CONFIG_NOSYSTEM: '1' };
+
+  // Nothing deployed: the dry run and the real run give the same two refusals and the same exit.
+  const dry = run('install-hooks.mjs', ['--dry-run'], { root: home, env });
+  const real = run('install-hooks.mjs', [], { root: home, env });
+  assert.equal(real.status, 1, real.all);
+  assert.equal(dry.status, real.status, `the dry run exited ${dry.status} where the real run exited ${real.status}:\n${dry.all}`);
+  for (const [name, r] of [['dry run', dry], ['real run', real]]) {
+    assert.match(r.err, /commit gate: .*not deployed/, `${name}:\n${r.all}`);
+    assert.match(r.err, /edit gate: .*not deployed/, `${name}:\n${r.all}`);
+    assert.doesNotMatch(r.out, /would set|would register/, `${name} promised what it cannot do:\n${r.out}`);
+  }
+
+  // Deployed: the dry run previews both gates, exits 0, writes nothing, and names nothing "undefined".
+  const installed = run('install.mjs', [], { root: home, env });
+  assert.equal(installed.status, 0, installed.all);
+  const preview = run('install-hooks.mjs', ['--dry-run'], { root: home, env });
+  assert.equal(preview.status, 0, preview.all);
+  assert.match(preview.out, /would set core\.hooksPath=/, preview.all);
+  assert.match(preview.out, /would register in /, preview.all);
+  assert.doesNotMatch(preview.all, /undefined/, 'a preview result without ok:true printed as a refusal');
+  assert.equal(fs.existsSync(path.join(home, '.claude', 'settings.json')), false, 'a dry run wrote the settings file');
+  const gitconfig = fs.existsSync(path.join(home, 'gitconfig')) ? fs.readFileSync(path.join(home, 'gitconfig'), 'utf8') : '';
+  assert.doesNotMatch(gitconfig, /hooksPath/, 'a dry run set core.hooksPath');
+});
