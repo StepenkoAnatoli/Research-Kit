@@ -29,7 +29,7 @@ if (flags.help) {
   --depth <tier>       ${DEPTHS.map((d) => `${d} (${DEPTH_SCRAPES[d]})`).join(', ')}
   --refresh-days <n>   re-collect a capture older than n days
   --only <text>        run only the plan queries containing this text (repeatable)
-  --force              ignore the cache
+  --force              ignore the cache, and run a search whose unknowns are all closed
   --dry-run            say what would be collected; spend nothing
   --status             budget and corpus state; spend nothing
   --transport <name>   ${TRANSPORT_NAMES.join(' | ')}
