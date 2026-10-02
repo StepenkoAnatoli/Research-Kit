@@ -164,6 +164,30 @@ export function requirePython(what) {
 }
 
 /**
+ * A FILE symlink the test under way needs, or UNSUPPORTED (it blocks) naming what could not
+ * be checked. On Windows a file symlink needs Developer Mode or an elevated shell, and
+ * `fs.symlinkSync(..., 'file')` throws EPERM without either; an outside review ran the collect
+ * group on such a machine (2026-10-02) and read the EPERM as a red test, which it is not: the
+ * code under test never ran. The privilege is a host prerequisite like Python or git
+ * (ADR-0108), so it is reported under the UNSUP label with the reason, and CI, whose Windows
+ * runner has the privilege, still runs the test. A junction needs no privilege, so a test
+ * that links a DIRECTORY calls `fs.symlinkSync(..., 'junction')` directly.
+ *
+ * `RESEARCH_KIT_TEST_NO_SYMLINK=1` is the harness's seam: it makes the refusal reproducible
+ * on every platform, as `RESEARCH_KIT_TEST_NO_PYTHON` does for the interpreter.
+ */
+export function requireSymlink(target, at, what) {
+  const refuse = () => { throw new Unsupported('SYMLINK-NOT-PERMITTED', `this host refuses to create a file symlink (on Windows: Developer Mode or an elevated shell), so ${what} cannot be checked`); };
+  if (process.env.RESEARCH_KIT_TEST_NO_SYMLINK === '1') refuse();
+  try {
+    fs.symlinkSync(target, at, 'file');
+  } catch (err) {
+    if (err?.code === 'EPERM') refuse();
+    throw err;
+  }
+}
+
+/**
  * Import each test file, and RETURN the ones that throw while loading.
  *
  * An import-time throw - an unwritable TMPDIR under a module-scope tempDir(), a missing

@@ -621,6 +621,8 @@ CHANGELOG.md             what changed in each release
 
 - [`QUICKSTART.md`](QUICKSTART.md): the two-minute setup through the MCP server, where the
   agent collects on GitHub and you hand over one token.
+- [`docs/README.md`](docs/README.md): the reading map, which document to read for what,
+  and in what order.
 - [`research-kit/README.md`](research-kit/README.md): the reference for every command,
   the portable artifact, the GitHub collector, and the test suite.
 - [`AGENTS.md`](AGENTS.md): the rules an agent follows, and the standing protocol for

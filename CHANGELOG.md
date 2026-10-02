@@ -5,6 +5,13 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A test that needs a file symlink reports `UNSUP` where the host refuses to make one,
+  instead of going red: on Windows a file symlink needs Developer Mode or an elevated shell,
+  and five tests made one unguarded, so the collect group read `FAIL ... EPERM` on such a
+  machine while the code under test never ran (outside review, 2026-10-02). The harness's
+  `requireSymlink` names the privilege as the reason, like a missing Python (ADR-0108); CI's
+  Windows runner has it and still runs the tests. The root README now links the reading
+  map, `docs/README.md`, from its Documentation section.
 - A plan query whose `why` names unknowns that are all CLOSED is not searched again
   (ADR-0127): a search has no cache, so every run of a finished project paid it - found
   running the kit five times over MoonAliza's seven projects, where one query would have

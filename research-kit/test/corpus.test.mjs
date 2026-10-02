@@ -1,7 +1,7 @@
 // The corpus has one owner (ADR-0003), and the format's joins live with it (ADR-0015).
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, makePassingProject, makeProject, corrupt, fs } from './harness.mjs';
+import { test, describe, assert, makePassingProject, makeProject, corrupt, fs, requireSymlink } from './harness.mjs';
 import { PATHS, HEADERS, resolve, writeText, readText, sha256File, isRegularFile } from '../lib/core.mjs';
 import {
   readCorpus, readCaptures, parseTable, parseCapture, splitRow, escapeCell, tableRow,
@@ -365,7 +365,7 @@ test('readText and sha256File refuse what is not a regular file, without opening
   // A symlink to a regular file is still a regular file: following links is deliberate,
   // so refusing them here would be a behaviour change for every caller that resolves one.
   const link = resolve(root, 'research/raw/linked.md');
-  fs.symlinkSync(abs, link);
+  requireSymlink(abs, link, 'a symlink to a regular file');
   assert.equal(isRegularFile(link), true, 'a symlink to a regular file is a regular file');
   assert.equal(readText(link), readText(abs));
 });
