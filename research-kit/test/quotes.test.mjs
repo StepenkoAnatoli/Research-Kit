@@ -5,7 +5,7 @@ import { test, describe, assert, makePassingProject, corrupt } from './harness.m
 import { PATHS } from '../lib/core.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { runCheck } from '../lib/checks.mjs';
-import { quoteAnchors, normalizeForMatch, anchorFound } from '../lib/quotes.mjs';
+import { quoteAnchors, normalizeForMatch, anchorFound, quoteChars, MIN_QUOTE_CHARS } from '../lib/quotes.mjs';
 
 describe('quotes');
 
@@ -57,6 +57,37 @@ test('a quote found in its capture passes; a fabricated one blocks; a short one 
 
   const short = quoted('Free tier limits. [quote: free plan]');
   assert.equal(short.find((f) => f.rule === 'quote-too-short')?.severity, 'warn', JSON.stringify(short));
+});
+
+// Found 2026-10-02 (C1, the firecrawl-cli-1-25 decision project): a quote of a package
+// manifest's dependency map - 130 characters, one whitespace-separated "word" - was warned
+// "under 3 words anchors almost nothing". It anchors one exact line of one file. Words were
+// a proxy for length, and the warning's reason was false for a long token (ADR-0126).
+function quotedToken(token, finding) {
+  const dir = makePassingProject();
+  const capture = readCorpus(dir).captures.entries[0].file;
+  corrupt(dir, capture, (t) => `${t}\n${token}\n`);
+  corrupt(dir, PATHS.evidence, (t) => t.replace(
+    '| The free plan allows 10 requests per minute and includes 1,000 credits. |', `| ${finding} |`));
+  return runCheck('citations', readCorpus(dir));
+}
+
+test('a long quote of few words is specific: the short-quote warning is about length, words were its proxy', () => {
+  const manifest = '"dependencies":{"yaml":"^2.9.0","commander":"^14.0.2","firecrawl":"4.40.0"}';
+  const judged = quotedToken(manifest, `Pinned deps. [quote: ${manifest}]`);
+  assert.deepEqual(judged.filter((f) => f.rule === 'quote-too-short' || f.rule === 'quote-not-found').map((f) => f.detail), [],
+    'a quote of one 75-character token, found word for word, was warned as anchoring almost nothing');
+  assert.ok(judged.some((f) => /1 quote/.test(f.detail)), 'it is counted as an anchored quote');
+
+  // The floor is on short AND few: the helper measures characters across the fragments, and a
+  // token one character under the floor still warns.
+  const under = 'x'.repeat(MIN_QUOTE_CHARS - 1);
+  assert.equal(quoteChars(quoteAnchors(`[quote: ${under}]`)[0]), MIN_QUOTE_CHARS - 1);
+  assert.equal(quotedToken(under, `Short. [quote: ${under}]`).find((f) => f.rule === 'quote-too-short')?.severity, 'warn',
+    'one character under the floor, one word: still almost nothing');
+  const at = 'y'.repeat(MIN_QUOTE_CHARS);
+  assert.equal(quotedToken(at, `Long. [quote: ${at}]`).find((f) => f.rule === 'quote-too-short'), undefined,
+    'at the floor, one word: specific enough');
 });
 
 // The same finding, for a corpus collected before error pages were refused: a row that

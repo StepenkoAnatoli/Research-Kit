@@ -1,7 +1,7 @@
 # ADR-0087 — A quote in a claim must occur in its capture
 
 - **Date:** 2026-09-28
-- **Status:** accepted
+- **Status:** accepted; amended by ADR-0126 (a quote under three words but at least 40 characters is not short)
 - **Area:** `lib/quotes.mjs`, `lib/checks.mjs` (`citations`: `quote-not-found`, `quote-too-short`)
 - **Evidence:** `docs/decisions/2026-09-28-quote-anchors/` (U-01..U-03)
 
