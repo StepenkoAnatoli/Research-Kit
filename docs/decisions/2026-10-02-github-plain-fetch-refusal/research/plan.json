@@ -1,0 +1,66 @@
+{
+  "topic": "When and why GitHub answers 403 to unauthenticated non-browser fetches of github.com pages, and which routes GitHub documents for fetching a README or raw file without a browser session",
+  "notes": "Phase 0 (two searches) named the community thread on permanent raw links and the README docs page. The rest are GitHub's own docs, plus the three hosts fetched as the measurement: keyless first (the 403s go to the ledger), then the browser transport for what keyless could not get.",
+  "depth": "normal",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 2,
+  "maxScrapes": 10,
+  "prefer": [
+    "docs.github.com",
+    "github.com"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api",
+      "type": "P",
+      "why": "U-01: the unauthenticated limit per address and the secondary limits"
+    },
+    {
+      "url": "https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api",
+      "type": "P",
+      "why": "U-01: what a 403 means against the REST API"
+    },
+    {
+      "url": "https://docs.github.com/en/rest/repos/contents",
+      "type": "P",
+      "why": "U-02: the contents and readme endpoints and their raw media type"
+    },
+    {
+      "url": "https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes",
+      "type": "P",
+      "why": "U-02: what GitHub says a README is and where it is served"
+    },
+    {
+      "url": "https://github.com/orgs/community/discussions/22537",
+      "type": "S",
+      "why": "U-02: the permanent raw-file link, as the community thread names it"
+    },
+    {
+      "url": "https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies",
+      "type": "P",
+      "why": "U-03: the policy on automated access and scraping"
+    },
+    {
+      "url": "https://github.com/robots.txt",
+      "type": "P",
+      "why": "U-04: what the host tells crawlers, and whether a plain fetch of it is answered at all"
+    },
+    {
+      "url": "https://github.com/ollama/ollama",
+      "type": "P",
+      "why": "U-04: the page that answered 403 to the plain fetch"
+    },
+    {
+      "url": "https://api.github.com/repos/ollama/ollama/readme",
+      "type": "P",
+      "why": "U-04: the REST readme endpoint, unauthenticated, from this address"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/ollama/ollama/main/README.md",
+      "type": "P",
+      "why": "U-05: the raw host, plain fetch"
+    }
+  ]
+}
