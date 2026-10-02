@@ -28,7 +28,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sha256, tempBase } from './core.mjs';
+import { sha256, tempBase, looksBinary } from './core.mjs';
 import { openZip, ZipError, ZIP_LIMITS } from './artifact-zip.mjs';
 import { parseJsonNoDuplicates } from './release/json.mjs';
 import { validateJsonSchema } from './release/schema.mjs';
@@ -303,6 +303,10 @@ export function validateArtifact({
     // advisory would let it be forwarded while somebody decides.
     for (const [name, body] of bodies) {
       if (body.length > 512 * 1024) continue;
+      // A binary body is outside the scan, as a large one is (ADR-0128): `docs/` travels
+      // whole, and one vendored DLL carrying the PEM marker it parses had the patterns
+      // failing a package with no secret in it.
+      if (looksBinary(body)) continue;
       let text;
       try { text = body.toString('utf8'); } catch { continue; }
       for (const pattern of SECRET_PATTERNS) {

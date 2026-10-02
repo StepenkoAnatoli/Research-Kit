@@ -255,6 +255,21 @@ export function isRegularFile(p) {
 }
 
 /**
+ * Is this file's content binary? A NUL byte never occurs in text, in any encoding the kit
+ * reads, so one in the first 8000 bytes - git's own heuristic, and its window - says the
+ * bytes are an executable, an image, an archive: not prose to match credential patterns
+ * against. Takes the bytes, or the string a UTF-8 read of them produced (NUL survives
+ * that decode unchanged). A UTF-16 file reads as binary here, as it does to git without
+ * an attribute saying otherwise.
+ */
+export const BINARY_PROBE_BYTES = 8000;
+
+export function looksBinary(data) {
+  if (Buffer.isBuffer(data)) return data.subarray(0, BINARY_PROBE_BYTES).includes(0);
+  return String(data).slice(0, BINARY_PROBE_BYTES).includes('\u0000');
+}
+
+/**
  * May a path the corpus RECORDS - a ledger entry's raw, an evidence Raw cell - be read?
  * `{ abs, problem }`: problem is null, or the first rule it breaks, in order:
  *   'outside'  not inside the project by path, or (it exists) by real path - a link out

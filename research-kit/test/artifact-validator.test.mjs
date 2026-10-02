@@ -251,6 +251,25 @@ const FIXTURES = {
     },
     expect: { status: 'FAIL', code: 'ZIP-RATIO-LIMIT' },
   },
+  '29-binary-body-is-not-scanned-as-text': {
+    // Found 2026-10-02, running `doctor` on a Windows home folder: an ssh executable's
+    // PEM marker was reported as a committed key. The same patterns judge a package, and
+    // `docs/` is walked whole, so one vendored image or DLL with that string table would
+    // FAIL a package that carries no secret. A NUL byte never occurs in text.
+    build: () => {
+      const payload = copyPayload(collected.payload);
+      payload.push({
+        name: 'project/docs/vendor/libssh2.dll',
+        data: Buffer.concat([
+          Buffer.from([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00]),
+          text(`-----BEGIN RSA PRIVATE ${'KEY'}----- ${'sk'}-${'0123456789abcdef'}0123`),
+          Buffer.from([0x00, 0x00, 0xff]),
+        ]),
+      });
+      return seal(payload, clone(collected.manifest));
+    },
+    expect: { status: 'PASS', buildAuthorized: false },
+  },
 };
 
 /** A package whose only fault is one hostile entry name. */

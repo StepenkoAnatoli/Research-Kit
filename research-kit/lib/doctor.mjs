@@ -9,7 +9,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { PATHS, resolve, exists, isDirectory, readText, tempBase } from './core.mjs';
+import { PATHS, resolve, exists, isDirectory, readText, tempBase, looksBinary } from './core.mjs';
 import { verdictContext, runPreflight } from './preflight.mjs';
 import { isGated } from './gate.mjs';
 import { verifyHandoff, handoffRemedy } from './handoff.mjs';
@@ -302,7 +302,11 @@ export function editGateState(settings) {
  * "these patterns were not found in these files", not "this repository holds no
  * secrets". Dotfiles are INCLUDED - `.env.local` and the kit's own hidden logs are
  * exactly where a credential hides, and a scanner that skips every dotfile but `.env`
- * reports clean on the files most likely to carry one.
+ * reports clean on the files most likely to carry one. Binaries are OUTSIDE it, by content
+ * (`looksBinary`: a NUL byte in the first 8000 bytes), and the coverage says so: an
+ * executable's string table carries the PEM marker it parses, and random bytes spell
+ * `sk-`, so `doctor` on a folder holding OpenSSH reported fourteen committed keys that
+ * were none (2026-10-02, ADR-0128). A `.pem` is text and stays caught.
  */
 export const SECRET_PATTERNS = Object.freeze([
   { name: 'firecrawl-key', re: /\bfc-[A-Za-z0-9]{16,}\b/ },
@@ -322,6 +326,7 @@ export function scanForSecrets(root, { maxFiles = 2000 } = {}) {
   const hits = [];
   let scanned = 0;
   let skippedLarge = 0;
+  let skippedBinary = 0;
   // The machine's scratch folder is not the project, and it is skipped by ABSOLUTE path
   // rather than by name. It usually sits outside the tree being scanned, so this costs
   // nothing - but a RELATIVE TMPDIR is legal, and then the scratch folder resolves INSIDE
@@ -356,6 +361,7 @@ export function scanForSecrets(root, { maxFiles = 2000 } = {}) {
       if (size > SECRET_MAX_BYTES) { skippedLarge += 1; continue; }
       const text = readText(abs);
       if (text === null) continue;
+      if (looksBinary(text)) { skippedBinary += 1; continue; }
       scanned += 1;
       for (const pattern of SECRET_PATTERNS) {
         const match = text.match(pattern.re);
@@ -371,7 +377,8 @@ export function scanForSecrets(root, { maxFiles = 2000 } = {}) {
     hits,
     scanned,
     skippedLarge,
-    coverage: `${SECRET_PATTERNS.length} credential patterns over ${scanned} text file(s) under ${maxFiles / 1000}k, dotfiles included, excluding ${[...SECRET_SKIP_DIRS].join(', ')}`,
+    skippedBinary,
+    coverage: `${SECRET_PATTERNS.length} credential patterns over ${scanned} text file(s) under ${maxFiles / 1000}k, dotfiles included, ${skippedBinary} binary file(s) skipped, excluding ${[...SECRET_SKIP_DIRS].join(', ')}`,
   };
 }
 

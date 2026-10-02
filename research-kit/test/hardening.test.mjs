@@ -373,6 +373,35 @@ test('F26: several credential shapes are recognised, and the coverage is stated'
   assert.match(scan.coverage, /credential patterns over \d+ text file/);
 });
 
+// Found 2026-10-02, running `doctor` on a Windows home folder: fourteen critical "secret"
+// findings, every one inside an ssh executable or a libssh2 DLL under a tool's cache.
+// Those binaries carry the `BEGIN RSA PRIVATE KEY` PEM marker as a string they PARSE, and
+// random bytes that happen to spell `sk-` followed by sixteen word characters. The scan
+// read each as UTF-8, matched the patterns, and counted it as a "text file" in its own
+// coverage line - a scanner red about OpenSSH's string table is one nobody reads, and a
+// project that vendors one such binary could never reach READY.
+test('F26: a binary file is not a text file - the PEM marker inside an executable is not a committed key', () => {
+  const dir = makeProject();
+  const marker = `-----BEGIN RSA PRIVATE ${'KEY'}-----`;
+  const key = `${'sk'}-${'0123456789abcdef'}0123`;
+  const binary = Buffer.concat([
+    Buffer.from([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00]),
+    Buffer.from(`${marker} ${key}`, 'utf8'),
+    Buffer.from([0x00, 0x00, 0xff, 0xfe, 0x00]),
+  ]);
+  fs.mkdirSync(resolve(dir, 'vendor'));
+  fs.writeFileSync(resolve(dir, 'vendor/libssh2.dll'), binary);
+  const scan = scanForSecrets(dir);
+  assert.deepEqual(scan.hits, [], `a binary's string table was reported as a credential: ${JSON.stringify(scan.hits)}`);
+  assert.equal(scan.skippedBinary, 1, 'the binary is counted as skipped, not as a text file');
+  assert.match(scan.coverage, /binar/, 'the coverage says binaries are outside it');
+  // The same marker in a TEXT file is still found: the rule is about NUL bytes, not about
+  // the pattern - a .pem is text and stays caught.
+  writeText(resolve(dir, 'vendor/id_rsa.pem'), `${marker}\nMIIB\n`);
+  const again = scanForSecrets(dir);
+  assert.deepEqual(again.hits.map((h) => [h.file, h.pattern]), [['vendor/id_rsa.pem', 'private-key-block']]);
+});
+
 test('F26: the kit does not trip its own scan - the fixtures are assembled, not written', () => {
   const scan = scanForSecrets(process.cwd());
   assert.deepEqual(scan.hits, [], `a scanner that is always red about itself is one nobody reads: ${JSON.stringify(scan.hits)}`);
