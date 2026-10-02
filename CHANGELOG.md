@@ -7,6 +7,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- A posture key that is present and not of its type resolves to its restrictive state
+  (ADR-0121): `"failOpen": "false"` is fail-closed, `"evidencePolicy": "STRICT"` is strict,
+  `"editGate": {"mode": "HARD-BLOCK"}` is hard-block, as `role` already resolves to
+  `unknown`. `doctor` names the key and the state it resolved to (`config-ill-typed`), and the
+  hook's sh posture reader agrees: it looked for the bare word `false`, so a quoted `"false"`
+  read as fail-open. Absent keys keep their defaults (arena break-test #198, F-2-1).
 - `editGate.settingsPath` is taken from the machine config only when it is a non-empty string;
   anything else falls back to the runtime anchor, as every other wrong-typed key does. It was
   the one key `shape()` still passed through raw, and `{"editGate":{"settingsPath":42}}` in a

@@ -109,9 +109,27 @@ function lastGoodPath(file) {
   return `${file}.last-good`;
 }
 
+/**
+ * The restrictive state of each POSTURE key, for a value that is present and not of its
+ * type (ADR-0121). An operator who typed `"failOpen": "false"` meant to tighten something,
+ * and resolving the typo to the default loosened it in silence: fail-open, pluralist, ask.
+ * A config that does not parse already fails closed (ADR-0020) and an unknown role refuses
+ * to collect (ADR-0023); this is the same rule one level down, per key. Absent keys keep
+ * their defaults - absence is not a typo.
+ */
+const RESTRICTIVE = Object.freeze({ failOpen: false, evidencePolicy: 'strict', 'editGate.mode': 'hard-block' });
+
 function shape(raw) {
+  // The posture keys an operator typed and the kit could not read as typed, in config order.
+  const illTyped = [];
+  const postureKey = (name, value, valid, fallback) => {
+    if (value === undefined) return fallback;
+    if (valid(value)) return value;
+    illTyped.push(name);
+    return RESTRICTIVE[name];
+  };
   const settings = {
-    failOpen: typeof raw.failOpen === 'boolean' ? raw.failOpen : DEFAULTS.failOpen,
+    failOpen: postureKey('failOpen', raw.failOpen, (v) => typeof v === 'boolean', DEFAULTS.failOpen),
     editGate: {
       mode: DEFAULTS.editGate.mode,
       // A path the installer hands to the filesystem, so only a non-empty string is one;
@@ -124,7 +142,7 @@ function shape(raw) {
         ? raw.editGate.settingsPath
         : DEFAULTS.editGate.settingsPath,
     },
-    evidencePolicy: EVIDENCE_POLICIES.includes(raw.evidencePolicy) ? raw.evidencePolicy : DEFAULTS.evidencePolicy,
+    evidencePolicy: postureKey('evidencePolicy', raw.evidencePolicy, (v) => EVIDENCE_POLICIES.includes(v), DEFAULTS.evidencePolicy),
     // A field that is PRESENT and not a known role reads as `unknown`, not as the
     // default: a misspelling ("collecter", "Builder") is a machine whose operator meant
     // something, and guessing which is how a builder silently becomes a role that may
@@ -154,32 +172,35 @@ function shape(raw) {
   // A retired key is READ before it is dropped: a rename that silently relaxes a gate is
   // the same defect as a rename that silently stops firing one.
   const retired = [];
-  if (EDIT_GATE_MODES.includes(raw.editGate?.mode)) settings.editGate.mode = raw.editGate.mode;
-  else if (EDIT_GATE_MODES.includes(raw.claudeGate)) { settings.editGate.mode = raw.claudeGate; retired.push('claudeGate'); }
+  if (raw.editGate?.mode !== undefined) {
+    // Present: taken as typed, or resolved to the restrictive mode and named (ADR-0121).
+    settings.editGate.mode = postureKey('editGate.mode', raw.editGate.mode, (v) => EDIT_GATE_MODES.includes(v), DEFAULTS.editGate.mode);
+    if (raw.claudeGate !== undefined) retired.push('claudeGate');
+  } else if (EDIT_GATE_MODES.includes(raw.claudeGate)) { settings.editGate.mode = raw.claudeGate; retired.push('claudeGate'); }
   else if (raw.claudeGate !== undefined) retired.push('claudeGate');
-  return { settings, retired };
+  return { settings, retired, illTyped };
 }
 
 /**
- * Returns `{ settings, state, source, error, retiredKeys }`. The settings alone cannot
+ * Returns `{ settings, state, source, error, retiredKeys, illTypedKeys }`. The settings alone cannot
  * say whether fail-closed was configured or is the fallback this machine adopted.
  */
 export function readMachineConfig(env = process.env) {
   const file = configPath(env);
   if (!exists(file)) {
-    return { settings: shape({}).settings, state: 'absent', source: file, error: null, retiredKeys: [] };
+    return { settings: shape({}).settings, state: 'absent', source: file, error: null, retiredKeys: [], illTypedKeys: [] };
   }
   const text = readText(file);
   try {
     const raw = parseJson(text ?? '');
-    const { settings, retired } = shape(raw && typeof raw === 'object' ? raw : {});
+    const { settings, retired, illTyped } = shape(raw && typeof raw === 'object' ? raw : {});
     try { writeText(lastGoodPath(file), text); } catch { /* snapshot is best-effort */ }
-    return { settings, state: 'readable', source: file, error: null, retiredKeys: retired };
+    return { settings, state: 'readable', source: file, error: null, retiredKeys: retired, illTypedKeys: illTyped };
   } catch (err) {
     const snapshot = readJson(lastGoodPath(file), null);
     if (snapshot) {
-      const { settings, retired } = shape(snapshot);
-      return { settings, state: 'unreadable', resolvedFrom: 'snapshot', source: lastGoodPath(file), error: err.message, retiredKeys: retired };
+      const { settings, retired, illTyped } = shape(snapshot);
+      return { settings, state: 'unreadable', resolvedFrom: 'snapshot', source: lastGoodPath(file), error: err.message, retiredKeys: retired, illTypedKeys: illTyped };
     }
     // Nothing to hold: fail CLOSED, and the ROLE becomes `unknown` rather than the
     // default. The old "every config was previously snapshotted" rationale does not
@@ -196,6 +217,7 @@ export function readMachineConfig(env = process.env) {
       source: file,
       error: err.message,
       retiredKeys: [],
+      illTypedKeys: [],
     };
   }
 }
@@ -228,6 +250,7 @@ export function posture(env = process.env) {
     configSource: read.source,
     configError: read.error,
     retiredKeys: read.retiredKeys,
+    illTypedKeys: read.illTypedKeys,
     resolvedFrom: read.resolvedFrom ?? (read.state === 'absent' ? 'defaults' : 'config'),
     // The code carries the RESOLVED posture, not the state:
     //   0 allow

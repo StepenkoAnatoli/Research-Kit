@@ -265,6 +265,12 @@ const POSTURE_ROWS = [
   // is, rather than as an unreadable one that fails closed (found 2026-09-27).
   { name: 'BOM, fail-open', config: '\uFEFF{"failOpen": true}', snapshot: null, exit: 0 },
   { name: 'BOM, fail-closed', config: '\uFEFF{"failOpen": false}', snapshot: null, exit: 1 },
+  // ADR-0121: a failOpen that is present and not the boolean true is fail-CLOSED in both
+  // readers - "false" in quotes, "true" in quotes, a number. The old sh reader looked only for
+  // the word false, so a quoted "false" read as fail-open.
+  { name: 'ill-typed, quoted false', config: '{"failOpen": "false"}', snapshot: null, exit: 1 },
+  { name: 'ill-typed, quoted true', config: '{"failOpen": "true"}', snapshot: null, exit: 1 },
+  { name: 'unreadable, snapshot ill-typed', config: '{"failOpen": fal', snapshot: '{"failOpen": "false"}', exit: 1 },
 ];
 
 for (const row of POSTURE_ROWS) {
