@@ -1,0 +1,25 @@
+NOTICE - captured third-party pages
+
+Every directory named research/raw/ in this repository (at the root and under
+docs/decisions/*/) holds copies of web pages that the kit fetched as evidence: the page
+text as captured, a front matter naming the URL, the date, the transport and the
+completeness grade, and a hash-chained ledger (.fetches.jsonl) proving the capture was
+not edited after the fetch.
+
+Those pages are not this repository's work and are not licensed by its LICENSE.
+
+- Copyright in each captured page remains with its owner.
+- The copies are kept and distributed as research evidence and provenance: so that every
+  claim in research/EVIDENCE.md can be checked against the page it rests on, by anyone,
+  without trusting the person who made the claim.
+- No licence over the captured pages is granted by this repository. Where a page's own
+  licence permits redistribution, that licence governs, with its attribution: GitHub Docs
+  and the npm documentation (CC BY 4.0), Google developer documentation (CC BY 4.0),
+  nodejs.org (MIT), Wikipedia (CC BY-SA 4.0). An arXiv paper carries the licence its
+  authors chose. A vendor's terms or pricing page carries none.
+- By using the captured pages you agree to respect the copyrights and other rights of
+  third parties in them, as the Internet Archive and Common Crawl ask of their users.
+- No claim of fair use is made here; it is a defence decided case by case.
+
+The evidence behind this notice is docs/decisions/2026-10-02-licence-and-captured-pages/
+(ADR-0130).

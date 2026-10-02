@@ -1,0 +1,12 @@
+# REUSE 3.3 (https://reuse.software/spec-3.3/): the one place the repository says which
+# files its licence does not cover. The code, tests and documentation are under the
+# PolyForm Shield License 1.0.0 in LICENSE; GitHub detects a licence only from a single,
+# unmodified LICENSE file, so the split is stated here and in NOTICE rather than there.
+
+version = 1
+
+[[annotations]]
+path = ["research/raw/**", "docs/decisions/*/research/raw/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "the owner of each captured page - see NOTICE"
+SPDX-License-Identifier = "LicenseRef-Captured-Page"

@@ -45,6 +45,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   keyless capture written with the CR bytes a server sent hashed one way on the collector
   and checked out another way on every other machine, failing handoff on a capture nobody
   had touched.
+- Licensed (ADR-0130): the code, tests and documentation under the PolyForm Shield License
+  1.0.0 - install, run, modify and distribute for any purpose except a competing product -
+  replacing "all rights reserved", which the README's own install instruction contradicted.
+  The captured pages under every `research/raw/` are excluded by `NOTICE`, `REUSE.toml`
+  and a `LicenseRef-Captured-Page` marking: copyright stays with their owners, no licence
+  is granted over them, and no fair-use claim is made.
 
 ## 0.9.3 — 2026-10-02
 
