@@ -1,7 +1,7 @@
 // The arrival question, and one remedy per cause (ADR-0011, ADR-0020).
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireGit, fixtureCommitArgs } from './harness.mjs';
+import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path, requireGit, fixtureCommitArgs, fixtureInitArgs } from './harness.mjs';
 import { evaluate } from '../lib/gate.mjs';
 import { TEMPLATE_DIR } from '../lib/scaffold.mjs';
 import { PATHS, resolve, writeText } from '../lib/core.mjs';
@@ -211,7 +211,7 @@ test('the line-ending remedy, run as printed, makes a CRLF checkout pass', () =>
   requireGit('the line-ending remedy');
   const dir = makePassingProject();
   fs.rmSync(path.join(dir, '.gitattributes'), { force: true });
-  for (const args of [['init', '-q'], ['config', 'user.email', 't@t'], ['config', 'user.name', 't'],
+  for (const args of [fixtureInitArgs(), ['config', 'user.email', 't@t'], ['config', 'user.name', 't'],
     ['add', '-A'], fixtureCommitArgs('corpus')]) {
     assert.equal(git(dir, ...args).status, 0, `git ${args.join(' ')}`);
   }
@@ -277,8 +277,9 @@ function collectorCheckout() {
   requireGit('running the printed corpus commands');
   const dir = makePassingProject();
   fs.copyFileSync(path.join(TEMPLATE_DIR, '.gitignore'), path.join(dir, '.gitignore'));
-  spawnSync('git', ['init', '-q'], { cwd: dir });
+  spawnSync('git', fixtureInitArgs(), { cwd: dir });
   // A global-style rule that hides every dotfile: the case the ledger must survive.
+  fs.mkdirSync(path.join(dir, '.git', 'info'), { recursive: true });   // no template copied it (fixtureInitArgs)
   fs.appendFileSync(path.join(dir, '.git', 'info', 'exclude'), '.*\n!.gitignore\n');
   for (const byproduct of ['.usage.jsonl', '.failures.jsonl', '.diagnostics.jsonl', '.fetches.lock']) {
     fs.writeFileSync(resolve(dir, `research/raw/${byproduct}`), '{}\n');

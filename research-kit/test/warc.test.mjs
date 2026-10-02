@@ -1,7 +1,7 @@
 // ADR-0090: the corpus exported as WARC 1.1, a copy for archive tools.
 // Research: docs/decisions/2026-09-28-warc-export.
 
-import { test, describe, assert, makePassingProject, tempDir, corrupt, requireGit } from './harness.mjs';
+import { test, describe, assert, makePassingProject, tempDir, corrupt, requireGit, fixtureInitArgs } from './harness.mjs';
 import { PATHS, sha256 } from '../lib/core.mjs';
 import { readLedger } from '../lib/corpus.mjs';
 import { exportWarc, readWarc } from '../lib/warc.mjs';
@@ -137,7 +137,7 @@ test('the default export is ignored by git, in a scaffolded project and in this 
   // cover - a copy of the corpus, one `git add -A` away from being committed beside it.
   const bin = fileURLToPath(new URL('../bin/export-warc.mjs', import.meta.url));
   const dir = makePassingProject();
-  spawnSync('git', ['init', '-q'], { cwd: dir });
+  spawnSync('git', fixtureInitArgs(), { cwd: dir });
   const r = spawnSync(process.execPath, [bin], { cwd: dir, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(spawnSync('git', ['check-ignore', '-q', 'research-corpus.warc.gz'], { cwd: dir }).status, 0,
@@ -147,7 +147,7 @@ test('the default export is ignored by git, in a scaffolded project and in this 
   // exits 128, which read as "the rule is missing" (found 2026-09-30, break-test).
   const repo = fileURLToPath(new URL('../..', import.meta.url));
   const probe = tempDir();
-  spawnSync('git', ['init', '-q'], { cwd: probe });
+  spawnSync('git', fixtureInitArgs(), { cwd: probe });
   fs.copyFileSync(path.join(repo, '.gitignore'), path.join(probe, '.gitignore'));
   assert.equal(spawnSync('git', ['check-ignore', '-q', '--no-index', 'research-corpus.warc.gz'], { cwd: probe }).status, 0,
     'the kit repository does not ignore the default export');
