@@ -5,7 +5,15 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
-Bug fixes after 0.9.0, under the freeze (ADR-0117).
+Nothing yet.
+
+## 0.9.1 — 2026-10-02
+
+Bug fixes under the freeze (ADR-0117), from two break-tests, an arena and real use on
+MoonAliza; six decisions recorded as ADR-0120 to ADR-0125. Nothing new is added; what the
+kit promised is now true on more machines - a host with a template dir or a posture config,
+a tree unpacked under another repository, a Chrome that phones home - and its suite says the
+same thing on all of them.
 
 - The browser guard survives a CONNECT the browser resets while the guard answers it: the
   socket had no error listener on the dropped and refused paths, and an ECONNRESET killed the
