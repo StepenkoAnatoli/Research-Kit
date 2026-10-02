@@ -96,6 +96,21 @@ test('a refusal the guard recorded is the verdict even when the browser then hun
   assert.doesNotMatch(r.error, /did not finish/);
 });
 
+test('the refusal named is the one the page landed on, not the last one the guard recorded', () => {
+  // The page navigated into this machine's network, and ALSO referenced a host that could not
+  // be resolved - a dead CDN, or (2026-10-02, on a no-network host) the browser's own
+  // www.google.com, refused after the navigation. The dump holds the navigation's refusal.
+  const refusal = `<html><head></head><body><pre>${REFUSAL_MARKER}: 127.0.0.1:9 - 127.0.0.1 is an internal address</pre></body></html>`;
+  const refused = [
+    { host: '127.0.0.1:9', why: '127.0.0.1 is an internal address' },
+    { host: 'cdn.dead.invalid:443', why: 'cdn.dead.invalid could not be resolved (ENOTFOUND)' },
+  ];
+  const r = browser.scrape('https://x.invalid/a', { render: () => ({ status: 0, signal: null, stdout: refusal, stderr: '', refused }), browserPath: '/opt/chrome', env: {} });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /refused to let the page reach 127\.0\.0\.1:9 - 127\.0\.0\.1 is an internal address/, r.error);
+  assert.doesNotMatch(r.error, /cdn\.dead\.invalid/, 'a refusal the page did not land on was named');
+});
+
 test('a timeout with no dump names the last thing the browser said', () => {
   const stderr = 'DevTools listening on ws://127.0.0.1:1/x\n[1:1:ERROR:network_service.cc(1)] the proxy never answered\n[1:1:INFO:x] later noise';
   const r = browser.scrape('https://x.invalid/a', { render: () => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' }), stdout: '', stderr, refused: [] }), browserPath: '/opt/chrome', env: {} });
