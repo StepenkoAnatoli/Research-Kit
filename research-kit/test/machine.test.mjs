@@ -140,6 +140,39 @@ test('the anchors are DEFAULTS the machine config overrides', () => {
   assert.deepEqual(skillLocations(env), [path.join('/custom/skills', 'research-first')]);
 });
 
+// Found 2026-10-02 (break-test): the 2026-10-01 fix type-checked `skillRoots`, and
+// `editGate.settingsPath` was left as the one key `shape()` hands through raw. A hand-edited
+// `{"editGate":{"settingsPath":42}}` reached `path.dirname` in `installEditGate`
+// (`lib/installer.mjs:193`) and killed `install-hooks` - the command whose job is to bind the
+// gates - with a raw ERR_INVALID_ARG_TYPE stack and Node's version footer: exit 1, nothing
+// named. The front README is where an operator is told to hand-edit this file.
+test('a settingsPath that is not a path falls back to the anchor, and install-hooks answers', () => {
+  assert.equal(loadConfig(envWith(JSON.stringify({ editGate: { settingsPath: 42 } })).env).editGate.settingsPath, '',
+    'a number is not a path, and it is not passed to path.dirname either');
+  assert.equal(loadConfig(envWith(JSON.stringify({ editGate: { settingsPath: {} } })).env).editGate.settingsPath, '');
+  assert.equal(loadConfig(envWith(JSON.stringify({ editGate: { settingsPath: '   ' } })).env).editGate.settingsPath, '',
+    'whitespace is not a path');
+  assert.equal(loadConfig(envWith(JSON.stringify({ editGate: { settingsPath: '/ok/settings.json' } })).env).editGate.settingsPath,
+    '/ok/settings.json', 'a real path survives');
+
+  // And the command the operator is told to run answers, in the shape it promises, with no
+  // stack trace on either stream. The kit is "deployed" at KIT_ROOT - its hook is on disk -
+  // so the installer reaches the settings write rather than refusing on the deployed check.
+  const hostile = envWith(JSON.stringify({ editGate: { settingsPath: 42 } }));
+  const home = tempDir('rk-install-hooks-home-');
+  const run = spawnSync(process.execPath, [path.join(KIT_ROOT, 'bin', 'install-hooks.mjs'), '--edit-only'], {
+    cwd: tempDir('rk-install-hooks-hostile-'), encoding: 'utf8', timeout: 60_000, windowsHide: true,
+    // HOME and USERPROFILE both: os.homedir() reads USERPROFILE on Windows, and with HOME alone
+    // the settings went to the runner's real profile and the assertion below failed there.
+    env: { ...process.env, RESEARCH_KIT_CONFIG: hostile.file, RESEARCH_KIT_HOME: KIT_ROOT, HOME: home, USERPROFILE: home },
+  });
+  assert.doesNotMatch(`${run.stdout}${run.stderr}`, /ERR_INVALID_ARG_TYPE|at file:\/\//,
+    `install-hooks died on a config typo instead of naming it: ${String(run.stderr).slice(0, 300)}`);
+  assert.equal(run.status, 0, `install-hooks did not answer: ${String(run.stderr).slice(0, 300)}`);
+  assert.ok(fs.existsSync(path.join(home, '.claude', 'settings.json')),
+    'with no usable path in the config, the runtime anchor is in charge');
+});
+
 // Found 2026-10-01 (break-test): every other key this file shapes is type-checked, and
 // `skillRoots` was checked as an ARRAY but never as a list of paths. `{"skillRoots": [42]}`
 // - or a null left behind in a hand-edited list - reached `path.join` and killed `doctor`
