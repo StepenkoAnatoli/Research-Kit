@@ -29,6 +29,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   fragments (ADR-0126): two rows of the kit's own decision project quoted a 130-character
   dependency map - one whitespace-separated "word" - and were warned as anchoring almost
   nothing, which was false of a quote that anchors one exact line (2026-10-02).
+- A page is a cache hit under any spelling of its URL - `www.`, a trailing slash, a
+  fragment, http for https - and a plan that names one page in several spellings fetches it
+  once, naming the other spellings as skipped. The cache looked a URL up by its exact
+  spelling, and the plan's own URLs were never compared with each other, so such a plan
+  paid for the page once per spelling, with a ledger entry and a row each (break-test pass
+  3, 2026-10-02).
 
 ## 0.9.2 — 2026-10-02
 

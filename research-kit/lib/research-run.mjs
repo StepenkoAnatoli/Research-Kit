@@ -506,18 +506,33 @@ ${compatibility.remedy}`);
   const seen = new Set(corpus.captures.entries.map((e) => e.url).filter(Boolean).map(urlKey));
   const targets = [];
 
+  // The plan's own URLs, compared with each other by `urlKey`: a page written down twice -
+  // with and without `www.`, a trailing slash, a fragment - is queued once, and the other
+  // spellings are named as skipped rather than dropped. Until 2026-10-02 only search results
+  // were compared with the plan, so such a plan paid for the page once per spelling.
+  const queued = new Map();
   for (const entry of settings.urls) {
     const url = typeof entry === 'string' ? entry : entry.url;
     if (!url) continue;
-    // Seen before any search runs, so a search result that is this page - in any spelling -
-    // is not queued a second time.
-    seen.add(urlKey(url));
-    targets.push({
+    const target = {
       url,
       type: (typeof entry === 'object' && entry.type) || 'P',
       usedFor: (typeof entry === 'object' && entry.why) || '',
       from: 'plan.urls',
-    });
+    };
+    const key = urlKey(url);
+    const first = queued.get(key);
+    if (first) {
+      const reason = `same page as ${first}, queued once`;
+      results.push({ ...target, status: 'skipped', reason });
+      log(`  skipped   ${url} - ${reason}`);
+      continue;
+    }
+    queued.set(key, url);
+    // Seen before any search runs, so a search result that is this page - in any spelling -
+    // is not queued a second time.
+    seen.add(key);
+    targets.push(target);
   }
 
   for (const query of settings.queries) {
