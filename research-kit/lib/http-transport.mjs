@@ -415,10 +415,43 @@ function verbatim(url, job, argv) {
   };
 }
 
+/** How long a server's own reason may run in a failure message: one line, not its page. */
+export const REASON_MAX = 160;
+
+/**
+ * What the server said when it refused: a JSON `message`, an HTML title, or the first line
+ * of a text body - one line, bounded, '' when it said nothing readable. Found 2026-10-02: a
+ * keyless fetch of a github.com page answered 403 and the kit recorded "HTTP 403", nothing
+ * else; the body named the refuser (a sandbox proxy, not GitHub), and it took curl to learn
+ * that (docs/decisions/2026-10-02-github-plain-fetch-refusal). The reason rides beside the
+ * status, in the ledger and on the terminal, so the next refusal explains itself.
+ */
+export function serverReason({ contentType = '', body = '' } = {}) {
+  const type = String(contentType ?? '').split(';')[0].trim().toLowerCase();
+  const text = String(body ?? '');
+  let reason = '';
+  if (/json/.test(type)) {
+    try { const parsed = JSON.parse(text); if (parsed && typeof parsed.message === 'string') reason = parsed.message; } catch { /* not JSON after all: nothing to quote */ }
+  } else if (/html/.test(type)) {
+    reason = titleOf(text) ?? '';
+  } else if (/^text\//.test(type)) {
+    reason = text.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? '';
+  }
+  reason = reason.replace(/\s+/g, ' ').trim();
+  if (!reason) return '';
+  return reason.length > REASON_MAX ? `${reason.slice(0, REASON_MAX)}...` : reason;
+}
+
+/** The job's failure, with the server's own reason beside the status when it gave one. */
+function refusal(job) {
+  const said = serverReason(job);
+  return said ? `${job.error} - the server said: "${said}"` : job.error;
+}
+
 export function scrape(url, opts = {}) {
   const argv = ['scrape', String(url)];
   const job = runJob({ kind: 'fetch', url: String(url) }, opts);
-  if (!job.ok) return { ok: false, url, error: job.error, cmd: command(argv), transport: name };
+  if (!job.ok) return { ok: false, url, error: refusal(job), cmd: command(argv), transport: name };
   const kind = bodyKind(job.contentType);
   // A binary body is refused, not kept (ADR-0105). Read as text it loses every byte UTF-8
   // cannot hold, so the capture could neither be reopened as the file nor hold a quote.
@@ -450,7 +483,7 @@ export function search(query, { limit = 8, ...opts } = {}) {
   const argv = ['search', String(query)];
   const endpoint = `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(query)}`;
   const job = runJob({ kind: 'fetch', url: endpoint }, opts);
-  if (!job.ok) return { ok: false, query, error: job.error, cmd: command(argv), results: [] };
+  if (!job.ok) return { ok: false, query, error: refusal(job), cmd: command(argv), results: [] };
   // DuckDuckGo answers an automated-looking request with a bot check, not an error: HTTP 200,
   // an anomaly modal, no result links. Parsed as a page, that was "no results" and ok: true,
   // so a refused search looked like a quiet topic (found 2026-09-27). It is a failed search,
@@ -504,7 +537,7 @@ function unwrapRedirect(href) {
 export function map(url, { limit = 50, ...opts } = {}) {
   const argv = ['map', String(url)];
   const job = runJob({ kind: 'fetch', url: String(url) }, opts);
-  if (!job.ok) return { ok: false, url, error: job.error, cmd: command(argv), links: [] };
+  if (!job.ok) return { ok: false, url, error: refusal(job), cmd: command(argv), links: [] };
   let origin;
   try { origin = new URL(job.url ?? url); } catch { return { ok: false, url, error: 'unparseable url', cmd: command(argv), links: [] }; }
   const links = new Set();

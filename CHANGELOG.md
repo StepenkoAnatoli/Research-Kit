@@ -10,6 +10,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   running the kit five times over MoonAliza's seven projects, where one query would have
   cost two credits a run forever. The skip is said on the terminal and in the results, the
   dry run previews it, and `--force` runs it as it re-fetches a page.
+- The keyless transport's failure quotes the server's own reason beside the status - a
+  JSON `message`, an HTML title or the first line of a text body, one line and bounded -
+  so a refusal explains itself in the ledger and on the terminal. A github.com page had
+  been recorded as `HTTP 403` alone; the body named the refuser (a sandbox proxy, not
+  GitHub), and it took a second tool to learn that
+  (`docs/decisions/2026-10-02-github-plain-fetch-refusal`, 2026-10-02).
 
 ## 0.9.3 — 2026-10-02
 

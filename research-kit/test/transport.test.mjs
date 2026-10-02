@@ -4,7 +4,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.mjs';
-import { readText } from '../lib/core.mjs';
+import { readText, writeText } from '../lib/core.mjs';
 import * as firecrawl from '../lib/firecrawl.mjs';
 import * as httpKeyless from '../lib/http-transport.mjs';
 import { TRANSPORTS, TRANSPORT_NAMES, selectTransport, selectSearch, probeFirecrawl, unusedKeyNote } from '../lib/transport.mjs';
@@ -955,6 +955,51 @@ test('a URL in the failure itself shows only its host, not only a URL in the cau
   // The cause-only path the previous test pinned, unchanged.
   const keyed = Object.assign(new TypeError('fetch failed'), { cause: new Error('bad response from https://serpapi.com/search.json?api_key=SECRET&q=x') });
   assert.equal(fetchFailure(keyed), 'fetch failed (bad response from serpapi.com)');
+});
+
+// Found 2026-10-02 (docs/decisions/2026-10-02-github-plain-fetch-refusal): a keyless fetch of a
+// github.com page answered 403, and the kit recorded "HTTP 403" - nothing else. The body said
+// what refused it (a sandbox proxy: "GitHub access to this repository is not enabled for this
+// session"), and it took curl to learn that. A server that explains itself is quoted. The
+// server lives in its own process: `scrape` runs its child with spawnSync, which blocks this
+// process's event loop, so a server here would never answer.
+test('a keyless fetch refused with a status names the server\'s own reason beside it', async () => {
+  const { spawn } = await import('node:child_process');
+  const file = path.join(tempDir('research-kit-refusing-server-'), 'server.mjs');
+  writeText(file, `
+import http from 'node:http';
+const server = http.createServer((req, res) => {
+  if (req.url === '/json') { res.writeHead(403, { 'content-type': 'application/json' }); res.end(JSON.stringify({ message: 'GitHub access to this repository is not enabled for this session. Use add_repo to request access.', documentation_url: 'https://example.invalid/docs' })); return; }
+  if (req.url === '/html') { res.writeHead(503, { 'content-type': 'text/html' }); res.end('<html><head><title>Service unavailable - maintenance window</title></head><body><p>Back soon.</p></body></html>'); return; }
+  res.writeHead(404, { 'content-type': 'text/plain' }); res.end('   no such page here\\nsecond line');
+});
+server.listen(0, '127.0.0.1', () => process.stdout.write('PORT ' + server.address().port + '\\n'));
+`);
+  const proc = spawn(process.execPath, [file], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const port = await new Promise((resolve, reject) => {
+    let out = '';
+    proc.stdout.on('data', (d) => { out += d; const m = out.match(/PORT (\d+)/); if (m) resolve(Number(m[1])); });
+    proc.on('exit', (code) => reject(new Error(`the refusing server exited ${code}`)));
+  });
+  const env = Object.fromEntries(Object.entries(process.env)
+    .filter(([name]) => !['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy'].includes(name)));
+  try {
+    const { scrape, serverReason } = await import('../lib/http-transport.mjs');
+    const json = scrape(`http://127.0.0.1:${port}/json`, { env, timeout: 20_000 });
+    assert.equal(json.ok, false);
+    assert.match(json.error, /^HTTP 403 - the server said: "GitHub access to this repository is not enabled for this session/, json.error);
+    const html = scrape(`http://127.0.0.1:${port}/html`, { env, timeout: 20_000 });
+    assert.match(html.error, /^HTTP 503 - the server said: "Service unavailable - maintenance window"/, html.error);
+    const text = scrape(`http://127.0.0.1:${port}/text`, { env, timeout: 20_000 });
+    assert.match(text.error, /^HTTP 404 - the server said: "no such page here"/, text.error);
+    // Bounded and one line, whatever the server sent; nothing to say is nothing said.
+    assert.equal(serverReason({ contentType: 'application/json', body: JSON.stringify({ message: 'x'.repeat(500) }) }).length, 160 + 3);
+    assert.equal(serverReason({ contentType: 'application/json', body: '{"error":{"code":7}}' }), '');
+    assert.equal(serverReason({ contentType: 'application/octet-stream', body: 'binary' }), '');
+    assert.equal(serverReason({ contentType: 'text/plain', body: ' \n  ' }), '');
+  } finally {
+    proc.kill();
+  }
 });
 
 test('a keyless fetch of a refused port says the connection was refused', async () => {
