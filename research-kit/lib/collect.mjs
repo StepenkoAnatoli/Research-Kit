@@ -284,12 +284,25 @@ export function collectOne(root, url, {
     // list can be stale by the time it gets here, and a duplicated E-## silently changes
     // what every citation to it means.
     const onDisk = parseTable(readText(resolve(root, PATHS.evidence), ''), HEADERS.evidence);
+    upsertRow(root, PATHS.sources, HEADERS.sources, [entry.url, type, result.title || titleFromUrl(entry.url), date, usedFor]);
+
+    // A forced re-fetch that came back byte-identical reused the capture (writeRaw never
+    // overwrites), so a row on disk may already cite this very file for this URL. Then the
+    // row stands: the fetch is in the ledger - the attempt is evidence, and it was paid for -
+    // but a second row would supersede the first and make every citation of unchanged content
+    // move for nothing (found 2026-10-02, break-test pass 3: rows=2, ledger=2, captures=1).
+    const standing = onDisk.rows.find((r) => r.Raw === entry.file && r.URL === entry.url);
+    if (standing) {
+      return {
+        status: 'collected', url: entry.url, entry, row: { id: standing.ID, finding: standing.Finding },
+        reason: `${whyFetched(decision)}; the page is unchanged, so ${standing.ID} stands`, spent: 1, waits,
+      };
+    }
+
     const id = nextId('E', [...onDisk.rows.map((r) => ({ id: r.ID })), ...corpus.evidence]);
     const finding = firstFinding(result.markdown, result.title || url);
     appendRow(root, PATHS.evidence, HEADERS.evidence, [id, date, type, entry.url, finding, entry.file]);
     corpus.evidence.push({ id, retrieved: date, type, url: entry.url, finding, raw: entry.file, line: 0 });
-
-    upsertRow(root, PATHS.sources, HEADERS.sources, [entry.url, type, result.title || titleFromUrl(entry.url), date, usedFor]);
 
     return { status: 'collected', url: entry.url, entry, row: { id, finding }, reason: whyFetched(decision), spent: 1, waits };
   });
@@ -303,7 +316,8 @@ export function collectOne(root, url, {
  * paid for again.
  */
 function refreshCaptures(root, corpus) {
-  const current = readCaptures(root);
+  // Only what the snapshot does not hold, and no sketches: those are the gate's (ADR-0036).
+  const current = readCaptures(root, { known: new Set(corpus.captures.byFile.keys()), sketches: false });
   for (const entry of current.entries) rememberCapture(corpus.captures, entry);
   return corpus.captures;
 }

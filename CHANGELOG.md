@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+## 0.9.3 — 2026-10-02
+
+Nine bug fixes under the freeze (ADR-0117) and one vendor update, all from the third
+break-test and from running the kit on its own decision project the same day. Nothing new
+is added.
+
 - The Firecrawl adapter reads the first complete JSON value in the CLI's stdout, whatever
   is printed around it - a banner with a bracket before it, a credit receipt after it - and
   `scrape` refuses an exit of 0 that printed nothing, no readable JSON, or a page with no
@@ -40,6 +46,23 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   with itself always matches, and a line appended to the deployed `lib/core.mjs` passed that
   way. The drift is measured against the home the install state recorded, which the message
   already named (break-test pass 3, 2026-10-02).
+- `--force` on a page that comes back byte-identical records the fetch in the ledger and
+  lets the row that cites the reused capture stand, saying so in the reason; it had appended
+  a second row that superseded the first, so every unknown citing unchanged content failed
+  `evidence-supersession` and had to be re-cited for nothing (break-test pass 3, 2026-10-02).
+  A changed page is still a second capture with a row of its own.
+- The collector's refresh before every fetch reads only the captures its snapshot does not
+  hold and sketches none of them (`readCaptures(root, { known, sketches })`), and a capture
+  is remembered once: it had re-read, parsed and MinHash-sketched every capture on disk
+  inside the lock on every fetch, and pushed every entry into the index again. Per-capture
+  cost at 400 rows: 74 ms before, 13 ms after; a 2000-page run had spent 41% of 585 s
+  sketching pages it had already indexed (break-test pass 3, 2026-10-02).
+- The tested Firecrawl CLI is 1.25.2 (from 1.24.6): its `--status`, search and scrape output
+  were captured from the real CLI and read unchanged by the adapter's parsers before the move
+  (`research-kit/test/fixtures/*-1.25.2.*`; `docs/decisions/2026-10-02-firecrawl-cli-1-25`).
+  The scrape receipt the 1.25.0 changelog introduced goes to stderr, stdout stays one JSON
+  value; search's `data.tools` is now populated and reaches no result. `doctor`, the install
+  line and the workflows' install spec name 1.25.2.
 
 ## 0.9.2 — 2026-10-02
 

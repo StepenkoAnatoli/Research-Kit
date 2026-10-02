@@ -446,8 +446,17 @@ export function cliVersion({ execFn = exec, ...opts } = {}) {
  * axios 1.18.0 (SDK 4.40.0). Its `--status`, search and scrape output were captured and read
  * by this adapter's own parsers before the move: search gained `warning`, `id`, `data.tools`
  * and a per-row `position`, all additive (test/fixtures/*-1.24.6.*).
+ *
+ * Moved from 1.24.6 to 1.25.2 on 2026-10-02 (docs/decisions/2026-10-02-firecrawl-cli-1-25).
+ * The open question was 1.25.0's "enrichment credits in CLI receipts": a receipt printed
+ * after the JSON on stdout would have needed `parsePayload` to skip it. Captured and read
+ * unchanged (test/fixtures/*-1.25.2.*): scrape's receipt ("Scrape ID: ...") goes to stderr
+ * and stdout is one JSON value; search's `data.tools` is now populated (Alexandria providers,
+ * no `url`, so none reaches a result) beside `data.web`; `--status` is the same text. The
+ * bundle is unchanged (SDK 4.40.0, node >= 22), so the proxy behaviour that forced the
+ * previous move is not in question.
  */
-export const TESTED_CLI_VERSION = '1.24.6';
+export const TESTED_CLI_VERSION = '1.25.2';
 export const SUPPORTED_CLI_MAJOR = 1;
 
 /**

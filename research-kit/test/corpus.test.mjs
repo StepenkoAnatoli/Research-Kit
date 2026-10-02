@@ -95,6 +95,21 @@ test('the capture index is keyed by URL, newest retrieval winning', () => {
   assert.equal(captures.byUrl.get('https://x.invalid/p').retrieved, '2026-06-01');
 });
 
+
+test('readCaptures can skip the files a caller already holds, and can leave sketching to the gate', () => {
+  const dir = makePassingProject();
+  const all = readCaptures(dir);
+  assert.ok(all.entries.length >= 1, 'the fixture holds a capture');
+  assert.equal(all.sketches.size, all.entries.length, 'by default every capture is sketched');
+  const known = new Set(all.entries.map((e) => e.file));
+  const nothingNew = readCaptures(dir, { known });
+  assert.deepEqual(nothingNew.entries, [], 'a file the caller holds is not read again');
+  assert.equal(nothingNew.sketches.size, 0);
+  const unsketched = readCaptures(dir, { sketches: false });
+  assert.equal(unsketched.entries.length, all.entries.length, 'everything is still indexed');
+  assert.equal(unsketched.sketches.size, 0, 'nothing was sketched');
+  assert.ok(unsketched.byFile.has(all.entries[0].file));
+});
 test('the capture index also answers to the URL a redirected fetch was asked for', () => {
   const dir = makeProject();
   // Landed on the new path; the command line keeps the URL the plan named.

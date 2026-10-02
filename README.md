@@ -337,7 +337,7 @@ environment, or the machine config at `~/.agents/research-kit.config.json`:
 
 | Provider | Used for | How to supply it |
 |---|---|---|
-| Firecrawl | fetching pages, and searching by default | `npm install -g firecrawl-cli@1.24.6` (the package is `firecrawl-cli`; `firecrawl` is a different one), then `firecrawl login` — the CLI stores it. **Never run `firecrawl env` inside a repository**: it writes the key into `.env`. |
+| Firecrawl | fetching pages, and searching by default | `npm install -g firecrawl-cli@1.25.2` (the package is `firecrawl-cli`; `firecrawl` is a different one), then `firecrawl login` — the CLI stores it. **Never run `firecrawl env` inside a repository**: it writes the key into `.env`. |
 | SerpAPI | searching only, entirely optional | `SERPAPI_API_KEY`, or `serpapiKey` in the machine config |
 | SearXNG | searching only, optional, no key: an instance you run | `SEARXNG_URL`, or `searxngUrl` in the machine config, then `--search-transport searxng` |
 

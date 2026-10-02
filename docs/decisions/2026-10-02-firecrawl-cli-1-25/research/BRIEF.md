@@ -97,4 +97,16 @@ files land beside the 1.24.6 fixtures before any version string moves.
    redrafts this file while it is unedited; after any edit it refuses without `--force`,
    so your judgements are preserved.
 
+## Outcome (2026-10-02, after the handoff)
+
+Step 1 was done the same day: `firecrawl-cli@1.25.2` installed into a scratch prefix,
+`--status`, `scrape --only-main-content --json` and `search --limit 3 --json` run once each
+with the key given per command (three credits), stdout and stderr kept apart. Read by the
+kit's own parsers (`research-kit/test/fixtures/*-1.25.2.*`, tests in
+`research-kit/test/transport.test.mjs`): stdout is one JSON value for scrape - the receipt,
+`Scrape ID: ...`, goes to stderr, so the trailing-receipt case in U-03 does not arise;
+search's `data.tools` is populated now (three Alexandria providers, no `url`) and none
+reaches a result; `--status` is the same text as 1.24.6's. Step 3 followed:
+`TESTED_CLI_VERSION` is 1.25.2 (kit 0.9.3). Step 4 was not needed.
+
 <!-- research-kit:brief-draft body=cb9e6cff9369cb68 inputs=329a6deb7d15dd62 gate=pass -->
