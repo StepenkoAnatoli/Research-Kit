@@ -51,17 +51,43 @@ function inRepository() {
   return git(['rev-parse', '--is-inside-work-tree'])?.trim() === 'true';
 }
 
+/** Each path, with the ignore rule that matched it and the file that declared it. */
+function whyIgnored(paths) {
+  return paths.map((p) => {
+    // `-v` prints `<source>:<line>:<pattern>`; `--no-index` because every offender here
+    // is tracked, and check-ignore does not judge a tracked path without it.
+    const why = git(['check-ignore', '-v', '--no-index', p]);
+    return `${p}\n      ${why ? why.trim().split('\n').join('\n      ') : '(git could not say which rule matched)'}`;
+  });
+}
+
 test('no ignored file is tracked', () => {
   if (!inRepository()) return;          // a scaffolded copy is not a git repository; nothing to check
 
   // `git ls-files -i -c --exclude-standard` lists exactly the contradiction: paths that
   // are in the index AND matched by an ignore rule.
-  const tracked = (git(['ls-files', '-i', '-c', '--exclude-standard']) ?? '')
+  //
+  // `core.excludesFile=` drops the USER-GLOBAL exclude file - `~/.config/git/ignore`, or
+  // whatever `core.excludesFile` names. It is not a property of this repository, and it
+  // used to turn this test red on a healthy one: a developer who globally ignores
+  // `*.jsonl` got a failure over `docs/measurements/.../results.jsonl`, a tracked file
+  // this repository's own .gitignore says nothing about, under a message telling them
+  // to fix .gitignore (reproduced 2026-10-02, break-test, with `HOME` pointing at a
+  // directory whose `.config/git/ignore` holds `*.jsonl`). The defect this test exists
+  // for - `.diagnostics.jsonl` tracked AND matched by the repository's own .gitignore -
+  // is still caught, because .gitignore is untouched by the override.
+  // `.git/info/exclude` stays in scope: it is local to this repository, so a developer
+  // can see and remove it.
+  const tracked = (git(['-c', 'core.excludesFile=', 'ls-files', '-i', '-c', '--exclude-standard']) ?? '')
     .split('\n').map((l) => l.trim()).filter(Boolean);
 
   assert.deepEqual(tracked, [],
     'these files are ignored by .gitignore and tracked anyway, so the ignore rule does '
-    + 'nothing and they will keep appearing in every diff:\n  ' + tracked.join('\n  '));
+    + 'nothing and they will keep appearing in every diff:\n  '
+    // Name WHERE each one is ignored, so the cause is read rather than guessed at. A
+    // `.gitignore` here is this repository's to fix; a `.git/info/exclude` is local to
+    // this clone and is not. The plain list is in the diff below.
+    + whyIgnored(tracked).join('\n  '));
 });
 
 test('the fetch ledger is tracked, and is NOT ignored', () => {
