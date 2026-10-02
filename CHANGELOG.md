@@ -7,6 +7,14 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- `install-hooks --dry-run` reports the refusal the real run would give. On a machine where
+  the kit was not deployed it printed "would set core.hooksPath=..." and "would register in
+  .../settings.json: ..." and exited 0, while the real run refused both gates and exited 1:
+  `installCommitGate` answered the dry run before its deployed-hook check, and
+  `installEditGate` exempted the dry run from its own. Both previews now carry `ok: true`,
+  and the CLI tests `ok` before `dryRun`, so a refusal prints as a refusal with the real
+  run's exit code. The sibling of the 2026-09-29 `install --dry-run` prune fix, never swept
+  to (arena break-test #196, 2026-10-01, redone on main).
 - `research.mjs` names the refusals the kit wrote instead of re-throwing them. A torn ledger
   tail - what an interrupted collection leaves behind - printed its own remedy under a source
   line, a caret, six frames and Node's version footer, and a damaged chain dumped its internal

@@ -317,6 +317,45 @@ test('--dry-run writes nothing and says what it would do', () => {
   assert.equal(readText(settingsFile), before);
 });
 
+// Found 2026-10-01 (break-test): on a machine where the kit was NOT deployed - a fresh
+// contributor, a new CI box - `install-hooks --dry-run` printed "would set core.hooksPath=..."
+// and "would register in .../settings.json: ..." and exited 0, while the real run exited 1 and
+// installed neither gate. A dry run is the answer an operator trusts INSTEAD of running the
+// thing, so it has to answer the question the real run answers. Both halves short-circuited
+// past their own precondition: installCommitGate returned the dry-run answer before the
+// `!exists(hook)` check, and installEditGate wrote that check as `!dryRun && !exists(hook)`.
+// This is the sibling the 2026-09-29 `install --dry-run` prune fix was never swept to.
+test('a dry run reports the refusal the real run would give, not a promise it would break', () => {
+  const { env } = machine();
+  // A kitHome that holds nothing: no githooks/pre-commit, no hooks/edit-gate.mjs.
+  const kitHome = tempDir('research-kit-notdeployed-');
+  const gitPaths = { env: { ...process.env, GIT_CONFIG_GLOBAL: path.join(kitHome, 'gitconfig'), GIT_CONFIG_NOSYSTEM: '1' } };
+
+  const realCommit = installCommitGate({ kitHome, env, gitPaths });
+  assert.equal(realCommit.ok, false, 'the real run is expected to refuse when nothing is deployed');
+  const dryCommit = installCommitGate({ kitHome, env, gitPaths, dryRun: true });
+  assert.equal(dryCommit.ok, false, 'a dry run promised a core.hooksPath the real run refuses to set');
+  assert.match(String(dryCommit.reason), /not deployed/, 'the dry run did not name the same cause the real run names');
+
+  const realEdit = installEditGate({ kitHome, env });
+  assert.equal(realEdit.ok, false, 'the real run is expected to refuse when nothing is deployed');
+  const dryEdit = installEditGate({ kitHome, env, dryRun: true });
+  assert.equal(dryEdit.ok, false, 'a dry run promised an edit-gate registration the real run refuses to write');
+  assert.match(String(dryEdit.reason), /not deployed/, 'the dry run did not name the same cause the real run names');
+
+  // And the promise still happens when the kit IS deployed - the check is the precondition,
+  // not a ban on dry runs. `ok: true` is asserted as well: a preview that carried no `ok` key
+  // made a caller testing `!result.ok` first print `commit gate: undefined` and exit 1 on a
+  // machine where everything was fine.
+  const ok = installCommitGate({ kitHome: KIT_ROOT, env, gitPaths, dryRun: true });
+  assert.equal(ok.ok, true, 'a preview must carry ok:true, so one shape answers every caller');
+  assert.equal(ok.dryRun, true, 'a dry run against a deployed kit must still preview');
+  assert.match(ok.would, /githooks/);
+  const okEdit = installEditGate({ kitHome: KIT_ROOT, env, dryRun: true });
+  assert.equal(okEdit.ok, true, 'a preview must carry ok:true, so one shape answers every caller');
+  assert.equal(okEdit.dryRun, true);
+});
+
 test('removeEditGate takes out a retired entry too', () => {
   const { env, settingsFile } = machine({
     settings: { hooks: { PreToolUse: [

@@ -61,22 +61,25 @@ try {
   const wantEdit = !flags['git-only'];
   let failed = false;
 
+  // `!ok` is tested before `dryRun`: a dry run that cannot do what it was asked reports the
+  // refusal, in the same words and with the same exit code as the real run, rather than
+  // printing a promise that the real run would break (found 2026-10-01, break-test).
   if (wantCommit) {
     const result = installCommitGate({ dryRun });
-    if (result.dryRun) process.stdout.write(`would set core.hooksPath=${result.would} (was ${result.previous ?? 'unset'})\n`);
-    else if (!result.ok) { process.stderr.write(`commit gate: ${result.reason}\n`); failed = true; }
+    if (!result.ok) { process.stderr.write(`commit gate: ${result.reason}\n`); failed = true; }
+    else if (result.dryRun) process.stdout.write(`would set core.hooksPath=${result.would} (was ${result.previous ?? 'unset'})\n`);
     else process.stdout.write(`commit gate: core.hooksPath=${result.hooksPath} (was ${result.previous ?? 'unset'})\n`);
   }
 
   if (wantEdit) {
     const before = settingsState();
     const result = installEditGate({ dryRun, mode: typeof flags.mode === 'string' ? flags.mode : '' });
-    if (result.dryRun) {
-      process.stdout.write(`would register in ${result.file}: ${result.would}\n`);
-      if (result.removed?.length) process.stdout.write(`  ${retiredRepairNote(result.removed)}\n`);
-    } else if (!result.ok) {
+    if (!result.ok) {
       process.stderr.write(`edit gate: ${result.reason}\n`);
       failed = true;
+    } else if (result.dryRun) {
+      process.stdout.write(`would register in ${result.file}: ${result.would}\n`);
+      if (result.removed?.length) process.stdout.write(`  ${retiredRepairNote(result.removed)}\n`);
     } else {
       process.stdout.write(`edit gate: registered in ${result.file}${before === 'retired' ? ' (repaired)' : ''}\n`);
       if (result.note) process.stdout.write(`  ${result.note}\n`);
