@@ -455,12 +455,15 @@ node research-kit/bin/selftest.mjs gate hook  # just these files
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
-A prerequisite this host cannot provide - no POSIX shell, no git, no python - is reported
-as `UNSUP` with its reason code and **blocks**. It is never a silent skip: a test that
+A prerequisite this host cannot provide - no POSIX shell, no git, no python, and no
+Chromium or Chrome for the two LIVE browser tests (`NO-BROWSER`) - is reported as `UNSUP`
+with its reason code and **blocks**. It is never a silent skip: a test that
 returns early on a missing prerequisite prints `ok` having asserted nothing, which is
 the same false green one layer up.
 
-For a local run on a machine without one of them - most often Python - set
+A full pass therefore needs a browser on PATH; the hosted CI images carry one, and a
+runner image that dropped it would block CI rather than pass without the two tests. For a
+local run on a machine without one of them - most often Python, or Chromium - set
 `RESEARCH_KIT_ALLOW_UNSUP=1`: a run whose only blockers are unsupported tests then exits 0,
 still lists each one, and ends `NOT a full pass` rather than `all tests passed`. A failed
 test is never waived, and the option is ignored when `CI` is set, so the merge check still
