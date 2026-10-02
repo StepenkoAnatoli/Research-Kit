@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseFlags, listFiles, refuseUnknownFlags, exists, kitCommand, tolerateClosedStdout, tempBase, tempFreeSpace, exitAfterFlush } from '../lib/core.mjs';
-import { runPending, TEST_TIMEOUT, importTestFiles, describe, test, dominantFailureCause } from '../test/harness.mjs';
+import { runPending, TEST_TIMEOUT, importTestFiles, describe, test, dominantFailureCause, tempDir } from '../test/harness.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 
 // Before the first write: a reader that quits early (`| head -1`) must not turn this run
@@ -105,7 +105,8 @@ for (const name of Object.keys(process.env)) {
   if ((name.startsWith('RESEARCH_KIT_') && !describesTheRun(name)) || VENDOR_KEYS.has(name)) delete process.env[name];
 }
 if (!tempProblem) {
-  const home = fs.mkdtempSync(path.join(tempBase(), 'rk-selftest-home-'));
+  // Through the harness's tempDir, so the run removes it with its other scratch when it ends.
+  const home = tempDir('rk-selftest-home-');
   process.env.HOME = home;
   process.env.USERPROFILE = home;
   if (process.platform === 'win32') {
