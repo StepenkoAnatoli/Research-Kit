@@ -18,7 +18,7 @@ import { settingsState, deployedDrift, driftNote } from './installer.mjs';
 import { recordOverride } from './provenance.mjs';
 import { probeFirecrawl, selectTransport } from './transport.mjs';
 import { loadConfig, configPath } from './machine.mjs';
-import { cliInstallSpec } from './firecrawl.mjs';
+import { cliInstallSpec, cliCompatibility } from './firecrawl.mjs';
 import { nodeLine, nodeHonoursEnvProxy, proxyVariable, unusableProxy, proxySpelling } from './runtime.mjs';
 import { verifyBundle, bundleSummary } from './bundle.mjs';
 import {
@@ -118,7 +118,15 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
           : 'the Firecrawl CLI is not on PATH',
       role === 'builder' || keylessByChoice ? '' : `npm install -g ${cliInstallSpec()}   (${keylessRoute})`));
   } else {
-    out.push(f('pass', 'firecrawl-cli', `${state.version}`));
+    // Judged the way the run judges it (cliCompatibility): doctor had printed `pass 2.0.0`
+    // for a CLI the run then refused before spending (2026-10-02, break-test pass 3). A
+    // machine that does not collect with it - a builder, a keyless collector - is told, not failed.
+    const compat = cliCompatibility(state.version);
+    if (compat.level === 'unsupported') {
+      out.push(f(firecrawlSeverity === 'fail' ? 'fail' : 'info', 'firecrawl-cli', compat.detail, firecrawlSeverity === 'fail' ? compat.remedy : ''));
+    } else {
+      out.push(f('pass', 'firecrawl-cli', compat.detail));
+    }
     if (!state.authenticated) {
       out.push(f(firecrawlSeverity, 'firecrawl-auth',
         role === 'builder'

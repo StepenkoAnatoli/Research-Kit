@@ -20,6 +20,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   refusal carried the code `CLI_INCOMPATIBLE` but the named-refusal set did not know it,
   so `research.mjs` printed it under a stack trace and an object dump with exit 1, which
   reads as checked and wrong (break-test pass 3, 2026-10-02).
+- `doctor` judges the installed Firecrawl CLI the way the run does: an unsupported major
+  is a fail with the remedy on a collector that needs it (information on a builder or a
+  keyless collector), a newer minor passes and names the tested version. It had printed
+  `pass 2.0.0` for a CLI the run then refused before spending (break-test pass 3,
+  2026-10-02).
 
 ## 0.9.2 — 2026-10-02
 
