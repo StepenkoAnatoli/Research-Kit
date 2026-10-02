@@ -7,6 +7,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- `selftest.mjs` no longer calls a run with zero failures a red suite. When every blocker is a
+  test the host could not run (no Chromium, no Python), it ends "No test failed. N tests could
+  not run on this host, and an incomplete run is not a pass (ADR-0108) - this is not a red
+  suite", names `RESEARCH_KIT_ALLOW_UNSUP=1` for a local run, and still exits 1. "A red suite
+  stops work" is the standing protocol's stop-the-line sentence, and an agent that read it
+  over "0 failed, 2 unsupported" stopped a whole break-test at its baseline (2026-10-02).
 - The collector refuses to spend on a ledger whose chain is broken (ADR-0122). A ledger that
   parsed but whose hashes no longer linked was appended to without a word, so a run paid for
   fetches that `handoff` and `preflight` then refused with the rest of the chain.

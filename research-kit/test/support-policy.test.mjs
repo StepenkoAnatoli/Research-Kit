@@ -346,6 +346,15 @@ test('RESEARCH_KIT_ALLOW_UNSUP lets a local run without Python pass, says so, an
   const blocked = suite({});
   assert.equal(blocked.status, 1, `with no Python and no opt-in the run must block:\n${blocked.stdout.slice(-600)}`);
   assert.match(blocked.stdout, /unsupported/);
+  // A block with ZERO failures is not a red suite, and the runner must not call it one: "A red
+  // suite stops work" is the standing protocol's stop-the-line sentence, and an agent that read
+  // it over "0 failed, 2 unsupported" stopped a whole break-test at its baseline on a host with
+  // no Chromium (arena, 2026-10-02). It says what it is - tests that could not run here - and
+  // the way to a local run, which is not a bypass: every test that can run still runs.
+  assert.doesNotMatch(blocked.stdout, /A red suite stops work/, 'zero failures were reported as a red suite');
+  assert.match(blocked.stdout, /No test failed/);
+  assert.match(blocked.stdout, /not a red suite/i);
+  assert.match(blocked.stdout, /RESEARCH_KIT_ALLOW_UNSUP=1/);
 
   const allowed = suite({ RESEARCH_KIT_ALLOW_UNSUP: '1' });
   assert.equal(allowed.status, 0, `the opt-in did not let the run pass:\n${allowed.stdout.slice(-600)}`);
