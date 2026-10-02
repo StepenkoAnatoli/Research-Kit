@@ -6,7 +6,7 @@ import { PATHS, HEADERS, resolve, writeText, readText, sha256File, isRegularFile
 import {
   readCorpus, readCaptures, parseTable, parseCapture, splitRow, escapeCell, tableRow,
   repairRowArity, captureEntry, rememberCapture, cacheDecision, traceOf, captureOf,
-  claimOf, sectionOf, appendRow, upsertRow, nextId, citedIds, stripReviewNotes,
+  claimOf, sectionOf, appendRow, upsertRow, nextId, citedIds, stripReviewNotes, requestedUrl,
 } from '../lib/corpus.mjs';
 import { runPreflight } from '../lib/preflight.mjs';
 
@@ -93,6 +93,33 @@ test('the capture index is keyed by URL, newest retrieval winning', () => {
   const captures = readCaptures(dir);
   assert.equal(captures.entries.length, 2);
   assert.equal(captures.byUrl.get('https://x.invalid/p').retrieved, '2026-06-01');
+});
+
+test('the capture index also answers to the URL a redirected fetch was asked for', () => {
+  const dir = makeProject();
+  // Landed on the new path; the command line keeps the URL the plan named.
+  writeText(resolve(dir, `${PATHS.raw}/2026-01-01-a-x-1.md`), '---\nurl: https://x.invalid/new\nretrieved: 2026-01-01\ncommand: http-keyless scrape https://x.invalid/old\n---\n\nmoved\n');
+  // A capture of the asked-for URL itself outranks an alias, whatever their dates.
+  writeText(resolve(dir, `${PATHS.raw}/2026-02-01-a-x-2.md`), '---\nurl: https://x.invalid/direct\nretrieved: 2026-02-01\ncommand: http-keyless scrape https://x.invalid/direct\n---\n\ndirect\n');
+  writeText(resolve(dir, `${PATHS.raw}/2026-03-01-a-x-3.md`), '---\nurl: https://x.invalid/elsewhere\nretrieved: 2026-03-01\ncommand: browser https://x.invalid/direct\n---\n\nalias\n');
+  const captures = readCaptures(dir);
+  assert.equal(captures.byUrl.get('https://x.invalid/old')?.url, 'https://x.invalid/new', 'the asked-for URL finds the landed capture');
+  assert.equal(captures.byUrl.get('https://x.invalid/direct')?.url, 'https://x.invalid/direct', 'a direct capture outranks an alias');
+  assert.equal(captures.entries.length, 3, 'an alias adds no entry');
+  const remembered = captureEntry({ file: 'research/raw/n.md', url: 'https://x.invalid/landed', retrieved: '2026-04-01',
+    command: 'firecrawl scrape https://x.invalid/asked --only-main-content --json' });
+  rememberCapture(captures, remembered);
+  assert.equal(captures.byUrl.get('https://x.invalid/asked'), remembered, 'a mid-run capture is remembered under both');
+});
+
+test('requestedUrl reads the asked-for URL out of each transport\'s command line', () => {
+  assert.equal(requestedUrl('http-keyless scrape https://x.invalid/a'), 'https://x.invalid/a');
+  assert.equal(requestedUrl('firecrawl scrape https://x.invalid/b --only-main-content --json'), 'https://x.invalid/b');
+  assert.equal(requestedUrl('firecrawl scrape https://x.invalid/c --only-main-content --json # transport: firecrawl-cli 1.2.3'), 'https://x.invalid/c');
+  assert.equal(requestedUrl('browser https://x.invalid/d'), 'https://x.invalid/d');
+  assert.equal(requestedUrl('agent page fetch'), '', 'a command naming no URL aliases nothing');
+  assert.equal(requestedUrl(''), '');
+  assert.equal(requestedUrl(undefined), '');
 });
 
 test('dotfiles under research/raw are the kit\'s logs, not captures', () => {

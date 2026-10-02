@@ -128,6 +128,34 @@ test('a cache hit spends nothing and never touches the adapter', () => {
   assert.equal(called, 0);
 });
 
+test('a page whose fetch redirected is a cache hit under the URL the plan asked for', () => {
+  // The capture records where the bytes came from (the landed URL); the plan keeps naming
+  // the URL it asked for. Without the alias the next run missed the cache and paid for the
+  // page again as a "first capture" - twice in the ledger and twice in the table (found
+  // 2026-10-02, running the kit on MoonAliza: two docs.github.com pages, every run).
+  const dir = makeProject();
+  const corpus = readCorpus(dir);
+  const asked = 'https://x.invalid/old-path';
+  const landed = 'https://x.invalid/new-path';
+  const redirecting = (url) => ({ ...stubAdapter().runScrape(url), url: landed, cmd: `stub scrape ${url}` });
+  const first = collectOne(dir, asked, { runScrape: redirecting, corpus, usedFor: 'U-1' });
+  assert.equal(first.status, 'collected');
+  assert.equal(first.entry.url, landed, 'the capture records where the bytes came from');
+
+  let called = 0;
+  const again = collectOne(dir, asked, { corpus, runScrape: (url) => { called += 1; return redirecting(url); } });
+  assert.equal(again.status, 'cached', `the asked-for URL finds the capture its fetch landed on (got ${again.status}: ${again.reason})`);
+  assert.equal(called, 0);
+  assert.equal(again.spent, 0);
+  assert.equal(collectOne(dir, asked, { corpus, dryRun: true }).status, 'cached', 'the dry run agrees, from the in-memory index');
+
+  const fresh = readCorpus(dir);
+  assert.equal(fresh.captures.byUrl.get(asked)?.file, first.entry.file, 'the index read from disk carries the alias');
+  assert.equal(fresh.captures.byUrl.get(landed)?.file, first.entry.file);
+  assert.equal(fresh.ledger.entries.filter((e) => e.op === 'scrape').length, 1, 'one fetch, one ledger entry');
+  assert.equal(fresh.evidence.length, 1, 'one fetch, one row');
+});
+
 test('--force collects again; the cache is a decision, not a law', () => {
   const dir = makeProject();
   const corpus = readCorpus(dir);

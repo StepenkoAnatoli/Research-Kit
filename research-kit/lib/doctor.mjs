@@ -452,7 +452,7 @@ export function runDoctor(root, { env = process.env, gitPaths = {}, probe = prob
       findings.push(f('info', 'handoff-remedy', handoffRemedy(handoff)));
     }
   } else if (gated) {
-    findings.push(f('pass', 'handoff', `${handoff.entries} ledger entries, every cited capture on disk`));
+    findings.push(f('pass', 'handoff', `${handoff.entries} ledger entries, ${handoff.rows} evidence rows, every capture they cite on disk`));
   }
 
   // the archive this project was handed over as (ADR-0028)

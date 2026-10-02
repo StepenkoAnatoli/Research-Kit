@@ -18,9 +18,9 @@ if (flags.help) {
 
   node research-kit/bin/handoff.mjs [--json]
 
-Checks that research/raw/.fetches.jsonl is present and non-empty, that every capture an
-evidence row names is on disk, and that the chain verifies. Exit 1 names what is missing,
-and the remedy depends on the cause.
+Checks that research/raw/.fetches.jsonl is present and non-empty, that research/EVIDENCE.md
+is here with its table, that every capture an evidence row names is on disk, and that the
+chain verifies. Exit 1 names what is missing, and the remedy depends on the cause.
 `);
   process.exit(0);
 }
@@ -33,7 +33,7 @@ if (flags.json) {
 }
 
 if (report.ok) {
-  process.stdout.write(`handoff OK - ${report.entries} ledger entries, every cited capture on disk, chain verifies.  [role=${machineRole()}]\n`);
+  process.stdout.write(`handoff OK - ${report.entries} ledger entries, ${report.rows} evidence rows, every capture they cite on disk, chain verifies.  [role=${machineRole()}]\n`);
   // The corpus arrived whole; whether anyone reviewed the handoff is a separate fact, and
   // phase 2 starts from the brief.
   if (report.brief.state === 'draft') {

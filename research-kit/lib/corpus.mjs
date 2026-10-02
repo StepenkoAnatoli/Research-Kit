@@ -198,6 +198,21 @@ export function countRenderFailures(body) {
 }
 
 /**
+ * The URL a capture was asked for, read out of its command line: `http-keyless scrape <url>`,
+ * `firecrawl scrape <url> ...`, `browser <url>` - the first argument that is an http(s) URL.
+ * '' when the command names none. A fetch that redirected records where the bytes came from
+ * as its `url`; this is the other half of that pair, the one the plan keeps naming.
+ */
+export function requestedUrl(command) {
+  for (const token of String(command ?? '').split(/\s+/)) {
+    const bare = token.replace(/^"(.*)"$/, '$1');
+    if (!/^https?:\/\//i.test(bare)) continue;
+    try { new URL(bare); return bare; } catch { /* not a URL after all */ }
+  }
+  return '';
+}
+
+/**
  * The capture index: every file under `research/raw/`, plus `byUrl` where the newest
  * retrieval wins. Dotfiles are the kit's own logs and are not captures.
  */
@@ -288,6 +303,20 @@ export function readCaptures(root) {
     const held = byUrl.get(entry.url);
     if (!held || String(entry.retrieved) >= String(held.retrieved)) byUrl.set(entry.url, entry);
   }
+  // A fetch that redirected is also indexed under the URL it was asked for - the one the
+  // plan keeps naming. Aliases come second, so a capture of the asked-for URL itself is
+  // never displaced; among aliases the newest wins. Without this a redirected page missed
+  // the cache on every later run and was fetched, paid for, and appended to the ledger and
+  // the table again as a "first capture" (found 2026-10-02, running the kit on MoonAliza).
+  const byAsked = new Map();
+  for (const entry of entries) {
+    if (!entry.url) continue;                    // a capture with no url of its own stays unreachable
+    const asked = requestedUrl(entry.command);
+    if (!asked || asked === entry.url) continue;
+    const held = byAsked.get(asked);
+    if (!held || String(entry.retrieved) >= String(held.retrieved)) byAsked.set(asked, entry);
+  }
+  for (const [asked, entry] of byAsked) if (!byUrl.has(asked)) byUrl.set(asked, entry);
   // Sketches ride alongside the index rather than inside `captureEntry`, because an entry
   // is serialised into artifact manifests and a 128-value fingerprint per capture would
   // bloat every package to answer a question only one check asks (ADR-0036 amendment).
@@ -300,6 +329,12 @@ export function rememberCapture(captures, entry) {
   captures.entries.push(entry);
   captures.byFile.set(entry.file, entry);
   if (entry.url) captures.byUrl.set(entry.url, entry);
+  // The same alias rule as readCaptures: never displace a direct capture, newest alias wins.
+  const asked = entry.url ? requestedUrl(entry.command) : '';
+  if (asked && asked !== entry.url) {
+    const held = captures.byUrl.get(asked);
+    if (!held || (held.url !== asked && String(entry.retrieved) >= String(held.retrieved))) captures.byUrl.set(asked, entry);
+  }
   return entry;
 }
 
@@ -455,6 +490,8 @@ export function readCorpus(root) {
     intent: sectionOf(discoveryText, 'Build intent'),
     intentHeading: /^#{1,6}\s+Build intent\s*$/mi.test(discoveryText ?? ''),
     discovery: { present: discoveryText !== null, text: discoveryText ?? '', table: unknownsTable },
+    // Whether the evidence table travelled at all: the file, and a header row naming its columns.
+    evidenceFile: { present: evidenceText !== null, found: evidenceTable.found },
     map: {
       present: mapText !== null, text: mapText ?? '', table: subtopicTable,
       topic: sectionOf(mapText, 'Topic').split(/\r?\n/).filter(Boolean).join(' ').trim(),
