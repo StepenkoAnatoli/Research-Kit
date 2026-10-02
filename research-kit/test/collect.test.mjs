@@ -1164,3 +1164,18 @@ test('only an http(s) search result with a host is queued for a fetch', () => {
   assert.deepEqual(selectCandidates(rows, { perQuery: 10 }).map((row) => row.url),
     ['https://docs.example.com/rate-limits', 'http://plain.example/rate-limits']);
 });
+
+// Found 2026-10-02 committing a decision corpus: a keyless capture of copyright.gov carried
+// the CR bytes the page was served with, the ledger hashed them, and the scaffold's own
+// .gitattributes (research/raw/* text eol=lf) made git store the file as LF - so a fresh
+// clone failed handoff with "does not match the hash recorded at fetch" on a capture nobody
+// had touched. The attributes file says what the design assumed: the hash is over LF bytes.
+// The writer now makes that true, whatever the transport received.
+test('a capture is written with LF line endings only, so git normalisation cannot change the bytes the ledger hashed', () => {
+  const dir = makeProject();
+  const entry = writeRaw(dir, { url: 'https://x.invalid/crlf', markdown: '# Title\r\n\r\nline one\r\nline two\rline three\n', cmd: 'x', transport: 'http-keyless', completeness: 'full' });
+  const text = readText(resolve(dir, entry.file));
+  assert.equal(text.includes('\r'), false, 'a CR survived into the capture');
+  assert.ok(text.includes('\n---\n# Title\n\nline one\nline two\nline three\n'), JSON.stringify(text.slice(-60)));
+  assert.equal(entry.bytes, Buffer.byteLength('# Title\n\nline one\nline two\nline three\n', 'utf8'), 'bytes counts the normalised body');
+});

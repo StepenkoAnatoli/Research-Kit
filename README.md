@@ -65,6 +65,17 @@ The work splits into **two phases**, usually done by different agents. Phase 1 i
 it ends with a passing gate and a brief, and never writes product code. Phase 2 is the
 build: a builder reads the brief and implements, and should never need to re-research.
 
+**What the gate does not stop, so you know where to look.** Three overrides exist and each
+one is recorded in a local log that `doctor` counts: `git commit --no-verify`, a
+`research/GATE_OFF` file, and a repository-local `core.hooksPath`, which tools such as
+husky set and which displaces the machine-wide hook until `doctor` reports it. The gate's
+default posture is fail-open: a broken installation lets a commit through with one line
+on stderr rather than locking you out, and `install-hooks.mjs --fail-closed` inverts that.
+The ledger is self-attested: it proves nobody edited a capture by accident, and a chain
+recomputed consistently by someone with write access passes, which is why CI runs
+preflight on every commit and a forged chain has to survive review. The edit-time gate
+exists for Claude Code only; every other agent gets the commit gate.
+
 ## Requirements
 
 | | Needed for | Notes |

@@ -40,6 +40,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   the repository's environment - then one prompt, and the four-step loop the agent runs
   (`collect`, `fetch_corpus`, review, a targeted `collect` for what is missing). Linked
   from the front page.
+- A capture is written with LF line endings only, whatever the transport received
+  (2026-10-02). The scaffold's `.gitattributes` makes git store every capture as LF, so a
+  keyless capture written with the CR bytes a server sent hashed one way on the collector
+  and checked out another way on every other machine, failing handoff on a capture nobody
+  had touched.
 
 ## 0.9.3 — 2026-10-02
 

@@ -76,7 +76,12 @@ export function writeRaw(root, result, { date = today() } = {}) {
     '---',
     '',
   ].join('\n');
-  const body = String(result.markdown ?? '');
+  // LF only, whatever the transport received. The body hash is taken over these bytes, and
+  // the scaffold's .gitattributes (research/raw/* text eol=lf) makes git store the file as
+  // LF - so a capture written with the CR bytes a server sent (copyright.gov, keyless,
+  // 2026-10-02) hashed one way on the collector and checked out another way everywhere else,
+  // failing handoff on a capture nobody had touched.
+  const body = String(result.markdown ?? '').replace(/\r\n?/g, '\n');
   const text = `${front}${body}\n`;
   // A capture is never overwritten with different bytes. The name is date + title + URL
   // digest, so a re-collection the same day lands on the same name: an identical page

@@ -1,0 +1,143 @@
+{
+  "topic": "Which licence should Research-Kit publish under so that people and agents may install and run it, and may the cached third-party pages in its research corpora be redistributed under it",
+  "notes": "Phase 0's searches found Apple's ResearchKit and Google's cached-page operator; its three scrapes carry nothing. These are the owner pages, named by hand: GitHub's terms and licensing docs, the licence texts themselves, the content licences of the most-cached hosts, the statute and the archives' terms.",
+  "depth": "deep",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 2,
+  "maxScrapes": 25,
+  "prefer": [
+    "docs.github.com",
+    "choosealicense.com",
+    "polyformproject.org",
+    "opensource.org",
+    "law.cornell.edu",
+    "copyright.gov",
+    "archive.org",
+    "commoncrawl.org",
+    "reuse.software"
+  ],
+  "queries": [
+    {
+      "q": "PolyForm Noncommercial License 1.0.0 full text",
+      "why": "U-03: PolyForm Noncommercial terms",
+      "prefer": [
+        "polyformproject.org"
+      ]
+    },
+    {
+      "q": "PolyForm Shield License 1.0.0 full text",
+      "why": "U-03: PolyForm Shield terms, the no-competing-offering restriction",
+      "prefer": [
+        "polyformproject.org"
+      ]
+    }
+  ],
+  "urls": [
+    {
+      "url": "https://docs.github.com/en/site-policy/github-terms/github-terms-of-service",
+      "type": "P",
+      "why": "U-01: what the platform terms let a visitor do with a public repository (section D.5, forking)"
+    },
+    {
+      "url": "https://choosealicense.com/no-permission/",
+      "type": "P",
+      "why": "U-01: what no licence means for use, copying and modification"
+    },
+    {
+      "url": "https://choosealicense.com/licenses/mit/",
+      "type": "P",
+      "why": "U-02: MIT permissions, conditions and limitations"
+    },
+    {
+      "url": "https://choosealicense.com/licenses/apache-2.0/",
+      "type": "P",
+      "why": "U-02: Apache-2.0 permissions, conditions, the patent grant"
+    },
+    {
+      "url": "https://www.apache.org/licenses/LICENSE-2.0",
+      "type": "P",
+      "why": "U-02: the Apache-2.0 text, section 3 patent licence"
+    },
+    {
+      "url": "https://mariadb.com/bsl11/",
+      "type": "P",
+      "why": "U-03: Business Source License 1.1, the change date and additional use grant"
+    },
+    {
+      "url": "https://www.elastic.co/licensing/elastic-license",
+      "type": "P",
+      "why": "U-03: Elastic License 2.0 terms"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/github/docs/main/LICENSE",
+      "type": "P",
+      "why": "U-04: the licence of GitHub Docs content"
+    },
+    {
+      "url": "https://developers.google.com/terms/site-policies",
+      "type": "P",
+      "why": "U-04: the licence of Google developer documentation"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/nodejs/nodejs.org/main/LICENSE",
+      "type": "P",
+      "why": "U-04: the licence of the nodejs.org site content"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/npm/documentation/main/LICENSE",
+      "type": "P",
+      "why": "U-04: the licence of the npm documentation"
+    },
+    {
+      "url": "https://info.arxiv.org/help/license/index.html",
+      "type": "P",
+      "why": "U-04: the licences arXiv papers carry and what arXiv itself grants"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Wikipedia:Copyrights",
+      "type": "P",
+      "why": "U-04: the licence of Wikipedia text"
+    },
+    {
+      "url": "https://www.law.cornell.edu/uscode/text/17/107",
+      "type": "P",
+      "why": "U-05: the fair use statute, 17 U.S.C. 107"
+    },
+    {
+      "url": "https://www.copyright.gov/fair-use/",
+      "type": "P",
+      "why": "U-05: the Copyright Office on fair use and its four factors"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Hachette_v._Internet_Archive",
+      "type": "S",
+      "why": "U-05: what the Second Circuit held in 2024 about whole-copy archiving and lending"
+    },
+    {
+      "url": "https://archive.org/about/terms.php",
+      "type": "P",
+      "why": "U-06: the Internet Archive terms on captured pages"
+    },
+    {
+      "url": "https://commoncrawl.org/terms-of-use",
+      "type": "P",
+      "why": "U-06: Common Crawl terms of use for its crawl corpus"
+    },
+    {
+      "url": "https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository",
+      "type": "P",
+      "why": "U-07: how GitHub recognises a licence, and what it says about more than one"
+    },
+    {
+      "url": "https://reuse.software/spec-3.3/",
+      "type": "P",
+      "why": "U-07: per-file licensing with SPDX identifiers"
+    },
+    {
+      "url": "https://opensource.org/license/mit",
+      "type": "P",
+      "why": "U-02: the MIT text as the Open Source Initiative publishes it"
+    }
+  ]
+}
