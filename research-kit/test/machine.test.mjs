@@ -162,7 +162,9 @@ test('a settingsPath that is not a path falls back to the anchor, and install-ho
   const home = tempDir('rk-install-hooks-home-');
   const run = spawnSync(process.execPath, [path.join(KIT_ROOT, 'bin', 'install-hooks.mjs'), '--edit-only'], {
     cwd: tempDir('rk-install-hooks-hostile-'), encoding: 'utf8', timeout: 60_000, windowsHide: true,
-    env: { ...process.env, RESEARCH_KIT_CONFIG: hostile.file, RESEARCH_KIT_HOME: KIT_ROOT, HOME: home },
+    // HOME and USERPROFILE both: os.homedir() reads USERPROFILE on Windows, and with HOME alone
+    // the settings went to the runner's real profile and the assertion below failed there.
+    env: { ...process.env, RESEARCH_KIT_CONFIG: hostile.file, RESEARCH_KIT_HOME: KIT_ROOT, HOME: home, USERPROFILE: home },
   });
   assert.doesNotMatch(`${run.stdout}${run.stderr}`, /ERR_INVALID_ARG_TYPE|at file:\/\//,
     `install-hooks died on a config typo instead of naming it: ${String(run.stderr).slice(0, 300)}`);
