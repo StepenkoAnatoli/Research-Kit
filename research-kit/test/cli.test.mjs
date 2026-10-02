@@ -1065,6 +1065,14 @@ test('handoff OK names a brief that is still a draft, without failing', () => {
   assert.match(r.out, /decision/);
 });
 
+test('handoff OK counts the rows that cite the captures it checked', () => {
+  // A table with no rows beside a full ledger is one that lost them; the count makes it visible.
+  const root = makePassingProject();
+  const r = run('handoff.mjs', [], { root });
+  assert.equal(r.status, 0, r.all);
+  assert.match(r.out, /handoff OK - \d+ ledger entries, [1-9]\d* evidence rows, every capture they cite on disk, chain verifies/);
+});
+
 // Found 2026-09-27: `research --status` printed 0 searches beside a balance that had fallen by 9.
 test('research --status shows Firecrawl search credits as an estimate', () => {
   const root = planned('status probe');

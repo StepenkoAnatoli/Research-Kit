@@ -12,7 +12,7 @@
 // all of them is what used to send operators to re-collect a corpus already on disk.
 
 import path from 'node:path';
-import { PATHS, resolve, exists, readText, kitCommand } from './core.mjs';
+import { PATHS, HEADERS, resolve, exists, readText, kitCommand } from './core.mjs';
 import { readCorpus, captureOf, traceOf } from './corpus.mjs';
 import { verifyLedger } from './provenance.mjs';
 import { briefState, judgedSection, JUDGED_SECTIONS } from './brief.mjs';
@@ -153,8 +153,9 @@ export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } =
 /**
  * `verifyHandoff(root, { corpus })` -> the report.
  *
- * Findings are named: handoff-ledger-missing, handoff-ledger-empty,
- * handoff-capture-missing, handoff-capture-unledgered, handoff-chain-broken, plus one handoff-remedy.
+ * Findings are named: handoff-ledger-missing, handoff-ledger-empty, handoff-evidence-missing,
+ * handoff-evidence-unparsed, handoff-capture-missing, handoff-capture-unledgered, handoff-chain-broken,
+ * plus one handoff-remedy.
  */
 export function verifyHandoff(root, { corpus = null } = {}) {
   const snapshot = corpus ?? readCorpus(root);
@@ -175,6 +176,24 @@ export function verifyHandoff(root, { corpus = null } = {}) {
       name: 'handoff-ledger-empty',
       severity: 'fail',
       detail: `${PATHS.ledger} is present but holds no entries`,
+    });
+  }
+
+  // The table whose rows name the captures is part of what must travel. Absent, or holding
+  // no evidence table, it has no rows, so no citations, so nothing to check - and "every
+  // cited capture on disk" held vacuously: handoff said OK over a corpus whose EVIDENCE.md a
+  // sync tool had dropped or a filter rewritten (found 2026-10-02, break-test).
+  if (!snapshot.evidenceFile.present) {
+    findings.push({
+      name: 'handoff-evidence-missing',
+      severity: 'fail',
+      detail: `${PATHS.evidence} is not in this checkout - the table whose rows name the captures did not travel`,
+    });
+  } else if (!snapshot.evidenceFile.found) {
+    findings.push({
+      name: 'handoff-evidence-unparsed',
+      severity: 'fail',
+      detail: `${PATHS.evidence} holds no evidence table (a header row of ${HEADERS.evidence.join(' | ')}) - rewritten or damaged in transit; nothing can be checked against it`,
     });
   }
 
@@ -232,6 +251,7 @@ export function verifyHandoff(root, { corpus = null } = {}) {
     didNotTravel: travelled.length > 0,
     ledgerLost,
     entries: snapshot.ledger.entries.length,
+    rows: snapshot.evidence.length,
     // Not a finding: the corpus can arrive whole while the brief is unreviewed. The CLI
     // says so, because phase 2 starts from that file.
     brief: briefReview(snapshot),

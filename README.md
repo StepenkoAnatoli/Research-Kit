@@ -542,8 +542,8 @@ node "$HOME/.agents/research-kit/bin/handoff.mjs"
 ```
 
 It verifies that `research/raw/.fetches.jsonl` (the ledger) is present and non-empty,
-that every capture an evidence row names is on disk, and that the chain verifies. It
-exits 1 and names whatever is missing. The remedy always lives on the collector: push
+that `research/EVIDENCE.md` is there with its table, that every capture an evidence row
+names is on disk, and that the chain verifies. It exits 1 and names whatever is missing. The remedy always lives on the collector: push
 `research/raw/` including its dotfiles. See `docs/adr/0010-machine-roles.md` and
 `docs/adr/0011-handoff-integrity.md`.
 

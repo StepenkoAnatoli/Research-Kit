@@ -11,6 +11,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   from, so every later run fetched the page again, paid for it, and appended it to the ledger
   and `EVIDENCE.md` a second time as a "first capture". Found running the kit on MoonAliza
   (2026-10-02): two docs.github.com pages, every run.
+- `handoff` refuses a corpus whose `research/EVIDENCE.md` is absent or holds no evidence
+  table (`handoff-evidence-missing`, `handoff-evidence-unparsed`), with the "did not travel"
+  remedy, and its OK line counts the evidence rows beside the ledger entries. With no rows
+  there were no citations, so "every cited capture on disk" held vacuously and handoff
+  said OK - over an absent table, a binary one, and one whose header a filter had
+  rewritten (break-test, 2026-10-02).
 
 ## 0.9.1 — 2026-10-02
 

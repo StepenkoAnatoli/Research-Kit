@@ -52,8 +52,9 @@ builder's first command is:
 node research-kit/bin/handoff.mjs
 ```
 
-It checks that the ledger is present and non-empty, that every capture an evidence row
-names is on disk, and that the chain verifies - and exit 1 names whatever is missing.
+It checks that the ledger is present and non-empty, that `research/EVIDENCE.md` is there with
+its table, that every capture an evidence row names is on disk, and that the chain verifies -
+and exit 1 names whatever is missing.
 
 **The remedy depends on the cause, and the command says which.** Do not assume the other
 machine:

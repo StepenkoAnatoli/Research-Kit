@@ -490,6 +490,8 @@ export function readCorpus(root) {
     intent: sectionOf(discoveryText, 'Build intent'),
     intentHeading: /^#{1,6}\s+Build intent\s*$/mi.test(discoveryText ?? ''),
     discovery: { present: discoveryText !== null, text: discoveryText ?? '', table: unknownsTable },
+    // Whether the evidence table travelled at all: the file, and a header row naming its columns.
+    evidenceFile: { present: evidenceText !== null, found: evidenceTable.found },
     map: {
       present: mapText !== null, text: mapText ?? '', table: subtopicTable,
       topic: sectionOf(mapText, 'Topic').split(/\r?\n/).filter(Boolean).join(' ').trim(),

@@ -27,6 +27,32 @@ test('a missing ledger is named handoff-ledger-missing', () => {
   assert.match(report.remedy, /git add -f research\/raw\//);
 });
 
+test('an EVIDENCE.md that did not travel is named: absent, or holding no evidence table', () => {
+  // handoff said OK over a corpus without its table - no rows, no citations, nothing to
+  // check, so "every cited capture on disk" held vacuously - for an absent EVIDENCE.md, a
+  // binary one, and one whose header a filter had rewritten (found 2026-10-02, break-test).
+  const absent = makePassingProject();
+  fs.rmSync(resolve(absent, PATHS.evidence));
+  let report = verifyHandoff(absent);
+  assert.equal(report.ok, false, 'an absent table is not a corpus that arrived whole');
+  assert.ok(names(report).includes('handoff-evidence-missing'), names(report).join(', '));
+  assert.equal(report.didNotTravel, true);
+  assert.match(report.remedy, /Something did not travel/);
+
+  const garbled = makePassingProject();
+  writeText(resolve(garbled, PATHS.evidence), '\u0000\u0001\u0002 not a table\n');
+  report = verifyHandoff(garbled);
+  assert.ok(names(report).includes('handoff-evidence-unparsed'), names(report).join(', '));
+  assert.match(report.remedy, /Something did not travel/);
+
+  const header = makePassingProject();
+  const text = fs.readFileSync(resolve(header, PATHS.evidence), 'utf8');
+  writeText(resolve(header, PATHS.evidence), text.replace(/^\| ID \|/m, '| XD |'));
+  report = verifyHandoff(header);
+  assert.ok(names(report).includes('handoff-evidence-unparsed'), 'a header that no longer names the columns is no table');
+  assert.equal(verifyHandoff(makePassingProject()).rows > 0, true, 'the report counts the rows it checked');
+});
+
 test('an empty ledger is named handoff-ledger-empty - present is not the same as whole', () => {
   const dir = makePassingProject();
   writeText(resolve(dir, PATHS.ledger), '');
