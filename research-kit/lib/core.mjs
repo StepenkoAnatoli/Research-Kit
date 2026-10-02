@@ -530,6 +530,10 @@ export const NAMED_RUN_REFUSALS = Object.freeze(new Set([
   'LEDGER_CHAIN_BROKEN', // assertAppendable: the hashes no longer link (ADR-0122)
   'LOCK_HELD',          // acquire: the section is held, and the wait ran out
   'LOCK_STUCK',         // acquire: judged stale, and this process cannot remove it
+  // runResearch: the Firecrawl CLI on PATH is a major this adapter was not written against;
+  // refused before any credit is spent. It was thrown with this code and answered with a
+  // stack and an object dump under exit 1 (2026-10-02, break-test pass 3).
+  'CLI_INCOMPATIBLE',
 ]));
 
 /** Append one line, creating the file and its directory when absent. */

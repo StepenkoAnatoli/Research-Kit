@@ -16,6 +16,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   its size and the limit, and nothing is written: the collector had accepted a 40 MB
   answer as a capture, a ledger entry and an evidence row that the corpus reader then
   refused as `capture-too-large`, blocking the gate (break-test pass 3, 2026-10-02).
+- A Firecrawl CLI of an unsupported major is refused with its sentence and exit 2: the
+  refusal carried the code `CLI_INCOMPATIBLE` but the named-refusal set did not know it,
+  so `research.mjs` printed it under a stack trace and an object dump with exit 1, which
+  reads as checked and wrong (break-test pass 3, 2026-10-02).
 
 ## 0.9.2 — 2026-10-02
 
