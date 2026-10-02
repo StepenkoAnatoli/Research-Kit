@@ -286,4 +286,4 @@ No Run 1 finding was downgraded, and none turned out not to reproduce.
   its body is the combined Run 1 + Run 2 report. The URL is recorded in the commit that
   follows this one on the same branch; if this paragraph still says "to be recorded", the
   push or the PR creation failed and the error is quoted in that commit instead.
-- URL: to be recorded.
+- URL: https://github.com/StepenkoAnatoli/Research-Kit/pull/198 (draft, base `main`, three commits).
