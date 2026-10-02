@@ -51,6 +51,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   inside the lock on every fetch, and pushed every entry into the index again. Per-capture
   cost at 400 rows: 74 ms before, 13 ms after; a 2000-page run had spent 41% of 585 s
   sketching pages it had already indexed (break-test pass 3, 2026-10-02).
+- The tested Firecrawl CLI is 1.25.2 (from 1.24.6): its `--status`, search and scrape output
+  were captured from the real CLI and read unchanged by the adapter's parsers before the move
+  (`research-kit/test/fixtures/*-1.25.2.*`; `docs/decisions/2026-10-02-firecrawl-cli-1-25`).
+  The scrape receipt the 1.25.0 changelog introduced goes to stderr, stdout stays one JSON
+  value; search's `data.tools` is now populated and reaches no result. `doctor`, the install
+  line and the workflows' install spec name 1.25.2.
 
 ## 0.9.2 — 2026-10-02
 

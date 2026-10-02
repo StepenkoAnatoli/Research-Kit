@@ -38,4 +38,4 @@ repository. The retention rule is **ADR-0102**:
 | [2026-09-29-perspective-discovery](2026-09-29-perspective-discovery/) | STORM-style perspective discovery without a language model | ADR-0091 | active |
 | [2026-09-30-searxng-search](2026-09-30-searxng-search/) | SearXNG's JSON Search API as a keyless search transport | ADR-0104; `lib/searxng.mjs` | active |
 | [2026-09-30-wayback-witness](2026-09-30-wayback-witness/) | The Wayback Machine as a third-party witness for captured pages | ADR-0106; `lib/witness.mjs` | active |
-| [2026-10-02-firecrawl-cli-1-25](2026-10-02-firecrawl-cli-1-25/) | Whether the tested Firecrawl CLI pin should move from 1.24.6 to 1.25.2 | `lib/firecrawl.mjs` (`TESTED_CLI_VERSION`) | active |
+| [2026-10-02-firecrawl-cli-1-25](2026-10-02-firecrawl-cli-1-25/) | Whether the tested Firecrawl CLI pin should move from 1.24.6 to 1.25.2 - it did, on 2026-10-02, after the brief's first step (a fixture capture of 1.25.2's real output, read unchanged by the parsers; `research-kit/test/fixtures/*-1.25.2.*`) | `lib/firecrawl.mjs` (`TESTED_CLI_VERSION`) | active |

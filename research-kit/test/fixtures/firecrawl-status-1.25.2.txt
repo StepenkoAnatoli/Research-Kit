@@ -1,0 +1,9 @@
+
+  [38;5;208m🔥 [1mfirecrawl[0m [2mcli[0m [2mv1.25.2[0m
+
+  [32m●[0m Authenticated [2mvia FIRECRAWL_API_KEY[0m
+  [2mConcurrency:[0m 0/2 jobs [2m(parallel scrape limit)[0m
+  [2mCredits:[0m 154 / 1,000 [2m(15% left this cycle)[0m
+  [2m.firecrawl:[0m not found [2m- no local cache[0m
+  [2m.gitignore:[0m missing [2m- add .firecrawl/ to ignore cache[0m
+

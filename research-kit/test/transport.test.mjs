@@ -656,17 +656,18 @@ test('O-4: the status parser reads the CLI\'s actual output', () => {
   assert.equal(s.version, '1.23.3');
 });
 
-// Captured from firecrawl-cli v1.24.6 on 2026-09-26, the version TESTED_CLI_VERSION moved to.
+// Captured from firecrawl-cli v1.24.6 on 2026-09-26, the version TESTED_CLI_VERSION moved to
+// that day (and on from, 2026-10-02 - the 1.25.2 fixtures below).
 // Why it moved: 1.23.3 bundles axios 1.15.2, which sends plain proxied requests that an
 // HTTPS proxy requiring CONNECT tunnels refuses with 405 - every call failed behind one
 // (research/BRIEF.md, 2026-09-26 addendum). 1.24.6 bundles axios 1.18.0.
 const REAL_STATUS_1246 = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-status-1.24.6.txt'));
 const REAL_SEARCH_1246 = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-search-1.24.6.json'));
 
-test('O-4: the status parser reads the TESTED version\'s actual output (1.24.6)', () => {
+test('O-4: the status parser reads 1.24.6\'s actual output, the previously tested version', () => {
   assert.ok(REAL_STATUS_1246, 'the fixture must exist');
   const s = firecrawl.parseStatus(REAL_STATUS_1246);
-  assert.equal(s.version, firecrawl.TESTED_CLI_VERSION, 'the fixture and the tested version must be the same release');
+  assert.equal(s.version, '1.24.6', 'the fixture is the release its name says');
   assert.equal(s.authenticated, true);
   assert.equal(s.credits, 505);
   assert.equal(s.creditLimit, 1000);
@@ -686,6 +687,50 @@ test('O-4: 1.24.6 search output normalises, and its ADDITIVE fields change nothi
     assert.equal(typeof row.title, 'string');
   }
   assert.equal(JSON.stringify(rows).includes('tool discovery'), false, 'the vendor warning leaked into results');
+});
+
+// Captured from firecrawl-cli v1.25.2 on 2026-10-02 (docs/decisions/2026-10-02-firecrawl-cli-1-25,
+// step 1 of its brief: three credits, a scratch prefix, the files beside the 1.24.6 ones).
+// The question the decision left open: 1.25.0's "enrichment credits in CLI receipts" could
+// print after the JSON on stdout, which `parsePayload` would then have to skip. It does not:
+// the scrape receipt ("Scrape ID: ...") goes to stderr, stdout is one JSON value.
+const REAL_STATUS_1252 = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-status-1.25.2.txt'));
+const REAL_SEARCH_1252 = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-search-1.25.2.json'));
+const REAL_SCRAPE_1252 = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-scrape-1.25.2.json'));
+const REAL_SCRAPE_1252_STDERR = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-scrape-1.25.2.stderr.txt'));
+
+test('O-4: the status parser reads the TESTED version\'s actual output (1.25.2)', () => {
+  assert.ok(REAL_STATUS_1252, 'the fixture must exist');
+  const s = firecrawl.parseStatus(REAL_STATUS_1252);
+  assert.equal(s.version, firecrawl.TESTED_CLI_VERSION, 'the fixture and the tested version must be the same release');
+  assert.equal(s.authenticated, true);
+  assert.equal(s.credits, 154);
+  assert.equal(s.creditLimit, 1000);
+  assert.equal(s.concurrencyLimit, 2);
+});
+
+test('O-4: 1.25.2 search output normalises; data.tools is now populated and still reaches no result', () => {
+  const raw = JSON.parse(REAL_SEARCH_1252);
+  assert.ok(Array.isArray(raw.data.web) && raw.data.web.length, 'the fixture must carry real results');
+  assert.ok(Array.isArray(raw.data.tools) && raw.data.tools.length, 'the fixture must carry the populated tools list this test is about');
+  const rows = firecrawl.normalizeSearch(REAL_SEARCH_1252);
+  assert.equal(rows.length, raw.data.web.length);
+  assert.deepEqual(rows.map((r) => r.url), raw.data.web.map((r) => r.url));
+  for (const row of rows) assert.match(row.url, /^https?:\/\//);
+  assert.equal(JSON.stringify(rows).includes('capability'), false, 'a tool entry leaked into the results');
+  assert.equal(firecrawl.creditsUsed(REAL_SEARCH_1252), 2, 'the vendor says what the search cost');
+});
+
+test('O-4: 1.25.2 scrape stdout is one JSON value - the receipt is on stderr - and normalises whole', () => {
+  assert.doesNotThrow(() => JSON.parse(REAL_SCRAPE_1252), 'stdout holds nothing before or after the payload');
+  assert.match(REAL_SCRAPE_1252_STDERR, /^Scrape ID: [0-9a-f-]+\s*$/, 'the receipt went to stderr');
+  const page = firecrawl.normalizeScrape(REAL_SCRAPE_1252, 'https://docs.firecrawl.dev/sdks/cli');
+  assert.equal(page.url, 'https://docs.firecrawl.dev/sdks/cli');
+  assert.equal(page.title, 'CLI | Firecrawl');
+  assert.equal(page.statusCode, 200);
+  assert.ok(page.markdown.length > 20000, `the whole page text is kept (${page.markdown.length} chars)`);
+  assert.equal(page.completeness, 'full');
+  assert.equal(page.transport, 'firecrawl-cli');
 });
 
 test('O-4: stripAnsi removes the ESCAPE, not just the bracket sequence', () => {
