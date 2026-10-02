@@ -633,6 +633,15 @@ CHANGELOG.md             what changed in each release
 
 ## License
 
-All rights reserved. See [`LICENSE`](LICENSE). The repository may be read where it is
-published; using, copying or building on it needs the copyright holder's written
-permission.
+The code, tests and documentation are licensed under the
+[PolyForm Shield License 1.0.0](LICENSE): you may install, run, modify and distribute the
+kit for any purpose, commercial use included, except providing a product that competes
+with it. Keep the required notice line with any copy. The reasoning, and the alternatives
+weighed, are in [ADR-0130](docs/adr/0130-the-kit-is-licensed-under-polyform-shield-and-its-captures-are-not.md)
+and the decision project behind it.
+
+The web pages cached under every `research/raw/` directory are **not** covered by that
+licence. They are other people's pages, reproduced as research evidence so that every
+claim can be checked against the page it rests on. Copyright stays with their owners, this
+repository grants no licence over them, and [`NOTICE`](NOTICE) says which hosts' own
+licences permit redistribution with attribution. `REUSE.toml` marks those paths.

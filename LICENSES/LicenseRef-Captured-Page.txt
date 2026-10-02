@@ -1,0 +1,6 @@
+LicenseRef-Captured-Page
+
+A third-party web page reproduced as research evidence. Copyright remains with the page's
+owner; this repository grants no licence over it. Where the page's own licence permits
+redistribution, that licence and its attribution requirements govern. See NOTICE at the
+repository root.
