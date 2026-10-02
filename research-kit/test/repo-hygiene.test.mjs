@@ -78,8 +78,14 @@ test('no ignored file is tracked', () => {
   // is still caught, because .gitignore is untouched by the override.
   // `.git/info/exclude` stays in scope: it is local to this repository, so a developer
   // can see and remove it.
-  const tracked = (git(['-c', 'core.excludesFile=', 'ls-files', '-i', '-c', '--exclude-standard']) ?? '')
-    .split('\n').map((l) => l.trim()).filter(Boolean);
+  const listed = git(['-c', 'core.excludesFile=', 'ls-files', '-i', '-c', '--exclude-standard']);
+  // `git()` answers null when git FAILED, and an empty list is the PASS here, so a git
+  // that could not run used to look exactly like a repository with nothing to report.
+  // Distinguish them: a check that could not run is not a pass (ADR-0021).
+  assert.notEqual(listed, null,
+    'git could not list this repository\'s index, so nothing was checked - fix git (a '
+    + '30s timeout, a permission, or a "dubious ownership" refusal) and run again');
+  const tracked = (listed ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
 
   assert.deepEqual(tracked, [],
     'these files are ignored by .gitignore and tracked anyway, so the ignore rule does '
@@ -168,7 +174,12 @@ test('no collector byproduct is tracked at any depth', () => {
   if (!inRepository()) return;
 
   const byproducts = /(^|\/)\.(usage|diagnostics|failures)\.jsonl$|(^|\/)\.fetches\.lock$|(^|\/)overrides\.log$/;
-  const tracked = (git(['ls-files']) ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
+  const index = git(['ls-files']);
+  // Same guard as above: null is "git could not answer", not "the index is empty".
+  assert.notEqual(index, null,
+    'git could not list this repository\'s index, so nothing was checked - fix git (a '
+    + '30s timeout, a permission, or a "dubious ownership" refusal) and run again');
+  const tracked = (index ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
   const offenders = tracked.filter((f) => byproducts.test(f));
 
   assert.deepEqual(offenders, [],
