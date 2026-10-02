@@ -86,6 +86,42 @@ test('unreadable with nothing to hold fails CLOSED, and tightens exactly two kno
   assert.equal(posture(env).exitCode, 2, 'unreadable and resolved to blocking is its own code');
 });
 
+// ADR-0121 (2026-10-02, arena break-test #198): a posture key that is PRESENT and not of its
+// type resolved to the laxer default - `{"failOpen":"false"}` to fail-open, `"STRICT"` to
+// pluralist, `"HARD-BLOCK"` to ask - while `role` beside them resolves to the restrictive
+// `unknown` (ADR-0023) and a config that does not parse fails closed (ADR-0020). An operator
+// who typed the key meant to tighten something; a typo must not loosen it in silence.
+test('an ill-typed posture key resolves to its restrictive state, and is named', () => {
+  const read = readMachineConfig(envWith(JSON.stringify({ failOpen: 'false', evidencePolicy: 'STRICT', editGate: { mode: 'HARD-BLOCK' } })).env);
+  assert.equal(read.state, 'readable');
+  assert.equal(read.settings.failOpen, false, '"false" is not false, and it is not true either: it is closed');
+  assert.equal(read.settings.evidencePolicy, 'strict');
+  assert.equal(read.settings.editGate.mode, 'hard-block');
+  assert.deepEqual(read.illTypedKeys, ['failOpen', 'evidencePolicy', 'editGate.mode'], 'each key is named, so doctor can say which');
+  assert.equal(posture(envWith('{"failOpen": "false"}').env).exitCode, 1, 'a config that parses and says something other than true is fail-closed');
+  assert.equal(posture(envWith('{"failOpen": "true"}').env).exitCode, 1, 'a string is not the boolean, whatever it spells');
+  assert.equal(posture(envWith('{"failOpen": 1}').env).exitCode, 1);
+
+  // The well-typed values are untouched, absent keys keep their defaults, and nothing is named.
+  const fine = readMachineConfig(envWith(JSON.stringify({ failOpen: true, evidencePolicy: 'pluralist', editGate: { mode: 'off' } })).env);
+  assert.deepEqual([fine.settings.failOpen, fine.settings.evidencePolicy, fine.settings.editGate.mode], [true, 'pluralist', 'off']);
+  assert.deepEqual(fine.illTypedKeys, []);
+  const absent = readMachineConfig(envWith('{}').env);
+  assert.deepEqual([absent.settings.failOpen, absent.settings.evidencePolicy, absent.settings.editGate.mode], [true, 'pluralist', 'ask']);
+  assert.deepEqual(absent.illTypedKeys, []);
+  assert.deepEqual(readMachineConfig(envWith(null).env).illTypedKeys, [], 'an absent config names nothing');
+
+  // A retired key is still read as before (ADR-0075 lineage): a valid claudeGate is honoured
+  // and reported retired; an ill-typed one is dropped and reported retired, not ill-typed.
+  const retiredValid = readMachineConfig(envWith(JSON.stringify({ claudeGate: 'hard-block' })).env);
+  assert.equal(retiredValid.settings.editGate.mode, 'hard-block');
+  assert.deepEqual([retiredValid.retiredKeys, retiredValid.illTypedKeys], [['claudeGate'], []]);
+  // The snapshot path shapes the same way: a held config with an ill-typed key is closed too.
+  const held = readMachineConfig(envWith('{"failOpen": fal', { snapshot: '{"failOpen": "false"}' }).env);
+  assert.equal(held.settings.failOpen, false);
+  assert.deepEqual(held.illTypedKeys, ['failOpen']);
+});
+
 test('posture carries where its answer came from, so no consumer has to guess', () => {
   assert.equal(posture(envWith(null).env).resolvedFrom, 'defaults');
   assert.equal(posture(envWith('{"failOpen": true}').env).resolvedFrom, 'config');
@@ -222,7 +258,9 @@ test('collectionPolicy is the one answer to "may this machine collect?"', () => 
 test('evidencePolicy is the operator\'s call, not the agent\'s', () => {
   assert.equal(evidencePolicy(envWith(null).env), 'pluralist');
   assert.equal(evidencePolicy(envWith(JSON.stringify({ evidencePolicy: 'strict' })).env), 'strict');
-  assert.equal(evidencePolicy(envWith(JSON.stringify({ evidencePolicy: 'whatever' })).env), 'pluralist');
+  // A value that is not a policy is the operator's typo, and it resolves to the restrictive
+  // policy rather than the lax default (ADR-0121); until 2026-10-02 it read as pluralist.
+  assert.equal(evidencePolicy(envWith(JSON.stringify({ evidencePolicy: 'whatever' })).env), 'strict');
 });
 
 test('loadConfig never throws on a hostile file - it resolves a posture instead', () => {

@@ -52,6 +52,14 @@ export function machineHealth({ env = process.env, gitPaths = {}, probe = probeF
     out.push(f('warn', 'config-retired-key',
       `"${key}" is a retired config key, read into ${RETIRED_CONFIG_KEYS[key] ?? 'the current shape'}; the next kit write drops it`));
   }
+  // A posture key the operator typed and the kit could not read as typed resolved to its
+  // restrictive state (ADR-0121); the one thing doctor owes is WHICH key, and to what.
+  const resolvedTo = { failOpen: 'fail-closed', evidencePolicy: 'strict', 'editGate.mode': 'hard-block' };
+  for (const key of read.illTypedKeys ?? []) {
+    out.push(f('warn', 'config-ill-typed',
+      `"${key}" is present and not a value the kit reads (${key === 'failOpen' ? 'true or false, unquoted' : key === 'evidencePolicy' ? 'pluralist or strict' : 'ask, hard-block or off'}) - resolved to ${resolvedTo[key] ?? 'its restrictive state'} until it is fixed`,
+      `fix "${key}" in ${read.source}`));
+  }
   for (const note of retiredEnvNotes(env)) {
     out.push(f('warn', 'env-retired',
       `${note.name} is set and is NOT honoured - rename it to ${note.replacement}`));

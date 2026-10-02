@@ -311,32 +311,85 @@ export function holdsLock(root) {
  * Append one fetch to the chain. `seq` and `prev` are derived from the ledger as read
  * UNDER the lock, which is the whole reason the lock exists.
  */
+/**
+ * The chain's own links - seq, prev, entrySha256 - over parsed entries, without reading a
+ * capture: what `verifyLedger` checks first, and what `assertAppendable` refuses on.
+ */
+export function chainProblems(entries) {
+  const problems = [];
+  let prev = GENESIS;
+  let expected = 1;
+  for (const entry of entries) {
+    if (entry.seq !== expected) {
+      problems.push({ rule: 'seq', line: entry.line, detail: `expected seq ${expected}, found ${entry.seq}` });
+    }
+    expected = (entry.seq ?? expected) + 1;
+
+    if (entry.prev !== prev) {
+      problems.push({ rule: 'prev', line: entry.line, detail: `prev does not link to entry ${entry.seq - 1}` });
+    }
+    const recomputed = entryHash(entry);
+    if (entry.entrySha256 !== recomputed) {
+      problems.push({ rule: 'entry-hash', line: entry.line, detail: `entrySha256 does not recompute for seq ${entry.seq}` });
+    }
+    prev = entry.entrySha256 ?? prev;
+  }
+  return problems;
+}
+
+/**
+ * The ledger, once it is established that an entry can be recorded onto it - or a coded
+ * refusal (LEDGER_DAMAGED, LEDGER_TORN_TAIL, LEDGER_CHAIN_BROKEN), each with its remedy.
+ *
+ * Appending onto an unfinished line welds a valid entry to a torn one: the combined line
+ * then ends in a newline, so it is no longer a tail `repairLedgerTail` will touch, and the
+ * paid-for fetch it recorded is unrecoverable. Appending onto a chain whose hashes no
+ * longer link records a paid-for fetch that handoff and preflight will refuse with the
+ * rest of the chain (ADR-0122; found 2026-10-02, break-test: the collector spent, appended
+ * seq 4 onto a broken chain, and handoff refused the corpus). Never spend before
+ * establishing that the result can be recorded - so `runResearch` asks this before its
+ * first fetch, and `appendFetch` asks it again under the lock.
+ */
+export function assertAppendable(root) {
+  const ledger = readLedger(root);
+  if (ledger.problems.length) {
+    const err = new Error(
+      `${PATHS.ledger} has ${ledger.problems.length} unparsed line(s) - refusing to append onto a damaged chain. `
+      + `Repair it first: ${kitCommand('doctor.mjs', '--fix-arity')}`,
+    );
+    err.code = 'LEDGER_DAMAGED';
+    err.problems = ledger.problems;
+    throw err;
+  }
+  const tail = readText(resolve(root, PATHS.ledger), '');
+  if (tail && !tail.endsWith('\n')) {
+    const err = new Error(
+      `${PATHS.ledger} does not end with a newline - its last line was never finished. `
+      + `Repair it first: ${kitCommand('doctor.mjs', '--fix-arity')}`,
+    );
+    err.code = 'LEDGER_TORN_TAIL';
+    throw err;
+  }
+  const broken = chainProblems(ledger.entries);
+  if (broken.length) {
+    const first = broken[0];
+    const err = new Error(
+      `${PATHS.ledger}'s chain is broken at line ${first.line}: ${first.detail}${broken.length > 1 ? ` (and ${broken.length - 1} more)` : ''} - refusing to append onto it: `
+      + 'every fetch recorded after the break is refused by handoff and preflight with the rest of the chain. '
+      + 'The chain is tamper-evidence, and the kit cannot repair what it cannot vouch for: restore the ledger that verified '
+      + `(git checkout -- ${PATHS.ledger}), or start the corpus again. Nothing was collected.`,
+    );
+    err.code = 'LEDGER_CHAIN_BROKEN';
+    err.problems = broken;
+    throw err;
+  }
+  return ledger;
+}
+
 export function appendFetch(root, fields) {
   return withLock(root, () => {
-    const ledger = readLedger(root);
-
-    // Validate the ledger BEFORE writing to it. Appending onto an unfinished line welds
-    // a valid entry to a torn one: the combined line then ends in a newline, so it is no
-    // longer a tail `repairLedgerTail` will touch, and the paid-for fetch it recorded is
-    // unrecoverable. Never spend before establishing that the result can be recorded.
-    if (ledger.problems.length) {
-      const err = new Error(
-        `${PATHS.ledger} has ${ledger.problems.length} unparsed line(s) - refusing to append onto a damaged chain. `
-        + `Repair it first: ${kitCommand('doctor.mjs', '--fix-arity')}`,
-      );
-      err.code = 'LEDGER_DAMAGED';
-      err.problems = ledger.problems;
-      throw err;
-    }
-    const tail = readText(resolve(root, PATHS.ledger), '');
-    if (tail && !tail.endsWith('\n')) {
-      const err = new Error(
-        `${PATHS.ledger} does not end with a newline - its last line was never finished. `
-        + `Repair it first: ${kitCommand('doctor.mjs', '--fix-arity')}`,
-      );
-      err.code = 'LEDGER_TORN_TAIL';
-      throw err;
-    }
+    // Validate the ledger BEFORE writing to it (the reasons are on assertAppendable).
+    const ledger = assertAppendable(root);
 
     const last = ledger.entries[ledger.entries.length - 1] ?? null;
     const entry = {
@@ -390,23 +443,8 @@ export function verifyLedger(root, { corpus = null } = {}) {
   }
 
   const lineEndings = [];
-  let prev = GENESIS;
-  let expected = 1;
+  problems.push(...chainProblems(ledger.entries));
   for (const entry of ledger.entries) {
-    if (entry.seq !== expected) {
-      problems.push({ rule: 'seq', line: entry.line, detail: `expected seq ${expected}, found ${entry.seq}` });
-    }
-    expected = (entry.seq ?? expected) + 1;
-
-    if (entry.prev !== prev) {
-      problems.push({ rule: 'prev', line: entry.line, detail: `prev does not link to entry ${entry.seq - 1}` });
-    }
-    const recomputed = entryHash(entry);
-    if (entry.entrySha256 !== recomputed) {
-      problems.push({ rule: 'entry-hash', line: entry.line, detail: `entrySha256 does not recompute for seq ${entry.seq}` });
-    }
-    prev = entry.entrySha256 ?? prev;
-
     if (entry.op === 'fail' || !entry.raw) continue;
     const { abs, problem } = projectFile(root, entry.raw);
     if (problem === 'outside') {

@@ -227,6 +227,35 @@ test('F12: appendFetch REFUSES a torn tail instead of welding a valid entry to i
   assert.doesNotMatch(readText(file), /paid-for/, 'nothing was written');
 });
 
+// ADR-0122 (2026-10-02, arena break-test #198, F-1-2): the two refusals above cover a ledger
+// that does not PARSE. A ledger that parses and whose hashes no longer link - an entry edited
+// after the fact, a line dropped, a prev that points nowhere - was appended to without a
+// word, so the collector spent credits on fetches that handoff and preflight then refused as
+// chain-broken. The chain is tamper-evidence; appending onto a broken one records a paid-for
+// fetch nobody can vouch for.
+test('appendFetch refuses a chain whose hashes no longer link, and names the break', () => {
+  const dir = makePassingProject();
+  const file = resolve(dir, PATHS.ledger);
+  // Edit the first entry's url without recomputing its hash: it parses, and it is a lie.
+  const lines = readText(file).split('\n');
+  const first = JSON.parse(lines[0]);
+  lines[0] = JSON.stringify({ ...first, url: 'https://x.invalid/edited-after-the-fact' });
+  writeText(file, lines.join('\n'));
+  const before = readText(file);
+
+  assert.throws(
+    () => appendFetch(dir, { op: 'scrape', url: 'https://x.invalid/paid-for' }),
+    (err) => {
+      assert.equal(err.code, 'LEDGER_CHAIN_BROKEN', err.message);
+      assert.match(err.message, /seq 1/, 'the break is named by its entry');
+      assert.match(err.message, /entrySha256 does not recompute|prev does not link/, 'and by what is wrong with it');
+      assert.match(err.message, /git checkout -- research\/raw\/\.fetches\.jsonl/, 'the remedy is restoring the ledger that verified');
+      return true;
+    },
+  );
+  assert.equal(readText(file), before, 'nothing was written onto the broken chain');
+});
+
 test('F12: a collection refuses before it spends, when the chain cannot record it', () => {
   const dir = makePassingProject();
   const file = resolve(dir, PATHS.ledger);

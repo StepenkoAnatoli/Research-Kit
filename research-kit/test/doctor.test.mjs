@@ -89,6 +89,19 @@ test('a retired config key and a retired env var are both reported', () => {
   assert.match(find(findings, 'env-retired').detail, /NOT honoured/);
 });
 
+// ADR-0121: an ill-typed posture key resolves to the restrictive state, and doctor names the
+// key and the state it resolved to, so the operator who typed it learns what their typo did.
+test('an ill-typed posture key is named by doctor, with the state it resolved to', () => {
+  const { env, configFile } = machine({});
+  writeText(configFile, JSON.stringify({ failOpen: 'false', evidencePolicy: 'STRICT' }));
+  const findings = machineHealth({ env, probe: READY });
+  const named = findings.filter((f) => f.name === 'config-ill-typed');
+  assert.equal(named.length, 2, JSON.stringify(findings.map((f) => f.name)));
+  assert.match(named[0].detail, /"failOpen".*fail-closed/);
+  assert.match(named[1].detail, /"evidencePolicy".*strict/);
+  assert.match(find(findings, 'machine-config').detail, /fail-closed/, 'the posture line reports the resolved posture');
+});
+
 test('doctor reports the gate, the chain, the shape and the verdict from ONE snapshot', () => {
   const dir = makePassingProject();
   const { env } = machine({});

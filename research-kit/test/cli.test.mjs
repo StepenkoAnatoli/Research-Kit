@@ -1357,6 +1357,16 @@ test('research.mjs names the refusals the kit wrote, instead of dumping a stack'
   assert.match(second.err, /could not be removed/, second.err.slice(0, 300));
   assert.match(second.err, /Nothing was collected/);
   noStack(second, 'a lock that could not be removed');
+
+  // And a chain whose hashes no longer link (ADR-0122): refused before the first fetch, named.
+  const broken = onePage(planned());
+  fs.writeFileSync(path.join(broken, 'research', 'raw', '.fetches.jsonl'),
+    `{"seq":1,"at":"2026-10-01T00:00:00.000Z","op":"scrape","url":"http://127.0.0.1:9/page","raw":"research/raw/x.md","bodySha256":"${'0'.repeat(64)}","prev":"${'0'.repeat(64)}","entrySha256":"${'1'.repeat(64)}"}\n`);
+  const third = run('research.mjs', ['--transport', 'http-keyless'], { root: broken });
+  assert.equal(third.status, 2, `expected a named refusal, got ${third.status}: ${third.all.slice(0, 300)}`);
+  assert.match(third.err, /does not recompute|does not link/, third.err.slice(0, 300));
+  assert.match(third.err, /git checkout/);
+  noStack(third, 'a broken chain');
 });
 
 // Found 2026-10-01 (arena break-test #196, redone on main): on a machine where the kit was NOT

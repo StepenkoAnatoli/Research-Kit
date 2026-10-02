@@ -9,6 +9,7 @@
 import { PATHS, resolve, readJson, readText, today, hostOf, uniq, sleepSync, urlKey, operatorPath } from './core.mjs';
 import * as firecrawl from './firecrawl.mjs';
 import { readCorpus, cacheDecision, appendJsonLine } from './corpus.mjs';
+import { assertAppendable } from './provenance.mjs';
 import { collectOne, recentlyGone, DEFAULT_SOURCE_TYPE } from './collect.mjs';
 import { fallbackCost } from './runtime.mjs';
 import * as wayback from './witness.mjs';
@@ -419,6 +420,14 @@ ${compatibility.remedy}`);
     err.code = 'SEARCH_PROVIDER_NOT_READY';
     throw err;
   }
+
+  // A ledger that cannot record a fetch refuses here too, for the same reason (ADR-0122):
+  // a chain whose hashes no longer link, a torn tail, an unparsed line. Every fetch recorded
+  // after a break is refused by handoff and preflight, so the credits it would cost are not
+  // spent. `appendFetch` asks again under the lock; this is the copy that runs before the
+  // money. A dry run is refused the same way, as the CLI check above is: a preview that
+  // says "this will collect" onto a chain that cannot record it is worse than no preview.
+  assertAppendable(root);
 
   const settings = plan ?? readPlan(root);
   const tier = depth || settings.depth;
