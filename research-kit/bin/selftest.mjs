@@ -166,6 +166,17 @@ if (unsupported.length) {
 }
 if (blocking) {
   writeResultFile(1);
+  if (failures === 0) {
+    // Every blocker is a test this host could not run. That is not a red suite, and the
+    // runner must not call it one: "A red suite stops work" is the standing protocol's
+    // stop-the-line sentence, and an agent that read it over "0 failed, 2 unsupported"
+    // stopped a whole break-test at its baseline on a host with no Chromium (2026-10-02).
+    // An incomplete run is still not a pass (ADR-0108), so the exit code stays 1.
+    process.stdout.write(`\nNo test failed. ${unsupported.length} test${unsupported.length === 1 ? '' : 's'} could not run on this host, and an incomplete run is not a pass (ADR-0108) - this is not a red suite. `
+      + 'For a local run here, set RESEARCH_KIT_ALLOW_UNSUP=1: every test that can run still runs, and CI still blocks. '
+      + `cwd: ${process.cwd()} (started in ${invokedFrom})\n`);
+    await exitAfterFlush(1);
+  }
   process.stdout.write(`\nA red suite stops work. cwd: ${process.cwd()} (started in ${invokedFrom})\n`);
   if (tempProblem) process.stdout.write(`Likely cause: ${tempProblem}\n`);
   // 653 failures with one cause behind them is one broken machine, not 653 broken tests,
