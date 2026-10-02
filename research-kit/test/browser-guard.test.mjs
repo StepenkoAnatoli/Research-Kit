@@ -299,9 +299,17 @@ function fakeBrowser() {
   const file = path.join(tempDir('rk-fake-browser-'), 'browser.mjs');
   fs.writeFileSync(file, `
 import http from 'node:http';
+import net from 'node:net';
 const args = process.argv.slice(2);
 const proxy = Number(args.find((a) => a.startsWith('--proxy-server=')).split(':').pop());
 if (!args.includes('--proxy-bypass-list=<-loopback>')) { process.stderr.write('FATAL: loopback would bypass the proxy'); process.exit(3); }
+// --rk-reset-connect=<host:port>: what a real browser does with a preconnect it gives up on -
+// a CONNECT, then a TCP reset the moment the guard's answer starts arriving.
+const reset = (args.find((a) => a.startsWith('--rk-reset-connect=')) ?? '').split('=')[1];
+if (reset) await new Promise((resolve) => {
+  const s = net.connect(proxy, '127.0.0.1', () => { s.write('CONNECT ' + reset + ' HTTP/1.1\\r\\nHost: ' + reset + '\\r\\n\\r\\n'); s.once('data', () => { s.resetAndDestroy(); setTimeout(resolve, 60); }); });
+  s.on('error', () => resolve());
+});
 const get = (url) => new Promise((resolve) => {
   const req = http.request({ host: '127.0.0.1', port: proxy, path: url, headers: { host: new URL(url).host } }, (res) => { let b = ''; res.on('data', (d) => { b += d; }); res.on('end', () => resolve(b)); });
   req.on('error', (e) => resolve('ERR ' + e.message));
@@ -477,4 +485,22 @@ test('with pageFirst, a request before the page\'s own is dropped by order, and 
     assert.match(judged.rest, new RegExp(REFUSAL_MARKER));
     judged.socket.destroy();
   } finally { await plain.close(); }
+});
+
+// A browser resets a CONNECT it has given up on - a dropped preconnect, the 403's body still
+// unread. The socket is the handler's from the 'connect' event on, listeners included, and an
+// ECONNRESET with no listener is an uncaught exception: the guard child died mid-render with
+// an empty report, read as "the browser exited null" (three CI legs on 2026-10-02, at random
+// points of the render). The fake browser does exactly that before it loads the page.
+test('a CONNECT the browser resets while the guard answers it does not take the guard down', async () => {
+  const pages = await pagesProcess();
+  const fake = fakeBrowser();
+  try {
+    const url = `${pages.outer}/plain`;
+    const r = await renderThroughGuard({ binary: process.execPath, args: [fake, '--rk-reset-connect=www.gstatic.com:443', ...browserArgs(url, { uid: 1000 })], url, allowInternal: false, timeout: 20_000 });
+    assert.equal(r.status, 0, `the guard did not survive the reset: ${JSON.stringify({ status: r.status, errorCode: r.errorCode ?? null, stderr: String(r.stderr ?? '').slice(-300) })}`);
+    assert.match(String(r.stdout), /Plain/, 'the page was not rendered after the reset');
+    assert.deepEqual(r.seen.map((e) => [e.target, e.outcome]), [['www.gstatic.com:443', 'dropped'], [url, '200']], JSON.stringify(r.seen));
+    assert.deepEqual(r.refused, []);
+  } finally { pages.close(); }
 });

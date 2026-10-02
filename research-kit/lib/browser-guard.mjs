@@ -169,6 +169,13 @@ export async function startGuard({ allowInternal = false, exempt = [], upstream 
   });
 
   server.on('connect', async (req, client, head) => {
+    // The socket is the handler's from here, listeners included. A browser resets a CONNECT it
+    // has given up on - a dropped preconnect, with the 403's body still unread - and an
+    // ECONNRESET on a socket with no listener is an uncaught exception: the guard child died
+    // mid-render with an empty report, which the transport read as "the browser exited null"
+    // (three CI legs, 2026-10-02; reproduced with a reset after the headers). Every early
+    // answer below writes to this socket, so the listener comes first.
+    client.on('error', () => client.destroy());
     const entry = note('connect', String(req.url));
     const at = splitHostPort(req.url);
     const fail = (status, body = '') => { client.end(`HTTP/1.1 ${status}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n${body}`); };

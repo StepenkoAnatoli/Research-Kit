@@ -7,6 +7,9 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- The browser guard survives a CONNECT the browser resets while the guard answers it: the
+  socket had no error listener on the dropped and refused paths, and an ECONNRESET killed the
+  guard child mid-render ("the browser exited null" on three CI legs, 2026-10-02).
 - The browser guard drops every request made before the page asked for has been requested
   (ADR-0125): CI's Chrome stable preconnected to `www.gstatic.com` before the page, a host real
   pages use too, so the service-host list could not settle it; the order can.
