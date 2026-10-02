@@ -7,6 +7,14 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- The browser guard drops Chromium's own service traffic (ADR-0124). Rendering a plain page,
+  Chromium 141 made nine connections no page asked for - the component updater's clock, the
+  default-search preconnect, `accounts.google.com`, the Cloud Messaging check-in and push
+  channel - and the guard carried them as external; on a no-network host the last of them
+  became a LIVE test's verdict. A request to one of `BROWSER_SERVICE_HOSTS` is now answered
+  403, logged `dropped`, and never judged, carried or counted as a refusal; the page asked for
+  is exempt by host and port. Flags and profile preferences were measured first and left most
+  of the traffic.
 - `selftest.mjs` describes the kit, not the machine (ADR-0123): the run gets a scratch home and
   loses every `RESEARCH_KIT_*` variable but the ones that describe the host or the run, and
   the vendor keys. The tests that spawn kit commands read the operator's machine config, deployed kit and

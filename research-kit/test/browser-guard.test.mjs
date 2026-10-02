@@ -12,7 +12,7 @@ import http from 'node:http';
 import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { test, describe, assert, tempDir, fs, path, requireCapability } from './harness.mjs';
-import { startGuard, judge, parseUpstream, renderThroughGuard, REFUSAL_MARKER } from '../lib/browser-guard.mjs';
+import { startGuard, judge, parseUpstream, renderThroughGuard, REFUSAL_MARKER, DROP_MARKER, isBrowserService } from '../lib/browser-guard.mjs';
 import browser, { findBrowser, renderGuarded, browserArgs } from '../lib/browser-transport.mjs';
 
 describe('browser-guard');
@@ -379,5 +379,68 @@ test('LIVE: a real Chromium cannot be led into this machine\'s network by a scri
     assert.equal(plain.ok, true, `the control page failed: ${plain.error}`);
     assert.equal(plain.title, 'Plain');
     assert.match(plain.markdown, /rendered through the guard/);
+  } finally { pages.close(); }
+});
+
+// ADR-0124: a full Chrome in headless mode runs its browser services whatever the flags.
+// Rendering a plain local page, Chromium 141 asked the guard for the component updater's
+// clock, the default search engine, accounts.google.com, the Cloud Messaging check-in and
+// its push channel - nine connections no page asked for, carried as external. Flags and
+// profile preferences were measured and left most of them (break-test, 2026-10-02).
+test('the browser\'s own service hosts are known by name, and a page\'s hosts are not among them', () => {
+  for (const host of ['clients2.google.com', 'clients.google.com', 'android.clients.google.com', 'mtalk.google.com', 'alt3-mtalk.google.com',
+    'accounts.google.com', 'www.google.com', 'update.googleapis.com', 'safebrowsing.googleapis.com', 'redirector.gvt1.com', 'dl.google.com', 'WWW.GOOGLE.COM.']) {
+    assert.equal(isBrowserService(host), true, `${host} is the browser's, not a page's`);
+  }
+  for (const host of ['docs.google.com', 'fonts.googleapis.com', 'maps.googleapis.com', 'developers.google.com', 'example.com', 'google.com', '127.0.0.1']) {
+    assert.equal(isBrowserService(host), false, `${host} may be a page's`);
+  }
+});
+
+test('the browser\'s own service traffic is dropped at the guard: not judged, not carried, not a refusal', async () => {
+  // Every name resolves to loopback, so a request that IS judged can be told apart from a
+  // dropped one without reaching anything: a judged connect is refused as internal, or - when
+  // the host:port is the page asked for, hence exempt - attempted and refused by the port.
+  const lookup = fakeLookup({ 'mtalk.google.com': '127.0.0.1', 'clients2.google.com': '127.0.0.1', 'www.google.com': '127.0.0.1' });
+  const guard = await startGuard({ lookup, exempt: ['www.google.com:1'] });
+  try {
+    const push = await connectVia(guard.port, 'mtalk.google.com:5228');
+    assert.match(push.line, /403/, `the push channel was carried: ${push.line}`);
+    assert.match(push.rest, new RegExp(DROP_MARKER));
+    push.socket.destroy();
+    const clock = await viaProxy(guard.port, 'http://clients2.google.com/time/1/current?cup2key=not-a-real-key');
+    assert.equal(clock.status, 403);
+    assert.match(clock.body, new RegExp(`${DROP_MARKER}: clients2.google.com - the browser's own service traffic`));
+    assert.deepEqual(guard.refused, [], 'the browser\'s own traffic was counted as a refusal of the page');
+    assert.deepEqual(guard.seen.map((e) => e.outcome), ['dropped', 'dropped']);
+
+    // The page the operator asked for is exempt by host and port, as it is from every other
+    // judgment: a page on www.google.com is still rendered, not dropped.
+    const page = await connectVia(guard.port, 'www.google.com:1');
+    assert.doesNotMatch(page.rest, new RegExp(DROP_MARKER), 'the page asked for was dropped as service traffic');
+    page.socket.destroy();
+    assert.notEqual(guard.seen[2].outcome, 'dropped');
+    // The same host on another port is the browser's again.
+    const other = await connectVia(guard.port, 'www.google.com:443');
+    assert.match(other.rest, new RegExp(DROP_MARKER));
+    other.socket.destroy();
+  } finally { await guard.close(); }
+});
+
+test('LIVE: rendering a plain page, the real Chromium reaches nothing but the page - its own services are dropped', async () => {
+  const chromium = findBrowser();
+  requireCapability(chromium, 'NO-BROWSER', 'no Chromium or Chrome on this host');
+  const pages = await pagesProcess();
+  const env = { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? '', HOME: process.env.HOME ?? '', USERPROFILE: process.env.USERPROFILE ?? '' };
+  try {
+    const url = `${pages.outer}/plain`;
+    const r = renderGuarded(chromium, browserArgs(url, { timeout: 45_000 }), { url, env, timeout: 45_000 });
+    assert.equal(r.status, 0, `the control page failed: ${r.error?.message ?? ''} ${String(r.stderr).slice(-300)}`);
+    assert.match(r.stdout, /Plain/, 'the page was not rendered');
+    const loopback = (target) => /^(https?:\/\/)?(127\.0\.0\.1|\[::1\]|localhost)(:|\/|$)/i.test(target);
+    const beyond = (r.seen ?? []).filter((e) => !loopback(e.target));
+    const carried = beyond.filter((e) => e.outcome !== 'dropped');
+    assert.deepEqual(carried, [], `the browser reached beyond the page: ${JSON.stringify(carried)}`);
+    assert.deepEqual(r.refused, [], `the browser's own traffic was counted as a refusal: ${JSON.stringify(r.refused)}`);
   } finally { pages.close(); }
 });

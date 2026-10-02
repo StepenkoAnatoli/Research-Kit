@@ -30,6 +30,40 @@ const STDERR_HEAD_LINES = 30;
 
 const normalizeHost = (host) => String(host ?? '').replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
 
+/**
+ * The browser's own service hosts - never a page's (ADR-0124).
+ *
+ * A full Chrome or Chromium in (new) headless mode runs its browser services whatever the
+ * flags: rendering a plain local page through the guard, Chromium 141 asked it for the
+ * component updater's clock (`clients2.google.com/time`, carrying a key), the default
+ * search engine (`www.google.com`, four preconnects), `accounts.google.com`, the Cloud
+ * Messaging check-in (`android.clients.google.com`) and its push channel
+ * (`mtalk.google.com:5228`) - nine connections per render that no page asked for, all
+ * judged external and carried. `--disable-background-networking`, `--disable-sync`,
+ * `--disable-component-update`, Playwright's feature disables, a fresh profile with
+ * preconnect, sign-in and push switched off in its preferences, and Chromium's own
+ * endpoint-override switches were each measured and left most of them (break-test,
+ * 2026-10-02). The guard sees every request, so this is where they stop: a request to one
+ * of these hosts is dropped, logged `dropped`, and NOT counted as a refusal - a page did
+ * not try to go there. The page the operator asked for is exempt by host and port, as it
+ * is from every other judgment, so a page on www.google.com still renders.
+ */
+export const BROWSER_SERVICE_HOSTS = Object.freeze([
+  /^clients[0-9]*\.google\.com$/,            // the component updater, its clock, CRX updates
+  /^[a-z0-9-]+\.clients\.google\.com$/,      // android.clients.google.com: the GCM check-in
+  /^(alt[0-9]*-)?mtalk\.google\.com$/,        // Google Cloud Messaging's push channel
+  /^accounts\.google\.com$/,                  // sign-in and account consistency
+  /^www\.google\.com$/,                       // the default-search preconnect
+  /^(update|safebrowsing|clientservices|optimizationguide-pa|content-autofill)\.googleapis\.com$/,
+  /^([a-z0-9-]+\.)*gvt1\.com$/,               // component and update downloads
+  /^dl\.google\.com$/,
+]);
+export const DROP_MARKER = 'research-kit-guard-dropped';
+export function isBrowserService(host) {
+  const name = normalizeHost(host);
+  return BROWSER_SERVICE_HOSTS.some((pattern) => pattern.test(name));
+}
+
 /** `host:port` as a CONNECT names it, with an IPv6 literal in brackets, or null. */
 function splitHostPort(target) {
   const m = /^(\[[^\]]+\]|[^:]+):(\d+)$/.exec(String(target ?? ''));
@@ -91,6 +125,8 @@ export async function startGuard({ allowInternal = false, exempt = [], upstream 
   const tunnels = new Set();
   const outgoing = new Set();
   const judgeHost = (host, port) => judge(host, port, { allowInternal, exempt: skip, lookup, upstream: up });
+  // The browser's own service traffic (ADR-0124): not the page's, so not judged and not a refusal.
+  const dropped = (host, port) => !skip.has(`${normalizeHost(host)}:${port}`) && isBrowserService(host);
   const refusal = (host, why) => { refused.push({ host, why }); return `${REFUSAL_MARKER}: ${host} - ${why}`; };
   // Every request the guard carried, and whether it was answered: the one place all of a
   // page's loads pass through, so what is still unanswered when the render ends is what the
@@ -106,6 +142,7 @@ export async function startGuard({ allowInternal = false, exempt = [], upstream 
     let target;
     try { target = new URL(req.url); } catch { done(entry, 'refused'); res.writeHead(400); res.end(`${REFUSAL_MARKER}: not a proxy request`); return; }
     if (!/^https?:$/.test(target.protocol)) { done(entry, 'refused'); res.writeHead(400); res.end(`${REFUSAL_MARKER}: ${target.protocol} is not carried`); return; }
+    if (dropped(target.hostname, Number(target.port) || 80)) { done(entry, 'dropped'); res.writeHead(403, { 'content-type': 'text/plain' }); res.end(`${DROP_MARKER}: ${target.host} - the browser's own service traffic`); return; }
     const verdict = await judgeHost(target.hostname, Number(target.port) || 80);
     if (verdict.refused) { done(entry, 'refused'); res.writeHead(403, { 'content-type': 'text/plain' }); res.end(refusal(target.host, verdict.refused)); return; }
     const headers = { ...req.headers };
@@ -125,6 +162,7 @@ export async function startGuard({ allowInternal = false, exempt = [], upstream 
     const at = splitHostPort(req.url);
     const fail = (status, body = '') => { client.end(`HTTP/1.1 ${status}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n${body}`); };
     if (!at) { done(entry, 'refused'); fail('400 Bad Request'); return; }
+    if (dropped(at.host, at.port)) { done(entry, 'dropped'); fail('403 Forbidden', `${DROP_MARKER}: ${req.url} - the browser's own service traffic`); return; }
     const verdict = await judgeHost(at.host, at.port);
     if (verdict.refused) { done(entry, 'refused'); fail('403 Forbidden', refusal(req.url, verdict.refused)); return; }
     const tunnel = up
