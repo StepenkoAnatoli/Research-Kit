@@ -7,6 +7,13 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- `editGate.settingsPath` is taken only when it is a non-empty string. It was the one key
+  `shape()` passed through raw, so a hand-edited `{"editGate":{"settingsPath":42}}` reached
+  `path.dirname` in `installEditGate` and killed `install-hooks` - the command whose job is to
+  bind the gates - with a raw `ERR_INVALID_ARG_TYPE` stack and Node's version footer. Anything
+  that is not a path now falls back to the runtime anchor, as every other wrong-typed key does
+  and as `skillRoots` has since 2026-10-01 (break-test 2026-10-02).
+
 - `install-hooks --dry-run` reports the refusal the real run would give. On a machine where
   the kit was not deployed it printed "would set core.hooksPath=..." and "would register in
   .../settings.json: ..." and exited 0, while the real run refused both gates and exited 1:

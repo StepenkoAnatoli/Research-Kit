@@ -114,7 +114,15 @@ function shape(raw) {
     failOpen: typeof raw.failOpen === 'boolean' ? raw.failOpen : DEFAULTS.failOpen,
     editGate: {
       mode: DEFAULTS.editGate.mode,
-      settingsPath: raw.editGate?.settingsPath ?? DEFAULTS.editGate.settingsPath,
+      // A path the installer hands to the filesystem, so only a non-empty string is one;
+      // anything else falls back to the anchor, as every other wrong-typed key here does.
+      // It was the one key passed through raw, and `{"editGate":{"settingsPath":42}}` reached
+      // `path.dirname` in installEditGate and killed `install-hooks` - the command whose job
+      // is to bind the gates - with a raw ERR_INVALID_ARG_TYPE stack (found 2026-10-02,
+      // break-test; the sibling of the 2026-10-01 `skillRoots` check).
+      settingsPath: typeof raw.editGate?.settingsPath === 'string' && raw.editGate.settingsPath.trim() !== ''
+        ? raw.editGate.settingsPath
+        : DEFAULTS.editGate.settingsPath,
     },
     evidencePolicy: EVIDENCE_POLICIES.includes(raw.evidencePolicy) ? raw.evidencePolicy : DEFAULTS.evidencePolicy,
     // A field that is PRESENT and not a known role reads as `unknown`, not as the
