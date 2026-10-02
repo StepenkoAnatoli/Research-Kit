@@ -67,6 +67,21 @@ test('fenced code is not prose', () => {
   assert.doesNotMatch(finding, /const limit/);
 });
 
+test('an underscore inside an identifier is the identifier, not emphasis', () => {
+  // A GitHub changelog, read keyless on 2026-10-02: the drafted finding said
+  // "returnrundetails" and "checksuiteid", names no page carries, and a quote copied from
+  // the draft would never be found in the capture. One sentence per page, so the finding IS
+  // that sentence and not the best of several.
+  const first = firstFinding('Now, you can pass in a new optional boolean parameter, `return_run_details`, which will return a `200 OK` response containing the workflow ID.');
+  assert.match(first, /return_run_details/, first);
+  const filters = firstFinding('This endpoint will return up to 1,000 results for each search when using the parameters `check_suite_id`, `head_sha` and `snake_case_name`.');
+  assert.match(filters, /check_suite_id/, filters);
+  assert.match(filters, /head_sha/, filters);
+  assert.match(filters, /snake_case_name/, filters);
+  const emphasis = firstFinding('The limit is _5,000 requests_ per hour with __no exception__ for 3 retries.');
+  assert.equal(emphasis, 'The limit is 5,000 requests per hour with no exception for 3 retries.', 'emphasis at a word\'s edge still goes');
+});
+
 test('links keep their text and lose their target', () => {
   const page = 'See the [rate limits reference](https://docs.x.invalid/rate-limits) for the per-minute caps of 10 requests.';
   const finding = firstFinding(page, 'x');

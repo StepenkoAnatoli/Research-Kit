@@ -7,6 +7,9 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- The drafted finding keeps an underscore inside a word: `return_run_details` had been drafted as
+  "returnrundetails", a parameter no page carries, and a quote copied from the draft could never
+  be found in the capture (found running the kit on MoonAliza, 2026-10-02).
 - The browser guard drops Chromium's own service traffic (ADR-0124). Rendering a plain page,
   Chromium 141 made nine connections no page asked for - the component updater's clock, the
   default-search preconnect, `accounts.google.com`, the Cloud Messaging check-in and push

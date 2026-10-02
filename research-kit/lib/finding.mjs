@@ -41,7 +41,11 @@ function stripMarkdown(line) {
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')          // images
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')        // links keep their text
     .replace(/`{1,3}([^`]*)`{1,3}/g, '$1')          // code spans
-    .replace(/[*_~]{1,3}/g, '')                      // emphasis
+    .replace(/[*~]{1,3}/g, '')                       // emphasis
+    // An underscore is emphasis only at a word's edge; inside a word it is the word -
+    // `return_run_details` read as "returnrundetails" named a parameter that does not exist,
+    // and a quote copied from that draft could never be found in the capture (2026-10-02).
+    .replace(/(^|[^A-Za-z0-9])_{1,3}(?=[^\s_])|(?<=[^\s_])_{1,3}(?=$|[^A-Za-z0-9])/g, '$1')
     .replace(/^\s{0,3}#{1,6}\s*/, '')                // heading marks
     .replace(/^\s{0,3}[-*+]\s+/, '')                 // bullets
     .replace(/^\s{0,3}>\s?/, '')                     // quotes
