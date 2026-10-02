@@ -118,6 +118,11 @@ hint, never proof. Never invent a citation. Flag contradictions instead of avera
 Every scrape spends credits. Plan the queries in `research/plan.json` first, reuse the
 cache (`--refresh-days`), and check the budget with `node "{{KIT}}/bin/research.mjs" --status`.
 
+When the account runs out mid-run, the run stops and exits 2 with what is left (ADR-0129).
+That decision is the operator's, not the agent's: report the balance and the uncollected
+pages, and ask whether to top up or to finish on the free transports with `--fallback`.
+Never pass `--fallback` on your own initiative.
+
 ## Rule 6 - secrets
 
 The key lives in the CLI config or the environment. Never write it into this repository.

@@ -479,9 +479,24 @@ ${compatibility.remedy}`);
   // per-capture transport records which one fetched each page. Until 2026-09-28 every
   // page after that point was recorded as failed.
   let fellBack = null;
-  const exhausted = (provider, text) => Boolean(provider === adapter && fallbackAdapter && provider.creditsExhausted?.(text));
+  // No fallback given - the default on a local run (ADR-0129): exhaustion STOPS the run, so
+  // the operator decides between topping up and the free transports. Every later search is
+  // not run and every later page is not attempted; they are `uncollected`, never failed and
+  // never spent. The first refusal is recognised whether or not there is somewhere to switch
+  // to; until 2026-10-02 a run with no fallback tried every remaining page and was refused
+  // each time.
+  let stopped = null;
+  const exhausted = (provider, text) => Boolean(provider === adapter && provider.creditsExhausted?.(text));
   const switchToFallback = (text, during) => {
-    if (fellBack) return;
+    if (fellBack || stopped) return;
+    if (!fallbackAdapter) {
+      stopped = { reason: 'credits exhausted', provider: adapter.name, during, uncollected: 0, skippedSearches: 0 };
+      log(`  credits ran out on ${adapter.name} (during ${during}) - stopped: nothing else is fetched until you top up, or run again with --fallback`);
+      appendJsonLine(root, PATHS.failures, {
+        at: new Date().toISOString(), op: 'credits-exhausted', provider: adapter.name, action: 'stopped', error: String(text ?? '').slice(0, 300),
+      });
+      return;
+    }
     fellBack = { from: adapter.name, to: fallbackAdapter.name, reason: 'credits exhausted' };
     log(`  credits ran out on ${adapter.name} (during ${during}) - the rest of this run uses ${fallbackAdapter.name}; each capture records the transport that fetched it`);
     appendJsonLine(root, PATHS.failures, {
@@ -497,8 +512,8 @@ ${compatibility.remedy}`);
     if (!r.ok && exhausted(first, r.error)) {
       switchToFallback(r.error, `search "${text}"`);
       // A fallback that fetches but cannot search takes over the fetching only; this search's
-      // failure is the exhaustion that happened.
-      if (canSearch(fallbackAdapter)) return { r: ask(fallbackAdapter, text), provider: fallbackAdapter };
+      // failure is the exhaustion that happened. A stopped run has nothing to ask.
+      if (!stopped && canSearch(fallbackAdapter)) return { r: ask(fallbackAdapter, text), provider: fallbackAdapter };
     }
     return { r, provider: first };
   };
@@ -552,6 +567,12 @@ ${compatibility.remedy}`);
     if (!text) continue;
     if (only.length && !only.some((needle) => text.toLowerCase().includes(needle.toLowerCase()))) continue;
     const prefer = uniq([...preferList(settings.prefer), ...preferList(typeof query === 'object' ? query?.prefer : null)]);
+    if (stopped) {
+      stopped.skippedSearches += 1;
+      discovered.push({ query: text, results: [], note: 'not run - credits exhausted, the run stopped' });
+      log(`  skipped   search "${text}" - credits exhausted, the run stopped`);
+      continue;
+    }
     const closed = force ? [] : closedUnknowns(typeof query === 'object' ? query.why : '');
     if (closed.length) {
       const why = `${closed.join(', ')} ${closed.length === 1 ? 'is' : 'are'} closed in research/DISCOVERY.md; --force searches again`;
@@ -692,6 +713,13 @@ ${compatibility.remedy}`);
   }
 
   for (const target of targets) {
+    if (stopped) {
+      stopped.uncollected += 1;
+      const reason = 'not attempted - credits exhausted, the run stopped';
+      results.push({ ...target, status: 'uncollected', reason });
+      log(`  uncollected ${target.url} - ${reason}`);
+      continue;
+    }
     seen.add(urlKey(target.url));
     const decision = cacheDecision(corpus.captures, target.url, { refreshDays: freshness, force, now });
     // A page that answered 404/410 within the window is not fetched and takes no budget slot:
@@ -737,7 +765,12 @@ ${compatibility.remedy}`);
     // the same page is fetched again through the fallback.
     if (outcome.status === 'failed' && exhausted(live(adapter), outcome.reason)) {
       switchToFallback(outcome.reason, `fetch ${target.url}`);
-      outcome = fetchWith(fallbackAdapter);
+      if (stopped) {
+        stopped.uncollected += 1;
+        outcome = { status: 'uncollected', reason: 'credits exhausted - the run stopped here' };
+      } else {
+        outcome = fetchWith(fallbackAdapter);
+      }
     }
     if (outcome.status === 'collected') spent += 1;
     if (outcome.status === 'cached') cached += 1;
@@ -755,6 +788,7 @@ ${compatibility.remedy}`);
       at: new Date().toISOString(), depth: tier, budget, attempts, spent, cached, failed,
       transport: adapter.name,
       ...(fellBack ? { fellBackTo: fellBack.to } : {}),
+      ...(stopped ? { stopped: stopped.during } : {}),
       searchTransport: searchName,
       searchesUsed,
       searchesOn,
@@ -778,6 +812,9 @@ ${compatibility.remedy}`);
     ...(dryRun ? { wouldSearch } : {}),
     // { from, to, reason } once the run switched transports (ADR-0086), else null.
     fellBack,
+    // { reason, provider, during, uncollected, skippedSearches } once exhaustion stopped the
+    // run (ADR-0129), else null.
+    stopped,
     results, discovered,
   };
 }

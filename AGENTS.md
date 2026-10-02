@@ -254,6 +254,11 @@ Every scrape spends Firecrawl credits (free tier is about 1,000). Plan the queri
 node research-kit/bin/research.mjs --status
 ```
 
+When the account runs out mid-run, the run stops and exits 2 with what is left (ADR-0129).
+That decision is the operator's, not the agent's: report the balance and the uncollected
+pages, and ask whether to top up or to finish on the free transports with `--fallback`.
+Never pass `--fallback` on your own initiative.
+
 Write the one-page handoff for a builder in `research/BRIEF.md` when discovery is done -
 that file is the phase-1 deliverable and the only thing phase 2 is required to read.
 

@@ -596,7 +596,10 @@ jobs:
           node "$KIT/bin/research.mjs" --dry-run --depth "$DEPTH"
           # NOT --max-scrapes: research.mjs has no such flag and silently ignored it until
           # 2026-09-22. The page bound is real and is set above, as plan.maxScrapes.
-          node "$KIT/bin/research.mjs" --depth "$DEPTH"
+          # --fallback: nobody is here to decide when the credits run out, so the rest of
+          # the run switches to a free transport and the ledger says which (ADR-0129). A
+          # local run stops instead and asks the operator.
+          node "$KIT/bin/research.mjs" --depth "$DEPTH" --fallback
 
       # NOT the whole preflight verdict, and this was found by RUNNING it rather than by
       # reading it: `preflight` answers "is the research sufficient to build", a

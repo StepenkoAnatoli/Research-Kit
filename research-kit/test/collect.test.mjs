@@ -926,7 +926,8 @@ test('an exhausted search falls back too, and no fallback is taken on any other 
   assert.equal(r2.fellBack, null);
   assert.equal(r2.failed, 1);
 
-  // No fallback given (--no-fallback, or keyless already): exhausted credits stay failures.
+  // No fallback given (the default since ADR-0129): the run stops, and the refused page is
+  // neither failed nor spent - a 402 is not charged.
   const none = makeProject();
   writeJson(resolve(none, PATHS.plan), {
     topic: 'Fixture', depth: 'normal', refreshDays: 30, limit: 8, perQuery: 3, maxScrapes: 10, prefer: [], queries: [],
@@ -934,7 +935,57 @@ test('an exhausted search falls back too, and no fallback is taken on any other 
   });
   const r3 = runResearch(none, { adapter: exhaustingAdapter({ afterScrapes: 0 }) });
   assert.equal(r3.fellBack, null);
-  assert.equal(r3.failed, 1);
+  assert.equal(r3.failed, 0);
+  assert.equal(r3.stopped?.reason, 'credits exhausted');
+});
+
+// ADR-0129 (2026-10-02). The operator's rule: when the account runs out, the person decides
+// between topping up and the free transports. Until then the kit decided for them - the
+// switch of ADR-0086 was the default, announced in one log line of a run nobody may have
+// been watching. Without `--fallback` the run now STOPS: nothing after the refusal is
+// attempted, nothing is counted as failed, and the result says what is left.
+test('without a fallback, exhausted credits stop the run: the rest is uncollected, not failed, not attempted', () => {
+  const dir = makeProject();
+  writeJson(resolve(dir, PATHS.plan), {
+    topic: 'Fixture', depth: 'normal', refreshDays: 30, limit: 8, perQuery: 3, maxScrapes: 10, prefer: [], queries: [],
+    urls: ['https://x.invalid/a', 'https://x.invalid/b', 'https://x.invalid/c'],
+  });
+  const lines = [];
+  let scrapesAsked = 0;
+  const adapter = exhaustingAdapter({ afterScrapes: 1 });
+  const counting = { ...adapter, runScrape: (url) => { scrapesAsked += 1; return adapter.runScrape(url); } };
+  const run = runResearch(dir, { adapter: counting, log: (l) => lines.push(l) });
+
+  assert.deepEqual(run.results.map((r) => r.status), ['collected', 'uncollected', 'uncollected'], JSON.stringify(run.results, null, 1));
+  assert.equal(scrapesAsked, 2, 'one page collected, one refused, and the third never asked for');
+  assert.equal(run.failed, 0, 'a refusal is not charged and is not a failed page');
+  assert.equal(run.spent, 1);
+  assert.equal(run.collected, 1);
+  assert.equal(run.fellBack, null);
+  assert.deepEqual(run.stopped, { reason: 'credits exhausted', provider: 'firecrawl-cli', during: 'fetch https://x.invalid/b', uncollected: 2, skippedSearches: 0 });
+  assert.equal(lines.filter((l) => /credits ran out on firecrawl-cli.*stopped/.test(l)).length, 1, lines.join('\n'));
+  assert.ok(run.results[2].reason.includes('not attempted'), run.results[2].reason);
+  // The one refusal is kept in the ledger; nothing after it is.
+  const entries = readCorpus(dir).ledger.entries;
+  assert.deepEqual(entries.filter((e) => e.op === 'scrape').map((e) => e.transport), ['firecrawl-cli']);
+  assert.equal(entries.filter((e) => e.op === 'fail').length, 1);
+  const stops = readText(resolve(dir, PATHS.failures)).trim().split('\n').map((l) => JSON.parse(l)).filter((f) => f.op === 'credits-exhausted');
+  assert.equal(stops.length, 1);
+  assert.equal(stops[0].action, 'stopped');
+
+  // Exhaustion during a SEARCH stops the searches that follow and every fetch.
+  const searched = makeProject();
+  writeJson(resolve(searched, PATHS.plan), {
+    topic: 'Fixture', depth: 'normal', refreshDays: 30, limit: 8, perQuery: 3, maxScrapes: 10, prefer: [],
+    queries: [{ q: 'rate limits plan' }, { q: 'quota per minute' }],
+    urls: ['https://x.invalid/a'],
+  });
+  const r2 = runResearch(searched, { adapter: exhaustingAdapter({ searchExhausted: true }) });
+  assert.equal(r2.stopped?.during, 'search "rate limits plan"');
+  assert.equal(r2.stopped.skippedSearches, 1);
+  assert.equal(r2.stopped.uncollected, 1);
+  assert.deepEqual(r2.results.map((r) => r.status), ['uncollected']);
+  assert.ok(r2.discovered.some((d) => d.query === 'quota per minute' && /not run/.test(d.note ?? '')), JSON.stringify(r2.discovered));
 });
 
 // Found 2026-09-28 collecting the browser-transport research: Firecrawl returned Google's

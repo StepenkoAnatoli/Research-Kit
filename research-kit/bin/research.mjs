@@ -16,7 +16,7 @@ import { parseCapture, readLedger, duplicateKey } from '../lib/corpus.mjs';
 import { readPrior } from '../lib/prior.mjs';
 import { heading } from '../lib/render.mjs';
 const { flags } = parseFlags(process.argv.slice(2));
-refuseUnknownFlags(flags, ['depth', 'dry-run', 'force', 'help', 'no-fallback', 'only', 'plan', 'refresh-days', 'search-transport', 'status', 'transport', 'witness']);
+refuseUnknownFlags(flags, ['depth', 'dry-run', 'fallback', 'force', 'help', 'no-fallback', 'only', 'plan', 'refresh-days', 'search-transport', 'status', 'transport', 'witness']);
 checkFlagValues(flags, { depth: { choices: DEPTHS }, 'refresh-days': { int: true, min: 0 }, plan: 'value', only: 'value', transport: 'value', 'search-transport': 'value' });
 const root = process.cwd();
 
@@ -36,8 +36,12 @@ if (flags.help) {
   --search-transport <name>
                        ${SEARCH_PROVIDER_NAMES.join(' | ')} - the SEARCH side only.
                        Default: the fetch transport, unless a SerpAPI key is configured.
-  --no-fallback        when Firecrawl's credits run out, record the remaining pages as
-                       failed instead of switching the rest of the run to http-keyless
+  --fallback           when Firecrawl's credits run out, switch the rest of the run to
+                       browser (when one is installed) or http-keyless instead of stopping.
+                       The GitHub collector passes it: nobody is there to decide. Without
+                       it the run stops, says what is left, and exits 2 so the operator
+                       chooses between topping up and the free transports (ADR-0129).
+                       --no-fallback is accepted and means the default.
   --witness            after each newly collected page, ask the Wayback Machine for its
                        closest snapshot and record it in research/witnesses.jsonl. Sends
                        each collected URL to the Internet Archive; off by default.
@@ -194,14 +198,18 @@ process.stdout.write(unusedKeyNote(chosen));
 if (!chosen.search.sameAsFetch) {
   process.stdout.write(`search:    ${chosen.search.name} - ${chosen.search.why}\n`);
 }
-// The transport the run switches to if the chosen one reports its credits exhausted
-// (ADR-0086): free, no new vendor, already a named transport. Only an adapter that can say
-// what exhaustion looks like gets one.
+// The transport the run switches to if the chosen one reports its credits exhausted: free,
+// no new vendor, already a named transport (ADR-0086). Only an adapter that can say what
+// exhaustion looks like gets one, and only when asked (`--fallback`, ADR-0129): on a local
+// run the default is to STOP and let the operator decide between topping up and the free
+// transports; the unattended GitHub collector passes the flag, since nobody is there to.
 // The browser renders what keyless cannot, so it is preferred when one is installed (ADR-0088).
-const fallbackAdapter = !flags['no-fallback'] && typeof chosen.adapter?.creditsExhausted === 'function'
+const canExhaust = typeof chosen.adapter?.creditsExhausted === 'function';
+const fallbackAdapter = flags.fallback && !flags['no-fallback'] && canExhaust
   ? (findBrowser({ config: loadConfig(process.env) }) ? TRANSPORTS.browser : TRANSPORTS['http-keyless'])
   : null;
-if (fallbackAdapter) process.stdout.write(`fallback:  ${fallbackAdapter.name} if credits run out (--no-fallback to record those pages as failed instead)\n`);
+if (fallbackAdapter) process.stdout.write(`fallback:  ${fallbackAdapter.name} if credits run out (--fallback)\n`);
+else if (canExhaust) process.stdout.write('fallback:  none - if credits run out the run stops and says what is left (--fallback to switch to browser or http-keyless instead)\n');
 let run;
 try {
   run = runResearch(root, {
@@ -262,7 +270,7 @@ function dryRunTotal(run) {
 
 process.stdout.write(`${heading('run')}
 depth      ${run.depth} (budget ${run.budget} scrapes)
-${run.fellBack ? `fell back  ${run.fellBack.from} -> ${run.fellBack.to} (${run.fellBack.reason}); pages after that were fetched by ${run.fellBack.to}, and the ledger says which\n` : ''}collected  ${run.collected}
+${run.fellBack ? `fell back  ${run.fellBack.from} -> ${run.fellBack.to} (${run.fellBack.reason}); pages after that were fetched by ${run.fellBack.to}, and the ledger says which\n` : ''}${run.stopped ? `stopped    credits ran out on ${run.stopped.provider} during ${run.stopped.during}; ${run.stopped.uncollected} page(s) and ${run.stopped.skippedSearches} search(es) were not attempted\n` : ''}collected  ${run.collected}
 cached     ${run.cached}
 failed     ${run.failed}
 spent      ${run.spent} (budget consumed: collected + failed)
@@ -292,6 +300,16 @@ if (run.searchTransport !== run.transport) {
   if (run.degraded) {
     process.stdout.write(`degraded   ${run.degraded} quer${run.degraded === 1 ? 'y' : 'ies'} fell back to ${run.transport} - those spent FETCH credits\n`);
   }
+}
+// A stopped run is not a finished one (ADR-0129). The decision is the operator's, and it is
+// printed where the summary is, with both ways forward; exit 2 says "not finished" to a
+// script or an agent that only reads the code.
+if (run.stopped) {
+  process.stdout.write(`\nDecide before running again - ${run.stopped.uncollected} page(s) are still uncollected:
+  - top up ${run.stopped.provider} and run the same command: a page already on disk is not fetched twice, so only what is left is paid for
+  - or run it with --fallback: what is left is fetched through browser or http-keyless, free, and the ledger records which transport fetched each page
+`);
+  process.exit(2);
 }
 if (run.spent) {
   process.stdout.write(`\nNext: rewrite each auto-extracted Finding cell into a real claim, then run\n  ${kitCommand('preflight.mjs')}\n`);

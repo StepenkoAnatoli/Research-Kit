@@ -235,9 +235,10 @@ test('an explicit search provider that cannot run is refused before anything is 
   }
 });
 
-// ADR-0086: the fallback is announced before a run, and --no-fallback is a real flag. A
-// run already on http-keyless has nothing to fall back to, so nothing is announced.
-test('research names its credit fallback, and --no-fallback is accepted', () => {
+// ADR-0086, ADR-0129: the fallback is announced before a run, `--fallback` opts into it and
+// `--no-fallback` still means the default. A run already on http-keyless has nothing to fall
+// back to, so nothing is announced either way.
+test('research names its credit fallback, and --fallback and --no-fallback are accepted', () => {
   const root = project('fallback');
   fs.writeFileSync(path.join(root, 'research', 'plan.json'), JSON.stringify({
     topic: 'fallback', depth: 'quick', maxScrapes: 10, refreshDays: 30, limit: 8, perQuery: 3, prefer: [], queries: [],
@@ -248,6 +249,11 @@ test('research names its credit fallback, and --no-fallback is accepted', () => 
   assert.doesNotMatch(keyless.out, /fallback:/, keyless.out);
   const off = run('research.mjs', ['--plan', 'research/plan.json', '--dry-run', '--transport', 'http-keyless', '--no-fallback'], { root });
   assert.equal(off.status, 0, `--no-fallback was refused:\n${off.out}${off.err}`);
+  const on = run('research.mjs', ['--plan', 'research/plan.json', '--dry-run', '--transport', 'http-keyless', '--fallback'], { root });
+  assert.equal(on.status, 0, `--fallback was refused:\n${on.out}${on.err}`);
+  assert.doesNotMatch(on.out, /fallback:/, on.out);
+  const help = run('research.mjs', ['--help'], { root });
+  assert.match(help.out, /--fallback/, 'the help does not name --fallback');
 });
 
 // Found 2026-09-28 collecting one page into the root corpus with a one-off plan in a scratch

@@ -279,7 +279,9 @@ jobs:
           # plan, dry run included (d20c686), and ran before the edit until 2026-09-28, so
           # every dispatch failed here with exit 2. It also now previews the real plan.
           node "$kit/bin/research.mjs" --dry-run --depth quick
-          node "$kit/bin/research.mjs" --depth quick
+          # --fallback: unattended, so an exhausted account finishes the run on a free
+          # transport rather than stopping to ask (ADR-0129).
+          node "$kit/bin/research.mjs" --depth quick --fallback
 
       - name: a ledger was written, and it parses
         run: |

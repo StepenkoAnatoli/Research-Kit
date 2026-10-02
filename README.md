@@ -409,9 +409,11 @@ the environment or from `~/.agents/research-kit.config.json`, never from a proje
 | `browser` | free | a local Chromium renders the page; reads JavaScript-built pages and pages that refuse plain clients |
 
 Pick one per run with `--transport`, or per machine with `transport` in the config. When
-Firecrawl's credits run out mid-run, the rest of the run switches to `browser` where one is
-installed, else to `http-keyless`, and says so; `--no-fallback` records those pages as
-failed instead. Each capture's ledger entry names the transport that fetched it.
+Firecrawl's credits run out mid-run, the run stops and says what is left, and you decide:
+top up and run the same command, which pays only for the pages still missing, or run it
+with `--fallback`, which fetches them through `browser` where one is installed, else
+`http-keyless`. The GitHub collector passes `--fallback` on its own, since nobody is there
+to decide. Each capture's ledger entry names the transport that fetched it.
 
 **Search providers**
 
@@ -498,7 +500,7 @@ Every command runs from inside the project folder. The main ones:
 | `doctor.mjs` | machine, project, gate and chain health in one report, with the fix for each problem |
 | `new-project.mjs <dir> --topic "..."` | scaffold a project (`--kit` to spell the kit path portably) |
 | `decompose.mjs` | draft the subtopic map, seeded with the universal checklist (`--dry-run` spends nothing) |
-| `research.mjs` | collect the plan (`--dry-run`, `--status`, `--depth`, `--refresh-days`, `--force`, `--transport`, `--search-transport`, `--witness`) |
+| `research.mjs` | collect the plan (`--dry-run`, `--status`, `--depth`, `--refresh-days`, `--force`, `--transport`, `--search-transport`, `--fallback`, `--witness`) |
 | `preflight.mjs` | the gate (`--checks`, `--check <name>`, `--strict`, `--json`) |
 | `brief.mjs` | write the handoff brief |
 | `handoff.mjs` | on a builder: did the corpus arrive whole? |
@@ -554,7 +556,7 @@ Environment variables take precedence where one exists: `RESEARCH_KIT_TRANSPORT`
 | `preflight` fails with `discovery-contract/no-unknowns` | the contract lists no unknowns yet | add `U-` rows to `research/DISCOVERY.md` |
 | `research.mjs` refuses the plan | `research/plan.json` has neither queries nor urls | fill it in; the shape is under [Run it on a real project](#run-it-on-a-real-project) |
 | `preflight` or `handoff` fails with `ledger-missing` | `research/raw/.fetches.jsonl` did not travel; zip and sync tools drop dotfiles | on the collector: `git add -f research/raw/.fetches.jsonl` and push |
-| the run says Firecrawl answered 402 | credits ran out | the run continues on a free transport and says so; `research --status` shows the budget |
+| the run stops with `credits ran out` and exits 2 | the Firecrawl account is empty | top up and run the same command, or run it with `--fallback` to finish on the free transports; `research --status` shows the budget |
 | `research.mjs` or `decompose.mjs` exits 2 with "builder" | this machine is declared a builder | collect on the collector, or `install-hooks.mjs --role collector` |
 | tests print `UNSUP PYTHON-NOT-FOUND` and block | no Python 3.11+ | install it; a green suite without it would claim two languages agree while testing one |
 | Windows: `git add` refuses with a long-path error | `MAX_PATH` | `git config core.longpaths true` |
