@@ -5,7 +5,13 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
-Nothing yet.
+- The Firecrawl adapter reads the first complete JSON value in the CLI's stdout, whatever
+  is printed around it - a banner with a bracket before it, a credit receipt after it - and
+  `scrape` refuses an exit of 0 that printed nothing, no readable JSON, or a page with no
+  text, as a named failure. Each of those had become a "collected" capture holding 0
+  characters, with a ledger entry and an evidence row behind which there was no page
+  (break-test pass 3, 2026-10-02, with a fake CLI on PATH; the 1.25.0 CLI prints credit
+  receipts, so the trailing case is one release away).
 
 ## 0.9.2 — 2026-10-02
 
