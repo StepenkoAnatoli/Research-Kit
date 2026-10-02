@@ -11,6 +11,7 @@ import path from 'node:path';
 import { parseFlags, listFiles, refuseUnknownFlags, exists, kitCommand, tolerateClosedStdout, tempBase, tempFreeSpace, exitAfterFlush } from '../lib/core.mjs';
 import { runPending, TEST_TIMEOUT, importTestFiles, describe, test, dominantFailureCause, tempDir } from '../test/harness.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
+import { checkNode, REQUIRED_NODE_MAJOR } from '../lib/runtime.mjs';
 
 // Before the first write: a reader that quits early (`| head -1`) must not turn this run
 // into an EPIPE crash, because that reads exactly like a red suite (2026-09-28).
@@ -31,6 +32,17 @@ Every test runs offline: no key, no credits, no network - and none of this machi
   settings: the run has a scratch home and no RESEARCH_KIT_* variable (ADR-0123).
 `);
   process.exit(0);
+}
+
+// The README promises Node 22 or newer, and the kit's commands refuse below it by name. The
+// suite did not: on Node 20 it ran, and 28 tests went red, each carrying the same "this kit
+// needs 22 or newer" where one refusal up front would do (break-test 2026-10-02). Exit 2:
+// misuse, not a red suite, as for a run outside the checkout. RESEARCH_KIT_TEST_NODE_VERSION
+// is the harness's seam, so the refusal can be exercised on the Node that runs the suite.
+const nodeFloor = checkNode(process.env.RESEARCH_KIT_TEST_NODE_VERSION ?? process.versions.node);
+if (!nodeFloor.ok) {
+  process.stderr.write(`selftest runs on Node ${REQUIRED_NODE_MAJOR} or newer: ${nodeFloor.detail}.\n${nodeFloor.fix ? `${nodeFloor.fix}\n` : ''}`);
+  process.exit(2);
 }
 
 const files = listFiles(dir)

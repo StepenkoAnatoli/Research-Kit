@@ -10,7 +10,7 @@
 // exist. Both were prose nobody could check. This one can be.
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, assertEqual, fs, path, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, assertEqual, fs, path, KIT_ROOT, tempDir } from './harness.mjs';
 import { REQUIRED_PYTHON } from '../lib/runtime.mjs';
 
 describe('support-policy');
@@ -375,4 +375,23 @@ test('the run has a scratch home and none of the operator\'s kit variables or ve
   for (const name of ['RESEARCH_KIT_CONFIG', 'RESEARCH_KIT_HOME', 'RESEARCH_KIT_TRANSPORT', 'RESEARCH_KIT_SEARCH_TRANSPORT', 'RESEARCH_KIT_INSTALL_STATE', 'RESEARCH_KIT_EDIT_GATE_SETTINGS', 'FIRECRAWL_API_KEY', 'SERPAPI_API_KEY', 'TAVILY_API_KEY']) {
     assert.equal(process.env[name], undefined, `${name} reached the suite`);
   }
+});
+
+// Below the Node floor the suite refuses up front, as the kit's commands do: on Node 20 it
+// used to run and report 28 red tests, each saying "this kit needs 22 or newer" (break-test
+// 2026-10-02). The harness seam RESEARCH_KIT_TEST_NODE_VERSION stands in for the old Node.
+test('below the Node floor selftest refuses before any test runs, exit 2, naming the floor', () => {
+  const selftest = path.join(KIT_ROOT, 'bin', 'selftest.mjs');
+  const base = Object.fromEntries(Object.entries(process.env).filter(([k]) => !['CI', 'RESEARCH_KIT_ALLOW_UNSUP', 'RESEARCH_KIT_RESULT_FILE'].includes(k)));
+  const old = spawnSync(process.execPath, [selftest, 'canonical-float-policy'], {
+    cwd: path.resolve(KIT_ROOT, '..'), encoding: 'utf8', timeout: 120_000, env: { ...base, RESEARCH_KIT_TEST_NODE_VERSION: '20.11.0' },
+  });
+  assert.equal(old.status, 2, `an old Node was not refused:\n${old.stdout.slice(-300)}\n${old.stderr.slice(-300)}`);
+  assert.match(old.stderr, /selftest runs on Node 22 or newer: node 20\.11\.0; this kit needs 22 or newer/);
+  assert.match(old.stderr, /install Node 22\+/);
+  assert.doesNotMatch(old.stdout, /passed, /, 'tests ran under a refused Node');
+  const floor = spawnSync(process.execPath, [selftest, 'canonical-float-policy'], {
+    cwd: path.resolve(KIT_ROOT, '..'), encoding: 'utf8', timeout: 120_000, env: { ...base, RESEARCH_KIT_TEST_NODE_VERSION: '22.0.0' },
+  });
+  assert.equal(floor.status, 0, `the floor itself was refused:\n${floor.stderr.slice(-300)}`);
 });

@@ -7,6 +7,8 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- `selftest.mjs` refuses below the Node floor before any test runs (exit 2, naming the floor), where
+  on Node 20 it ran and reported 28 red tests each saying "this kit needs 22 or newer".
 - The drafted finding keeps an underscore inside a word: `return_run_details` had been drafted as
   "returnrundetails", a parameter no page carries, and a quote copied from the draft could never
   be found in the capture (found running the kit on MoonAliza, 2026-10-02).
