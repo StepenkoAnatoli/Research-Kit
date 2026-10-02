@@ -197,8 +197,10 @@ test('the Node lines the README says are tested are exactly the ones CI runs', (
 test('the onboarding path names commands that exist', () => {
   // A quickstart that names a binary nobody shipped is the most expensive kind of wrong:
   // it fails on the reader's first command, before they have any reason to trust the rest.
+  // The onboarding path is the front page from "Install" up to the agent section: the
+  // install, the five-minute try, and the real project (headings renamed 2026-10-02).
   const readme = fs.readFileSync(ROOT_README, 'utf8');
-  const section = readme.slice(readme.indexOf('## Your first 30 minutes'), readme.indexOf('## When something fails'));
+  const section = readme.slice(readme.indexOf('## Install'), readme.indexOf('## Working with an AI agent'));
   assert(section.length > 200, 'the onboarding section is missing or empty');
 
   const referenced = [...section.matchAll(/research-kit\/(bin|examples)\/[\w/-]+\.mjs/g)].map((m) => m[0]);
@@ -214,7 +216,7 @@ test('the onboarding path installs the kit first, and runs project commands from
   // the kit where a project can reach it, was not in the path at all. install-hooks.mjs was
   // marked "only on a build machine", so a collector following it never got the commit gate.
   const readme = fs.readFileSync(ROOT_README, 'utf8');
-  const section = readme.slice(readme.indexOf('## Your first 30 minutes'), readme.indexOf('## When something fails'));
+  const section = readme.slice(readme.indexOf('## Install'), readme.indexOf('## Working with an AI agent'));
   const at = (needle) => section.indexOf(needle);
   assert(at('bin/install.mjs') !== -1 && at('bin/install.mjs') < at('new-project.mjs'),
     'the path never installs the kit before a project needs it');

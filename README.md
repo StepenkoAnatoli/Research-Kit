@@ -1,24 +1,140 @@
 # Research-Kit
 
-**Research first, build second.** This is a research kit that collects evidence from real
-sources, keeps a tamper-evident record of where every claim came from, and then *refuses to
-let a build start* until the evidence has been reviewed - by the agent.
+[![offline suite](https://github.com/StepenkoAnatoli/Research-Kit/actions/workflows/offline-suite.yml/badge.svg)](https://github.com/StepenkoAnatoli/Research-Kit/actions/workflows/offline-suite.yml)
 
-It is for the case where an AI would otherwise guess: API limits, pricing, what a licence
-actually permits, whether a platform can do the thing you are planning around.
+**Research first, build second.** Research-Kit makes an AI agent collect evidence from real
+sources before it designs or builds anything, keeps a tamper-evident record of where every
+claim came from, and refuses to let the build start until a gate passes.
 
----
+It exists for the facts an agent would otherwise guess: API limits, pricing, what a licence
+permits, whether a platform can do the thing the design depends on. Plain Node, no
+dependencies, no `package.json`. Everything except the collection itself runs offline.
 
-## Try it in five minutes
+## Contents
 
-No account, no key, nothing to sign up for. This runs the whole loop once on your own
-machine: collect one page, say what it proves, and get a verdict from the gate. It uses the
-keyless transport, which fetches pages directly. You need Node 22+ and Git.
+- [How it works](#how-it-works)
+- [Requirements](#requirements)
+- [Install](#install)
+- [Try it in five minutes](#try-it-in-five-minutes)
+- [Run it on a real project](#run-it-on-a-real-project)
+- [Working with an AI agent](#working-with-an-ai-agent)
+- [Hand the research to a builder](#hand-the-research-to-a-builder)
+- [Keys and cost](#keys-and-cost)
+- [Run the collector on GitHub](#run-the-collector-on-github)
+- [Command reference](#command-reference)
+- [Machine configuration](#machine-configuration)
+- [Troubleshooting](#troubleshooting)
+- [Supported platforms](#supported-platforms)
+- [Repository layout](#repository-layout)
+- [Documentation](#documentation)
+- [License](#license)
+
+## How it works
+
+One loop, run inside the project folder:
+
+```
+ topic ──► decompose ──► contract ──► collect ──► gate ──► brief ──► build
+           (the map)    (unknowns)   (pages +    (PASS or  (handoff)  (phase 2)
+                                      ledger)     FAIL)
+```
+
+| Step | Command | Who does it | What it leaves behind |
+|---|---|---|---|
+| Decompose | `decompose.mjs` | the agent | `research/MAP.md`: the topic split into subtopics, statuses blank |
+| Contract | by hand | the agent | `research/DISCOVERY.md`: the blocking unknowns, `U-1`, `U-2`, ... |
+| Plan | by hand | the agent | `research/plan.json`: the searches and pages that close them |
+| Collect | `research.mjs` | the kit | cached pages under `research/raw/`, rows in `research/EVIDENCE.md`, a hash-chained ledger |
+| Review | by hand | the agent | every finding rewritten into a claim, with a quote from the page |
+| Gate | `preflight.mjs` | the kit | `PASS`, or the name of the unknown that is still unproven |
+| Brief | `brief.mjs` | the agent | `research/BRIEF.md`: the one file a builder has to read |
+
+Two ideas carry the whole design:
+
+- **Evidence is fetched, never typed.** Every cited page is on disk, and the ledger
+  (`research/raw/.fetches.jsonl`) records its hash and the transport that fetched it. A
+  hand-written capture, or a page edited after the fact, fails the gate.
+- **The gate is enforced, not advisory.** With the hooks installed, `git commit` refuses a
+  change outside `research/` while the gate fails, and Claude Code's edit hook interrupts
+  the agent in the same state.
+
+The work splits into **two phases**, usually done by different agents. Phase 1 is research:
+it ends with a passing gate and a brief, and never writes product code. Phase 2 is the
+build: a builder reads the brief and implements, and should never need to re-research.
+
+## Requirements
+
+| | Needed for | Notes |
+|---|---|---|
+| Node 22+ | everything | Node 22, 24 and 26 are each tested on every commit |
+| Git | everything | projects are git repositories; the commit gate is a git hook |
+| Python 3.11+ | the test suite only | the cross-language conformance runners; without it the suite blocks rather than passing |
+| Firecrawl CLI 1.25.2 and a Firecrawl account | metered collection | `npm install -g firecrawl-cli@1.25.2`, then `firecrawl login`. Free tier: 1,000 credits a month, no card |
+| Chromium or Chrome | the `browser` transport | free; reads pages built by JavaScript |
+| SerpAPI key or a SearXNG instance | searching, optional | a second meter, so search stops competing with fetching |
+
+Nothing is required beyond Node and Git to run the kit with the free keyless transport.
+
+## Install
+
+**1. Clone and deploy.** The kit is copied to `~/.agents/research-kit` once, and every
+project on the machine runs it from there.
 
 ```bash
 git clone https://github.com/StepenkoAnatoli/Research-Kit.git
-node Research-Kit/research-kit/bin/install.mjs           # copies the kit to ~/.agents/research-kit
-mkdir try-it && cd try-it && git init -q
+cd Research-Kit
+node research-kit/bin/install.mjs
+node research-kit/bin/install-hooks.mjs
+node research-kit/bin/doctor.mjs
+```
+
+`doctor` must end with `READY`. Anything else names the problem and prints its fix. Run it,
+fix what it says, run it again.
+
+**2. Choose the transport.** With a Firecrawl login, nothing more to do. Without one, tell
+the machine to use the free route, and `doctor` stops asking for a key:
+
+```json
+{ "transport": "http-keyless" }
+```
+
+That file is `~/.agents/research-kit.config.json`. The other keys it takes are under
+[Machine configuration](#machine-configuration).
+
+**What the install touches**
+
+| Path | What it is |
+|---|---|
+| `~/.agents/research-kit/` | the deployed kit; `install.mjs` overwrites it on every run |
+| `~/.agents/research-kit.config.json` | this machine's settings: transport, role, evidence policy |
+| `~/.claude/skills/research-first/` | the skill Claude Code picks up automatically |
+| `~/.claude/settings.json` | the edit-time gate, a Claude Code hook |
+| git `core.hooksPath` | the commit gate, machine-wide, every agent and every human |
+
+**Update.** Pull and deploy again. `doctor` reports when the deployed copy no longer
+matches the checkout.
+
+```bash
+git pull origin main
+node research-kit/bin/install.mjs
+```
+
+**Uninstall.** `node research-kit/bin/install-hooks.mjs --uninstall` restores the hooks
+and the git setting; the folder under `~/.agents` can then be deleted.
+
+**Windows.** The commands in this file work in PowerShell and Git Bash as written, with
+`$HOME` expanding to `C:\Users\<you>`. In `cmd.exe` write `%USERPROFILE%` instead. Windows
+PowerShell 5.1 does not accept `&&` between commands: run them one per line.
+
+## Try it in five minutes
+
+No account, no key. This runs the whole loop once: collect one page, say what it proves,
+and get a verdict from the gate.
+
+```bash
+mkdir try-it
+cd try-it
+git init -q
 node "$HOME/.agents/research-kit/bin/new-project.mjs" . --topic "Is fetch a global in Node.js?"
 ```
 
@@ -29,7 +145,7 @@ node "$HOME/.agents/research-kit/bin/new-project.mjs" . --topic "Is fetch a glob
 ```
 
 **Collect it.** This writes the page under `research/raw/`, a row `E-01` in
-`research/EVIDENCE.md`, and an entry in the hash-chained ledger that proves it was fetched.
+`research/EVIDENCE.md`, and an entry in the ledger that proves it was fetched.
 
 ```bash
 node "$HOME/.agents/research-kit/bin/research.mjs" --transport http-keyless
@@ -41,193 +157,192 @@ node "$HOME/.agents/research-kit/bin/research.mjs" --transport http-keyless
 node "$HOME/.agents/research-kit/bin/preflight.mjs"
 ```
 
-It prints `FAIL` with `discovery-contract/no-unknowns`, because the contract does not yet say
-what you need to know. Add one row under the table in `research/DISCOVERY.md`:
+It prints `FAIL` with `discovery-contract/no-unknowns`: the contract does not yet say what
+you need to know. Add one row under the table in `research/DISCOVERY.md`:
 
 ```
 | U-01 | Is `fetch` a global in Node.js? | Decides whether the code needs a dependency | CLOSED | E-01 |
 ```
 
-Run `preflight` again. It prints `PASS`, with three honest warnings:
-- the page came through the keyless transport, not the metered one;
-- there is no subtopic map yet;
-- one source is carrying the claim.
+Run `preflight` again. It prints `PASS`, with three honest warnings: the page came through
+the keyless transport, there is no subtopic map yet, and one source carries the claim.
 
-That is the whole loop: **decide what you need to know, fetch the page that owns it, and
-let the gate check that the claim points at a real capture.**
+That is the whole loop. Decide what you need to know, fetch the page that owns it, and let
+the gate check that the claim points at a real capture.
 
-**How to read an exit code:**
-- `0` PASS;
-- `1` FAIL, checked and wrong;
-- `2` INCOMPLETE, which **could not be checked** and is not the same as wrong;
-- `3` BLOCKED, which refused to start.
+## Run it on a real project
 
-The full table is in [Reading a verdict](#reading-a-verdict).
+A project is its own folder, and it is the **current working directory**. The kit takes no
+project argument. `cd` into the project first, every time.
 
-`doctor` will still report a missing Firecrawl login. To keep this machine keyless, put
-`{ "transport": "http-keyless" }` in `~/.agents/research-kit.config.json` and it reports
-READY.
-
-**Keyless or Firecrawl?** Which one the gate accepts is set by `evidencePolicy` in that
-same machine config:
-- **`"pluralist"`, the default.** A keyless capture passes with a warning, and so does a
-  closed unknown resting only on `partial` captures. That is enough to map a topic, and to
-  close an unknown whose capture holds the claim; a `[quote: ...]` anchor proves the
-  sentence is in it.
-- **`"strict"`.** Those warnings fail. Any cited capture not fetched by the metered
-  Firecrawl CLI fails the gate. Use this when evidence must not rest on a best-effort
-  fetch. `preflight --strict` applies it to one run, and promotes every other warning too.
-
-Where to go from here:
-- **Real research** captures more of each page through Firecrawl: see
-  [Start here](#start-here-if-this-is-new-to-you) (on GitHub, nothing installed) or
-  [Your first 30 minutes](#your-first-30-minutes) (on your machine, every step).
-- **Collector and builder roles, nested decision projects, MCP and the commit gates** can
-  all wait until you need them.
-
----
-
-## Start here if this is new to you
-
-Five steps. You need a GitHub account. You do **not** need to install anything for steps
-0-4.
-
-> **Two ways in, and this is the easier one.** These steps run everything on GitHub, from
-> the website. If you would rather install the kit and run it on your own machine, skip to
-> [Your first 30 minutes](#your-first-30-minutes) instead - same kit, same gate, more
-> control and more setup.
-
-### 0. Make your own copy of this repository
-
-The collector runs as a GitHub Actions workflow in **your** repository, so it needs a copy
-there. Press **Fork** at the top of this page. Then open your fork's **Actions** tab and press
-the button that enables workflows: GitHub turns them off in a new fork until you say
-otherwise, and until then the `collect` workflow of step 3 does not appear.
-
-### 1. Get a Firecrawl key
-
-Sign up at [firecrawl.dev](https://www.firecrawl.dev) and copy your API key from the
-dashboard. The free tier is 1,000 credits a month, no card, and it stops at zero rather
-than billing you.
-
-### 2. Put the key where only the collector can read it
-
-In **your** repository on GitHub:
-
-> **Settings** → **Environments** → **New environment** → name it `research-collection`
->
-> → **Add secret**: name `FIRECRAWL_API_KEY`, value = your key
-> → **Add variable**: name `RESEARCH_KIT_COLLECTION_ENV`, value `research-collection`
-
-Both are needed. The *variable* is how the collector checks the environment really exists —
-GitHub silently creates an unprotected environment if a workflow names a missing one, and
-that would leave your key somewhere it should not be.
-
-⚠️ **Do not put the key in Settings → Secrets and variables → Actions.** That makes it
-readable by *every* workflow in the repository, including one added in a pull request. The
-collector has a check that refuses to run if it finds it there.
-
-### 3. Run a collection from the website
-
-> **Actions** tab → **collect** in the left sidebar → **Run workflow**
-
-Type your topic, leave the rest alone for a first run, press the green button. Start small:
-`max_pages: 1` and `depth: probe` costs about 3 credits.
-
-When it finishes, scroll to **Artifacts** at the bottom of the run and download the ZIP.
-
-### 4. Read what came back
-
-Open the ZIP and read **`README-FIRST.md`**. It will say:
-
-> **COLLECTED CORPUS — REVIEW REQUIRED**
-
-**That is the correct result, not a problem.** The collector gathers evidence; it does not
-decide whether the research is any good. Three review steps remain, and the agent does them:
-
-1. Classify every row in `project/research/MAP.md`
-2. Rewrite every Finding in `project/research/EVIDENCE.md` into a claim you would defend
-3. Run preflight, then write and review the brief
-
-Until those are done, `manifest.json` says `"buildAuthorized": false` — meaning **do not
-start building from this yet**, and any AI reading it should refuse to as well.
-
-### 5. Check the package is intact (optional)
+**1. Scaffold.** From inside the project folder (a git repository):
 
 ```bash
-node research-kit/bin/artifact.mjs validate --file research-kit-corpus-v1-<something>.zip
+node "$HOME/.agents/research-kit/bin/new-project.mjs" . --topic "<what is being researched>"
 ```
 
-`PASS` means the package is undamaged and its evidence chain verifies. It does **not** mean
-you may build — that is the separate `buildAuthorized` line, and the two are kept apart on
-purpose.
+This writes `AGENTS.md` (the rules every agent follows here), `START_HERE.md` (notes for
+you), `research/` with the contract, plan and evidence files, and `docs/ARCHITECTURE.md`.
+If the project will be read on another machine, add `--kit '$HOME/.agents/research-kit'`
+so its files spell the kit's location portably, single-quoted so your shell leaves it alone.
 
----
-
-## Letting an AI agent run the collector
-
-An agent can do steps 3–5 for you. It needs a token, and that token should be able to do
-**one thing only**.
-
-### Where to get the token
-
-> **[github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new)**
->
-> (or: your avatar → **Settings** → **Developer settings** → **Personal access tokens** →
-> **Fine-grained tokens** → **Generate new token**)
-
-| Field | Value |
-|---|---|
-| Token name | something recognisable, e.g. `research-collector-agent` |
-| Expiration | 30 days. Short is good — you can always make another |
-| Repository access | **Only select repositories** → pick this one |
-| Permissions → Repository → **Actions** | **Read and write** |
-| Everything else | leave alone |
-
-**`Actions: Read and write` is the only permission it needs.** With just that, the agent can
-start a collection and read the result. It **cannot** read or change your code, read your
-secrets, change settings, or reach any other repository. If it misbehaves, revoke the token
-— one click, and nothing else breaks.
-
-Copy the token when it is shown. GitHub will not show it again.
-
-### Give it to the agent
-
-Set it in the environment. **Never on a command line** — that ends up in your shell
-history, in the process list, and in any log that echoes the command. There is no
-`--token` flag, deliberately.
+**2. Decompose the topic.** The map is seeded with nine universal dimensions: access model,
+auth, rate limits, terms and legality, schema stability, freshness, cost at volume, runtime
+limits, and whether the output can be obtained at all.
 
 ```bash
-export RESEARCH_KIT_GITHUB_TOKEN=github_pat_...
-
-node research-kit/bin/collect-remote.mjs \
-  --repository OWNER/REPO \
-  --topic "What are the rate limits on the Stripe API" \
-  --max-pages 5 --json
+node "$HOME/.agents/research-kit/bin/decompose.mjs"
 ```
 
-Windows PowerShell:
+Then open `research/MAP.md` and mark every row `COVERED` (naming the unknowns that cover
+it), `DISMISSED` (with a reason) or `GAP`. This judgement is the one step the kit never
+automates.
 
-```powershell
-$env:RESEARCH_KIT_GITHUB_TOKEN = "github_pat_..."
-node research-kit/bin/collect-remote.mjs --repository OWNER/REPO --topic "..." --json
+**3. Write the contract and the plan.** In `research/DISCOVERY.md`, state the build intent
+and list the blocking unknowns, each tracing back to a map row. In `research/plan.json`,
+list the searches and pages that close them. Prefer the page that owns the fact: official
+docs, the repository, the pricing page, the statute.
+
+```json
+{
+  "topic": "<what is being researched>",
+  "queries": [{ "q": "<what to search for>", "why": "U-1", "prefer": ["<the domain that owns the fact>"] }],
+  "urls": [{ "url": "https://<a page you already know>", "why": "U-1", "type": "P" }]
+}
 ```
 
-One command: it dispatches the run, prints the run id immediately, waits, downloads the
-artifact, unwraps it, and validates it.
+**4. Collect.** The only step that spends credits. Preview first.
 
-| Exit | Meaning |
-|---|---|
-| 0 | collected and valid — **still does not authorize building** |
-| 1 | the package is invalid |
-| 2 | the run failed, or the package is incomplete |
-| 3 | could not start: no token, bad repository, or no permission |
-| 4 | dispatched and still running when the wait ran out; the run id is on stdout, and `--run-id <n>` picks it up again |
+```bash
+node "$HOME/.agents/research-kit/bin/research.mjs" --dry-run
+node "$HOME/.agents/research-kit/bin/research.mjs"
+```
 
-### Or register it as an MCP tool
+A page already in the cache is never fetched twice, so re-running a finished project costs
+nothing. `--status` shows the budget and what the corpus holds.
 
-If your agent speaks the Model Context Protocol, it can have the collector as a tool
-instead of a command:
+**5. Review the findings.** Rewrite each auto-extracted `Finding` cell in
+`research/EVIDENCE.md` into the claim the page supports. Where a claim rests on one
+sentence, add `[quote: the sentence]`, copied word for word; the gate checks the sentence
+is really in the capture. A fact that is genuinely unreachable gets the status
+`KNOWN-UNKNOWN` and a day-one verification step, never silence.
+
+**6. Ask the gate.**
+
+```bash
+node "$HOME/.agents/research-kit/bin/preflight.mjs"
+```
+
+`PASS` means the thirteen checks agree the evidence supports starting. Anything else names
+what blocks and prints one fix. Do not build before `PASS`.
+
+**7. Write the brief and commit.**
+
+```bash
+node "$HOME/.agents/research-kit/bin/brief.mjs"
+git add research/
+git add -f research/raw/.fetches.jsonl
+git commit -m "research: <topic>"
+```
+
+`research/BRIEF.md` is the handoff: intent, verified claims with sources, contradictions
+and how they were resolved, known unknowns with their verification steps, and the first
+build step. The ledger is added by name because it is a dotfile, and a dotfile rule can
+hide it; it is evidence, not a byproduct.
+
+**Cost.** About one Firecrawl credit per page and two per search. Decompose runs four
+searches. A project of twenty pages costs roughly thirty credits; the free tier is 1,000 a
+month and stops at zero rather than billing.
+
+## Working with an AI agent
+
+The kit is agent-agnostic. What an agent needs is in the project: `AGENTS.md` carries the
+rules and the sequence, the commands are plain `node` invocations, and the commit gate is
+a git hook that applies to every tool alike. The differences between agents are only in
+how each one finds `AGENTS.md`, and whether it gets the edit-time gate.
+
+### Claude Code
+
+Nothing to configure. The install puts the `research-first` skill under
+`~/.claude/skills`, so Claude Code starts the protocol on its own when a task depends on
+external facts, reads `AGENTS.md` in the project, and is interrupted by the edit-time gate
+if it tries to write product code while the gate fails. Open the project folder and ask:
+
+> Research this before we design anything: `<the question>`. Follow AGENTS.md. Ask me at
+> most three questions about intent, fetch every fact, and stop at a passing preflight and
+> a written brief. Do not write product code.
+
+### Gemini CLI
+
+Gemini CLI reads `GEMINI.md`, not `AGENTS.md`, so tell it where the rules are. Either is
+enough:
+
+- **Point Gemini at `AGENTS.md`.** In the project's `.gemini/settings.json` (or in
+  `~/.gemini/settings.json` for every project on the machine):
+
+  ```json
+  { "context": { "fileName": ["AGENTS.md", "GEMINI.md"] } }
+  ```
+
+- **Or leave a pointer.** A one-line `GEMINI.md` in the project folder:
+
+  ```
+  Read AGENTS.md in this folder and follow it exactly.
+  ```
+
+Then install the kit on that machine as in [Install](#install). The commit gate works for
+Gemini as it does for everyone. The edit-time gate is a Claude Code hook and does not
+apply, and there is no skill to trigger the protocol, so say it in the prompt:
+
+> Read AGENTS.md. Run phase 1 of the research-first protocol for the topic in
+> `research/plan.json`: decompose, classify the map, write the contract and the plan,
+> collect, rewrite every finding with a quote, pass preflight, write the brief. Ask me at
+> most three questions about intent first. Do not write product code.
+
+If the machine should only build from a corpus someone else collected, declare it a
+builder, and collection refuses there by design:
+
+```bash
+node "$HOME/.agents/research-kit/bin/install-hooks.mjs" --role builder
+```
+
+### Codex, Cursor and others
+
+Codex reads `AGENTS.md` natively. For a tool that reads a differently named file
+(`CLAUDE.md`, `.cursorrules`, a custom instructions setting), the one-line pointer above
+works everywhere: a file in its name that says to read `AGENTS.md` and follow it.
+
+### Example: a research project inside MoonAliza
+
+MoonAliza keeps its research under `docs/research/<date>-<topic>/`, one project per
+question, each with its own `AGENTS.md` and corpus. To research a new question there with
+Gemini:
+
+```bash
+cd MoonAliza
+node "$HOME/.agents/research-kit/bin/new-project.mjs" docs/research/2026-10-03-payment-provider --topic "Which payment provider fits MoonAliza's checkout" --kit '$HOME/.agents/research-kit'
+cd docs/research/2026-10-03-payment-provider
+gemini
+```
+
+Give it the Gemini prompt above. When it reports a passing preflight and a brief, read
+`research/BRIEF.md`, then commit the project including the ledger:
+
+```bash
+git add docs/research/2026-10-03-payment-provider
+git add -f docs/research/2026-10-03-payment-provider/research/raw/.fetches.jsonl
+git commit -m "research: payment provider"
+```
+
+The project folder is the working directory for every kit command, so `cd` into it before
+running `doctor`, `preflight` or `research`. From MoonAliza's root they would describe the
+root, which has no corpus.
+
+### Give an agent the GitHub collector as a tool
+
+If collection runs on GitHub ([below](#run-the-collector-on-github)), an agent that speaks
+the Model Context Protocol can have it as a tool. Claude Code reads this from `.mcp.json`
+in the project; Gemini CLI from `mcpServers` in `~/.gemini/settings.json`.
 
 ```json
 {
@@ -241,337 +356,265 @@ instead of a command:
 }
 ```
 
-Write the **absolute** path of the installed copy that `install.mjs` made:
-- `~/.agents/research-kit` on Linux or macOS;
-- `%USERPROFILE%\.agents\research-kit` on Windows, written `C:\\Users\\you\\...` inside
-  JSON.
+Write the absolute path of the deployed kit: `~/.agents/research-kit` on Linux and macOS,
+`C:\\Users\\you\\.agents\\research-kit` inside JSON on Windows. MCP clients do not expand
+`~` or `$HOME` in `args`. Two tools: `collect` starts a run and returns its id,
+`fetch_corpus` returns a link to the validated package. The token is described in the
+GitHub section.
 
-An MCP client does not expand `$HOME` or `~` in `args`.
+**What every agent must do with a result:** read `buildAuthorized` and stop if it is
+`false`. It is `false` for every freshly collected corpus, because nobody has reviewed it
+yet. Exit 0 means the package is intact, never that building may start.
 
-Two tools: `collect` starts a run and returns its id; `fetch_corpus` takes that id and
-returns a link to the validated package. The server speaks **both** protocol eras -
-`2026-07-28`, and `2025-11-25` or `2025-06-18` on the older handshake - because the
-specification is ahead of every shipped client, clients built on the official SDK before
-December 2025 still ask for `2025-06-18`, and a server only the spec can talk to is one
-nothing can call. The same token, the same one permission, and the
-same rule at the end - the result carries `buildAuthorized`, and it is `false` for every
-freshly collected corpus.
+## Hand the research to a builder
 
-Why it is a local server and not a hosted one, and why it hands back a link rather than the
-file: [ADR-0034](docs/adr/0034-the-collector-speaks-mcp-over-stdio.md), which was written
-from research that passed the gate first.
+The kit runs on two kinds of machine, and each one declares which it is (`role` in the
+machine config, default `collector`).
 
-### What the agent must not do
-
-Read `buildAuthorized` and stop if it is `false`. **It will be `false` for everything this
-command returns**, because a freshly collected corpus has not been reviewed by anyone. An
-agent treating exit 0 as permission to build has skipped the review - the three steps
-that are its own job.
-
----
-
-## Reference
-
-- [`research-kit/README.md`](research-kit/README.md) — every command, the artifact format, the transports
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — what each module owns
-- [`docs/adr/`](docs/adr/README.md) — why things are the way they are
-
-## Supported platforms
-
-**Linux and Windows are supported. macOS is best-effort and untested.**
-
-"Supported" here means one specific thing, and nothing vaguer: **every commit runs the
-full offline suite on that platform in CI.** Linux and Windows both do
-([`offline-suite.yml`](.github/workflows/offline-suite.yml)). macOS does not, so a macOS
-regression will not be caught before you hit it. Until GitHub's `ubuntu-latest` finishes
-moving to Ubuntu 26.04 (2026-11-19), Linux is checked on both images, 24.04 and 26.04
-([ADR-0043](docs/adr/0043-the-suite-runs-on-ubuntu-26-04-through-the-migration.md)).
-
-| | Linux | Windows | macOS |
-|---|---|---|---|
-| full suite runs on every commit | ✅ | ✅ | ❌ |
-| platform-specific behaviour asserted | executable hook bit | LF checkout, `.cmd` argument guard | — |
-| a regression here is caught by CI | yes | yes | **no** |
-
-This is not a guess about where the code works — it is a statement about where it is
-*checked*. The distinction earned itself twice in one day:
-
-- `githooks/pre-commit` shipped as mode `100644`. Git **silently skips** a non-executable
-  hook, so the gate reported clean commits while doing nothing. The machine it was
-  authored on (Windows) has no executable bit and *could not* have detected it; the first
-  Linux run found it in minutes.
-- The single macOS run we did was not wasted either. It found a real containment bug —
-  `audit --zip` refused to package its own files whenever the project sat under a symlink.
-  **That one was never macOS-specific:** a symlinked `~/projects`, or `/home` → `/mnt/home`,
-  reproduces it on Linux. It is fixed.
-
-macOS is excluded deliberately rather than accidentally
-([ADR-0101](docs/adr/0101-macos-is-best-effort-and-has-no-ci-leg.md)). A CI leg nobody intends to fix
-teaches people to ignore red, which costs more than the coverage is worth. If that
-changes, add `macos-latest` to the matrix in `offline-suite.yml` — there is a comment
-there saying so.
-
-**Requirements:** Node 22+ and Git. Python 3.11+ is needed for the cross-language
-conformance runners; without it those tests report `UNSUP` and **block** rather than
-silently passing. Node 22, 24 and 26 are each tested on every commit - the three lines Node
-supports (as of 2026-09). Behind an HTTPS proxy, the kit's own requests (keyless pages,
-SerpAPI searches, remote collection) need Node 22.21+ or 24+ to use it; `doctor` says so
-when yours cannot.
-
-## Bring your own keys
-
-**No credentials ship with this repository, and none ever will.** If you cloned this,
-the keys are yours to supply.
-
-You can run the whole kit with **no key at all**:
-
-```
-node "$HOME/.agents/research-kit/bin/research.mjs" --transport http-keyless
-```
-
-That route has no vendor, no credential and no metering. It is slower and its captures
-are often graded `partial`, which the corpus records honestly rather than hiding.
-
-For the metered routes, the kit reads a credential from exactly two places — the
-environment, or the machine config at `~/.agents/research-kit.config.json`:
-
-| Provider | Used for | How to supply it |
+| | **collector** (your PC) | **builder** (a sandbox, a CI box, another agent's machine) |
 |---|---|---|
-| Firecrawl | fetching pages, and searching by default | `npm install -g firecrawl-cli@1.25.2` (the package is `firecrawl-cli`; `firecrawl` is a different one), then `firecrawl login` — the CLI stores it. **Never run `firecrawl env` inside a repository**: it writes the key into `.env`. |
-| SerpAPI | searching only, entirely optional | `SERPAPI_API_KEY`, or `serpapiKey` in the machine config |
-| SearXNG | searching only, optional, no key: an instance you run | `SEARXNG_URL`, or `searxngUrl` in the machine config, then `--search-transport searxng` |
+| holds | the Firecrawl key | no key |
+| runs | `decompose.mjs`, `research.mjs` | `handoff.mjs`, `preflight.mjs`, then the build |
+| `doctor` says | a missing key is a FAIL | a missing key is informational |
+| must | push `research/` including the ledger | not collect; `research.mjs` and `decompose.mjs` refuse there |
 
-Both have free tiers, and the kit is designed around them: Firecrawl gives 1,000 credits
-a month, SerpAPI 250 searches. Adding the SerpAPI key is worth it not because it is
-cheaper but because it is a *second meter* — search stops competing with fetching for the
-same budget ([ADR-0027](docs/adr/0027-search-and-fetch-are-two-seams.md)).
-
-**The kit never reads a key from the repository, and never writes one into it.** That is
-a checked property, not a promise: `doctor` runs a secret scan over every tracked text
-file on each invocation, the tests assert the key never reaches a rendered command, a log
-line or an error string, and a query that *contains* your key is refused before it is
-sent — because it would otherwise be stored as a search term on the vendor's systems.
-
-**Validating needs no credentials at all.** The release-evidence validators, the
-conformance runners in both languages, `preflight` and the whole test suite are offline
-and read-only — none of them reads an environment variable, so none can use a key even
-by accident. A reviewer can re-run every check without asking you for anything.
-
-**SearXNG, if DuckDuckGo keeps refusing keyless searches.** A SearXNG instance you run answers
-searches as JSON with no key and no meter
-([ADR-0104](docs/adr/0104-searxng-is-an-explicit-search-provider.md)). Its JSON output is off by
-default: add `json` to `search.formats` in its `settings.yml`, or every search is refused
-with HTTP 403, which the kit names. Then set `SEARXNG_URL` (for example
-`http://localhost:8888`) and pass `--search-transport searxng`, or put both in the machine
-config. It is never chosen automatically.
-
-One disclosure, since it is your data: a search sends your query text to the provider.
-SerpAPI retains search data for 31 days. Tavily was evaluated and **deliberately not
-wired in**, because its terms permit it and its AI providers to retain queries and
-outputs for training — a reasonable thing to opt into knowingly, and not a reasonable
-default ([research/BRIEF.md](research/BRIEF.md)).
-
-**An opt-in witness.** `research --witness` asks the Wayback Machine, after each newly
-collected page, for its snapshot closest to the capture time, and appends the answer to
-`research/witnesses.jsonl`. A snapshot is a third party's copy of the page; the ledger
-alone proves only that the capture was not edited afterwards. The lookup sends each
-collected URL to the Internet Archive, so it is off by default. It only looks up: it never
-asks the archive to save a page, and a failed lookup never fails a capture
-([ADR-0106](docs/adr/0106-the-wayback-witness-is-opt-in-and-lookup-only.md)).
-
-## Your first 30 minutes
-
-**The local path**, for running the kit on your own machine rather than on GitHub. If you
-just want research back and do not care where it runs,
-[Start here](#start-here-if-this-is-new-to-you) is shorter.
-
-One path, in order. Steps 1–4 and 7 are entirely offline and need no credential; step 5's
-map searches and step 6's collection are the only steps that can spend anything.
-
-**1. Check the machine.** This answers "is anything missing" before you spend time on it.
+The corpus travels through git. The builder's first command, inside the project:
 
 ```bash
-node research-kit/bin/doctor.mjs
+node "$HOME/.agents/research-kit/bin/handoff.mjs"
 ```
 
-**2. Install the kit and its gates.** `install.mjs` copies the kit to
-`~/.agents/research-kit`, where every project on this machine reaches it. `install-hooks.mjs`
-installs the commit and edit gates, which are what hold a project to "research first". A
-*collector* holds a key and gathers evidence; a *builder* has no key and consumes what a
-collector pushed. The default is collector.
+It checks that the ledger is present, that `research/EVIDENCE.md` is there with its table,
+that every capture a row cites is on disk, and that the chain verifies. Exit 1 names what is
+missing and which machine the fix lives on: something did not travel (the collector pushes
+`research/raw/.fetches.jsonl` by name), or the checkout rewrote line endings (fix it on the
+builder with `.gitattributes`: `research/raw/* text eol=lf`). The scaffold ships that
+`.gitattributes`.
+
+A builder who finds a fact missing reports which one and lets the collector fetch it. A
+page fetched by hand is not evidence in this kit.
+
+## Keys and cost
+
+**No credentials ship with this repository, and none ever will.** The kit reads a key from
+the environment or from `~/.agents/research-kit.config.json`, never from a project, and
+`doctor` scans every project it runs in for a committed key.
+
+**Transports**
+
+| Transport | Cost | What it gives |
+|---|---|---|
+| `firecrawl-cli` (default when logged in) | about 1 credit a page, 2 a search | the fullest capture; the gate's preferred evidence |
+| `http-keyless` | free | a direct fetch; captures are graded `partial` when the page needed a browser |
+| `browser` | free | a local Chromium renders the page; reads JavaScript-built pages and pages that refuse plain clients |
+
+Pick one per run with `--transport`, or per machine with `transport` in the config. When
+Firecrawl's credits run out mid-run, the rest of the run switches to `browser` where one is
+installed, else to `http-keyless`, and says so; `--no-fallback` records those pages as
+failed instead. Each capture's ledger entry names the transport that fetched it.
+
+**Search providers**
+
+| Provider | Cost | How to enable |
+|---|---|---|
+| Firecrawl (default) | 2 credits a search | the same login |
+| SerpAPI | 250 free searches a month | `SERPAPI_API_KEY` in the environment, or `serpapiKey` in the config |
+| SearXNG | free, an instance you run | `SEARXNG_URL`, or `searxngUrl` in the config, then `--search-transport searxng` |
+
+A search sends the query text to the provider. SerpAPI retains it for 31 days. Tavily was
+evaluated and deliberately not wired in, because its terms allow retention for training.
+
+**Firecrawl setup**
 
 ```bash
-node research-kit/bin/install.mjs
-node research-kit/bin/install-hooks.mjs                  # a collector (the default)
-node research-kit/bin/install-hooks.mjs --role builder   # instead, on a build machine
+npm install -g firecrawl-cli@1.25.2
+firecrawl login
 ```
 
-**3. See a validator actually work, before you own any data.** This step is optional. The
-release-evidence validators are a separate layer
-([ADR-0029](docs/adr/0029-the-validator-layer-arrives-as-a-source-not-a-donor.md)): research,
-preflight and the gates never use them, so skip to step 4 if you only research. Six synthetic
-packages, one that passes and five that fail one way each:
+The package is `firecrawl-cli`; `firecrawl` is a different one. Never run `firecrawl env`
+inside a repository: it writes the key into `.env`.
+
+**What the gate accepts** is set by `evidencePolicy` in the config. `pluralist`, the
+default, passes a keyless capture with a warning. `strict` fails any cited capture not
+fetched by the metered CLI; `preflight --strict` applies it to one run.
+
+**A witness, opt-in.** `research --witness` asks the Wayback Machine for its snapshot of
+each newly collected page and records the answer. It sends each URL to the Internet
+Archive, so it is off by default.
+
+## Run the collector on GitHub
+
+Optional. The same collector runs as a GitHub Actions workflow in your fork, from the
+website, for a person who installs nothing.
+
+1. **Fork** this repository, open the fork's **Actions** tab, and enable workflows.
+2. **Get a Firecrawl key** at [firecrawl.dev](https://www.firecrawl.dev).
+3. **Put the key where only the collector can read it.** In the fork: **Settings** →
+   **Environments** → **New environment** named `research-collection`. Add the secret
+   `FIRECRAWL_API_KEY` and the variable `RESEARCH_KIT_COLLECTION_ENV` with the value
+   `research-collection`. Both are needed: the variable proves the environment exists,
+   because GitHub silently creates an unprotected one when a workflow names a missing name.
+   Do not put the key under repository secrets, where every workflow can read it; the
+   collector refuses to run if it finds it there.
+4. **Run a collection.** **Actions** → **collect** → **Run workflow**. Type the topic and
+   start small: `max_pages: 1` and `depth: probe` costs about three credits. Download the
+   ZIP under **Artifacts** when it finishes.
+5. **Read `README-FIRST.md`** in the ZIP. It says the corpus is collected and the review is
+   required. That is the correct result: the three review steps remain, and the agent does
+   them. `manifest.json` says `"buildAuthorized": false` until then.
+
+**Letting an agent run it.** It needs one token that can do one thing. Create a
+fine-grained personal access token at
+[github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new)
+with repository access limited to the fork and the single permission **Actions: Read and
+write**. It can then start a collection and read the result, and nothing else. Set it in
+the environment, never on a command line:
 
 ```bash
-node research-kit/examples/release-evidence/run-example.mjs
+export RESEARCH_KIT_GITHUB_TOKEN=github_pat_...
+node "$HOME/.agents/research-kit/bin/collect-remote.mjs" --repository OWNER/REPO --topic "<topic>" --max-pages 5 --json
 ```
 
-Read [`examples/release-evidence/README.md`](research-kit/examples/release-evidence/README.md)
-next. It is the fastest way to learn what a release package *is*, because the schemas
-describe each file's shape and say nothing about how they refer to each other.
+| Exit | Meaning |
+|---|---|
+| 0 | collected and valid; still does not authorize building |
+| 1 | the package is invalid |
+| 2 | the run failed, or the package is incomplete |
+| 3 | could not start: no token, bad repository, or no permission |
+| 4 | still running when the wait ran out; `--run-id <n>` picks it up again |
 
-**4. Prove the whole thing runs here.** Offline, no key, no network:
+**Privacy.** The topic never appears in a run name or an artifact name. It does appear in
+the job log, which anyone signed in to GitHub can read on a public repository. To research
+something you would not publish, use a private repository or collect locally. The details,
+measured rather than assumed, are in the
+[kit reference](research-kit/README.md#collecting-from-github-actions).
 
-```bash
-node research-kit/bin/selftest.mjs
-```
+## Command reference
 
-**5. Scaffold a project.** A project is its own folder, outside this repository. It is the
-**current working directory** - the kit takes no project argument - so `cd` there first,
-and call the installed kit by its full path. `$HOME` works in bash, zsh, Git Bash and
-PowerShell.
+Every command runs from inside the project folder. The main ones:
 
-```bash
-mkdir "$HOME/my-research" && cd "$HOME/my-research"
-node "$HOME/.agents/research-kit/bin/new-project.mjs" . --topic "<your topic>"
-node "$HOME/.agents/research-kit/bin/decompose.mjs" --topic "<your topic>"
-```
+| Command | What it does |
+|---|---|
+| `doctor.mjs` | machine, project, gate and chain health in one report, with the fix for each problem |
+| `new-project.mjs <dir> --topic "..."` | scaffold a project (`--kit` to spell the kit path portably) |
+| `decompose.mjs` | draft the subtopic map, seeded with the universal checklist (`--dry-run` spends nothing) |
+| `research.mjs` | collect the plan (`--dry-run`, `--status`, `--depth`, `--refresh-days`, `--force`, `--transport`, `--search-transport`, `--witness`) |
+| `preflight.mjs` | the gate (`--checks`, `--check <name>`, `--strict`, `--json`) |
+| `brief.mjs` | write the handoff brief |
+| `handoff.mjs` | on a builder: did the corpus arrive whole? |
+| `audit.mjs` | one pasteable snapshot of a passing corpus (`--zip`) |
+| `evidence-context.mjs --unknown U-5` | what one unknown rests on |
+| `measure.mjs` | how the citations hold up, as a report |
+| `export-warc.mjs` | the captures as one WARC file for archive tools |
+| `collect-remote.mjs` | run the collector on GitHub and bring the result back |
+| `mcp-server.mjs` | the collector as an MCP server over stdio |
+| `install.mjs`, `install-hooks.mjs` | deploy the kit; install the gates and declare the machine's role |
+| `selftest.mjs` | the whole suite, offline |
 
-With no Firecrawl key, `decompose` searches with the free keyless route. If every search
-fails, it says so and the map is the bare checklist: carry on, and name the pages you
-already know in `plan.json`'s `urls` below.
+The full table, including the release-evidence validators and the artifact format, is in
+[`research-kit/README.md`](research-kit/README.md#every-command).
 
-Then open `research/MAP.md` and mark each row `COVERED`, `DISMISSED` or `GAP`. **This step
-is yours and is not automated** — deciding what counts as answered is the judgement the
-rest of the kit protects. A `COVERED` row names the unknowns that close it - `U-1, U-2`,
-from `research/DISCOVERY.md` - never evidence rows (`E-01`): a map row is closed by
-unknowns, and an unknown by evidence.
-
-Write the blocking unknowns into `research/DISCOVERY.md`, each tracing back to a map row,
-then the queries and pages that close them into `research/plan.json`. `research.mjs`
-refuses a plan with neither:
-
-```json
-{
-  "topic": "<your topic>",
-  "queries": [{ "q": "<what to search for>", "why": "U-1", "prefer": ["<the domain that owns the fact>"] }],
-  "urls": [{ "url": "https://<a page you already know>", "why": "U-1", "type": "P" }]
-}
-```
-
-**6. Collect.** The only step that spends credits:
-
-```bash
-node "$HOME/.agents/research-kit/bin/research.mjs" --dry-run   # see what it would fetch, and the cost
-node "$HOME/.agents/research-kit/bin/research.mjs"
-```
-
-Then rewrite each auto-extracted `Finding` cell in `research/EVIDENCE.md` into the claim the
-page supports. Where a claim rests on one sentence, add `[quote: the sentence]`, copied from
-the capture word for word - quotation marks around it are optional. The gate checks that the
-sentence is really in the page; a claim with no quote is accepted, but nothing checks it.
-
-**7. Ask whether you may build yet.**
-
-```bash
-node "$HOME/.agents/research-kit/bin/preflight.mjs"
-```
-
-`PASS` means the thirteen corpus checks agree the evidence supports starting. Anything else
-names what blocks and prints one fix.
-
-### Reading a verdict
-
-Every validating command maps its status to an exit code, so scripts can branch on it:
+**Reading a verdict.** Every validating command maps its status to an exit code.
 
 | Status | Exit | Means |
 |---|---:|---|
 | `PASS` | 0 | checked, and correct |
 | `FAIL` / `REOPEN` | 1 | checked, and wrong |
-| `INCOMPLETE` | 2 | **could not be checked** — not the same as wrong |
+| `INCOMPLETE` | 2 | could not be checked, which is not the same as wrong |
 | `BLOCKED` | 3 | refused to start |
 
-The `INCOMPLETE` row is the one that catches people. A record the registry declares but
-which is absent produces no verdict *about that record*, so reporting `FAIL` would claim
-more than the validator knows.
+## Machine configuration
 
-## When something fails
+`~/.agents/research-kit.config.json`, read by every command. Every key is optional.
 
-The failure modes that actually happen, and what each one looks like:
+| Key | Values | Default | What it decides |
+|---|---|---|---|
+| `role` | `collector`, `builder` | `collector` | whether this machine may collect; set it with `install-hooks.mjs --role` |
+| `transport` | `firecrawl-cli`, `http-keyless`, `browser` | probed | how pages are fetched |
+| `searchTransport` | `firecrawl-cli`, `http-keyless`, `serpapi`, `searxng` | the fetch transport | how searches run |
+| `evidencePolicy` | `pluralist`, `strict` | `pluralist` | whether a keyless or partial capture passes the gate with a warning or fails it |
+| `serpapiKey` | a key | none | SerpAPI search; the environment variable `SERPAPI_API_KEY` works too |
+| `searxngUrl` | a URL | none | a SearXNG instance for search |
+| `failOpen` | `true`, `false` | `true` | what the gate does when it cannot run at all |
+| `editGate.mode` | `ask`, `hard-block`, `off` | `ask` | the Claude Code edit-time gate; `install-hooks.mjs --mode` sets it |
+| `editGate.settingsPath` | a path | `~/.claude/settings.json` | where the edit-time gate is registered |
+| `skillRoots` | a list of paths | `~/.claude/skills` | where the skill is installed |
+
+Environment variables take precedence where one exists: `RESEARCH_KIT_TRANSPORT`,
+`SERPAPI_API_KEY`, `SEARXNG_URL`, `RESEARCH_KIT_HOME` (where the kit is deployed).
+
+## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Tests print `UNSUP  PYTHON-NOT-FOUND` and the suite exits non-zero | No Python; the cross-language conformance runners cannot run | Install Python 3.11+. This **blocks by design** — a green suite with no Python would claim Node and Python agree while testing neither |
-| `preflight` fails with `ledger-missing` | `research/raw/.fetches.jsonl` did not travel. Zip tools and some sync tools silently drop dotfiles | On the collector: push `research/raw/` **including its dotfiles** |
-| Commits succeed but the gate never seems to run | `githooks/pre-commit` is not executable; git skips a non-executable hook silently | `git update-index --chmod=+x research-kit/githooks/pre-commit` |
-| The gate blocks with "…is not staged with them" | You changed a declared code path without updating `docs/ARCHITECTURE.md` | Update the map, or `git commit --no-verify` (recorded) |
-| `audit --zip` says a file "resolves outside" its own directory | Fixed 2026-09-20. Older checkouts refuse whenever the project sits under a symlink | Update |
-| `researcher-release validate` rejects a package you believe is right | The files refer to each other; one link is wrong | `diff` your package against `examples/release-evidence/01-minimal-pass/` |
-| A `PASS` did not notice a file you know is broken | `validate` checks what the **registry declares**, not what the directory contains | See package `03` in the examples — it exists to document exactly this |
-| Windows: `git add` refuses with a long-path error | `MAX_PATH`; this repo has produced 114-character paths under a 157-character root | `git config core.longpaths true` |
+| `doctor` reports problems about files or a corpus you do not recognise | it describes the folder it runs in, and that folder is not the project | `cd` into the project, run it again |
+| `Cannot find module '...\research-kit\bin\...'` | a relative path from the wrong folder | use the full path: `node "$HOME/.agents/research-kit/bin/doctor.mjs"` |
+| `fatal: not a git repository` | the project folder is not a repository, or the prompt is outside it | `git init` the project, `cd` into it |
+| PowerShell: `The token '&&' is not a valid statement separator` | Windows PowerShell 5.1 has no `&&` | one command per line |
+| `preflight` fails with `discovery-contract/no-unknowns` | the contract lists no unknowns yet | add `U-` rows to `research/DISCOVERY.md` |
+| `research.mjs` refuses the plan | `research/plan.json` has neither queries nor urls | fill it in; the shape is under [Run it on a real project](#run-it-on-a-real-project) |
+| `preflight` or `handoff` fails with `ledger-missing` | `research/raw/.fetches.jsonl` did not travel; zip and sync tools drop dotfiles | on the collector: `git add -f research/raw/.fetches.jsonl` and push |
+| the run says Firecrawl answered 402 | credits ran out | the run continues on a free transport and says so; `research --status` shows the budget |
+| `research.mjs` or `decompose.mjs` exits 2 with "builder" | this machine is declared a builder | collect on the collector, or `install-hooks.mjs --role collector` |
+| tests print `UNSUP PYTHON-NOT-FOUND` and block | no Python 3.11+ | install it; a green suite without it would claim two languages agree while testing one |
+| Windows: `git add` refuses with a long-path error | `MAX_PATH` | `git config core.longpaths true` |
+| the commit gate blocks with "is not staged with them" | in this repository, a declared code path changed without `docs/ARCHITECTURE.md` | update the map in the same commit |
 
-## Run it from inside the project
+## Supported platforms
 
-The kit takes no project argument — the project is the current working directory. `cd`
-into the project first, then run the kit from wherever it is installed:
+**Linux and Windows are supported. macOS is best-effort and untested.** "Supported" means
+one thing: the full offline suite runs on that platform in CI on every commit
+([`offline-suite.yml`](.github/workflows/offline-suite.yml)). Until GitHub's
+`ubuntu-latest` finishes moving to Ubuntu 26.04 (2026-11-19), Linux is checked on both
+images, 24.04 and 26.04
+([ADR-0043](docs/adr/0043-the-suite-runs-on-ubuntu-26-04-through-the-migration.md)).
+
+| | Linux | Windows | macOS |
+|---|---|---|---|
+| full suite on every commit | yes | yes | no |
+| platform behaviour asserted | executable hook bit | LF checkout, `.cmd` argument guard | none |
+
+macOS is excluded on purpose
+([ADR-0101](docs/adr/0101-macos-is-best-effort-and-has-no-ci-leg.md)): a CI leg nobody
+intends to fix teaches people to ignore red. Requirements: Node 22+ and Git, with Python
+3.11+ for the conformance runners in the test suite. Behind an HTTPS proxy, the kit's own
+requests need Node 22.21+ or 24+; `doctor` says so when yours cannot.
+
+## Repository layout
 
 ```
-cd ~/projects/my-thing
-node "$HOME/.agents/research-kit/bin/preflight.mjs"
+research-kit/            the kit: what install.mjs deploys
+  bin/                   every command
+  lib/                   the modules behind them
+  hooks/, githooks/      the edit-time gate and the commit gate
+  skill/                 the research-first skill for Claude Code
+  template/              what new-project.mjs writes into a project
+  test/                  the offline suite
+  README.md              the reference: every command, the artifact format, the transports
+research/                this repository's own corpus (it is gated by its own kit)
+docs/
+  ARCHITECTURE.md        what each module owns, kept current with the code
+  adr/                   every design decision, with what it rejected
+  decisions/             nested research projects about the kit itself
+AGENTS.md                the rules every agent follows in this repository
+CONTEXT.md               the domain vocabulary
+CHANGELOG.md             what changed in each release
 ```
 
-From any other directory it reports on the directory it is standing in.
+## Documentation
 
-## Two machines, two roles
-
-The kit runs on two boxes, and a machine declares which half it is (`role` in
-`~/.agents/research-kit.config.json`, default `collector` — set it with
-`node research-kit/bin/install-hooks.mjs --role builder`):
-
-| | **collector** (the operator's PC) | **builder** (a sandbox, a CI box, a second laptop) |
-|---|---|---|
-| holds | the Firecrawl key | no key, no Firecrawl egress to firecrawl.dev |
-| runs | `decompose.mjs`, `research.mjs` — produces the corpus | `handoff.mjs`, `preflight.mjs` — consumes it, then builds |
-| `doctor.mjs` | a missing key is a FAIL | a missing key is informational |
-| must | push `research/raw/` including its dotfiles, so the builder can receive the corpus | **not collect** — `research.mjs` and `decompose.mjs` refuse (exit 2) |
-
-The corpus crosses the two through git, so the builder's first command is:
-
-```
-node "$HOME/.agents/research-kit/bin/handoff.mjs"
-```
-
-It verifies that `research/raw/.fetches.jsonl` (the ledger) is present and non-empty,
-that `research/EVIDENCE.md` is there with its table, that every capture an evidence row
-names is on disk, and that the chain verifies. It exits 1 and names whatever is missing. The remedy always lives on the collector: push
-`research/raw/` including its dotfiles. See `docs/adr/0010-machine-roles.md` and
-`docs/adr/0011-handoff-integrity.md`.
-
-## Cloning or zipping this repository
-
-**One dotfile under `research/raw/` is evidence. The rest are byproducts, and the
-difference matters in both directions.**
-
-`research/raw/.fetches.jsonl` is the hash-chained fetch ledger that proves every cached
-page in `research/EVIDENCE.md` was actually fetched. It **must travel**. Zip tools, some
-sync tools, and certain git filters silently drop dotfiles — and if it is missing, the
-repository cannot pass its own gate (`node research-kit/bin/preflight.mjs` fails with
-`ledger-missing`). That has happened to this project once already. When copying by hand,
-copy `research/raw/.fetches.jsonl`.
-
-Everything else there is **machine-local state and must not travel**:
-`.diagnostics.jsonl` (what the gate decided, each time it ran), `.usage.jsonl` (what a
-collection spent), `.failures.jsonl` (what a collection failed to fetch), and
-`.fetches.lock`. All four are in `.gitignore`.
-
-The reason this paragraph is worded so carefully: `.diagnostics.jsonl` was tracked
-anyway, from the first commit of this repository until 2026-09-20 — added in the same
-commit as the `.gitignore` rule that excludes it, which `.gitignore` is powerless to undo
-once a file is in the index. The gate writes a line to it on **every** invocation, so
-every verification left the working tree dirty, and a read-only check that modifies the
-repository is a contradiction. A test now asserts that no ignored file is tracked.
+- [`research-kit/README.md`](research-kit/README.md): the reference for every command,
+  the portable artifact, the GitHub collector, and the test suite.
+- [`AGENTS.md`](AGENTS.md): the rules an agent follows, and the standing protocol for
+  changes to the kit.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): what each module owns.
+- [`docs/adr/`](docs/adr/README.md): why things are the way they are, including what was
+  rejected.
+- [`CHANGELOG.md`](CHANGELOG.md): release notes. The kit is feature-frozen since 0.9.0;
+  it takes bug fixes, documentation, tests and vendor updates.
 
 ## License
 
-All rights reserved - see [`LICENSE`](LICENSE). The repository may be read where it is
-published; using, copying or building on it needs the copyright holder's written permission.
+All rights reserved. See [`LICENSE`](LICENSE). The repository may be read where it is
+published; using, copying or building on it needs the copyright holder's written
+permission.

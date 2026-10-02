@@ -22,6 +22,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   string table. `doctor` run on a Windows home folder had reported fourteen committed keys,
   every one the PEM marker OpenSSH and libssh2 parse or random bytes spelling `sk-`
   (2026-10-02). A `.pem` is text and stays caught.
+- The front page `README.md` is rewritten as a structured guide: how it works, requirements,
+  install, the five-minute try, a real project step by step, working with Claude Code,
+  Gemini CLI and other agents (with a MoonAliza example), the builder handoff, keys and
+  cost, the GitHub collector, a command reference, the machine configuration, and a
+  troubleshooting table. The kit reference (`research-kit/README.md`) is unchanged apart
+  from the links into it.
 
 ## 0.9.3 — 2026-10-02
 

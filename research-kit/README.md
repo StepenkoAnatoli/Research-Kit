@@ -21,16 +21,16 @@ the full offline suite runs on that platform in CI on every commit — see
 that way and what it has already caught. Needs Node 22+ (22, 24 and 26 are each tested on
 every commit), Git, and Python 3.11+ for the cross-language conformance runners.
 
-New here? [Your first 30 minutes](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#your-first-30-minutes) is one ordered path
+New here? [Run it on a real project](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#run-it-on-a-real-project) is one ordered path
 from nothing to a `preflight` verdict, and
-[when something fails](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#when-something-fails) lists the failure modes that
+[troubleshooting](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#troubleshooting) lists the failure modes that
 actually happen.
 
 ## New here?
 
-The getting-started guide lives on the [front page](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#start-here-if-this-is-new-to-you):
-where to put your Firecrawl key, how to run a collection from the website, and
-[where to get a token for an AI agent](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#where-to-get-the-token).
+The getting-started guide lives on the [front page](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#install):
+how to install the kit, how to run it on a project, how to hand it to an agent, and
+[how to run a collection on GitHub](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#run-the-collector-on-github), token included.
 
 It is there rather than here because that is the page GitHub shows someone who arrives at
 the repository, and a second copy of a getting-started guide drifts - with the stale copy
@@ -220,7 +220,7 @@ the default `2022-11-28` the same call returns `204 No Content` and the caller l
 nothing.
 
 **One-time setup** is on the front page:
-[Put the key where only the collector can read it](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#2-put-the-key-where-only-the-collector-can-read-it).
+[Run the collector on GitHub](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#run-the-collector-on-github).
 The workflow refuses to spend until it exists. Not repeated here - a second copy of a
 setup procedure drifts, and the stale copy is the one somebody follows.
 
@@ -436,7 +436,7 @@ until someone trusts it. They come with the code that needs them, or not at all.
 ## Credentials
 
 **No credentials ship with this repository.** See the root
-[README](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#bring-your-own-keys) for where keys go; the summary is that the kit
+[README](https://github.com/StepenkoAnatoli/Research-Kit/blob/main/README.md#keys-and-cost) for where keys go; the summary is that the kit
 reads one from the environment or `~/.agents/research-kit.config.json`, never from the
 repository, and `--transport http-keyless` runs the whole collector with no key at all.
 
