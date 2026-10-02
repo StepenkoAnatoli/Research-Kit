@@ -440,7 +440,41 @@ test('LIVE: rendering a plain page, the real Chromium reaches nothing but the pa
     const loopback = (target) => /^(https?:\/\/)?(127\.0\.0\.1|\[::1\]|localhost)(:|\/|$)/i.test(target);
     const beyond = (r.seen ?? []).filter((e) => !loopback(e.target));
     const carried = beyond.filter((e) => e.outcome !== 'dropped');
-    assert.deepEqual(carried, [], `the browser reached beyond the page: ${JSON.stringify(carried)}`);
+    assert.deepEqual(carried, [], `the browser reached beyond the page: ${JSON.stringify(carried)} - a request before the page's own is dropped by order (ADR-0125); one after it names a host BROWSER_SERVICE_HOSTS in lib/browser-guard.mjs does not, so extend the list`);
     assert.deepEqual(r.refused, [], `the browser's own traffic was counted as a refusal: ${JSON.stringify(r.refused)}`);
   } finally { pages.close(); }
+});
+
+// ADR-0125: until the page the operator asked for has been requested, nothing can be the
+// page's. CI's Chrome stable opened a bare preconnect to www.gstatic.com 256 ms into a render
+// of a loopback page, before the page - a host real pages use too, so no list could settle
+// it (2026-10-02). The render passes `pageFirst`; a guard without it judges every request.
+test('with pageFirst, a request before the page\'s own is dropped by order, and judged after it', async () => {
+  const lookup = fakeLookup({ 'www.gstatic.com': '127.0.0.1', 'cdn.example': '127.0.0.1' });
+  const guard = await startGuard({ lookup, exempt: ['127.0.0.1:1'], pageFirst: true });
+  try {
+    const early = await connectVia(guard.port, 'www.gstatic.com:443');
+    assert.match(early.line, /403/);
+    assert.match(early.rest, new RegExp(`${DROP_MARKER}: www.gstatic.com:443 - before the page asked for was requested`));
+    early.socket.destroy();
+    // The page's own request: exempt, and from here on the page is loading.
+    const page = await connectVia(guard.port, '127.0.0.1:1');
+    assert.doesNotMatch(page.rest, new RegExp(DROP_MARKER));
+    page.socket.destroy();
+    // A resource of the page's, after it: judged as always - here refused, because the fake
+    // address is internal - never dropped.
+    const later = await connectVia(guard.port, 'cdn.example:443');
+    assert.match(later.rest, new RegExp(`${REFUSAL_MARKER}: cdn.example:443 - cdn.example resolves to 127.0.0.1, an internal address`));
+    later.socket.destroy();
+    assert.deepEqual(guard.seen.map((e) => e.outcome), ['dropped', 'error ECONNREFUSED', 'refused']);
+    assert.equal(guard.refused.length, 1, 'the early request was counted as a refusal');
+  } finally { await guard.close(); }
+  // Without pageFirst - every unit test of the guard, and the judge's own contract - the
+  // same early request is judged, not dropped.
+  const plain = await startGuard({ lookup, exempt: ['127.0.0.1:1'] });
+  try {
+    const judged = await connectVia(plain.port, 'www.gstatic.com:443');
+    assert.match(judged.rest, new RegExp(REFUSAL_MARKER));
+    judged.socket.destroy();
+  } finally { await plain.close(); }
 });

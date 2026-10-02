@@ -7,6 +7,9 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- The browser guard drops every request made before the page asked for has been requested
+  (ADR-0125): CI's Chrome stable preconnected to `www.gstatic.com` before the page, a host real
+  pages use too, so the service-host list could not settle it; the order can.
 - A `RESEARCH_KIT_RESULT_FILE` that cannot be written makes a green `selftest.mjs` run exit 2, where
   it exited 0 and left CI's summary reading "crashed before reporting" beside a green step.
 - `selftest.mjs` refuses below the Node floor before any test runs (exit 2, naming the floor), where

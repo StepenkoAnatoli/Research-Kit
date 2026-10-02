@@ -116,7 +116,7 @@ export async function judge(host, port, { allowInternal = false, exempt = new Se
  * Start the guard on a loopback port. Returns `{ port, refused, close }`; `refused` grows with
  * every request turned away, as `{ host, why }`.
  */
-export async function startGuard({ allowInternal = false, exempt = [], upstream = null, lookup = dns.lookup, onFirstRequest = null } = {}) {
+export async function startGuard({ allowInternal = false, exempt = [], upstream = null, lookup = dns.lookup, onFirstRequest = null, pageFirst = false } = {}) {
   const up = parseUpstream(upstream);
   const skip = new Set(exempt.map((entry) => { const at = splitHostPort(entry); return at ? `${normalizeHost(at.host)}:${at.port}` : normalizeHost(entry); }));
   const refused = [];
@@ -125,8 +125,18 @@ export async function startGuard({ allowInternal = false, exempt = [], upstream 
   const tunnels = new Set();
   const outgoing = new Set();
   const judgeHost = (host, port) => judge(host, port, { allowInternal, exempt: skip, lookup, upstream: up });
-  // The browser's own service traffic (ADR-0124): not the page's, so not judged and not a refusal.
-  const dropped = (host, port) => !skip.has(`${normalizeHost(host)}:${port}`) && isBrowserService(host);
+  // The browser's own traffic is not the page's, so it is not judged and not a refusal. It is
+  // known two ways: by name (ADR-0124), and - with `pageFirst`, the render's rule - by timing
+  // (ADR-0125): until the page the operator asked for has been requested, nothing can be the
+  // page's. CI's Chrome stable opened a bare preconnect to www.gstatic.com 256 ms into a
+  // render, before the page, and that host is also one real pages use, so a list could not
+  // settle it; the order can. `dropped` answers with the reason, or null.
+  let pageSeen = !pageFirst;
+  const dropped = (host, port) => {
+    if (skip.has(`${normalizeHost(host)}:${port}`)) { pageSeen = true; return null; }
+    if (!pageSeen) return 'before the page asked for was requested';
+    return isBrowserService(host) ? "the browser's own service traffic" : null;
+  };
   const refusal = (host, why) => { refused.push({ host, why }); return `${REFUSAL_MARKER}: ${host} - ${why}`; };
   // Every request the guard carried, and whether it was answered: the one place all of a
   // page's loads pass through, so what is still unanswered when the render ends is what the
@@ -142,7 +152,8 @@ export async function startGuard({ allowInternal = false, exempt = [], upstream 
     let target;
     try { target = new URL(req.url); } catch { done(entry, 'refused'); res.writeHead(400); res.end(`${REFUSAL_MARKER}: not a proxy request`); return; }
     if (!/^https?:$/.test(target.protocol)) { done(entry, 'refused'); res.writeHead(400); res.end(`${REFUSAL_MARKER}: ${target.protocol} is not carried`); return; }
-    if (dropped(target.hostname, Number(target.port) || 80)) { done(entry, 'dropped'); res.writeHead(403, { 'content-type': 'text/plain' }); res.end(`${DROP_MARKER}: ${target.host} - the browser's own service traffic`); return; }
+    const drop = dropped(target.hostname, Number(target.port) || 80);
+    if (drop) { done(entry, 'dropped'); res.writeHead(403, { 'content-type': 'text/plain' }); res.end(`${DROP_MARKER}: ${target.host} - ${drop}`); return; }
     const verdict = await judgeHost(target.hostname, Number(target.port) || 80);
     if (verdict.refused) { done(entry, 'refused'); res.writeHead(403, { 'content-type': 'text/plain' }); res.end(refusal(target.host, verdict.refused)); return; }
     const headers = { ...req.headers };
@@ -162,7 +173,8 @@ export async function startGuard({ allowInternal = false, exempt = [], upstream 
     const at = splitHostPort(req.url);
     const fail = (status, body = '') => { client.end(`HTTP/1.1 ${status}\r\nContent-Type: text/plain\r\nConnection: close\r\n\r\n${body}`); };
     if (!at) { done(entry, 'refused'); fail('400 Bad Request'); return; }
-    if (dropped(at.host, at.port)) { done(entry, 'dropped'); fail('403 Forbidden', `${DROP_MARKER}: ${req.url} - the browser's own service traffic`); return; }
+    const drop = dropped(at.host, at.port);
+    if (drop) { done(entry, 'dropped'); fail('403 Forbidden', `${DROP_MARKER}: ${req.url} - ${drop}`); return; }
     const verdict = await judgeHost(at.host, at.port);
     if (verdict.refused) { done(entry, 'refused'); fail('403 Forbidden', refusal(req.url, verdict.refused)); return; }
     const tunnel = up
@@ -222,7 +234,7 @@ export async function renderThroughGuard({ binary, args, url, timeout = 60_000, 
   // was killed before it had been asked for.
   const clock = { timer: null, started: 0, firstRequestAt: null, timedOut: false, kill: () => {} };
   const arm = () => { clearTimeout(clock.timer); clock.timer = setTimeout(() => { clock.timedOut = true; clock.kill(); }, timeout); };
-  const guard = await startGuard({ allowInternal, exempt: [`${asked.hostname.replace(/^\[|\]$/g, '').includes(':') ? `[${asked.hostname.replace(/^\[|\]$/g, '')}]` : asked.hostname}:${asked.port || (asked.protocol === 'https:' ? 443 : 80)}`], upstream, lookup , onFirstRequest: () => { if (clock.firstRequestAt !== null) return; clock.firstRequestAt = Date.now(); arm(); } });
+  const guard = await startGuard({ allowInternal, exempt: [`${asked.hostname.replace(/^\[|\]$/g, '').includes(':') ? `[${asked.hostname.replace(/^\[|\]$/g, '')}]` : asked.hostname}:${asked.port || (asked.protocol === 'https:' ? 443 : 80)}`], upstream, lookup, pageFirst: true, onFirstRequest: () => { if (clock.firstRequestAt !== null) return; clock.firstRequestAt = Date.now(); arm(); } });
   try {
     const argv = [...args.slice(0, -2), ...guardFlags(guard.port), ...args.slice(-2)];
     return await new Promise((resolve) => {
