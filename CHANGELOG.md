@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+## 0.9.3 — 2026-10-02
+
+Nine bug fixes under the freeze (ADR-0117) and one vendor update, all from the third
+break-test and from running the kit on its own decision project the same day. Nothing new
+is added.
+
 - The Firecrawl adapter reads the first complete JSON value in the CLI's stdout, whatever
   is printed around it - a banner with a bracket before it, a credit receipt after it - and
   `scrape` refuses an exit of 0 that printed nothing, no readable JSON, or a page with no
