@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A plan query whose `why` names unknowns that are all CLOSED is not searched again
+  (ADR-0127): a search has no cache, so every run of a finished project paid it - found
+  running the kit five times over MoonAliza's seven projects, where one query would have
+  cost two credits a run forever. The skip is said on the terminal and in the results, the
+  dry run previews it, and `--force` runs it as it re-fetches a page.
+
 ## 0.9.3 — 2026-10-02
 
 Nine bug fixes under the freeze (ADR-0117) and one vendor update, all from the third

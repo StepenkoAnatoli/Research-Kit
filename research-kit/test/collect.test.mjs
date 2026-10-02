@@ -2,7 +2,7 @@
 // the runScrape seam, so no key, no credits, no network.
 
 import { test, describe, assert, makeProject, makePassingProject, fs, path, KIT_ROOT, tempDir } from './harness.mjs';
-import { PATHS, resolve, readText, writeJson, today } from '../lib/core.mjs';
+import { PATHS, resolve, readText, writeText, writeJson, today } from '../lib/core.mjs';
 import { readCorpus, parseTable, cacheDecision, CAPTURE_MAX_BYTES } from '../lib/corpus.mjs';
 import { HEADERS } from '../lib/core.mjs';
 import { collectOne, writeRaw, captureName, bodyHashOf } from '../lib/collect.mjs';
@@ -464,6 +464,67 @@ test('a plan naming one page in several spellings fetches it once, and the other
   const again = runResearch(dir, { adapter: stubAdapter() });
   assert.equal(again.spent, 0, 'a page in the corpus under another spelling is a cache hit');
   assert.equal(again.results[0].status, 'cached');
+});
+
+// Found 2026-10-02 running the kit five times over MoonAliza's seven finished projects: one
+// plan carries a query whose `why` names U-01 and U-04, both CLOSED, and every real run would
+// pay that search again (about 2 credits) and fetch up to perQuery pages nobody asked for.
+// Credits already spent are not spent again (the resume rule); a search for an answered
+// question is spent again on every run. `--force` means "spend again", for searches too.
+function contractWith(dir, status) {
+  writeText(resolve(dir, PATHS.discovery), [
+    '# Discovery Contract - Fixture topic', '', '## Build intent', '', 'A fixture.', '', '## Unknowns', '',
+    `| ${HEADERS.unknowns.join(' | ')} |`, `|${HEADERS.unknowns.map(() => '---').join('|')}|`,
+    `| U-1 | What does the free tier allow? | Sets the budget | ${status} | ${status === 'CLOSED' ? 'E-01' : 'day one: ask'} |`,
+    `| U-2 | What is the rate limit? | Sets the cadence | OPEN | |`, '',
+  ].join('\n'));
+}
+
+test('a search whose unknowns are all CLOSED is not run again; --force runs it; an open unknown still searches', () => {
+  const plan = (why) => ({
+    topic: 'Fixture', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 1, maxScrapes: 10, urls: [],
+    queries: [{ q: 'free tier', why }],
+  });
+  const searching = () => {
+    let searches = 0;
+    const adapter = stubAdapter({ results: [{ url: 'https://docs.example.com/free-tier' }] });
+    const counted = { ...adapter, search: (q) => { searches += 1; return adapter.search(q); } };
+    return { counted, count: () => searches };
+  };
+
+  const dir = makeProject();
+  contractWith(dir, 'CLOSED');
+  writeJson(resolve(dir, PATHS.plan), plan('U-1: the tier page'));
+  const { counted, count } = searching();
+  const run = runResearch(dir, { adapter: counted });
+  assert.equal(count(), 0, 'a search for a closed unknown was paid for again');
+  assert.equal(run.spent, 0);
+  assert.equal(readCorpus(dir).evidence.length, 0, 'no page was fetched for it either');
+  const note = run.discovered.find((d) => d.query === 'free tier');
+  assert.match(String(note?.note), /U-1 is closed/i, 'the skipped search is named in the results');
+  assert.match(String(note?.note), /--force/, 'and the way to run it anyway');
+
+  const preview = runResearch(dir, { adapter: counted, dryRun: true });
+  assert.equal(preview.wouldSearch, 0, 'the dry run previews the same skip');
+  assert.match(String(preview.discovered.find((d) => d.query === 'free tier')?.note), /U-1 is closed/i);
+
+  const forced = runResearch(dir, { adapter: counted, force: true });
+  assert.equal(count(), 1, '--force spends again, for a search as for a page');
+  assert.equal(forced.spent, 1);
+
+  const open = makeProject();
+  contractWith(open, 'CLOSED');
+  writeJson(resolve(open, PATHS.plan), plan('U-1, U-2: both'));
+  const second = searching();
+  runResearch(open, { adapter: second.counted });
+  assert.equal(second.count(), 1, 'one cited unknown still open: the search runs');
+
+  const untagged = makeProject();
+  contractWith(untagged, 'CLOSED');
+  writeJson(resolve(untagged, PATHS.plan), plan('context, no unknown named'));
+  const third = searching();
+  runResearch(untagged, { adapter: third.counted });
+  assert.equal(third.count(), 1, 'a query that names no unknown runs as before');
 });
 
 test('two queries that find the same page each still contribute a page of their own', () => {

@@ -535,11 +535,30 @@ ${compatibility.remedy}`);
     targets.push(target);
   }
 
+  // The contract's answer to "is this search still needed": a query whose `why` names
+  // unknowns that are all CLOSED is a search for an answered question. Credits already spent
+  // are not spent again (the resume rule); a search is paid on every run, so it is skipped and
+  // said - `--force` means "spend again", for a search as for a page (ADR-0127). Found
+  // 2026-10-02 running the kit five times over MoonAliza's finished projects: one plan's query
+  // named U-01 and U-04, both closed, and every run would have paid it.
+  const statusOf = new Map(corpus.unknowns.map((u) => [String(u.id).toUpperCase(), u.status]));
+  const closedUnknowns = (why) => {
+    const ids = uniq((String(why ?? '').match(/\bU-\d+\b/gi) ?? []).map((id) => id.toUpperCase()));
+    return ids.length && ids.every((id) => statusOf.get(id) === 'CLOSED') ? ids : [];
+  };
+
   for (const query of settings.queries) {
     const text = typeof query === 'string' ? query : query.q;
     if (!text) continue;
     if (only.length && !only.some((needle) => text.toLowerCase().includes(needle.toLowerCase()))) continue;
     const prefer = uniq([...preferList(settings.prefer), ...preferList(typeof query === 'object' ? query?.prefer : null)]);
+    const closed = force ? [] : closedUnknowns(typeof query === 'object' ? query.why : '');
+    if (closed.length) {
+      const why = `${closed.join(', ')} ${closed.length === 1 ? 'is' : 'are'} closed in research/DISCOVERY.md; --force searches again`;
+      discovered.push({ query: text, results: [], note: `not run - ${why}` });
+      log(`  ${dryRun ? 'would skip' : 'skipped   '} search "${text}" - ${why}`);
+      continue;
+    }
     if (dryRun) {
       discovered.push({ query: text, results: [], note: 'search not run under --dry-run' });
       wouldSearch += 1;
