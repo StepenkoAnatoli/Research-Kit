@@ -7,6 +7,8 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- A `RESEARCH_KIT_RESULT_FILE` that cannot be written makes a green `selftest.mjs` run exit 2, where
+  it exited 0 and left CI's summary reading "crashed before reporting" beside a green step.
 - `selftest.mjs` refuses below the Node floor before any test runs (exit 2, naming the floor), where
   on Node 20 it ran and reported 28 red tests each saying "this kit needs 22 or newer".
 - The drafted finding keeps an underscore inside a word: `return_run_details` had been drafted as

@@ -395,3 +395,20 @@ test('below the Node floor selftest refuses before any test runs, exit 2, naming
   });
   assert.equal(floor.status, 0, `the floor itself was refused:\n${floor.stderr.slice(-300)}`);
 });
+
+// A result file that was asked for and could not be written: the cause is printed and the
+// green run exits 2, where it exited 0 and left CI's summary reading "crashed before
+// reporting" beside a green step (break-test 2026-10-02).
+test('a result file that cannot be written is named, and a green run exits 2 for it', () => {
+  const selftest = path.join(KIT_ROOT, 'bin', 'selftest.mjs');
+  const base = Object.fromEntries(Object.entries(process.env).filter(([k]) => !['CI', 'RESEARCH_KIT_ALLOW_UNSUP', 'RESEARCH_KIT_RESULT_FILE'].includes(k)));
+  const target = path.join(tempDir('rk-result-'), 'no-such-folder', 'result.json');
+  const r = spawnSync(process.execPath, [selftest, 'canonical-float-policy'], {
+    cwd: path.resolve(KIT_ROOT, '..'), encoding: 'utf8', timeout: 120_000, env: { ...base, RESEARCH_KIT_RESULT_FILE: target },
+  });
+  assert.equal(r.status, 2, `expected exit 2 for an undelivered report, got ${r.status}:\n${r.stderr.slice(-300)}`);
+  assert.match(r.stderr, /RESEARCH_KIT_RESULT_FILE was set to .* and could not be written/);
+  assert.match(r.stderr, /a green run exits 2/);
+  assert.match(r.stdout, /all tests passed/, 'the suite result itself is still reported');
+  assert.equal(fs.existsSync(target), false);
+});

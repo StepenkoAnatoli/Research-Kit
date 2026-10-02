@@ -188,11 +188,18 @@ function writeResultFile(code) {
     // same absence, CI would report a crash that did not happen, and the real cause -
     // which is right here - would be invisible. Saying so on stderr costs nothing and
     // makes the two indistinguishable cases distinguishable again.
+    //
+    // And a green run then exits 2 (2026-10-02, break-test): the report was asked for and
+    // not delivered, and a step that exits 0 beside a summary reading "crashed before
+    // reporting" is two statements that cannot both be true. A red run keeps its 1 - red is
+    // the louder fact, and its cause is in the log either way.
+    resultUnwritten = true;
     process.stderr.write(
       `RESEARCH_KIT_RESULT_FILE was set to ${JSON.stringify(target)} and could not be written: ${err.message}\n`
-      + 'The suite result below is still authoritative; only the machine-readable copy is missing.\n');
+      + 'The suite result below is still authoritative; only the machine-readable copy is missing - and a green run exits 2 for it.\n');
   }
 }
+let resultUnwritten = false;
 
 const seconds = ((Date.now() - started) / 1000).toFixed(1);
 
@@ -262,4 +269,4 @@ writeResultFile(0);
 process.stdout.write(waiveUnsupported
   ? `NOT a full pass: every test that ran passed, and ${unsupported.length} could not run on this host (RESEARCH_KIT_ALLOW_UNSUP=1)\n`
   : 'all tests passed\n');
-await exitAfterFlush(0);
+await exitAfterFlush(resultUnwritten ? 2 : 0);
