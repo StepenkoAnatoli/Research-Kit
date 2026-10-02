@@ -5,6 +5,13 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.9.2 — 2026-10-02
+
+Two bug fixes under the freeze (ADR-0117), found the same day 0.9.1 was cut: one by
+running the kit on MoonAliza, one by the second break-test. Nothing new is added.
+
 - A page whose fetch redirected is a cache hit under the URL the plan asked for. The capture
   index (`readCaptures`, `rememberCapture` in `lib/corpus.mjs`) also answers to the asked-for
   URL, read out of the capture's command line; it had known only the URL the bytes came
