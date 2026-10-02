@@ -3,7 +3,7 @@
 
 import { test, describe, assert, makeProject, makePassingProject, fs, path, KIT_ROOT, tempDir } from './harness.mjs';
 import { PATHS, resolve, readText, writeJson, today } from '../lib/core.mjs';
-import { readCorpus, parseTable } from '../lib/corpus.mjs';
+import { readCorpus, parseTable, CAPTURE_MAX_BYTES } from '../lib/corpus.mjs';
 import { HEADERS } from '../lib/core.mjs';
 import { collectOne, writeRaw, captureName, bodyHashOf } from '../lib/collect.mjs';
 import { rateLimitWaitMs } from '../lib/firecrawl.mjs';
@@ -154,6 +154,28 @@ test('a page whose fetch redirected is a cache hit under the URL the plan asked 
   assert.equal(fresh.captures.byUrl.get(landed)?.file, first.entry.file);
   assert.equal(fresh.ledger.entries.filter((e) => e.op === 'scrape').length, 1, 'one fetch, one ledger entry');
   assert.equal(fresh.evidence.length, 1, 'one fetch, one row');
+});
+
+// Found 2026-10-02 (break-test pass 3): a 40 MB answer from the fetch adapter was written as a
+// capture, a ledger entry and an evidence row - and the corpus reader then refused the file as
+// `capture-too-large` (CAPTURE_MAX_BYTES, 10 MB), blocking the gate on a page the collector
+// itself had accepted. A page the reader will never read is not a capture.
+test('a page over the capture size limit is a failed fetch, never a capture the reader refuses', () => {
+  const dir = makeProject();
+  const corpus = readCorpus(dir);
+  const huge = 'w'.repeat(CAPTURE_MAX_BYTES + 1);
+  const outcome = collectOne(dir, 'https://x.invalid/huge', {
+    corpus, usedFor: 'U-1',
+    runScrape: (url) => ({ ...stubAdapter().runScrape(url), markdown: huge }),
+  });
+  assert.equal(outcome.status, 'failed', outcome.reason);
+  assert.match(outcome.reason, /10 MB/);
+  assert.match(outcome.reason, /over the/);
+  assert.equal(fs.readdirSync(path.join(dir, PATHS.raw)).filter((f) => f.endsWith('.md')).length, 0, 'no capture written');
+  const fresh = readCorpus(dir);
+  assert.equal(fresh.ledger.entries.length, 1);
+  assert.equal(fresh.ledger.entries[0].op, 'fail');
+  assert.equal(fresh.evidence.length, 0, 'no row');
 });
 
 test('--force collects again; the cache is a decision, not a law', () => {
