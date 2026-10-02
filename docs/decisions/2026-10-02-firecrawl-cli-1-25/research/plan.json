@@ -1,0 +1,53 @@
+{
+  "topic": "Firecrawl CLI 1.25 against the 1.24.6 pin: what changed in scrape, search and map and their JSON output",
+  "notes": "Owner pages named after phase 0 (two Firecrawl searches, mostly off-topic hits on 'scrape'); five vendor pages through firecrawl-cli, the npm registry manifest keylessly as verbatim JSON.",
+  "depth": "normal",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 3,
+  "maxScrapes": 8,
+  "prefer": [
+    "docs.firecrawl.dev",
+    "github.com/firecrawl",
+    "firecrawl.dev",
+    "npmjs.com"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://github.com/firecrawl/cli/releases",
+      "type": "P",
+      "why": "U-01, U-02, U-03, U-04: the CLI's release notes, 1.24.x to 1.25.2"
+    },
+    {
+      "url": "https://docs.firecrawl.dev/sdks/cli",
+      "type": "P",
+      "why": "U-02, U-03, U-04, U-06: the CLI reference - commands, flags, JSON output, authentication"
+    },
+    {
+      "url": "https://www.firecrawl.dev/changelog",
+      "type": "P",
+      "why": "U-01: the vendor's changelog, for CLI entries"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/firecrawl/cli/main/README.md",
+      "type": "P",
+      "why": "U-02, U-03, U-06: the CLI's own README - usage, --json, environment variables"
+    },
+    {
+      "url": "https://www.npmjs.com/package/firecrawl-cli?activeTab=versions",
+      "type": "P",
+      "why": "U-01: the published versions and their dates"
+    },
+    {
+      "url": "https://registry.npmjs.org/firecrawl-cli/1.25.2",
+      "type": "P",
+      "why": "U-05: the published manifest of 1.25.2 - dependencies and engines, verbatim JSON"
+    },
+    {
+      "url": "https://registry.npmjs.org/firecrawl-cli/1.24.6",
+      "type": "P",
+      "why": "U-05: the manifest of the pinned 1.24.6, for the comparison"
+    }
+  ]
+}

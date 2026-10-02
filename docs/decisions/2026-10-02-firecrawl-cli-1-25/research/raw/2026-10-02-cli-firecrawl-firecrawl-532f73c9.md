@@ -1,0 +1,815 @@
+---
+url: https://docs.firecrawl.dev/sdks/cli
+retrieved: 2026-10-02
+command: firecrawl scrape https://docs.firecrawl.dev/sdks/cli --only-main-content --json
+statusCode: 200
+transport: firecrawl-cli
+completeness: full
+title: CLI | Firecrawl
+---
+> ## Documentation Index
+>
+> Fetch the complete documentation index at: [/llms.txt](https://docs.firecrawl.dev/llms.txt)
+>
+> Use this file to discover all available pages before exploring further.
+
+[Skip to main content](https://docs.firecrawl.dev/sdks/cli#content-area)
+
+Search, scrape, interact, crawl, map, and run agent jobs directly from the terminal. The Firecrawl CLI works standalone or with skills that AI coding agents like Codex, Claude Code, Cursor, and OpenCode can discover and use automatically.
+
+## [​](https://docs.firecrawl.dev/sdks/cli\#installation)  Installation
+
+If you are using an AI agent like Codex, Claude Code, Cursor, or OpenCode, you can install the Firecrawl skills below and the agent will set them up for you.
+
+```
+npx -y firecrawl-cli@latest init --all --browser
+```
+
+- `--all` skips agent selection and initializes every detected agent
+- `--browser` opens the browser for Firecrawl authentication automatically
+
+After installing the skills, restart your agent for it to discover them.
+
+You can also manually install the Firecrawl CLI globally using npm:
+
+CLI
+
+```
+# Install globally with npm
+npm install -g firecrawl-cli
+```
+
+## [​](https://docs.firecrawl.dev/sdks/cli\#authentication)  Authentication
+
+Before using the CLI, you need to authenticate with your Firecrawl API key.
+
+**Some CLI commands work without logging in.** With no API key configured, supported commands fall back to the keyless free tier — free, but rate-limited per IP. See [Rate Limits](https://docs.firecrawl.dev/rate-limits#keyless-no-api-key) for the current keyless command list and caveats. [Sign up for a free key](https://firecrawl.dev/) for 1,000 credits and higher limits; the CLI uses it automatically once configured.
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#login)  Login
+
+CLI
+
+```
+# Interactive login (opens browser or prompts for API key)
+firecrawl login
+
+# Login with browser authentication (recommended for agents)
+firecrawl login --browser
+
+# Login with API key directly
+firecrawl login --api-key fc-YOUR-API-KEY
+
+# Or set via environment variable
+export FIRECRAWL_API_KEY=fc-YOUR-API-KEY
+```
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#view-configuration)  View Configuration
+
+CLI
+
+```
+# View current configuration and authentication status
+firecrawl view-config
+```
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#logout)  Logout
+
+CLI
+
+```
+# Clear stored credentials
+firecrawl logout
+```
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#connect-the-cli-to-self-hosted-firecrawl)  Connect the CLI to self-hosted Firecrawl
+
+First, get one scrape working with the [self-hosting guide](https://docs.firecrawl.dev/contributing/self-host). Then point the CLI at that API with `--api-url` or `FIRECRAWL_API_URL`:
+
+CLI
+
+```
+# Use a local Firecrawl instance (no API key required)
+firecrawl --api-url http://localhost:3002 scrape https://example.com
+
+# Or set via environment variable
+export FIRECRAWL_API_URL=http://localhost:3002
+firecrawl scrape https://example.com
+
+# Configure and persist the custom API URL
+firecrawl config --api-url http://localhost:3002
+```
+
+When you use a custom API URL instead of `https://api.firecrawl.dev`, the CLI skips Firecrawl Cloud API-key authentication. That matches the trusted-network quickstart, where `USE_DB_AUTHENTICATION=false`.
+
+Keep an unauthenticated API on a trusted network. If you add an authentication
+proxy or another access-control layer, verify that the CLI can send the
+credentials that layer requires before depending on this path.
+
+The CLI can call only the capabilities enabled in your deployment. Check [self-hosted feature support](https://docs.firecrawl.dev/contributing/self-host#self-hosted-feature-support) before using Cloud-only or provider-dependent commands.
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#check-status)  Check Status
+
+Verify installation, authentication, and view rate limits:
+
+CLI
+
+```
+firecrawl --status
+```
+
+Output when ready:
+
+```
+  🔥 firecrawl cli v1.16.2
+
+  ● Authenticated via FIRECRAWL_API_KEY
+  Concurrency: 0/100 jobs (parallel scrape limit)
+  Credits: 500,000 remaining
+```
+
+- **Concurrency**: Maximum parallel jobs. Run parallel operations close to this limit but not above.
+- **Credits**: Remaining API credits. Each scrape/crawl consumes credits.
+
+## [​](https://docs.firecrawl.dev/sdks/cli\#commands)  Commands
+
+The hidden `firecrawl browser` command is deprecated for agent workflows. Use `firecrawl scrape <url>` first, then `firecrawl interact ...` with the resulting scrape session.
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#scrape)  Scrape
+
+Scrape a single URL and extract its content in various formats.
+
+Use `--only-main-content` to get clean output without navigation, footers, and
+ads. This is recommended for most use cases where you want just the article or
+main page content.
+
+CLI
+
+```
+# Scrape a URL (default: markdown output)
+firecrawl https://example.com
+
+# Or use the explicit scrape command
+firecrawl scrape https://example.com
+
+# Recommended: use --only-main-content for clean output without nav/footer
+firecrawl https://example.com --only-main-content
+```
+
+#### [​](https://docs.firecrawl.dev/sdks/cli\#output-formats)  Output Formats
+
+CLI
+
+```
+# Get HTML output
+firecrawl https://example.com --html
+
+# Multiple formats (returns JSON)
+firecrawl https://example.com --format markdown,links
+
+# Get images from a page
+firecrawl https://example.com --format images
+
+# Get a summary of the page content
+firecrawl https://example.com --format summary
+
+# Track changes on a page
+firecrawl https://example.com --format changeTracking
+
+# Available formats: markdown, html, rawHtml, links, screenshot, json, images, summary, changeTracking, attributes, branding, product
+```
+
+#### [​](https://docs.firecrawl.dev/sdks/cli\#scrape-options)  Scrape Options
+
+CLI
+
+```
+# Extract only main content (removes navs, footers)
+firecrawl https://example.com --only-main-content
+
+# Wait for JavaScript rendering
+firecrawl https://example.com --wait-for 3000
+
+# Take a screenshot
+firecrawl https://example.com --screenshot
+
+# Extract structured JSON with a schema
+firecrawl https://example.com --format json --schema '{"type":"object","properties":{"title":{"type":"string"}}}'
+
+# Run lightweight scrape actions before extraction
+firecrawl https://example.com --actions '[{"type":"wait","milliseconds":1000}]'
+
+# Select proxy mode
+firecrawl https://example.com --proxy basic
+
+# Redact personally identifiable information
+firecrawl https://example.com --redact-pii
+
+# Include/exclude specific HTML tags
+firecrawl https://example.com --include-tags article,main
+firecrawl https://example.com --exclude-tags nav,footer
+
+# Save output to file
+firecrawl https://example.com -o output.md
+
+# Pretty print JSON output
+firecrawl https://example.com --format markdown,links --pretty
+
+# Force JSON output even with single format
+firecrawl https://example.com --json
+
+# Show request timing information
+firecrawl https://example.com --timing
+```
+
+**Available Options:**
+
+| Option | Short | Description |
+| --- | --- | --- |
+| `--url <url>` | `-u` | URL to scrape (alternative to positional argument) |
+| `--format <formats>` | `-f` | Output formats (comma-separated): `markdown`, `html`, `rawHtml`, `links`, `screenshot`, `json`, `images`, `summary`, `changeTracking`, `attributes`, `branding` |
+| `--html` | `-H` | Shortcut for `--format html` |
+| `--only-main-content` |  | Extract only main content |
+| `--wait-for <ms>` |  | Wait time in milliseconds for JS rendering |
+| `--screenshot` |  | Take a screenshot |
+| `--full-page-screenshot` |  | Take a full page screenshot |
+| `--include-tags <tags>` |  | HTML tags to include (comma-separated) |
+| `--exclude-tags <tags>` |  | HTML tags to exclude (comma-separated) |
+| `--schema <json>` |  | JSON schema for structured extraction |
+| `--schema-file <path>` |  | Path to JSON schema file |
+| `--actions <json>` |  | JSON actions array to run during scrape |
+| `--actions-file <path>` |  | Path to JSON actions file |
+| `--proxy <proxy>` |  | Proxy mode for scraping (for example, `auto` or `basic`) |
+| `--redact-pii` |  | Redact personally identifiable information from returned content |
+| `--output <path>` | `-o` | Save output to file |
+| `--json` |  | Force JSON output even with single format |
+| `--pretty` |  | Pretty print JSON output |
+| `--timing` |  | Show request timing and other useful information |
+
+* * *
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#search)  Search
+
+Search the web and optionally scrape the results.
+
+CLI
+
+```
+# Search the web
+firecrawl search "web scraping tutorials"
+
+# Limit results
+firecrawl search "AI news" --limit 10
+
+# Pretty print results
+firecrawl search "machine learning" --pretty
+```
+
+#### [​](https://docs.firecrawl.dev/sdks/cli\#search-options)  Search Options
+
+CLI
+
+```
+# Search specific sources
+firecrawl search "AI" --sources web,news,images
+
+# Search with category filters
+firecrawl search "react hooks" --categories developer
+firecrawl search "machine learning" --categories research,pdf
+
+# Time-based filtering
+firecrawl search "tech news" --tbs qdr:h   # Last hour
+firecrawl search "tech news" --tbs qdr:d   # Last day
+firecrawl search "tech news" --tbs qdr:w   # Last week
+firecrawl search "tech news" --tbs qdr:m   # Last month
+firecrawl search "tech news" --tbs qdr:y   # Last year
+
+# Location-based search
+firecrawl search "restaurants" --location "Berlin,Germany" --country DE
+
+# Search and scrape results
+firecrawl search "documentation" --scrape --scrape-formats markdown
+
+# Save to file
+firecrawl search "firecrawl" --pretty -o results.json
+```
+
+**Available Options:**
+
+| Option | Description |
+| --- | --- |
+| `--limit <number>` | Maximum results (default: 5, max: 100) |
+| `--sources <sources>` | Sources to search: `web`, `images`, `news` (comma-separated) |
+| `--categories <categories>` | Filter by category: `research`, `pdf`, `developer` (comma-separated) |
+| `--tbs <value>` | Time filter: `qdr:h` (hour), `qdr:d` (day), `qdr:w` (week), `qdr:m` (month), `qdr:y` (year) |
+| `--location <location>` | Geo-targeting (e.g., “Berlin,Germany”) |
+| `--country <code>` | ISO country code (default: US) |
+| `--timeout <ms>` | Timeout in milliseconds (default: 60000) |
+| `--ignore-invalid-urls` | Exclude URLs invalid for other Firecrawl endpoints |
+| `--scrape` | Scrape search results |
+| `--scrape-formats <formats>` | Formats for scraped content (default: markdown) |
+| `--only-main-content` | Include only main content when scraping (default: true) |
+| `--json` | Output as JSON |
+| `--output <path>` | Save output to file |
+| `--pretty` | Pretty print JSON output |
+
+* * *
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#developer)  Developer
+
+Search the [Developer Index](https://docs.firecrawl.dev/features/developer) — issues, merged pull requests, and READMEs from public code repositories, alongside curated documentation sites.
+
+CLI
+
+```
+firecrawl developer "how do I configure retries" --limit 10
+```
+
+**Available Options:**
+
+| Option | Description |
+| --- | --- |
+| `--limit <number>` | Number of results to return (default: 10, max: 100) |
+| `--skills-only` | Search only indexed agent-skill files (default: false) |
+| `--json` | Output as compact JSON |
+| `--output <path>` | Save output to file |
+| `--pretty` | Pretty print JSON output |
+
+* * *
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#map)  Map
+
+Discover all URLs on a website quickly.
+
+CLI
+
+```
+# Discover all URLs on a website
+firecrawl map https://example.com
+
+# Output as JSON
+firecrawl map https://example.com --json
+
+# Limit number of URLs
+firecrawl map https://example.com --limit 500
+```
+
+#### [​](https://docs.firecrawl.dev/sdks/cli\#map-options)  Map Options
+
+CLI
+
+```
+# Filter URLs by search query
+firecrawl map https://example.com --search "blog"
+
+# Include subdomains
+firecrawl map https://example.com --include-subdomains
+
+# Control sitemap usage
+firecrawl map https://example.com --sitemap include   # Use sitemap
+firecrawl map https://example.com --sitemap skip      # Skip sitemap
+firecrawl map https://example.com --sitemap only      # Only use sitemap
+
+# Ignore query parameters (dedupe URLs)
+firecrawl map https://example.com --ignore-query-parameters
+
+# Wait for map to complete with timeout
+firecrawl map https://example.com --wait --timeout 60
+
+# Save to file
+firecrawl map https://example.com -o urls.txt
+firecrawl map https://example.com --json --pretty -o urls.json
+```
+
+**Available Options:**
+
+| Option | Description |
+| --- | --- |
+| `--url <url>` | URL to map (alternative to positional argument) |
+| `--limit <number>` | Maximum URLs to discover |
+| `--search <query>` | Filter URLs by search query |
+| `--sitemap <mode>` | Sitemap handling: `include`, `skip`, `only` |
+| `--include-subdomains` | Include subdomains |
+| `--ignore-query-parameters` | Treat URLs with different params as same |
+| `--wait` | Wait for map to complete |
+| `--timeout <seconds>` | Timeout in seconds |
+| `--json` | Output as JSON |
+| `--output <path>` | Save output to file |
+| `--pretty` | Pretty print JSON output |
+
+* * *
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#interact)  Interact
+
+Scrape a page, then interact with it using natural language or code. Interact uses the most recent scrape by default, or you can pass a specific scrape ID.
+
+CLI
+
+```
+# 1. Scrape Amazon's homepage (scrape ID is saved automatically)
+firecrawl scrape https://www.amazon.com
+
+# 2. Interact — search for a product and get its price
+firecrawl interact "Search for iPhone 16 Pro Max"
+firecrawl interact "Click on the first result and tell me the price"
+
+# 3. Stop the session
+firecrawl interact stop
+```
+
+**Available Options:**
+
+| Option | Description |
+| --- | --- |
+| `-p, --prompt <text>` | AI prompt (alternative to positional argument) |
+| `-c, --code <code>` | Code to execute in the live page session |
+| `-s, --scrape-id <id>` | Scrape job ID (default: last scrape) |
+| `--python` | Execute code as Python/Playwright |
+| `--node` | Execute code as Node.js/Playwright (default) |
+| `--bash` | Execute code as Bash |
+| `--timeout <seconds>` | Timeout in seconds (1-300, default: 30) |
+| `--output <path>` | Save output to file |
+| `--json` | Output as JSON format |
+
+* * *
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#crawl)  Crawl
+
+Crawl an entire website starting from a URL.
+
+CLI
+
+```
+# Start a crawl (returns job ID immediately)
+firecrawl crawl https://example.com
+
+# Wait for crawl to complete
+firecrawl crawl https://example.com --wait
+
+# Wait with progress indicator
+firecrawl crawl https://example.com --wait --progress
+```
+
+#### [​](https://docs.firecrawl.dev/sdks/cli\#check-crawl-status)  Check Crawl Status
+
+CLI
+
+```
+# Check crawl status using job ID
+firecrawl crawl <job-id>
+
+# Example with a real job ID
+firecrawl crawl 550e8400-e29b-41d4-a716-446655440000
+```
+
+#### [​](https://docs.firecrawl.dev/sdks/cli\#crawl-options)  Crawl Options
+
+CLI
+
+```
+# Limit crawl depth and pages
+firecrawl crawl https://example.com --limit 100 --max-depth 3 --wait
+
+# Include only specific paths
+firecrawl crawl https://example.com --include-paths /blog,/docs --wait
+
+# Exclude specific paths
+firecrawl crawl https://example.com --exclude-paths /admin,/login --wait
+
+# Include subdomains
+firecrawl crawl https://example.com --allow-subdomains --wait
+
+# Crawl entire domain
+firecrawl crawl https://example.com --crawl-entire-domain --wait
+
+# Rate limiting
+firecrawl crawl https://example.com --delay 1000 --max-concurrency 2 --wait
+
+# Pass scrape options to each crawled page
+firecrawl crawl https://example.com --scrape-options '{"formats":["markdown"],"onlyMainContent":true}'
+
+# Send crawl completion events to a webhook
+firecrawl crawl https://example.com --webhook '{"url":"https://example.com/webhook","events":["completed"]}'
+
+# Cancel an active crawl
+firecrawl crawl <job-id> --cancel
+
+# Custom polling interval and timeout
+firecrawl crawl https://example.com --wait --poll-interval 10 --timeout 300
+
+# Save results to file
+firecrawl crawl https://example.com --wait --pretty -o results.json
+```
+
+**Available Options:**
+
+| Option | Description |
+| --- | --- |
+| `--url <url>` | URL to crawl (alternative to positional argument) |
+| `--wait` | Wait for crawl to complete |
+| `--progress` | Show progress indicator while waiting |
+| `--poll-interval <seconds>` | Polling interval (default: 5) |
+| `--timeout <seconds>` | Timeout when waiting |
+| `--status` | Check status of existing crawl job |
+| `--limit <number>` | Maximum pages to crawl |
+| `--max-depth <number>` | Maximum crawl depth |
+| `--include-paths <paths>` | Paths to include (comma-separated) |
+| `--exclude-paths <paths>` | Paths to exclude (comma-separated) |
+| `--sitemap <mode>` | Sitemap handling: `include`, `skip`, `only` |
+| `--allow-subdomains` | Include subdomains |
+| `--allow-external-links` | Follow external links |
+| `--crawl-entire-domain` | Crawl entire domain |
+| `--ignore-query-parameters` | Treat URLs with different params as same |
+| `--delay <ms>` | Delay between requests |
+| `--max-concurrency <n>` | Maximum concurrent requests |
+| `--scrape-options <json>` | JSON scrape options passed to each page |
+| `--scrape-options-file <path>` | Path to scrape options JSON file |
+| `--webhook <url-or-json>` | Webhook URL or configuration |
+| `--cancel` | Cancel an active crawl job by job ID |
+| `--output <path>` | Save output to file |
+| `--pretty` | Pretty print JSON output |
+
+* * *
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#monitor)  Monitor
+
+Create recurring scrapes or crawls that diff each run against the previous snapshot. Add a goal when you want Firecrawl to judge which changed pages are meaningful for your use case.
+
+CLI
+
+```
+firecrawl monitor create --name "Hacker News AI" \
+  --schedule "every 30 minutes" \
+  --goal "Alert when a new Hacker News story related to AI enters the top 10. Ignore changes to stories that are not about AI. Do not alert on changes outside the top 10." \
+  --page https://news.ycombinator.com
+
+firecrawl monitor run <monitorId>
+firecrawl monitor checks <monitorId> --limit 10
+firecrawl monitor check <monitorId> <checkId> --page-status changed
+firecrawl monitor update <monitorId> \
+  --goal "Alert when a new Hacker News story related to AI enters the top 10. Do not alert on changes outside the top 10."
+firecrawl monitor delete <monitorId>
+```
+
+Monitor goals should stay short and faithful to the user’s intent: say what should trigger an alert, restate any stated scope, and include exclusions only when they are obvious or explicitly requested. If the user asks for “any change”, keep the goal broad.**Available Options:**
+
+| Option | Description |
+| --- | --- |
+| `--name <name>` | Monitor name |
+| `--goal <goal>` | Goal for meaningful-change judging |
+| `--cron <expression>` | Cron schedule, for example `*/30 * * * *` |
+| `--schedule <text>` | Natural-language schedule, for example `hourly` |
+| `--timezone <tz>` | Schedule timezone, default `UTC` |
+| `--page <url>` | Single page URL to scrape on each check |
+| `--scrape-urls <list>` | Comma-separated page URLs to scrape on each check |
+| `--crawl-url <url>` | Root URL for a crawl target |
+| `--webhook-url <url>` | Webhook destination |
+| `--webhook-events <list>` | Comma-separated monitor events |
+| `--email <list>` | Comma-separated email recipients |
+| `--retention-days <n>` | Snapshot retention window |
+| `--page-status <state>` | Filter pages on `monitor check` |
+| `--state <state>` | Set monitor state on `monitor update`: active/paused |
+
+* * *
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#agent)  Agent
+
+Search and gather data from the web using natural language prompts.
+
+CLI
+
+```
+# Basic usage - URLs are optional
+firecrawl agent "Find the top 5 AI startups and their funding amounts" --wait
+
+# Focus on specific URLs
+firecrawl agent "Compare pricing plans" --urls https://slack.com/pricing,https://teams.microsoft.com/pricing --wait
+
+# Use a schema for structured output
+firecrawl agent "Get company information" --urls https://example.com --schema '{"type":"object","properties":{"name":{"type":"string"},"founded":{"type":"number"}}}' --wait
+
+# Use schema from a file
+firecrawl agent "Get product details" --urls https://example.com --schema-file schema.json --wait
+```
+
+#### [​](https://docs.firecrawl.dev/sdks/cli\#agent-options)  Agent Options
+
+CLI
+
+```
+# Spark 2 is the default — every run executes on it
+firecrawl agent "Competitive analysis across multiple domains" --model spark-2 --wait
+
+# Deprecated: Spark 1 model names are still accepted, but route to spark-2.
+
+# Set max credits to limit costs
+firecrawl agent "Gather contact information from company websites" --max-credits 100 --wait
+
+# Check status of an existing job
+firecrawl agent <job-id> --status
+
+# Send agent events to a webhook
+firecrawl agent "Extract product details" --urls https://example.com --webhook '{"url":"https://example.com/webhook","events":["completed","failed"]}'
+
+# Cancel an active agent job
+firecrawl agent <job-id> --cancel
+
+# Custom polling interval and timeout
+firecrawl agent "Summarize recent blog posts" --wait --poll-interval 10 --timeout 300
+
+# Save output to file
+firecrawl agent "Find pricing information" --urls https://example.com --wait -o pricing.json --pretty
+```
+
+**Available Options:**
+
+| Option | Description |
+| --- | --- |
+| `--urls <urls>` | Optional list of URLs to focus the agent on (comma-separated) |
+| `--model <model>` | Model to use. Defaults to `spark-2`, the model every run executes on. Spark 1 models are deprecated and route to `spark-2` |
+| `--schema <json>` | JSON schema for structured output (inline JSON string) |
+| `--schema-file <path>` | Path to JSON schema file for structured output |
+| `--max-credits <number>` | Maximum credits to spend (job fails if limit reached) |
+| `--webhook <url-or-json>` | Webhook URL or configuration |
+| `--status` | Check status of existing agent job |
+| `--cancel` | Cancel an active agent job by job ID |
+| `--wait` | Wait for agent to complete before returning results |
+| `--poll-interval <seconds>` | Polling interval when waiting (default: 5) |
+| `--timeout <seconds>` | Timeout when waiting (default: no timeout) |
+| `--output <path>` | Save output to file |
+| `--json` | Output as JSON format |
+
+* * *
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#credit-usage)  Credit Usage
+
+Check your team’s credit balance and usage.
+
+CLI
+
+```
+# View credit usage
+firecrawl credit-usage
+
+# Output as JSON
+firecrawl credit-usage --json --pretty
+```
+
+* * *
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#version)  Version
+
+Display the CLI version.
+
+CLI
+
+```
+firecrawl version
+# or
+firecrawl --version
+```
+
+## [​](https://docs.firecrawl.dev/sdks/cli\#global-options)  Global Options
+
+These options are available for all commands:
+
+| Option | Short | Description |
+| --- | --- | --- |
+| `--status` |  | Show version, auth, concurrency, and credits |
+| `--api-key <key>` | `-k` | Override stored API key for this command |
+| `--api-url <url>` |  | Use custom API URL (for self-hosted/local development) |
+| `--help` | `-h` | Show help for a command |
+| `--version` | `-V` | Show CLI version |
+
+`init` also accepts `--skip-auth`, `--skip-install`, `--skip-skills`, and `--agent <name>`. See `firecrawl init --help`.
+
+## [​](https://docs.firecrawl.dev/sdks/cli\#output-handling)  Output Handling
+
+The CLI outputs to stdout by default, making it easy to pipe or redirect:
+
+CLI
+
+```
+# Pipe markdown to another command
+firecrawl https://example.com | head -50
+
+# Redirect to a file
+firecrawl https://example.com > output.md
+
+# Save JSON with pretty formatting
+firecrawl https://example.com --format markdown,links --pretty -o data.json
+```
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#format-behavior)  Format Behavior
+
+- **Single format**: Outputs raw content (markdown text, HTML, etc.)
+- **Multiple formats**: Outputs JSON with all requested data
+
+CLI
+
+```
+# Raw markdown output
+firecrawl https://example.com --format markdown
+
+# JSON output with multiple formats
+firecrawl https://example.com --format markdown,links
+```
+
+## [​](https://docs.firecrawl.dev/sdks/cli\#examples)  Examples
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#quick-scrape)  Quick Scrape
+
+CLI
+
+```
+# Get markdown content from a URL (use --only-main-content for clean output)
+firecrawl https://docs.firecrawl.dev --only-main-content
+
+# Get HTML content
+firecrawl https://example.com --html -o page.html
+```
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#full-site-crawl)  Full Site Crawl
+
+CLI
+
+```
+# Crawl a docs site with limits
+firecrawl crawl https://docs.example.com --limit 50 --max-depth 2 --wait --progress -o docs.json
+```
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#site-discovery)  Site Discovery
+
+CLI
+
+```
+# Find all blog posts
+firecrawl map https://example.com --search "blog" -o blog-urls.txt
+```
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#research-workflow)  Research Workflow
+
+CLI
+
+```
+# Search and scrape results for research
+firecrawl search "machine learning best practices 2024" --scrape --scrape-formats markdown --pretty
+```
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#agent-2)  Agent
+
+CLI
+
+```
+# URLs are optional
+firecrawl agent "Find the top 5 AI startups and their funding amounts" --wait
+
+# Focus on specific URLs
+firecrawl agent "Compare pricing plans" --urls https://slack.com/pricing,https://teams.microsoft.com/pricing --wait
+```
+
+### [​](https://docs.firecrawl.dev/sdks/cli\#combine-with-other-tools)  Combine with Other Tools
+
+CLI
+
+```
+# Extract URLs from search results
+jq -r '.data.web[].url' search-results.json
+
+# Get titles from search results
+jq -r '.data.web[] | "\(.title): \(.url)"' search-results.json
+
+# Extract links as JSON and print one URL per line
+firecrawl https://example.com --format links --json | jq -r '.links[]'
+
+# Count URLs from map
+firecrawl map https://example.com | wc -l
+```
+
+## [​](https://docs.firecrawl.dev/sdks/cli\#telemetry)  Telemetry
+
+The CLI collects anonymous usage data during authentication to help improve the product:
+
+- CLI version, OS, and Node.js version
+- Development tool detection (e.g., Cursor, VS Code, Claude Code)
+
+**No command data, URLs, or file contents are collected via the CLI.**To disable telemetry, set the environment variable:
+
+CLI
+
+```
+export FIRECRAWL_NO_TELEMETRY=1
+```
+
+## [​](https://docs.firecrawl.dev/sdks/cli\#open-source)  Open Source
+
+The Firecrawl CLI and all three skill segments are open source on GitHub:
+
+- [`firecrawl/cli`](https://github.com/firecrawl/cli) — the CLI and CLI skills (live web work)
+- [`firecrawl/skills`](https://github.com/firecrawl/skills) — build skills (integrate Firecrawl into application code)
+- [`firecrawl/firecrawl-workflows`](https://github.com/firecrawl/firecrawl-workflows) — workflow skills (repeatable deliverables such as research briefs, SEO audits, lead lists, and design clones)
+
+> Are you an AI agent that needs a Firecrawl API key? See [firecrawl.dev/agent-onboarding/SKILL.md](https://www.firecrawl.dev/agent-onboarding/SKILL.md) for automated onboarding instructions.
+
+[Suggest edits](https://github.com/firecrawl/firecrawl-docs/edit/main/sdks/cli.mdx) [Raise issue](https://github.com/firecrawl/firecrawl-docs/issues/new?title=Issue%20on%20docs&body=Path:%20/sdks/cli)
+
+✕
