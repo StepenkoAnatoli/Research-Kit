@@ -9,6 +9,7 @@ import { collectOne, writeRaw, captureName, bodyHashOf } from '../lib/collect.mj
 import { rateLimitWaitMs } from '../lib/firecrawl.mjs';
 import { topicMatch } from '../lib/research-run.mjs';
 import { verifyLedger } from '../lib/provenance.mjs';
+import { supersededRows } from '../lib/checks.mjs';
 import { runResearch, readPlan, rankCandidate, selectCandidates, parsePreference, urlKey, DEPTH_SCRAPES, usageSummary } from '../lib/research-run.mjs';
 
 describe('collect');
@@ -204,6 +205,42 @@ test('--force collects again; the cache is a decision, not a law', () => {
   assert.equal(forced.status, 'collected');
 });
 
+// Found 2026-10-02 (break-test pass 3, F4): `--force` the same day on a page that came back
+// byte-identical reused the capture file (writeRaw never overwrites) and still appended a
+// second row citing it - rows=2, ledger=2, captures=1. The second row superseded the first,
+// so every unknown citing E-01 then failed evidence-supersession over content that had not
+// changed. The fetch is evidence (ledger); a row is a reading, and the reading stands.
+test('--force on an unchanged page records the fetch and lets its row stand; a changed page gets a new row', () => {
+  const dir = makeProject();
+  const corpus = readCorpus(dir);
+  const first = collectOne(dir, 'https://x.invalid/limits', { runScrape: stubAdapter().runScrape, corpus });
+  assert.equal(first.row.id, 'E-01');
+
+  const again = collectOne(dir, 'https://x.invalid/limits', { runScrape: stubAdapter().runScrape, corpus, force: true });
+  assert.equal(again.status, 'collected');
+  assert.equal(again.spent, 1, 'the fetch was paid for and is counted');
+  assert.equal(again.row.id, 'E-01', 'the standing row is the one reported');
+  assert.match(again.reason, /unchanged.*E-01 stands/);
+  let fresh = readCorpus(dir);
+  assert.equal(fresh.evidence.length, 1, 'one row: the content did not change');
+  assert.equal(fresh.ledger.entries.filter((e) => e.op === 'scrape').length, 2, 'two fetches on record');
+  assert.equal(fresh.captures.entries.length, 1, 'one capture');
+  assert.equal(corpus.evidence.length, 1, 'the in-memory table agrees with the disk');
+
+  // The page changed: a new capture beside the first, a new row, and the first is superseded.
+  const changed = collectOne(dir, 'https://x.invalid/limits', {
+    corpus, force: true,
+    runScrape: (u) => ({ ...stubAdapter().runScrape(u), markdown: `${PAGE}\n\nUpdated today: the free plan now allows 20.` }),
+  });
+  assert.equal(changed.status, 'collected');
+  assert.equal(changed.row.id, 'E-02');
+  assert.match(changed.entry.file, /\.r2\.md$/, 'a changed page is a second capture, never an overwrite');
+  fresh = readCorpus(dir);
+  assert.equal(fresh.evidence.length, 2);
+  assert.equal(fresh.captures.entries.length, 2);
+  assert.equal(supersededRows(fresh).get('E-01')?.id, 'E-02', 'the earlier reading is superseded by the later one');
+});
+
 test('a collected page says WHY it was fetched, in words, not as a cache code', () => {
   // Found 2026-09-26 in a live-collection log: "collected https://docs.firecrawl.dev/... -
   // not-collected". The reason was cacheDecision's internal code for "no capture yet",
@@ -213,9 +250,12 @@ test('a collected page says WHY it was fetched, in words, not as a cache code', 
   const first = collectOne(dir, 'https://x.invalid/limits', { runScrape: stubAdapter().runScrape, corpus });
   assert.equal(first.reason, 'first capture');
   const forced = collectOne(dir, 'https://x.invalid/limits', { runScrape: stubAdapter().runScrape, corpus, force: true });
-  assert.equal(forced.reason, 'refreshed: --force');
+  // The stub page is byte-identical, so the forced fetch is on record and the row stands (2026-10-02).
+  assert.equal(forced.reason, 'refreshed: --force; the page is unchanged, so E-01 stands');
+  // A stale refresh happens on a later day, so the capture is a new file and the row is new.
+  const later = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
   const stale = collectOne(dir, 'https://x.invalid/limits', {
-    runScrape: stubAdapter().runScrape, corpus, refreshDays: 1, now: new Date(Date.now() + 5 * 86400000),
+    runScrape: stubAdapter().runScrape, corpus, refreshDays: 1, date: later, now: new Date(later),
   });
   assert.match(stale.reason, /^refreshed: the last capture was \d+ days old$/);
   const preview = collectOne(dir, 'https://x.invalid/other', { runScrape: stubAdapter().runScrape, corpus, dryRun: true });

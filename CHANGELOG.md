@@ -40,6 +40,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   with itself always matches, and a line appended to the deployed `lib/core.mjs` passed that
   way. The drift is measured against the home the install state recorded, which the message
   already named (break-test pass 3, 2026-10-02).
+- `--force` on a page that comes back byte-identical records the fetch in the ledger and
+  lets the row that cites the reused capture stand, saying so in the reason; it had appended
+  a second row that superseded the first, so every unknown citing unchanged content failed
+  `evidence-supersession` and had to be re-cited for nothing (break-test pass 3, 2026-10-02).
+  A changed page is still a second capture with a row of its own.
 
 ## 0.9.2 — 2026-10-02
 
