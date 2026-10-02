@@ -16,7 +16,7 @@
 // is a fact about git's index.
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, fs, path, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, fs, path, KIT_ROOT, requireGit } from './harness.mjs';
 import { missingKitLines } from '../lib/scaffold.mjs';
 
 describe('repo-hygiene');
@@ -32,10 +32,27 @@ function git(args) {
   return String(result.stdout ?? '');
 }
 
-const inGitRepo = git(['rev-parse', '--is-inside-work-tree'])?.trim() === 'true';
+/**
+ * Whether this checkout is a git repository at all, so the index-reading tests have
+ * something to judge. A `git archive` tree (the ZIP download, CI's archive-tree job)
+ * and a scaffolded copy have no `.git`, and there is genuinely nothing to check.
+ *
+ * `requireGit` comes FIRST, and it is the difference between a named UNSUP and a
+ * silent pass. `git rev-parse` fails with the same shape for "git is not on PATH"
+ * (spawn ENOENT, status null) as for "there is no repository here" (status 128), so
+ * the old `if (!inGitRepo) return;` guard could not tell them apart: on a host with no
+ * git every test in this file printed `ok` having asserted nothing - eleven green
+ * lines over an unchecked repository, which is exactly the false green ADR-0021 and
+ * the `Unsupported` mechanism exist to prevent (reproduced 2026-10-02, break-test:
+ * `PATH` without git, `node research-kit/bin/selftest.mjs`).
+ */
+function inRepository() {
+  requireGit("reading this repository's index");
+  return git(['rev-parse', '--is-inside-work-tree'])?.trim() === 'true';
+}
 
 test('no ignored file is tracked', () => {
-  if (!inGitRepo) return;          // a scaffolded copy is not a git repository; nothing to check
+  if (!inRepository()) return;          // a scaffolded copy is not a git repository; nothing to check
 
   // `git ls-files -i -c --exclude-standard` lists exactly the contradiction: paths that
   // are in the index AND matched by an ignore rule.
@@ -48,7 +65,7 @@ test('no ignored file is tracked', () => {
 });
 
 test('the fetch ledger is tracked, and is NOT ignored', () => {
-  if (!inGitRepo) return;
+  if (!inRepository()) return;
 
   // The mirror of the test above. The ledger is the one dotfile under research/raw/ that
   // must travel — a corpus that arrives without it cannot pass its own gate. If a future
@@ -68,7 +85,7 @@ test('the gate writes only to paths git is told to ignore', () => {
   const source = fs.readFileSync(path.join(KIT_ROOT, 'bin', 'gate.mjs'), 'utf8');
   assert.ok(source.includes('recordDiagnostic'), 'the gate no longer records diagnostics; this test needs rewriting');
 
-  if (!inGitRepo) return;
+  if (!inRepository()) return;
   const ignored = git(['check-ignore', '-q', 'research/raw/.diagnostics.jsonl']);
   assert.notEqual(ignored, null,
     'the gate appends to research/raw/.diagnostics.jsonl on every invocation, and that '
@@ -105,7 +122,7 @@ test('no collector byproduct is tracked at any depth', () => {
   //
   // This asserts the invariant rather than the rules: these four are machine-local state,
   // they are never evidence, and they must not be in the index anywhere.
-  if (!inGitRepo) return;
+  if (!inRepository()) return;
 
   const byproducts = /(^|\/)\.(usage|diagnostics|failures)\.jsonl$|(^|\/)\.fetches\.lock$|(^|\/)overrides\.log$/;
   const tracked = (git(['ls-files']) ?? '').split('\n').map((l) => l.trim()).filter(Boolean);
@@ -120,7 +137,7 @@ test('no collector byproduct is tracked at any depth', () => {
 // missingKitLines does not read as the template's line - so doctor warned
 // shape-kit-rules-missing on every clean checkout of this repository.
 test('every project in this repository carries the template .gitignore rules', () => {
-  if (!inGitRepo) return;
+  if (!inRepository()) return;
   const repo = path.resolve(KIT_ROOT, '..');
   const decisions = path.join(repo, 'docs', 'decisions');
   const projects = [repo, ...fs.readdirSync(decisions).map((d) => path.join(decisions, d))
@@ -139,7 +156,7 @@ test('every project in this repository carries the template .gitignore rules', (
 // pin lines could be deleted silently - the failure they guard only appears on the next
 // Windows checkout, as six named blockers about hashes nobody touched.
 test('every project in this repository carries the template .gitattributes pins', () => {
-  if (!inGitRepo) return;
+  if (!inRepository()) return;
   const repo = path.resolve(KIT_ROOT, '..');
   const decisions = path.join(repo, 'docs', 'decisions');
   const projects = [repo, ...fs.readdirSync(decisions).map((d) => path.join(decisions, d))
@@ -184,7 +201,7 @@ test('the ledger is still not swept up by the broader rules', () => {
   // The mirror of the test above, and the reason it is worded as a denylist of four names
   // rather than "ignore everything hidden under research/raw". The chain is evidence and
   // must travel - including in a nested project.
-  if (!inGitRepo) return;
+  if (!inRepository()) return;
   const ledgers = (git(['ls-files']) ?? '').split('\n').map((l) => l.trim())
     .filter((f) => f.endsWith('research/raw/.fetches.jsonl'));
 
@@ -206,7 +223,7 @@ test('every shipped git hook is tracked executable', () => {
   // The offline suite checks this on Linux runners, which is a real guard but a late one:
   // the author's machine, and Windows, cannot see the regression before it is pushed.
   // Here it fails in `selftest`, which is the command the contributing docs name.
-  if (!inGitRepo) return;      // a scaffolded copy has no index to read modes from
+  if (!inRepository()) return;      // a scaffolded copy has no index to read modes from
 
   const hooks = (git(['ls-files', '-s', '--', 'research-kit/githooks']) ?? '')
     .split('\n').map((l) => l.trim()).filter(Boolean)
