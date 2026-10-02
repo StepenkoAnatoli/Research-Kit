@@ -38,6 +38,30 @@ function stub({ results = [] } = {}) {
   };
 }
 
+// ADR-0122: a run on a ledger whose chain is broken refuses BEFORE anything is spent, beside the
+// vendor-CLI and search-provider refusals, not at the first record. Every fetch after the break
+// would be refused by handoff and preflight, so the budget they would cost is never spent.
+test('a research run refuses before its first fetch when the chain is broken', () => {
+  const dir = makePassingProject();
+  const file = resolve(dir, PATHS.ledger);
+  const lines = readText(file).split('\n');
+  lines[0] = JSON.stringify({ ...JSON.parse(lines[0]), url: 'https://x.invalid/edited-after-the-fact' });
+  writeText(file, lines.join('\n'));
+
+  let searched = 0;
+  let scraped = 0;
+  const adapter = {
+    ...stub({ results: [{ url: 'https://a.invalid/1' }] }),
+    search: (q) => { searched += 1; return stub({ results: [{ url: 'https://a.invalid/1' }] }).search(q); },
+    runScrape: (u) => { scraped += 1; return stub().runScrape(u); },
+  };
+  assert.throws(() => runResearch(dir, { adapter, force: true }), (err) => err.code === 'LEDGER_CHAIN_BROKEN');
+  assert.equal(searched + scraped, 0, 'the run spent before it learned the chain could not record it');
+  // A dry run is refused the same way: a preview that says "this will collect" on a chain that
+  // cannot record it is worse than no preview (the vendor-CLI rule, applied here).
+  assert.throws(() => runResearch(dir, { adapter, dryRun: true }), (err) => err.code === 'LEDGER_CHAIN_BROKEN');
+});
+
 // --- F16: an unreadable role config must not enable collection --------------------
 
 test('F16: an unreadable config with nothing to hold refuses metered collection', () => {

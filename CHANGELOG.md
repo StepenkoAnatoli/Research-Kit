@@ -7,6 +7,13 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 Bug fixes after 0.9.0, under the freeze (ADR-0117).
 
+- The collector refuses to spend on a ledger whose chain is broken (ADR-0122). A ledger that
+  parsed but whose hashes no longer linked was appended to without a word, so a run paid for
+  fetches that `handoff` and `preflight` then refused with the rest of the chain.
+  `assertAppendable` now refuses a broken chain (`LEDGER_CHAIN_BROKEN`) beside an unparsed
+  line and a torn tail, `runResearch` asks it before the first fetch - dry runs included -
+  and `research.mjs` prints it as a sentence with exit 2. The remedy restores the ledger that
+  verified; the kit never rewrites a hash (arena break-test #198, F-1-2).
 - A posture key that is present and not of its type resolves to its restrictive state
   (ADR-0121): `"failOpen": "false"` is fail-closed, `"evidencePolicy": "STRICT"` is strict,
   `"editGate": {"mode": "HARD-BLOCK"}` is hard-block, as `role` already resolves to

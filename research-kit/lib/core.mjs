@@ -527,6 +527,7 @@ export function writeFailure(err, cwd = process.cwd()) {
 export const NAMED_RUN_REFUSALS = Object.freeze(new Set([
   'LEDGER_DAMAGED',     // appendFetch: the chain holds lines that do not parse
   'LEDGER_TORN_TAIL',   // appendFetch: the last line was never finished
+  'LEDGER_CHAIN_BROKEN', // assertAppendable: the hashes no longer link (ADR-0122)
   'LOCK_HELD',          // acquire: the section is held, and the wait ran out
   'LOCK_STUCK',         // acquire: judged stale, and this process cannot remove it
 ]));
