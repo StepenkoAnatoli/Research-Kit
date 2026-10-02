@@ -652,3 +652,17 @@ test('only http(s) is a URL, and the plan line adds no second copy of one', () =
   assert.ok(!log.includes('secret.example'), `the plan line printed a URL: ${log}`);
   assert.match(log, /1 url/, 'the log should still say how many pages were asked for');
 });
+
+
+// ADR-0129 (2026-10-02): a local run stops when the account runs out, so the operator
+// decides. The hosted collectors have nobody to ask, so each real run passes --fallback;
+// the dry run spends nothing and needs no flag. A workflow that lost the flag would turn
+// a paid dispatch into a stopped run with nothing to read.
+test('the unattended collectors pass --fallback on the run that spends', () => {
+  for (const name of ['collect.yml', 'live-collection.yml']) {
+    const text = fs.readFileSync(path.join(WORKFLOWS, name), 'utf8');
+    const runs = text.split('\n').filter((line) => /bin\/research\.mjs"/.test(line) && !/--dry-run/.test(line) && !/--status/.test(line));
+    assert.ok(runs.length >= 1, `${name} has no collecting run of research.mjs`);
+    for (const line of runs) assert.match(line, /--fallback/, `${name} runs the collector without --fallback: ${line.trim()}`);
+  }
+});

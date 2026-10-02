@@ -28,6 +28,13 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   cost, the GitHub collector, a command reference, the machine configuration, and a
   troubleshooting table. The kit reference (`research-kit/README.md`) is unchanged apart
   from the links into it.
+- A local run stops when Firecrawl reports its credits exhausted (ADR-0129, superseding the
+  default of ADR-0086): the remaining searches and pages are reported `uncollected`, never
+  failed, the summary says what is left, and the CLI prints the decision - top up and run
+  the same command, or run it with `--fallback` - and exits 2. `--fallback` keeps the old
+  switch to browser or http-keyless; the unattended collectors (`collect.yml`,
+  `live-collection.yml`) pass it. `--no-fallback` still means the default. One flag added
+  under the freeze, by that ADR.
 
 ## 0.9.3 — 2026-10-02
 

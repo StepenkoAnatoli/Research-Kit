@@ -82,7 +82,7 @@ node "$HOME/.agents/research-kit/bin/handoff.mjs"     # did the corpus arrive wh
 | `doctor.mjs` | machine + project + gate + chain health, with the exact fix per problem (`--fix-arity` drops a torn ledger tail) |
 | `preflight.mjs` | the verdict (`--checks`, `--check <name>`, `--strict`, `--json`) |
 | `gate.mjs` | the verdict for a hook (`--gate commit\|edit`, `--staged-stdin`, `--posture`) |
-| `research.mjs` | collect (`--depth`, `--refresh-days`, `--force`, `--dry-run`, `--status`, `--transport`, `--witness`) |
+| `research.mjs` | collect (`--depth`, `--refresh-days`, `--force`, `--dry-run`, `--status`, `--transport`, `--fallback`, `--witness`); stops and exits 2 when the account runs out (ADR-0129) |
 | `prior.mjs` | register what you expect **before** collecting, chained so it cannot be moved or rewritten afterwards; with no argument, prints the one on record |
 | `decompose.mjs` | phase 0 (`--topic`, `--recipe`, `--recipes`, `--max-scrapes`, `--dry-run`); the map shows the section headings of the pages it captured |
 | `handoff.mjs` | the arrival question, with the remedy picked from the cause |
@@ -342,9 +342,11 @@ config, or a probe:
 - **`http-keyless`** — no key, no credits, grades its own capture completeness honestly. A page on the web may not redirect it into this machine's network - loopback, private or link-local addresses - unless the URL you asked for was internal itself; `RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS=1` lifts that (ADR-0110).
 - **`browser`** — a local Chromium or Chrome renders the page (`--transport browser`); free, reads pages built by JavaScript or refused to non-browser clients; fetch only (ADR-0088).
 
-When Firecrawl's credits run out mid-run, the rest of the run switches to `browser` when a browser is installed, else `http-keyless`,
-and says so; each capture's ledger entry names the transport that fetched it (ADR-0086).
-`--no-fallback` records those pages as failed instead. Tavily is not a fallback: its terms
+When Firecrawl's credits run out mid-run, a local run stops, reports what is left as
+`uncollected`, prints the decision and exits 2 (ADR-0129): top up and run the same command,
+or run it with `--fallback`, which switches the rest of the run to `browser` when a browser
+is installed, else `http-keyless`, each capture's ledger entry naming the transport that
+fetched it (ADR-0086). The unattended collectors pass `--fallback`. Tavily is not a fallback: its terms
 reserve training on what is sent (C-6, re-checked 2026-09-28).
 
 ## What is built
@@ -451,7 +453,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1477 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1479 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

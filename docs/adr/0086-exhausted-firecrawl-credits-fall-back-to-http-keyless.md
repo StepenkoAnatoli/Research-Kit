@@ -1,7 +1,7 @@
 # ADR-0086 — Exhausted Firecrawl credits switch the rest of a run to http-keyless
 
 - **Date:** 2026-09-28
-- **Status:** accepted
+- **Status:** accepted; the default is superseded by ADR-0129 (2026-10-02): a local run stops when credits run out, and this switch is opt-in with `--fallback`, which the unattended collectors pass. Detection, the switch and its reporting stand as written here.
 - **Area:** `lib/firecrawl.mjs` (`creditsExhausted`), `lib/research-run.mjs` (`fallbackAdapter`, `fellBack`), `bin/research.mjs` (`--no-fallback`)
 - **Evidence:** `docs/decisions/2026-09-28-fetch-fallback/` (U-01..U-04)
 
