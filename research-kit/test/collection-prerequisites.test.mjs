@@ -7,6 +7,7 @@
 
 import { test, describe, assert, assertEqual } from './harness.mjs';
 import { cliCompatibility, TESTED_CLI_VERSION, SUPPORTED_CLI_MAJOR } from '../lib/firecrawl.mjs';
+import { NAMED_RUN_REFUSALS } from '../lib/core.mjs';
 import { selectSearch } from '../lib/transport.mjs';
 import { checkNode, checkPython, checkGit, requireRuntime, REQUIRED_NODE_MAJOR } from '../lib/runtime.mjs';
 
@@ -207,4 +208,12 @@ test('an old `python` alias does not hide a usable `python3`', () => {
   // Only the modern name present is the other common layout.
   assertEqual(checkPython({ run: host({ python3: '3.12.1' }) }).ok, true);
   assertEqual(checkPython({ run: host({}) }).ok, false);
+});
+
+// Found 2026-10-02 (break-test pass 3, a fake CLI reporting v2.0.0): runResearch threw the
+// refusal with code CLI_INCOMPATIBLE, and bin/research.mjs, which answers the named refusals
+// with their sentence and exit 2, did not know this one - so the operator got the sentence
+// under a source line, a caret, a stack and an object dump, with exit 1, which reads as FAIL.
+test('an unsupported CLI major is a named refusal: the sentence and exit 2, not a stack', () => {
+  assert.ok(NAMED_RUN_REFUSALS.has('CLI_INCOMPATIBLE'), [...NAMED_RUN_REFUSALS].join(', '));
 });

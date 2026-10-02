@@ -11,6 +11,14 @@
 /** A quote shorter than this proves almost nothing: "free plan" occurs on every pricing page. */
 export const MIN_QUOTE_WORDS = 3;
 
+/**
+ * Unless it is long. A quote under MIN_QUOTE_WORDS words that holds at least this many
+ * characters - a dependency map, a URL, an identifier - is as specific as a sentence. Words
+ * were a proxy for length, and the warning's reason ("anchors almost nothing") was false for
+ * a 130-character token quoted from a package manifest (found 2026-10-02, ADR-0126).
+ */
+export const MIN_QUOTE_CHARS = 40;
+
 // The marker may hold balanced brackets one level deep - a code subscript (`calls[i].id`) or a
 // Markdown link (`[v0.4.7](url)`). It ended at the first `]` until 2026-09-29, which cut such a
 // quote short and then checked only the stub.
@@ -103,4 +111,9 @@ export function anchorFound(fragments, body) {
 /** Words in a quote, across its fragments: what MIN_QUOTE_WORDS is measured against. */
 export function quoteWords(anchor) {
   return anchor.fragments.join(' ').split(/\s+/).filter(Boolean).length;
+}
+
+/** Characters in a quote, across its fragments: what MIN_QUOTE_CHARS is measured against. */
+export function quoteChars(anchor) {
+  return anchor.fragments.join(' ').length;
 }

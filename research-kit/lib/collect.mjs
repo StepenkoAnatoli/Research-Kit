@@ -16,7 +16,7 @@ import {
 import { rateLimitWaitMs } from './firecrawl.mjs';
 import {
   captureEntry, cacheDecision, rememberCapture, appendRow, upsertRow, nextId,
-  readCaptures, parseTable, readLedger,
+  readCaptures, parseTable, readLedger, CAPTURE_MAX_BYTES,
 } from './corpus.mjs';
 import { appendFetch, withLock } from './provenance.mjs';
 import { firstFinding } from './finding.mjs';
@@ -245,6 +245,22 @@ export function collectOne(root, url, {
         cmd: result?.cmd ?? '', error: result?.error ?? 'unknown failure',
       });
       return { status: 'failed', url, entry: null, reason: result?.error ?? 'unknown failure', spent: 1, waits };
+    }
+
+    // A page the reader will never read is not a capture: readCaptures refuses a file over
+    // CAPTURE_MAX_BYTES as `capture-too-large` and the gate blocks on it, so a 40 MB answer
+    // written here was a capture, a ledger entry and an evidence row the corpus then could
+    // not hold (found 2026-10-02, break-test pass 3). Refused before anything is written.
+    const bodyBytes = Buffer.byteLength(String(result.markdown ?? ''), 'utf8');
+    if (bodyBytes > CAPTURE_MAX_BYTES) {
+      const error = `the page's text is ${(bodyBytes / 1024 / 1024).toFixed(1)} MB, over the ${CAPTURE_MAX_BYTES / 1024 / 1024} MB a capture may hold - not kept`;
+      appendFetch(root, {
+        op: 'fail', url, raw: '', bodySha256: '',
+        transport: result.transport || transportName,
+        discoveredBy,
+        cmd: result.cmd ?? '', error,
+      });
+      return { status: 'failed', url, entry: null, reason: error, spent: 1, waits };
     }
 
     const entry = writeRaw(root, result, { date });

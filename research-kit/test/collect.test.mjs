@@ -3,7 +3,7 @@
 
 import { test, describe, assert, makeProject, makePassingProject, fs, path, KIT_ROOT, tempDir } from './harness.mjs';
 import { PATHS, resolve, readText, writeJson, today } from '../lib/core.mjs';
-import { readCorpus, parseTable } from '../lib/corpus.mjs';
+import { readCorpus, parseTable, cacheDecision, CAPTURE_MAX_BYTES } from '../lib/corpus.mjs';
 import { HEADERS } from '../lib/core.mjs';
 import { collectOne, writeRaw, captureName, bodyHashOf } from '../lib/collect.mjs';
 import { rateLimitWaitMs } from '../lib/firecrawl.mjs';
@@ -154,6 +154,46 @@ test('a page whose fetch redirected is a cache hit under the URL the plan asked 
   assert.equal(fresh.captures.byUrl.get(landed)?.file, first.entry.file);
   assert.equal(fresh.ledger.entries.filter((e) => e.op === 'scrape').length, 1, 'one fetch, one ledger entry');
   assert.equal(fresh.evidence.length, 1, 'one fetch, one row');
+});
+
+test('a page is a cache hit under any spelling of its URL, from the in-memory index and from disk', () => {
+  const dir = makeProject();
+  const corpus = readCorpus(dir);
+  const first = collectOne(dir, 'https://x.invalid/a', { runScrape: stubAdapter().runScrape, corpus });
+  assert.equal(first.status, 'collected');
+  let called = 0;
+  for (const spelling of ['https://x.invalid/a/', 'https://WWW.x.invalid/a', 'http://x.invalid/a#frag']) {
+    const again = collectOne(dir, spelling, { corpus, runScrape: (url) => { called += 1; return stubAdapter().runScrape(url); } });
+    assert.equal(again.status, 'cached', `${spelling}: ${again.status} (${again.reason})`);
+    assert.equal(again.entry?.file, first.entry.file);
+  }
+  assert.equal(called, 0);
+  const fresh = readCorpus(dir);
+  assert.equal(cacheDecision(fresh.captures, 'https://x.invalid/a/').hit, true, 'the index read from disk answers by key too');
+  assert.equal(cacheDecision(fresh.captures, 'https://x.invalid/b').hit, false, 'another page is still another page');
+  assert.equal(cacheDecision(fresh.captures, 'https://x.invalid/a?page=2').hit, false, 'a query string can be a different page');
+});
+
+// Found 2026-10-02 (break-test pass 3): a 40 MB answer from the fetch adapter was written as a
+// capture, a ledger entry and an evidence row - and the corpus reader then refused the file as
+// `capture-too-large` (CAPTURE_MAX_BYTES, 10 MB), blocking the gate on a page the collector
+// itself had accepted. A page the reader will never read is not a capture.
+test('a page over the capture size limit is a failed fetch, never a capture the reader refuses', () => {
+  const dir = makeProject();
+  const corpus = readCorpus(dir);
+  const huge = 'w'.repeat(CAPTURE_MAX_BYTES + 1);
+  const outcome = collectOne(dir, 'https://x.invalid/huge', {
+    corpus, usedFor: 'U-1',
+    runScrape: (url) => ({ ...stubAdapter().runScrape(url), markdown: huge }),
+  });
+  assert.equal(outcome.status, 'failed', outcome.reason);
+  assert.match(outcome.reason, /10 MB/);
+  assert.match(outcome.reason, /over the/);
+  assert.equal(fs.readdirSync(path.join(dir, PATHS.raw)).filter((f) => f.endsWith('.md')).length, 0, 'no capture written');
+  const fresh = readCorpus(dir);
+  assert.equal(fresh.ledger.entries.length, 1);
+  assert.equal(fresh.ledger.entries[0].op, 'fail');
+  assert.equal(fresh.evidence.length, 0, 'no row');
 });
 
 test('--force collects again; the cache is a decision, not a law', () => {
@@ -339,6 +379,34 @@ test('a page given by URL is not fetched again when a search returns its other s
   const urls = readCorpus(dir).evidence.map((row) => row.url);
   assert.deepEqual(urls.sort(), ['https://x.example/page', 'https://y.example/other']);
   assert.equal(run.spent, 2, 'one page was paid for twice');
+});
+
+// Found 2026-10-02 (break-test pass 3): a plan naming one page in four spellings - with and
+// without `www.`, a trailing slash, a fragment - fetched it four times, four ledger entries
+// and four rows. The same-page rule already stopped a SEARCH result from re-fetching a plan
+// URL; it never compared the plan's own URLs with each other, and the cache looked a URL up
+// by its exact spelling.
+test('a plan naming one page in several spellings fetches it once, and the other spellings say so', () => {
+  const dir = makeProject();
+  writeJson(resolve(dir, PATHS.plan), {
+    topic: 'Fixture', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 1, maxScrapes: 10, prefer: [], queries: [],
+    urls: ['https://x.example/page', 'https://www.x.example/page/', { url: 'https://x.example/page#top', why: 'U-2' }, 'https://x.example/other'],
+  });
+  const run = runResearch(dir, { adapter: stubAdapter() });
+  assert.equal(run.spent, 2, `one page was paid for ${run.spent - 1} times (results: ${run.results.map((r) => `${r.url}=${r.status}`).join(', ')})`);
+  assert.deepEqual(readCorpus(dir).evidence.map((row) => row.url).sort(), ['https://x.example/other', 'https://x.example/page']);
+  const same = run.results.filter((r) => r.status === 'skipped' && /same page/.test(r.reason));
+  assert.deepEqual(same.map((r) => r.url), ['https://www.x.example/page/', 'https://x.example/page#top'], 'each other spelling is named, not dropped');
+  assert.match(same[0].reason, /https:\/\/x\.example\/page/, 'the reason names the spelling that was fetched');
+
+  // The next run names the page in a new spelling: a cache hit, nothing spent.
+  writeJson(resolve(dir, PATHS.plan), {
+    topic: 'Fixture', depth: 'quick', refreshDays: 30, limit: 8, perQuery: 1, maxScrapes: 10, prefer: [], queries: [],
+    urls: ['http://www.x.example/page/'],
+  });
+  const again = runResearch(dir, { adapter: stubAdapter() });
+  assert.equal(again.spent, 0, 'a page in the corpus under another spelling is a cache hit');
+  assert.equal(again.results[0].status, 'cached');
 });
 
 test('two queries that find the same page each still contribute a page of their own', () => {

@@ -5,7 +5,41 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
-Nothing yet.
+- The Firecrawl adapter reads the first complete JSON value in the CLI's stdout, whatever
+  is printed around it - a banner with a bracket before it, a credit receipt after it - and
+  `scrape` refuses an exit of 0 that printed nothing, no readable JSON, or a page with no
+  text, as a named failure. Each of those had become a "collected" capture holding 0
+  characters, with a ledger entry and an evidence row behind which there was no page
+  (break-test pass 3, 2026-10-02, with a fake CLI on PATH; the 1.25.0 CLI prints credit
+  receipts, so the trailing case is one release away).
+- A page whose text exceeds the capture size limit (10 MB) is a failed fetch, named with
+  its size and the limit, and nothing is written: the collector had accepted a 40 MB
+  answer as a capture, a ledger entry and an evidence row that the corpus reader then
+  refused as `capture-too-large`, blocking the gate (break-test pass 3, 2026-10-02).
+- A Firecrawl CLI of an unsupported major is refused with its sentence and exit 2: the
+  refusal carried the code `CLI_INCOMPATIBLE` but the named-refusal set did not know it,
+  so `research.mjs` printed it under a stack trace and an object dump with exit 1, which
+  reads as checked and wrong (break-test pass 3, 2026-10-02).
+- `doctor` judges the installed Firecrawl CLI the way the run does: an unsupported major
+  is a fail with the remedy on a collector that needs it (information on a builder or a
+  keyless collector), a newer minor passes and names the tested version. It had printed
+  `pass 2.0.0` for a CLI the run then refused before spending (break-test pass 3,
+  2026-10-02).
+- `citations/quote-too-short` warns under three words AND under 40 characters, across the
+  fragments (ADR-0126): two rows of the kit's own decision project quoted a 130-character
+  dependency map - one whitespace-separated "word" - and were warned as anchoring almost
+  nothing, which was false of a quote that anchors one exact line (2026-10-02).
+- A page is a cache hit under any spelling of its URL - `www.`, a trailing slash, a
+  fragment, http for https - and a plan that names one page in several spellings fetches it
+  once, naming the other spellings as skipped. The cache looked a URL up by its exact
+  spelling, and the plan's own URLs were never compared with each other, so such a plan
+  paid for the page once per spelling, with a ledger entry and a row each (break-test pass
+  3, 2026-10-02).
+- `doctor` run from the deployed kit itself says the deploy was not measured (`info`, with
+  the command that does measure) instead of `pass ... matches this tree`: a tree compared
+  with itself always matches, and a line appended to the deployed `lib/core.mjs` passed that
+  way. The drift is measured against the home the install state recorded, which the message
+  already named (break-test pass 3, 2026-10-02).
 
 ## 0.9.2 — 2026-10-02
 

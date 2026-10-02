@@ -169,19 +169,59 @@ export function command(argv) {
 
 // ---------------------------------------------------------------- payload normalisation
 
+/**
+ * The payload is the FIRST COMPLETE JSON value in stdout, whatever the CLI prints around it.
+ *
+ * It had been "the whole of stdout, or everything from the first bracket": a banner before
+ * the JSON parsed only while it held no bracket, and anything after the JSON - a receipt
+ * line, a trailing notice - made the whole of it unparseable. Both came back as null, and
+ * null became a "collected" capture holding 0 characters (found 2026-10-02, break-test pass
+ * 3, with a fake CLI on PATH). The 1.25.0 CLI prints credit receipts, so the trailing case
+ * is one release away. Each bracket is tried as a start; the value ends where its brackets
+ * balance outside strings; the first slice that parses is the payload.
+ */
 function parsePayload(stdout) {
-  const text = String(stdout).trim();
+  const text = stripAnsi(String(stdout)).trim();
   if (!text) return null;
   try {
     return JSON.parse(text);
-  } catch { /* the CLI sometimes prints a banner first */ }
-  const start = text.search(/[[{]/);
-  if (start < 0) return null;
-  try {
-    return JSON.parse(text.slice(start));
-  } catch {
-    return null;
+  } catch { /* a banner before it, a receipt after it, or no JSON at all */ }
+  // A banner's stray bracket never balances, so its scan runs to the end of the text; a
+  // bounded number of starts keeps a bracket-strewn non-answer from costing starts * length.
+  let starts = 0;
+  for (let i = 0; i < text.length && starts < MAX_PAYLOAD_STARTS; i += 1) {
+    const c = text[i];
+    if (c !== '{' && c !== '[') continue;
+    starts += 1;
+    const end = jsonValueEnd(text, i);
+    if (end < 0) continue;
+    try { return JSON.parse(text.slice(i, end + 1)); } catch { /* not a value; try the next start */ }
   }
+  return null;
+}
+
+/** How many bracket positions parsePayload tries before calling stdout no payload. */
+const MAX_PAYLOAD_STARTS = 64;
+
+/** Index of the bracket that closes the value opening at `start`, outside strings, or -1. */
+function jsonValueEnd(text, start) {
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < text.length; i += 1) {
+    const c = text[i];
+    if (inString) {
+      if (c === '\\') i += 1;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') inString = true;
+    else if (c === '{' || c === '[') depth += 1;
+    else if (c === '}' || c === ']') {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
 }
 
 /**
@@ -315,7 +355,23 @@ export function scrape(url, { execFn = exec, ...opts } = {}) {
   if (!result.ok) {
     return { ok: false, url, error: result.stderr || `firecrawl exited ${result.status}`, cmd: command(argv), transport: name };
   }
-  return { ok: true, cmd: command(argv), ...normalizeScrape(result.stdout, url) };
+  // An exit of 0 is not a page. A cut payload, an empty stdout and a payload with no text
+  // each became a capture of 0 characters - a ledger entry and an evidence row with nothing
+  // behind them (found 2026-10-02, break-test pass 3). Each is a failed fetch, named.
+  const stdout = String(result.stdout ?? '');
+  if (!stdout.trim()) {
+    return { ok: false, url, error: 'firecrawl exited 0 and printed nothing - no page was returned', cmd: command(argv), transport: name };
+  }
+  if (parsePayload(stdout) === null) {
+    return { ok: false, url, cmd: command(argv), transport: name,
+      error: `firecrawl exited 0 but printed no JSON payload that could be read - its output began: ${JSON.stringify(stdout.trim().slice(0, 100))}` };
+  }
+  const page = normalizeScrape(stdout, url);
+  if (!page.markdown) {
+    return { ok: false, url, cmd: command(argv), transport: name,
+      error: `firecrawl's payload held no page text for ${url} - an empty page is not a capture` };
+  }
+  return { ok: true, cmd: command(argv), ...page };
 }
 
 export function search(query, { limit = 8, execFn = exec, ...opts } = {}) {

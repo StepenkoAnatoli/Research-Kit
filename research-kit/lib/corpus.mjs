@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   PATHS, HEADERS, resolve, relative, exists, isDirectory, readText, readJson,
-  writeText, appendLine, listFiles, sha256File, ageInDays, hostOf, parseJson, realInside,
+  writeText, appendLine, listFiles, sha256File, ageInDays, hostOf, parseJson, realInside, urlKey,
 } from './core.mjs';
 import { sketch } from './similarity.mjs';
 import { parseJsonNoDuplicates } from './release/json.mjs';
@@ -317,10 +317,22 @@ export function readCaptures(root) {
     if (!held || String(entry.retrieved) >= String(held.retrieved)) byAsked.set(asked, entry);
   }
   for (const [asked, entry] of byAsked) if (!byUrl.has(asked)) byUrl.set(asked, entry);
+  // And by `urlKey`, so a page is found under any spelling of its URL - `www.`, a trailing
+  // slash, a fragment, http for https. `byUrl` was exact, so a plan that spelled a page
+  // differently from its capture paid for it again (found 2026-10-02, break-test pass 3).
+  // Newest wins among the spellings; a spelling's own entry still wins in `byUrl`.
+  const byKey = new Map();
+  for (const [url, entry] of byUrl) indexByKey(byKey, url, entry);
   // Sketches ride alongside the index rather than inside `captureEntry`, because an entry
   // is serialised into artifact manifests and a 128-value fingerprint per capture would
   // bloat every package to answer a question only one check asks (ADR-0036 amendment).
-  return { entries, byUrl, byFile, sketches, renderFailures, problems };
+  return { entries, byUrl, byKey, byFile, sketches, renderFailures, problems };
+}
+
+function indexByKey(byKey, url, entry) {
+  const key = urlKey(url);
+  const held = byKey.get(key);
+  if (!held || String(entry.retrieved) >= String(held.retrieved)) byKey.set(key, entry);
 }
 
 /** The one writer of the in-memory index, for a URL collected mid-run. */
@@ -335,6 +347,12 @@ export function rememberCapture(captures, entry) {
     const held = captures.byUrl.get(asked);
     if (!held || (held.url !== asked && String(entry.retrieved) >= String(held.retrieved))) captures.byUrl.set(asked, entry);
   }
+  if (captures.byKey) {
+    for (const url of [entry.url, asked]) {
+      const indexed = url ? captures.byUrl.get(url) : null;
+      if (indexed) indexByKey(captures.byKey, url, indexed);
+    }
+  }
   return entry;
 }
 
@@ -343,7 +361,8 @@ export function rememberCapture(captures, entry) {
  * the run coordinator, and phase 0 all ask here rather than each keeping a rule.
  */
 export function cacheDecision(captures, url, { refreshDays = 30, force = false, now = new Date() } = {}) {
-  const entry = captures?.byUrl?.get(url) ?? null;
+  // The exact spelling first; failing that, the page under any spelling (`urlKey`).
+  const entry = captures?.byUrl?.get(url) ?? captures?.byKey?.get(urlKey(url)) ?? null;
   if (!entry) return { hit: false, reason: 'not-collected', entry: null, age: null };
   if (force) return { hit: false, reason: 'forced', entry, age: ageInDays(entry.retrieved, now) };
   const age = ageInDays(entry.retrieved, now);

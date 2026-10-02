@@ -26,6 +26,22 @@ function machine({ config = {}, settings = undefined } = {}) {
 
 const find = (findings, name) => findings.find((f) => f.name === name);
 
+// Found 2026-10-02 (break-test pass 3, a fake CLI reporting v2.0.0): doctor printed
+// `pass firecrawl-cli 2.0.0` while research.mjs refused that CLI before spending - the
+// health check and the run disagreed about the one dependency outside the repository.
+test('doctor judges the CLI version the way the run does: an unsupported major fails, a newer minor passes and says so', () => {
+  const { env } = machine({ config: { role: 'collector' } });
+  const unsupported = find(machineHealth({ env, probe: () => ({ installed: true, authenticated: true, version: '2.0.0', credits: 940 }) }), 'firecrawl-cli');
+  assert.equal(unsupported.severity, 'fail', JSON.stringify(unsupported));
+  assert.match(unsupported.detail, /major 2/);
+  assert.match(unsupported.fix, /1\.x|http-keyless/);
+  const newer = find(machineHealth({ env, probe: () => ({ installed: true, authenticated: true, version: '1.99.0', credits: 940 }) }), 'firecrawl-cli');
+  assert.equal(newer.severity, 'pass', JSON.stringify(newer));
+  assert.match(newer.detail, /tested against/);
+  const builder = find(machineHealth({ env: { ...machine({ config: { role: 'builder' } }).env }, probe: () => ({ installed: true, authenticated: true, version: '2.0.0', credits: 940 }) }), 'firecrawl-cli');
+  assert.equal(builder.severity, 'info', 'a builder does not collect, so an unsupported CLI there is information');
+});
+
 test('a healthy collector reports its credential state as a pass', () => {
   const { env } = machine({ config: { role: 'collector' } });
   const findings = machineHealth({ env, probe: READY });
@@ -111,6 +127,27 @@ test('doctor reports the gate, the chain, the shape and the verdict from ONE sna
   assert.equal(find(report.findings, 'preflight').severity, 'pass');
   assert.match(find(report.findings, 'ledger-chain').detail, /chain verifies/);
   assert.equal(find(report.findings, 'overrides').detail, 'none recorded');
+});
+
+// Found 2026-10-02 (break-test pass 3, F7b): a line appended to the DEPLOYED lib/core.mjs,
+// then `node ~/.agents/research-kit/bin/doctor.mjs` - the copy an agent runs - printed
+// `pass deploy ... matches this tree`. It did: a tree compared with itself always matches.
+// The deploy check measures the deployment against the tree doctor runs from, so run from
+// the deployment it measures nothing, and said it had.
+test('doctor run from the deployed kit itself says the deploy was not measured, never that it matches', () => {
+  const dir = makePassingProject();
+  const { env } = machine({});
+  writeText(env.RESEARCH_KIT_INSTALL_STATE, JSON.stringify({ kitHome: KIT_ROOT, at: '2026-10-02T00:00:00.000Z' }));
+  const self = find(runDoctor(dir, { env, probe: READY, record: false }).findings, 'deploy');
+  assert.equal(self.severity, 'info', JSON.stringify(self));
+  assert.match(self.detail, /running from the deployed kit itself/);
+  assert.doesNotMatch(self.detail, /matches this tree/);
+  assert.match(self.detail, /bin[\\/]doctor\.mjs/, 'it names the command that does measure');
+
+  const elsewhere = tempDir('research-kit-deployed-elsewhere-');
+  writeText(env.RESEARCH_KIT_INSTALL_STATE, JSON.stringify({ kitHome: elsewhere, at: '2026-10-02T00:00:00.000Z' }));
+  const other = find(runDoctor(dir, { env, probe: READY, record: false }).findings, 'deploy');
+  assert.doesNotMatch(other.detail, /running from the deployed kit itself/, 'a deployment elsewhere is measured as before');
 });
 
 test('a failing verdict and a broken chain are both blockers, each named', () => {

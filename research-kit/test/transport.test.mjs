@@ -170,6 +170,34 @@ test('normalizeScrape survives a banner printed before the JSON', () => {
   assert.equal(result.markdown, 'body');
 });
 
+// Found 2026-10-02 (break-test pass 3, a fake CLI on PATH): a banner with a bracket before the
+// JSON, a receipt line after it, a cut payload and an empty stdout all came back as a
+// "collected" capture holding 0 characters - a ledger entry and an evidence row with no page
+// behind them. The 1.25.0 CLI prints "enrichment credits in CLI receipts", so the trailing
+// case is not hypothetical.
+test('the payload is the first complete JSON value, whatever the CLI prints around it', () => {
+  const page = { data: { markdown: 'body text', metadata: { sourceURL: 'https://x.invalid/p' } } };
+  const json = JSON.stringify(page);
+  assert.equal(firecrawl.normalizeScrape(`[info] Update available: run npm install -g firecrawl-cli\n${json}`, 'https://x.invalid/p').markdown, 'body text', 'a bracket in the banner');
+  assert.equal(firecrawl.normalizeScrape(`${json}\nCredits used: 1 (enrichment: 0)\n`, 'https://x.invalid/p').markdown, 'body text', 'a receipt after the JSON');
+  assert.equal(firecrawl.normalizeScrape(`\u001b[33m╭──╮\n│ ✨ Update available! │\n╰──╯\u001b[0m\n${json}\nCredits used: 1\n`, 'https://x.invalid/p').markdown, 'body text', 'both');
+});
+
+test('a scrape whose stdout holds no page is a failure, never an empty capture', () => {
+  const exec = (stdout) => () => ({ ok: true, status: 0, stdout, stderr: '' });
+  const cut = firecrawl.scrape('https://x.invalid/p', { execFn: exec('{"success":true,"data":{"markdown":"cu') });
+  assert.equal(cut.ok, false, 'a cut payload');
+  assert.match(cut.error, /no JSON payload|could not be read/i);
+  const empty = firecrawl.scrape('https://x.invalid/p', { execFn: exec('') });
+  assert.equal(empty.ok, false, 'an empty stdout');
+  assert.match(empty.error, /printed nothing|no JSON payload/i);
+  const blank = firecrawl.scrape('https://x.invalid/p', { execFn: exec('{"success":true,"data":{"markdown":"","metadata":{}}}') });
+  assert.equal(blank.ok, false, 'a payload whose page is empty');
+  assert.match(blank.error, /no page text|empty/i);
+  const fine = firecrawl.scrape('https://x.invalid/p', { execFn: exec('{"data":{"markdown":"a real page"}}') });
+  assert.equal(fine.ok, true);
+});
+
 test('normalizeSearch and normalizeMap drop what has no URL', () => {
   assert.deepEqual(
     firecrawl.normalizeSearch('{"data":[{"url":"https://a.invalid","title":"A"},{"title":"no url"}]}').map((r) => r.url),
