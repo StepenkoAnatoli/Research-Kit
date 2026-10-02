@@ -1,0 +1,71 @@
+{
+  "topic": "Which similar agent-research and evidence-provenance tools on GitHub and Hugging Face do something this kit should take",
+  "notes": "Phase 0 (one Firecrawl search on the topic) pointed mostly at reddit and breach news; the three usable hits are below as urls. Four targeted searches, two results each, and five named pages; depth deep so the cap is maxScrapes.",
+  "depth": "deep",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 2,
+  "maxScrapes": 12,
+  "prefer": [
+    "github.com",
+    "huggingface.co",
+    "arxiv.org"
+  ],
+  "queries": [
+    {
+      "q": "open source tool verify LLM citations quote must appear in cited source research agent github",
+      "why": "U-01, U-04",
+      "prefer": [
+        "github.com"
+      ]
+    },
+    {
+      "q": "hash chain ledger provenance of fetched web pages tamper-evident archive agent github",
+      "why": "U-02, U-04",
+      "prefer": [
+        "github.com"
+      ]
+    },
+    {
+      "q": "huggingface blog source attribution citation verification research agent",
+      "why": "U-03",
+      "prefer": [
+        "huggingface.co"
+      ]
+    },
+    {
+      "q": "pre-commit hook or CI gate refuses build until research evidence is cited agent github",
+      "why": "U-05",
+      "prefer": [
+        "github.com"
+      ]
+    }
+  ],
+  "urls": [
+    {
+      "url": "https://huggingface.co/blog/open-deep-research",
+      "type": "P",
+      "why": "U-03: Hugging Face's own deep-research agent write-up"
+    },
+    {
+      "url": "https://huggingface.co/blog/MultiverseComputingCAI/getting-the-source-right-not-just-the-fact-source",
+      "type": "S",
+      "why": "U-01, U-03: source-aware verification for MCP agents"
+    },
+    {
+      "url": "https://arxiv.org/html/2510.03495v2",
+      "type": "S",
+      "why": "U-02: AgentHub, a registry for verifiable and reproducible agents"
+    },
+    {
+      "url": "https://github.com/jordan-gibbs/hyperresearch",
+      "type": "P",
+      "why": "U-01, U-04, U-05: a deep-research harness with a cite-checker and a stop gate"
+    },
+    {
+      "url": "https://github.com/XiantingWu/VeriRepro",
+      "type": "P",
+      "why": "U-01, U-04: claims carry page and quote support; verdicts are evidence states"
+    }
+  ]
+}
