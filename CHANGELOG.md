@@ -5,7 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
-Nothing yet.
+- A page whose fetch redirected is a cache hit under the URL the plan asked for. The capture
+  index (`readCaptures`, `rememberCapture` in `lib/corpus.mjs`) also answers to the asked-for
+  URL, read out of the capture's command line; it had known only the URL the bytes came
+  from, so every later run fetched the page again, paid for it, and appended it to the ledger
+  and `EVIDENCE.md` a second time as a "first capture". Found running the kit on MoonAliza
+  (2026-10-02): two docs.github.com pages, every run.
 
 ## 0.9.1 — 2026-10-02
 
