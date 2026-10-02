@@ -35,6 +35,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   switch to browser or http-keyless; the unattended collectors (`collect.yml`,
   `live-collection.yml`) pass it. `--no-fallback` still means the default. One flag added
   under the freeze, by that ADR.
+- `QUICKSTART.md`: the two-minute setup through the MCP server - the kit on the agent's
+  machine, one Actions token in the agent's own settings file, the Firecrawl key kept in
+  the repository's environment - then one prompt, and the four-step loop the agent runs
+  (`collect`, `fetch_corpus`, review, a targeted `collect` for what is missing). Linked
+  from the front page.
 
 ## 0.9.3 — 2026-10-02
 
