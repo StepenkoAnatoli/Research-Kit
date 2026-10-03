@@ -5,6 +5,13 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The search session (ADR-0135) was probed with hostile inputs the day it landed, and three
+  things it did not say by name it now does: a provider's `null` row, or results that are not
+  an array, end neither `research` nor `decompose` (both had died on `row.url`, research also
+  on `.some`); a session built with no provider at all is a named failed search, not a
+  TypeError; and a not-ready provider anywhere in a merge is refused before anything is
+  spent, not only one on the search side. None is reachable from the CLIs with today's
+  adapters and selection (2026-10-03).
 - The standing protocol's commit report (rule 2, `AGENTS.md` and the scaffold's template)
   takes two devices from Anthropic's careful-coding skill: each verification claim carries
   one of three status words - verified, untested, expected - and a mistake is reported in

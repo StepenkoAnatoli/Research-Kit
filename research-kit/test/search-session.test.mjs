@@ -305,6 +305,19 @@ test('a result that is not an object, and results that are not an array, never r
   assert.deepEqual(got.results, [], 'a string is not a list of results');
 });
 
+// Found 2026-10-03 probing: `assertReady` read `notReady` off the search side only, so a merge
+// whose partner could not run was not refused - each query would have failed on it and been
+// covered by the other, a search spent for nothing on every query. The selection never
+// builds such a merge today; the refusal holds for any provider the session may ask.
+test('assertReady refuses a not-ready provider anywhere in a merge, before anything is asked', () => {
+  const a = provider({ name: 'a' });
+  const b = { name: 'b', notReady: 'b: no key is configured', calls: 0, search() { this.calls += 1; return { ok: false, error: 'no key' }; } };
+  const { s } = session({ adapter: provider({ name: 'fetch' }), searchAdapter: a, searchAdapters: [a, b] });
+  assert.throws(() => s.assertReady(), (err) => err.code === 'SEARCH_PROVIDER_NOT_READY' && err.message === 'b: no key is configured');
+  assert.equal(a.calls.length, 0);
+  assert.equal(b.calls, 0);
+});
+
 test('searchPatiently and mergeByRank live here and stay importable from research-run', () => {
   assert.equal(viaResearchRun, mergeByRank);
   assert.equal(patientlyViaResearchRun, searchPatiently);

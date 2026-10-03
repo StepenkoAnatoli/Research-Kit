@@ -195,8 +195,11 @@ export function searchSession({
    * describe it; the refusal belongs where the money is.
    */
   function assertReady() {
-    if (searchAdapter?.notReady) {
-      const err = new Error(searchAdapter.notReady);
+    // Every provider the session may ask, not only the search side: a merge whose partner
+    // could not run would have failed on it, covered, on every query (2026-10-03, probing).
+    for (const one of [searchAdapter, ...providers]) {
+      if (!one?.notReady) continue;
+      const err = new Error(one.notReady);
       err.code = 'SEARCH_PROVIDER_NOT_READY';
       throw err;
     }
