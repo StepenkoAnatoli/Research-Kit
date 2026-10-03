@@ -272,6 +272,23 @@ test('meters() is a reading, not the ledger: a caller cannot move the counts', (
   assert.deepEqual(s.meters(), { searchesUsed: 1, searchesOn: { a: 1 }, searchCreditsEstimate: 0, searchFailures: 0, searchFailuresOn: {}, degraded: 0 });
 });
 
+// Found 2026-10-03 probing the module with hostile inputs: a session built with no provider
+// at all - no adapter, no search side - crashed on `first.provider.name` instead of saying
+// there was nothing to ask. Both CLIs always pass an adapter, so only a library caller could
+// reach it; the module's own contract is a named failure, never a TypeError.
+test('a session with nothing to ask is a named failure, not a crash', () => {
+  const { s, recorded, lines } = session({});
+  const found = s.ask('q');
+  assert.equal(found.ok, false);
+  assert.equal(found.error, 'this transport fetches pages but does not search');
+  assert.equal(found.provider, 'this transport');
+  assert.deepEqual(recorded, [{ query: 'q', error: 'this transport fetches pages but does not search', provider: 'this transport' }]);
+  assert.deepEqual(s.meters().searchFailuresOn, { 'this transport': 1 });
+  assert.equal(lines.at(-1), '  search failed: q - this transport fetches pages but does not search');
+  assert.equal(s.name, '');
+  assert.equal(s.meter, '');
+});
+
 test('searchPatiently and mergeByRank live here and stay importable from research-run', () => {
   assert.equal(viaResearchRun, mergeByRank);
   assert.equal(patientlyViaResearchRun, searchPatiently);

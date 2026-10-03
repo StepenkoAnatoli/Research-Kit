@@ -225,7 +225,10 @@ export function searchSession({
   function askSingle(text) {
     const first = askProvider(searcher, text);
     let found = first.r;
-    let ranker = first.provider.name;
+    // A session built with no provider at all has nothing to ask: `searchPatiently` already
+    // names the failure, and the name it uses is the one charged here, so a library caller
+    // reads a failed search rather than a TypeError (found 2026-10-03, probing).
+    let ranker = first.provider?.name ?? 'this transport';
     count(ranker, found);
     let fellBack = false;
 
