@@ -272,6 +272,52 @@ test('meters() is a reading, not the ledger: a caller cannot move the counts', (
   assert.deepEqual(s.meters(), { searchesUsed: 1, searchesOn: { a: 1 }, searchCreditsEstimate: 0, searchFailures: 0, searchFailuresOn: {}, degraded: 0 });
 });
 
+// Found 2026-10-03 probing the module with hostile inputs: a session built with no provider
+// at all - no adapter, no search side - crashed on `first.provider.name` instead of saying
+// there was nothing to ask. Both CLIs always pass an adapter, so only a library caller could
+// reach it; the module's own contract is a named failure, never a TypeError.
+test('a session with nothing to ask is a named failure, not a crash', () => {
+  const { s, recorded, lines } = session({});
+  const found = s.ask('q');
+  assert.equal(found.ok, false);
+  assert.equal(found.error, 'this transport fetches pages but does not search');
+  assert.equal(found.provider, 'this transport');
+  assert.deepEqual(recorded, [{ query: 'q', error: 'this transport fetches pages but does not search', provider: 'this transport' }]);
+  assert.deepEqual(s.meters().searchFailuresOn, { 'this transport': 1 });
+  assert.equal(lines.at(-1), '  search failed: q - this transport fetches pages but does not search');
+  assert.equal(s.name, '');
+  assert.equal(s.meter, '');
+});
+
+// Found 2026-10-03 probing with hostile results: a `null` row crashed both coordinators on
+// `row.url`, and `results` that is not an array crashed research's `noteOutcome` on `.some`.
+// The session hands over rows that are objects, and always an array; whether a row's URL is
+// usable stays the coordinator's question (`isWebUrl`, `selectCandidates`).
+test('a result that is not an object, and results that are not an array, never reach a coordinator', () => {
+  const { s } = session({ adapter: provider({ name: 'f' }), searchAdapter: { name: 'a', search: () => ({ ok: true, results: [{ url: 'https://x.example/1' }, null, undefined, 'https://x.example/2', 42, { title: 'no url' }] }) } });
+  const found = s.ask('q');
+  assert.equal(found.ok, true);
+  assert.deepEqual(found.results, [{ url: 'https://x.example/1' }, { title: 'no url' }], 'only the objects, in order; a row without a URL is still the coordinator\'s to judge');
+
+  const { s: odd } = session({ adapter: provider({ name: 'f' }), searchAdapter: { name: 'a', search: () => ({ ok: true, results: 'https://x.example/1' }) } });
+  const got = odd.ask('q');
+  assert.equal(got.ok, true);
+  assert.deepEqual(got.results, [], 'a string is not a list of results');
+});
+
+// Found 2026-10-03 probing: `assertReady` read `notReady` off the search side only, so a merge
+// whose partner could not run was not refused - each query would have failed on it and been
+// covered by the other, a search spent for nothing on every query. The selection never
+// builds such a merge today; the refusal holds for any provider the session may ask.
+test('assertReady refuses a not-ready provider anywhere in a merge, before anything is asked', () => {
+  const a = provider({ name: 'a' });
+  const b = { name: 'b', notReady: 'b: no key is configured', calls: 0, search() { this.calls += 1; return { ok: false, error: 'no key' }; } };
+  const { s } = session({ adapter: provider({ name: 'fetch' }), searchAdapter: a, searchAdapters: [a, b] });
+  assert.throws(() => s.assertReady(), (err) => err.code === 'SEARCH_PROVIDER_NOT_READY' && err.message === 'b: no key is configured');
+  assert.equal(a.calls.length, 0);
+  assert.equal(b.calls, 0);
+});
+
 test('searchPatiently and mergeByRank live here and stay importable from research-run', () => {
   assert.equal(viaResearchRun, mergeByRank);
   assert.equal(patientlyViaResearchRun, searchPatiently);

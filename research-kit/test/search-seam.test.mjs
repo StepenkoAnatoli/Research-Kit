@@ -505,6 +505,20 @@ test('TR-5: decompose uses the search side too, and records the ranker', () => {
   assert.equal(entry.discoveredBy, 'stub-search');
 });
 
+// Found 2026-10-03 probing with hostile results (ADR-0135's session is where the one rule
+// lives): a provider whose list held a `null` row ended BOTH coordinators with a TypeError on
+// `row.url`, and research's `noteOutcome` died on results that were not an array.
+test('a provider\'s null row, or results that are not an array, end neither coordinator', () => {
+  const odd = (results) => ({ name: 'odd-search', calls: { search: 0 }, search() { this.calls.search += 1; return { ok: true, query: 'q', searchesUsed: 1, results }; } });
+  for (const results of [[{ url: 'https://searchside.example/a', title: 'A', position: 1 }, null], 'https://searchside.example/a']) {
+    const root = project();
+    const run = runResearch(root, { adapter: fetchStub(), searchAdapter: odd(results), plan: plan() });
+    assert.ok(run.searchesUsed >= 1, 'the search ran');
+    const out = decompose(project(), { topic: 'seam probe', adapter: fetchStub(), searchAdapter: odd(results), maxScrapes: 0, log: () => {} });
+    assert.equal(out.written, true);
+  }
+});
+
 test('RR-1: decompose degrades too, and records which provider was down', () => {
   const root = project();
   const fetcher = fetchStub({ results: ['https://fallback.example/a'] });

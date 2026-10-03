@@ -136,10 +136,14 @@ no check judges prose, because a gate that judges prose is a gate that will be w
    path (`research/kit.json`) stages `docs/ARCHITECTURE.md` with it. Enforced - and a
    prompt, not a proof: the gate checks the map was *staged*, not that it is *current*.
 2. **Commit report: five named parts** - what changed / why / what it touched / what you
-   verified / what you got wrong and fixed. The got-wrong line is not optional; if
-   nothing was gotten wrong it is written as "nothing to report". A commit that touches no
-   declared code path (tests, docs, wording) may give the parts as one line each - what
-   changed, why, verified, got wrong - and keeps the got-wrong line.
+   verified / what you got wrong and fixed. Each verification claim says **verified** (run,
+   result seen), **untested** (written, not run) or **expected** (reasoned, not run), so a
+   reader can tell evidence from belief. A mistake is reported in six fields - mistake,
+   where, impact, cause, fix, verified - because what was wrong alone leaves the impact and
+   the proof of the fix to be guessed. The got-wrong line is not optional; if nothing was
+   gotten wrong it is written as "nothing to report". A commit that touches no declared
+   code path (tests, docs, wording) may give the parts as one line each - what changed,
+   why, verified, got wrong - and keeps the got-wrong line.
 3. **An ADR for any design choice with a rejected alternative** - how the project behaves,
    what it stores or promises - dated, with the reason a future explorer would need to avoid
    re-suggesting it. Test mechanics, wording and a bug fix with one obvious remedy do not
