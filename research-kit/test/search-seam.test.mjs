@@ -519,6 +519,32 @@ test('a provider\'s null row, or results that are not an array, end neither coor
   }
 });
 
+// Found 2026-10-03 probing: a provider whose `search()` threw on the second query ended both
+// coordinators, and the first query's PAID search never reached the usage row - it is written
+// at the end of a run, so the meter under-recorded real spend and `--status` would have too.
+test('a provider that throws mid-run ends neither coordinator, and the searches paid before it are recorded', () => {
+  const flaky = () => { let n = 0; return { name: 'flaky-search', calls: { search: 0 }, search(q) { n += 1; this.calls.search += 1; if (n === 2) throw new TypeError('unguarded vendor payload'); return { ok: true, query: q, searchesUsed: 1, results: [{ url: `https://searchside.example/${n}`, title: `S${n}`, position: 1 }] }; } }; };
+  const root = project();
+  const run = runResearch(root, { adapter: fetchStub(), searchAdapter: flaky(), plan: plan({ queries: ['first query', 'second query', 'third query'] }) });
+  // Two: the flaky provider reported usage on its two answers; the fetch stub that answered
+  // the degraded ask reports none, and a throw reports none either.
+  assert.equal(run.searchesUsed, 2, 'every search that reported usage is counted, the throwing ask aside');
+  assert.equal(run.searchFailures, 1);
+  assert.deepEqual(run.searchFailuresOn, { 'flaky-search': 1 });
+  const usage = jsonLines(root, '.usage.jsonl');
+  assert.equal(usage.length, 1, 'the usage row was written');
+  assert.equal(usage[0].searchesUsed, 2);
+  const failures = jsonLines(root, '.failures.jsonl').filter((row) => row.op === 'search');
+  assert.equal(failures.length, 1);
+  assert.match(failures[0].error, /^flaky-search threw: unguarded vendor payload$/);
+  assert.equal(failures[0].degraded, true);
+
+  const out = decompose(project(), { topic: 'first part; second part; third part', adapter: fetchStub(), searchAdapter: flaky(), maxScrapes: 0, log: () => {} });
+  assert.equal(out.written, true);
+  assert.equal(out.failures.length, 1);
+  assert.match(out.failures[0].error, /threw: unguarded vendor payload$/);
+});
+
 test('RR-1: decompose degrades too, and records which provider was down', () => {
   const root = project();
   const fetcher = fetchStub({ results: ['https://fallback.example/a'] });

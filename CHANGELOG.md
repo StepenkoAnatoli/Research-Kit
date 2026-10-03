@@ -5,6 +5,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A search provider whose `search()` throws is a failed search that says so (`<provider>
+  threw: <message>`), degraded and recorded like any other, so the run and its accounting
+  finish: re-thrown, it ended `research` and `decompose` mid-run, and the searches paid for
+  before it never reached the usage row, which is written at the end - `--status` would have
+  under-counted real spend (found 2026-10-03, probing; no adapter throws by contract today).
 - The search session (ADR-0135) was probed with hostile inputs the day it landed, and three
   things it did not say by name it now does: a provider's `null` row, or results that are not
   an array, end neither `research` nor `decompose` (both had died on `row.url`, research also
