@@ -5,6 +5,25 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The text a capture was converted from is kept beside it as `<capture>.source.html`:
+  Firecrawl's `rawHtml` (asked for beside the Markdown, at no extra credit), the keyless
+  transport's decoded HTML, the browser's rendered DOM. The ledger entry names and hashes it
+  and `verifyLedger` checks it like the capture, so an edited source is refused; it is never
+  a capture itself. Until now the converted Markdown was all the corpus kept, so a
+  conversion defect (G3) was permanent and the ledger certified it (ADR-0140, gap audit
+  2026-10-03, rank 3).
+- A Firecrawl scrape is a live fetch: the adapter passes `--max-age 0`, because the vendor
+  serves a cached copy up to two days old by default and a capture stamped `retrieved: today`
+  could be yesterday's page - a `--force` or `--refresh-days` re-fetch meant to see a change
+  could not. A cached answer, if the vendor sends one anyway, is written into the capture's
+  front matter (`cacheState`, `cachedAt`) and the ledger entry (ADR-0139, gap audit
+  2026-10-03, rank 2).
+- A table row written after a blank line is recorded, not dropped: a blank line ends a
+  Markdown table (GitHub renders the rows after it as prose), and `parseTable` had dropped
+  them in silence, so a blocking unknown written below a blank line left the gate, which
+  printed PASS. Every row-shaped line between a table's end and the next heading is now a
+  `table-split` problem naming its line, and `hygiene` fails it; a second table with its own
+  header is not one (gap audit 2026-10-03, rank 1).
 - The browser transport reads the origin's HTTP status and final URL from Chromium's own net
   log (`--log-net-log`, written to a private folder the guard child deletes after reading):
   an origin's 403 page had been graded `full`, because `--dump-dom` reports no status and

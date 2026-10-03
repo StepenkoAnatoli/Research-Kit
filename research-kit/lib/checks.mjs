@@ -842,8 +842,8 @@ function hygiene(corpus) {
   // problem, not a finding (found 2026-10-03, output-reliability audit G2); readCorpus now
   // records it, and this is where it is named.
   for (const problem of corpus.problems) {
-    if (problem.kind !== 'malformed-id') continue;
-    out.push(finding('fail', 'hygiene', 'malformed-id',
+    if (problem.kind !== 'malformed-id' && problem.kind !== 'table-split') continue;
+    out.push(finding('fail', 'hygiene', problem.kind,
       `${problem.artifact}:${problem.line} ${problem.detail}`, { row: problem.row, line: problem.line }));
   }
 
@@ -858,7 +858,7 @@ function corpusShape(corpus) {
   for (const problem of corpus.problems) {
     // hygiene names a malformed ID (as a fail, beside duplicate-id); echoing it here as a warn
     // would report one typo twice.
-    if (problem.kind === 'malformed-id') continue;
+    if (problem.kind === 'malformed-id' || problem.kind === 'table-split') continue;   // hygiene's, as a fail
     const blocking = problem.kind === 'raw-dangling' || problem.kind === 'plan-unparsed' || problem.kind === 'kit-unparsed'
       || problem.kind === 'capture-outside' || problem.kind === 'raw-outside' || problem.kind === 'capture-too-large' || problem.kind === 'capture-unreadable';
     out.push(finding(blocking ? 'fail' : 'warn', 'corpus-shape', problem.kind,
