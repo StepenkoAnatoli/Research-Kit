@@ -63,6 +63,11 @@ export function isLineEndingRewrite(bytes, recordedHash) {
   if (!recordedHash) return false;
   const text = Buffer.isBuffer(bytes) ? bytes.toString('utf8') : String(bytes);
   if (!text.includes('\r\n')) return false;
+  // CRLF only, deliberately NOT core's `foldLineEndings` (2026-10-03): the question here is
+  // whether git's autocrlf smudge explains the mismatch, and that smudge turns LF into CRLF
+  // and nothing else. A capture written before e99d0ad could hold a lone CR of the page's
+  // own, hashed as such; folding it too would turn a true "rewritten on checkout" into a
+  // false "altered after fetch".
   return hashText(text.replace(/\r\n/g, '\n')) === recordedHash;
 }
 

@@ -4,7 +4,7 @@
 // FROM this definition and lib/audit.mjs reads the judged sections through it, so the
 // writer and its readers cannot drift.
 
-import { PATHS, resolve, readText, writeText, today, documentCommand, exists, sha256 } from './core.mjs';
+import { PATHS, resolve, readText, writeText, today, documentCommand, exists, sha256, foldLineEndings } from './core.mjs';
 import { readCorpus, sectionOf, claimOf, captureOf } from './corpus.mjs';
 import { readPrior } from './prior.mjs';
 
@@ -84,7 +84,7 @@ export function briefState(text) {
  */
 const DRAFT_STAMP = /\n?<!-- research-kit:brief-draft body=([0-9a-f]{16}) inputs=([0-9a-f]{16})(?: gate=(pass|fail|unknown))? -->\s*$/;
 
-const shortHash = (text) => sha256(String(text).replace(/\r\n/g, '\n')).slice(0, 16);
+const shortHash = (text) => sha256(foldLineEndings(text)).slice(0, 16);
 
 /** What the brief is drafted FROM, parsed, so a reformatted table is not a change. */
 export function briefInputsHash(snapshot) {

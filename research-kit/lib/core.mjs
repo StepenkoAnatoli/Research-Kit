@@ -299,6 +299,19 @@ export function readText(p, fallback = null) {
   }
 }
 
+/**
+ * The one line-ending fold for the bytes the kit writes and compares: CRLF and a lone CR
+ * both become LF. The capture body before it is written and hashed (collect, since
+ * e99d0ad), the scaffold template comparison (gate), the brief's draft stamp - one policy in
+ * one place, because two folds that disagree are two answers to "is this the same bytes"
+ * (ADR-0133). Deliberately NOT used by `provenance.isLineEndingRewrite`, which asks a
+ * narrower question - did autocrlf explain this mismatch - and autocrlf never makes a lone
+ * CR; nor by the release layer, which is hermetic and keeps its own.
+ */
+export function foldLineEndings(value) {
+  return String(value ?? '').replace(/\r\n?/g, '\n');
+}
+
 export function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
   return p;
