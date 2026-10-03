@@ -258,6 +258,35 @@ test('--force on an unchanged page records the fetch and lets its row stand; a c
   assert.equal(supersededRows(fresh).get('E-01')?.id, 'E-02', 'the earlier reading is superseded by the later one');
 });
 
+// Found 2026-10-03 (outside audit): the index picked the newest capture of a URL by retrieval
+// DATE, and on the same date by the order `listFiles().sort()` happened to give - so twelve
+// same-day revisions reopened with `.r9.md` as current (lexically after `.r12.md`), and a page
+// re-titled "API v10" reopened under its "API v9" capture (`api-v10` sorts before `api-v9`).
+// The collector's own run was right (`rememberCapture` makes the new capture current); the
+// disk disagreed with it the moment the corpus was reopened. Same date: the ledger's order
+// decides when the reader knows it, then a higher revision of the same name.
+test('reopening a corpus keeps the LAST same-day capture current: by revision, and by ledger order', () => {
+  const url = 'https://x.invalid/revisions';
+  const dir = makeProject();
+  for (let n = 1; n <= 12; n += 1) writeRaw(dir, { url, title: 'Limits', markdown: `${PAGE}\n\nrevision ${n}`, statusCode: 200 });
+  const reopened = readCorpus(dir);
+  assert.equal(reopened.captures.entries.length, 12);
+  assert.match(reopened.captures.byUrl.get(url).file, /\.r12\.md$/, `reopened under ${reopened.captures.byUrl.get(url).file}`);
+  assert.match(cacheDecision(reopened.captures, url).entry.file, /\.r12\.md$/);
+
+  const other = makeProject();
+  const corpus = readCorpus(other);
+  const page = 'https://x.invalid/api';
+  const titled = (title, body) => (u) => ({ ...stubAdapter().runScrape(u), title, markdown: body });
+  const v9 = collectOne(other, page, { runScrape: titled('API v9', PAGE), corpus });
+  const v10 = collectOne(other, page, { runScrape: titled('API v10', `${PAGE}\n\nv10`), corpus, force: true });
+  assert.notEqual(v9.entry.file, v10.entry.file);
+  assert.equal(corpus.captures.byUrl.get(page).file, v10.entry.file, 'the run itself must hold the new capture current');
+  const again = readCorpus(other);
+  assert.equal(again.captures.byUrl.get(page).file, v10.entry.file, 'reopened, the older title came back as current');
+  assert.equal(cacheDecision(again.captures, page).entry.file, v10.entry.file);
+});
+
 test('a collected page says WHY it was fetched, in words, not as a cache code', () => {
   // Found 2026-09-26 in a live-collection log: "collected https://docs.firecrawl.dev/... -
   // not-collected". The reason was cacheDecision's internal code for "no capture yet",

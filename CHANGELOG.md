@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- Reopening a corpus keeps the LAST same-day capture of a URL current. The index broke a
+  tie on the retrieval date by filename order, so twelve same-day revisions reopened with
+  `.r9.md` current (it sorts after `.r12.md`) and a page re-titled "API v10" reopened under
+  its "API v9" capture; the collector's own run had it right and the disk disagreed with it.
+  Same date: the ledger's order decides, then a higher revision of the same name (outside
+  audit, 2026-10-03).
 - `decompose.mjs` refuses a ledger that cannot record a fetch before it asks any provider,
   as `research.mjs` has since ADR-0122: on a damaged ledger phase 0 made four searches and
   one fetch, spending, before the refusal came from inside the collector (outside audit,
