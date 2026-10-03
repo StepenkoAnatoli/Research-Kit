@@ -4,7 +4,7 @@
 
 import path from 'node:path';
 import { test, describe, assert, makeProject, makePassingProject, corrupt, fs, tempDir } from './harness.mjs';
-import { PATHS, resolve, writeText, readText } from '../lib/core.mjs';
+import { PATHS, resolve, writeText, readText, today } from '../lib/core.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 import { writeRaw, collectOne } from '../lib/collect.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
@@ -83,6 +83,25 @@ test('unknown-closure: stale evidence warns against the operator\'s maxAgeDays',
   const dir = makePassingProject(undefined, { date: '2020-01-01' });
   const findings = runCheck('unknown-closure', snapshot(dir), { maxAgeDays: 180 });
   assert.ok(findings.some((f) => f.rule === 'stale-evidence'));
+});
+
+// Found 2026-10-03 (output-reliability audit, G8): freshness read the table's Retrieved cell,
+// which is hand-editable and was never reconciled with the capture it cites. Editing E-19's
+// date alone made its stale warning disappear while the capture on disk still said 2026-09-20.
+test('unknown-closure: freshness is judged by the capture\'s date, not the editable table date', () => {
+  const dir = makePassingProject(undefined, { date: '2020-01-01' });
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/^(\| E-01 \| )\d{4}-\d{2}-\d{2}/m, `$1${today()}`));
+  const findings = runCheck('unknown-closure', snapshot(dir), { maxAgeDays: 180 });
+  const stale = findings.find((f) => f.rule === 'stale-evidence');
+  assert.ok(stale, `the table date alone made stale evidence fresh: ${JSON.stringify(findings)}`);
+  assert.match(stale.detail, /2020-01-01/, stale.detail);
+});
+
+test('unknown-closure: a row whose capture carries no date is judged by the table date', () => {
+  const dir = makePassingProject(undefined, { date: '2020-01-01' });
+  const corpus = snapshot(dir);
+  for (const capture of corpus.captures.entries) capture.retrieved = '';
+  assert.ok(runCheck('unknown-closure', corpus, { maxAgeDays: 180 }).some((f) => f.rule === 'stale-evidence'));
 });
 
 test('unknown-closure: a KNOWN-UNKNOWN with no verification step fails', () => {
@@ -782,6 +801,25 @@ test('a retrieval date in the future fails hygiene', () => {
   assert.ok(f, 'no finding for a date in the future');
   assert.equal(f.severity, 'fail');
   assert.ok(f.detail.includes(`E-01 has retrieval date ${future}, which is in the future`), f.detail);
+});
+
+// Found 2026-10-03 (output-reliability audit, G8): a table date that disagrees with the capture's
+// own `retrieved` was not reported anywhere, so a date typed into the table stood unchallenged.
+test('a table date that disagrees with its capture\'s retrieved date warns date-mismatch', () => {
+  const dir = makePassingProject(undefined, { date: '2026-09-20' });
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/^(\| E-01 \| )\d{4}-\d{2}-\d{2}/m, `$1${today()}`));
+  const corpus = snapshot(dir);
+  const f = runCheck('hygiene', corpus).find((x) => x.rule === 'date-mismatch');
+  assert.ok(f, 'no finding for a table date that disagrees with the capture');
+  assert.equal(f.severity, 'warn');
+  assert.equal(f.row, 'E-01');
+  assert.ok(f.detail.includes(today()) && f.detail.includes('2026-09-20'), f.detail);
+  assert.ok(f.detail.includes(corpus.evidence[0].raw), f.detail);
+});
+
+test('a passing project whose table and capture agree has no date-mismatch finding', () => {
+  const findings = runCheck('hygiene', snapshot(makePassingProject()));
+  assert.equal(findings.some((f) => f.rule === 'date-mismatch'), false, JSON.stringify(findings));
 });
 
 // Found 2026-09-27: renaming "## Build intent" (to "## Intent") failed as "## Build intent is

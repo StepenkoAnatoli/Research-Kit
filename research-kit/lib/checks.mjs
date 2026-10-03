@@ -23,6 +23,30 @@ function finding(severity, check, rule, detail, extra = {}) {
   return { severity, check, rule, detail, ...extra };
 }
 
+// The calendar day a retrieval value names, or null. The collector writes the same `today()`
+// into the capture's front-matter and the table's Retrieved cell, but a capture written
+// before 2026-09-19 carries a full timestamp (`2026-09-13T17:38:25.128Z`) against a
+// day-only cell, so the two are compared as days, never as strings.
+function retrievedDay(value) {
+  const text = String(value ?? '').trim();
+  const iso = text.match(/^\d{4}-\d{2}-\d{2}/);
+  if (iso) return iso[0];
+  const parsed = Date.parse(text);
+  return Number.isNaN(parsed) ? null : new Date(parsed).toISOString().slice(0, 10);
+}
+
+// The date freshness is judged by. The table's Retrieved cell is typed and hand-editable;
+// the capture's `retrieved` was written by the collector at the fetch and is under the
+// ledger's hash. Until 2026-10-03 only the cell was read, so editing E-19's cell from
+// 2026-09-20 to today made its stale warning disappear while the capture on disk still
+// said 2026-09-20 (output-reliability audit, G8). A row that cites no capture, or one
+// whose capture carries no parseable date, is still judged by the cell - there is
+// nothing better to judge it by, and hygiene says when the two disagree.
+function freshnessDate(corpus, row) {
+  const capture = captureOf(corpus, row);
+  return capture && ageInDays(capture.retrieved) !== null ? capture.retrieved : row.retrieved;
+}
+
 // ---------------------------------------------------------------- 1. discovery-contract
 
 function discoveryContract(corpus) {
@@ -327,15 +351,21 @@ function unknownClosure(corpus, options = {}) {
           `${unknown.id} cites ${id}, which is not a row in ${PATHS.evidence}`, { row: unknown.id, line: unknown.line }));
         continue;
       }
-      const age = ageInDays(row.retrieved);
+      const dated = freshnessDate(corpus, row);
+      const age = ageInDays(dated);
       if (age !== null && age > maxAgeDays) {
         // A refresh that has already happened is a different instruction from one that
         // has not: "go and collect" versus "go and read what was collected".
         const fresher = corpus.evidence.find((e) => e.url === row.url && String(e.retrieved) > String(row.retrieved));
+        // When the capture and the cell disagree, the reader looking at the table sees a
+        // date that does not explain the age - so the judging date is named.
+        const judged = retrievedDay(dated) !== retrievedDay(row.retrieved)
+          ? ` by its capture's date, ${retrievedDay(dated)} (the table says ${row.retrieved || '(blank)'})`
+          : '';
         out.push(finding('warn', 'unknown-closure', 'stale-evidence',
           fresher
-            ? `${unknown.id} rests on ${id}, retrieved ${age} days ago (limit ${maxAgeDays}) - ${fresher.id} is already a fresher capture of the same URL; re-read it and move the citation`
-            : `${unknown.id} rests on ${id}, retrieved ${age} days ago (limit ${maxAgeDays}) - re-collect with --refresh-days`,
+            ? `${unknown.id} rests on ${id}, retrieved ${age} days ago${judged} (limit ${maxAgeDays}) - ${fresher.id} is already a fresher capture of the same URL; re-read it and move the citation`
+            : `${unknown.id} rests on ${id}, retrieved ${age} days ago${judged} (limit ${maxAgeDays}) - re-collect with --refresh-days`,
           { row: unknown.id, line: unknown.line }));
       }
       if (row.type === 'L') {
@@ -723,6 +753,25 @@ function hygiene(corpus) {
     if (!row.retrieved || ageInDays(row.retrieved) !== null) continue;
     out.push(finding('warn', 'hygiene', 'unparseable-date',
       `${row.id} has retrieval date "${row.retrieved}", which does not parse`, { row: row.id, line: row.line }));
+  }
+
+  // The cell and the capture it cites must name the same day. The collector writes one
+  // `today()` into both, so a disagreement is an edit to the table after the fetch - and
+  // until 2026-10-03 nothing said so, while freshness read the cell: editing E-19's date
+  // alone made its stale warning disappear (output-reliability audit, G8). Freshness now
+  // reads the capture (`freshnessDate`), and this is the finding that explains why the
+  // table's date is not the one being judged. A cell that does not parse is
+  // unparseable-date's to name; a capture with no date gives nothing to reconcile against.
+  for (const row of corpus.evidence) {
+    const capture = captureOf(corpus, row);
+    const captureDay = retrievedDay(capture?.retrieved);
+    if (!captureDay) continue;
+    if (row.retrieved && ageInDays(row.retrieved) === null) continue;
+    if (retrievedDay(row.retrieved) === captureDay) continue;
+    out.push(finding('warn', 'hygiene', 'date-mismatch',
+      `${row.id} has retrieval date ${row.retrieved || '(blank)'}, but its capture ${capture.file} records retrieved ${captureDay} - `
+      + 'write the capture\'s date in the row; freshness is judged by the capture, not the table',
+      { row: row.id, line: row.line }));
   }
 
   // No page was fetched in the future, and a future date hides the row's age from every

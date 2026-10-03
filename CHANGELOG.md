@@ -5,6 +5,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- Freshness is judged by the capture's own date, not the hand-editable table cell: editing an
+  evidence row's Retrieved date alone had removed its stale warning while the capture on disk
+  kept the real date. `unknown-closure` ages a row by its capture (the cell is the fallback
+  when the capture carries no date), and `hygiene` warns `date-mismatch` when the two name
+  different days (output-reliability audit G8, 2026-10-03).
 - A table row whose ID is mistyped (`U_99`, `E_7`, a subtopic without its letters-dash-number
   form) is a hygiene FAIL naming the file, the line and the form, where it had silently
   vanished from the corpus - no unknown, no problem, no finding - and a blocking question with
