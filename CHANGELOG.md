@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A repository-local `core.hooksPath` is detected from any subdirectory of the repository,
+  by `install-hooks.mjs`, `doctor` and preflight alike: the probe looked for `.git` beside
+  the working directory and reported nothing below the root, so a nested decision project
+  and an install run from a subfolder missed the displacement warning (outside audit,
+  2026-10-03). The map's `machine.mjs` row, broken across three lines with its first cell
+  separator missing, is one row again.
 - `install-hooks.mjs --dry-run` writes nothing on any path. It read the flag after the role,
   the posture and the uninstall had already run, so `--dry-run --role builder --fail-closed`
   saved both and `--dry-run --uninstall` removed the installed commit gate - a preview that

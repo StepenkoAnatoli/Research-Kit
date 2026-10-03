@@ -24,7 +24,7 @@ import { verifyBundle, bundleSummary } from './bundle.mjs';
 import {
   posture, machineRole, collectionPolicy, readMachineConfig, retiredEnvNotes,
   hooksPath, hooksPathEffective, runtimePaths, skillLocations,
-  readInstallState, gitVersion, isGitRepo, RETIRED_CONFIG_KEYS, RETIRED_EDIT_GATE_HOOKS,
+  readInstallState, gitVersion, isGitRepo, localHooksPathOverride, RETIRED_CONFIG_KEYS, RETIRED_EDIT_GATE_HOOKS,
   EDIT_GATE_HOOK, KIT_HOME, namesHook,
 } from './machine.mjs';
 
@@ -233,8 +233,10 @@ export function gateHealth(root, { env = process.env, gitPaths = {}, record = tr
     }
   }
 
-  if (isGitRepo(root)) {
-    const local = hooksPath('local', { ...gitPaths, cwd: root });
+  {
+    // Through the same probe the installer and preflight use, so a project that is a
+    // subdirectory of its repository is warned like the root (2026-10-03).
+    const local = localHooksPathOverride(root, gitPaths);
     if (local) {
       out.push(f('warn', 'gate-local-override',
         `this repository sets core.hooksPath=${local}, which displaces the machine-wide gate (husky, lefthook, simple-git-hooks and pre-commit all do this)`,

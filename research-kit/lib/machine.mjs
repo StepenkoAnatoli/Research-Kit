@@ -377,9 +377,16 @@ export function isGitRepo(dir) {
   return exists(path.join(dir, '.git'));
 }
 
-/** The third override is silent by nature: it disables the hook that would report it. */
+/**
+ * The third override is silent by nature: it disables the hook that would report it.
+ *
+ * Asked of git from `cwd`, not of the filesystem: git finds the repository by walking up, so a
+ * subdirectory - a nested decision project under docs/decisions/, the folder an operator
+ * happens to run install-hooks from - is governed by the same local `core.hooksPath` as the
+ * root. The probe looked for `.git` beside `cwd` and said `null` anywhere below it (outside
+ * audit, 2026-10-03). Outside any repository `git config --local` fails, and that is null.
+ */
 export function localHooksPathOverride(cwd = process.cwd(), opts = {}) {
-  if (!isGitRepo(cwd)) return null;
   const local = hooksPath('local', { ...opts, cwd });
   return local || null;
 }
