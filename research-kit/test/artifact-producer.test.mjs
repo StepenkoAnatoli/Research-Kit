@@ -6,7 +6,7 @@
 // because the way this gets lost is somebody adding a convenient option later.
 
 import { execFileSync } from 'node:child_process';
-import { test, describe, assert, fs, path, os, cleanup, tempDir } from './harness.mjs';
+import { test, describe, assert, fs, path, os, cleanup, tempDir, requireSymlink } from './harness.mjs';
 import { sha256, canonicalJson, resolve, readText, writeText, today, PATHS, HEADERS } from '../lib/core.mjs';
 import {
   createArtifact, deriveState, collectProjectFiles, packageName, checkClientRef,
@@ -474,8 +474,8 @@ test('a link that lands outside the project is refused, and its bytes are never 
   const secret = path.join(outsideDir, 'id_rsa');
   fs.writeFileSync(secret, 'PRIVATE KEY MATERIAL\n');
   const cases = [
-    ['research/raw/evil.md', (at) => fs.symlinkSync(secret, at, 'file')],
-    ['docs/extra.md', (at) => fs.symlinkSync(secret, at, 'file')],
+    ['research/raw/evil.md', (at) => requireSymlink(secret, at, 'a file link out of the project')],
+    ['docs/extra.md', (at) => requireSymlink(secret, at, 'a file link out of the project')],
     ['research/linked', (at) => fs.symlinkSync(outsideDir, at, 'junction')],
   ];
   for (const [rel, link] of cases) {
@@ -519,7 +519,7 @@ test('readCaptures does not read a capture that links outside the project, and t
   const root = approvedProject();
   const secret = path.join(tempDir('rk-outside-'), 'secret.md');
   fs.writeFileSync(secret, '---\nurl: https://example.com/secret\n---\nSECRET DATA FROM OUTSIDE\n');
-  fs.symlinkSync(secret, path.join(root, 'research/raw/evil.md'), 'file');
+  requireSymlink(secret, path.join(root, 'research/raw/evil.md'), 'a capture that links outside the project');
   const corpus = readCorpus(root);
   assert.equal(corpus.captures.entries.some((e) => e.file.endsWith('evil.md')), false, 'the outside file was read as a capture');
   assert.ok(corpus.problems.some((p) => p.kind === 'capture-outside' && p.file === 'research/raw/evil.md'),

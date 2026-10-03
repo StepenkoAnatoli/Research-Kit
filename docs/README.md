@@ -1,0 +1,24 @@
+# Reading map
+
+What to read, in what order, depending on what you came for. Every file named here is
+in this repository.
+
+| You want to | Read | Then |
+|---|---|---|
+| set the kit up and run one research cycle | [`../README.md`](../README.md) | [`../QUICKSTART.md`](../QUICKSTART.md) for the GitHub route with one token |
+| know the rules an agent follows in a project | [`../AGENTS.md`](../AGENTS.md) | [`../research-kit/template/AGENTS.md`](../research-kit/template/AGENTS.md), the copy a project receives |
+| look up a command, a flag, the package format or the test suite | [`../research-kit/README.md`](../research-kit/README.md) | `node research-kit/bin/<command>.mjs --help` |
+| understand what a module owns and why the seams sit where they do | [`ARCHITECTURE.md`](ARCHITECTURE.md), the numbered seams first, then one row at a time | the ADRs each row cites |
+| know why a decision was made, and what it rejected | [`adr/README.md`](adr/README.md), one line per decision | the ADR itself, dated, with its trigger to revisit |
+| read the vocabulary the rules are written in | [`../CONTEXT.md`](../CONTEXT.md) | |
+| see the research behind a decision about the kit itself | [`decisions/README.md`](decisions/README.md) | each project's `research/BRIEF.md` |
+| see what changed in a release | [`../CHANGELOG.md`](../CHANGELOG.md) | the tag on GitHub |
+| follow a past review or measurement | the dated files in this folder, and [`architecture-history/`](architecture-history/README.md) | |
+
+Two habits of this repository that a newcomer should know before reading further:
+
+- A comment in the code that carries a date and a finding is a post-mortem, not noise: it
+  names the break-test or the run that found the defect and the cause, so the next reader
+  does not reintroduce it. The architecture map's rows are written the same way.
+- Nothing under `decisions/` is moved or deleted; the index says which projects still
+  carry a decision. A corpus there is evidence, including the dotfile ledger beside it.

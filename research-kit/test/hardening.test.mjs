@@ -5,7 +5,7 @@
 import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import os from 'node:os';
-import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, appendLine, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, appendLine, KIT_ROOT, requireSymlink } from './harness.mjs';
 import { PATHS, HEADERS, resolve, readText, writeText, writeJson, tolerateClosedStdout, canonicalJson, sha256, tempBase, tempFreeSpace } from '../lib/core.mjs';
 import { readCorpus, appendRow, upsertRow, alignToHeader } from '../lib/corpus.mjs';
 import { writeAudit, zipAudit, readManifest, readManifestState, fingerprintOf } from '../lib/audit.mjs';
@@ -610,7 +610,7 @@ test('writeText keeps the replaced file\'s mode, and writes through a symlink to
   const real = path.join(dir, 'real.md');
   fs.writeFileSync(real, 'old\n');
   const link = path.join(dir, 'link.md');
-  fs.symlinkSync(real, link, 'file');
+  requireSymlink(real, link, 'a write through a symlink');
   writeText(link, 'new\n');
   assert.ok(fs.lstatSync(link).isSymbolicLink(), 'the symlink was replaced by a file');
   assert.equal(fs.readFileSync(real, 'utf8'), 'new\n', 'the write did not reach the link target');

@@ -335,3 +335,39 @@ test('a fixture repository is initialised without the host\'s init.templateDir',
   assert.equal(fs.existsSync(path.join(fixture, '.git', 'HEAD')), true, 'the fixture was not initialised');
   assert.equal(fs.existsSync(path.join(fixture, '.git', 'hooks', 'pre-commit')), false, 'the fixture repository carries the host\'s template hook');
 });
+
+// Found 2026-10-02 (outside review, on a Windows machine without Developer Mode): a file
+// symlink needs a privilege there, and five tests made one with `fs.symlinkSync` unguarded,
+// so the collect group went red with EPERM on a host where the code under test never ran.
+// The privilege is a host prerequisite like Python (ADR-0108): `requireSymlink` reports it
+// as UNSUP with the reason, and the runner counts it apart from a failure. The seam
+// `RESEARCH_KIT_TEST_NO_SYMLINK=1` reproduces the refusal on every platform.
+test('requireSymlink reports a refused file symlink as UNSUP, not as a failed test', () => {
+  const source = `
+    import { test, runPending, requireSymlink, tempDir, fs, path } from ${JSON.stringify(HARNESS)};
+    const dir = tempDir('rk-symlink-');
+    fs.writeFileSync(path.join(dir, 'real.txt'), 'x');
+    test('links a file', () => { requireSymlink(path.join(dir, 'real.txt'), path.join(dir, 'link.txt'), 'the link case'); });
+    const r = await runPending();
+    console.log(JSON.stringify({ failures: r.failures, passed: r.passed, unsupported: r.unsupported }));
+  `;
+  const refused = runChild(source, { RESEARCH_KIT_TEST_NO_SYMLINK: '1' });
+  assert.equal(refused.status, 0, refused.stderr);
+  const seen = JSON.parse(refused.stdout.trim().split('\n').pop());
+  assert.equal(seen.failures, 0, 'a refused symlink was counted as a failure');
+  assert.equal(seen.passed, 0, 'a refused symlink passed having asserted nothing');
+  assert.equal(seen.unsupported.length, 1);
+  assert.equal(seen.unsupported[0].code, 'SYMLINK-NOT-PERMITTED');
+  assert.match(seen.unsupported[0].reason, /Developer Mode/);
+  assert.match(seen.unsupported[0].reason, /the link case cannot be checked/);
+  assert.match(refused.stdout, /^UNSUP .*links a file/m);
+
+  // Without the seam the link is made where the host allows it, and the host that refuses
+  // reports the same UNSUP from the real EPERM.
+  const allowed = runChild(source, { RESEARCH_KIT_TEST_NO_SYMLINK: '' });
+  assert.equal(allowed.status, 0, allowed.stderr);
+  const real = JSON.parse(allowed.stdout.trim().split('\n').pop());
+  assert.equal(real.failures, 0, 'a real file symlink was a failure');
+  assert.ok((real.passed === 1 && real.unsupported.length === 0) || (real.passed === 0 && real.unsupported[0]?.code === 'SYMLINK-NOT-PERMITTED'),
+    `expected one pass or one SYMLINK-NOT-PERMITTED: ${JSON.stringify(real)}`);
+});

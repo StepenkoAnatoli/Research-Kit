@@ -5,6 +5,13 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A test that needs a file symlink reports `UNSUP` where the host refuses to make one,
+  instead of going red: on Windows a file symlink needs Developer Mode or an elevated shell,
+  and five tests made one unguarded, so the collect group read `FAIL ... EPERM` on such a
+  machine while the code under test never ran (outside review, 2026-10-02). The harness's
+  `requireSymlink` names the privilege as the reason, like a missing Python (ADR-0108); CI's
+  Windows runner has it and still runs the tests. The root README now links the reading
+  map, `docs/README.md`, from its Documentation section.
 - A plan query whose `why` names unknowns that are all CLOSED is not searched again
   (ADR-0127): a search has no cache, so every run of a finished project paid it - found
   running the kit five times over MoonAliza's seven projects, where one query would have
@@ -40,6 +47,17 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   the repository's environment - then one prompt, and the four-step loop the agent runs
   (`collect`, `fetch_corpus`, review, a targeted `collect` for what is missing). Linked
   from the front page.
+- A capture is written with LF line endings only, whatever the transport received
+  (2026-10-02). The scaffold's `.gitattributes` makes git store every capture as LF, so a
+  keyless capture written with the CR bytes a server sent hashed one way on the collector
+  and checked out another way on every other machine, failing handoff on a capture nobody
+  had touched.
+- Licensed (ADR-0130): the code, tests and documentation under the PolyForm Shield License
+  1.0.0 - install, run, modify and distribute for any purpose except a competing product -
+  replacing "all rights reserved", which the README's own install instruction contradicted.
+  The captured pages under every `research/raw/` are excluded by `NOTICE`, `REUSE.toml`
+  and a `LicenseRef-Captured-Page` marking: copyright stays with their owners, no licence
+  is granted over them, and no fair-use claim is made.
 
 ## 0.9.3 — 2026-10-02
 
