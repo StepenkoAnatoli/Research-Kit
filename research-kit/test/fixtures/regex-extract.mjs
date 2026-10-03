@@ -131,10 +131,11 @@ export function htmlToMarkdown(html) {
   let text = String(html);
   text = text.replace(BLOCK_DROP, ' ');
   text = text.replace(/<!--[\s\S]*?-->/g, ' ');
-  text = text.replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, level, body) => `\n\n${'#'.repeat(Number(level))} ${inline(body)}\n\n`);
-  text = text.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_, body) => `\n- ${inline(body)}`);
+  // Entities decoded once, at the end, as the linear converter does since 2026-10-03 (G3).
+  text = text.replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, level, body) => `\n\n${'#'.repeat(Number(level))} ${inline(body, { decode: false })}\n\n`);
+  text = text.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_, body) => `\n- ${inline(body, { decode: false })}`);
   text = text.replace(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi, (_, row) => {
-    const cells = [...row.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => inline(m[1]));
+    const cells = [...row.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => inline(m[1], { decode: false }));
     return cells.length ? `\n| ${cells.join(' | ')} |` : '\n';
   });
   text = text.replace(/<br\s*\/?>/gi, '\n');
@@ -143,11 +144,12 @@ export function htmlToMarkdown(html) {
   return text.replace(/\n{3,}/g, '\n\n').split('\n').map((l) => l.replace(/[ \t]+$/, '')).join('\n').trim();
 }
 
-function inline(html) {
-  return decodeEntities(
+function inline(html, { decode = true } = {}) {
+  const finish = (text) => (decode ? decodeEntities(text) : text);
+  return finish(
     String(html)
       .replace(/<a\b[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, body) => {
-        const label = decodeEntities(body.replace(/<[^>]+>/g, '')).trim();
+        const label = finish(body.replace(/<[^>]+>/g, '')).trim();
         return label ? `[${label}](${href})` : '';
       })
       .replace(/<(strong|b)\b[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**')

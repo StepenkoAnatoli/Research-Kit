@@ -5,6 +5,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The keyless and browser transports' HTML conversion keeps comparison text inside list
+  items, table cells and headings: `x &lt; 5 and y &gt; 2` had come out as `x 2`, and a link
+  label inside an item lost everything from its `<` to the item's end, because the block
+  pass decoded entities and the page-level pass then stripped the decoded `<...>` as a tag.
+  Entities are decoded once, at the end (output-reliability audit G3, 2026-10-03).
 - A search provider whose `search()` throws is a failed search that says so (`<provider>
   threw: <message>`), degraded and recorded like any other, so the run and its accounting
   finish: re-thrown, it ended `research` and `decompose` mid-run, and the searches paid for

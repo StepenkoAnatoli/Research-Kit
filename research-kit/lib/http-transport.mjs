@@ -309,11 +309,16 @@ export function htmlToMarkdown(html) {
   let text = String(html);
   text = replacePairs(text, BLOCK_DROP, () => ' ');
   text = replacePairs(text, { open: /<!--/g, tag: 'none', close: () => '-->' }, () => ' ');
+  // The block passes convert their bodies WITHOUT decoding entities: the page-level pass
+  // below strips every tag that is left, and a `<` decoded here would be read there as the
+  // start of one. A list item holding `x &lt; 5 and y &gt; 2` came out as `x 2`, a table cell
+  // and a heading the same, while a paragraph - converted once - survived (found 2026-10-03,
+  // output-reliability audit G3). Entities are decoded exactly once, at the end.
   text = replacePairs(text, { open: /<h([1-6])\b/gi, close: (m) => `<\\/h${m[1]}>` },
-    (p) => `\n\n${'#'.repeat(Number(p.open[1]))} ${inline(p.body)}\n\n`);
-  text = replacePairs(text, named('li'), (p) => `\n- ${inline(p.body)}`);
+    (p) => `\n\n${'#'.repeat(Number(p.open[1]))} ${inline(p.body, { decode: false })}\n\n`);
+  text = replacePairs(text, named('li'), (p) => `\n- ${inline(p.body, { decode: false })}`);
   text = replacePairs(text, named('tr'), (p) => {
-    const cells = tagPairs(p.body, { open: /<t[dh]\b/gi, close: () => '<\\/t[dh]>' }).map((c) => inline(c.body));
+    const cells = tagPairs(p.body, { open: /<t[dh]\b/gi, close: () => '<\\/t[dh]>' }).map((c) => inline(c.body, { decode: false }));
     return cells.length ? `\n| ${cells.join(' | ')} |` : '\n';
   });
   text = text.replace(/<br\s*\/?>/gi, '\n');
@@ -326,15 +331,21 @@ export function htmlToMarkdown(html) {
 // quoted value is matched as the regex matched it, anchored where the tag starts.
 const LINK = { open: /<a\b/gi, tag: { find: /href=/gi, match: /href=["']([^"']*)["'][^>]*>/iy }, close: () => '<\\/a>' };
 
-function inline(html) {
+/**
+ * Inline markup to Markdown. `decode: false` leaves entities as written, for a body that a
+ * later pass will strip tags from and decode (the block passes above); the page-level pass
+ * decodes once.
+ */
+function inline(html, { decode = true } = {}) {
+  const finish = (text) => (decode ? decodeEntities(text) : text);
   let text = replacePairs(String(html), LINK, (p) => {
-    const label = decodeEntities(stripTags(p.body, '').text).trim();
+    const label = finish(stripTags(p.body, '').text).trim();
     return label ? `[${label}](${p.tag[1]})` : '';
   });
   text = replacePairs(text, named('strong|b'), (p) => `**${p.body}**`);
   text = replacePairs(text, named('em|i'), (p) => `*${p.body}*`);
   text = replacePairs(text, named('code'), (p) => `\`${p.body}\``);
-  return decodeEntities(stripTags(text, ' ').text).replace(/[ \t]{2,}/g, ' ').trim();
+  return finish(stripTags(text, ' ').text).replace(/[ \t]{2,}/g, ' ').trim();
 }
 
 export function titleOf(html) {

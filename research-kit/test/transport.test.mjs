@@ -288,6 +288,28 @@ test('htmlToMarkdown keeps headings, lists, links and tables; drops scripts', ()
   assert.match(md, /\| Plan \| Credits \|/);
 });
 
+// Found 2026-10-03 (output-reliability audit, G3): a list item, table cell or heading holding
+// `x &lt; 5 and y &gt; 2` came out as `x 2`. The block pass decoded the entities inside the
+// item, and the page-level pass then stripped `< 5 and y >` as if it were a tag; a paragraph
+// survived because it is converted once. A limit written `< 10 requests` in a bulleted
+// pricing page is exactly the fact the capture exists to keep, and the ledger and the quote
+// check verify the damaged text faithfully. Entities are decoded once, at the end.
+test('comparison text inside a list item, a table cell or a heading survives conversion', () => {
+  const md = httpKeyless.htmlToMarkdown('<p>Allow when x &lt; 5 and y &gt; 2.</p><ul><li>Allow when x &lt; 5 and y &gt; 2.</li></ul>'
+    + '<table><tr><td>x &lt; 5 and y &gt; 2</td><td>&lt;10 requests</td></tr></table><h2>When x &lt; 5 and y &gt; 2</h2>');
+  assert.match(md, /^Allow when x < 5 and y > 2\.$/m, 'the paragraph');
+  assert.match(md, /^- Allow when x < 5 and y > 2\.$/m, 'the list item');
+  assert.match(md, /^\| x < 5 and y > 2 \| <10 requests \|$/m, 'the table cells');
+  assert.match(md, /^## When x < 5 and y > 2$/m, 'the heading');
+});
+
+test('an entity inside a link label, bold text or code in a list item is decoded once and kept', () => {
+  const md = httpKeyless.htmlToMarkdown('<ul><li>See <a href="https://x.invalid/l">limits &lt; 10</a> and <b>a &lt; b</b> or <code>n &gt; 0</code> &amp; more</li></ul>');
+  assert.equal(md, '- See [limits < 10](https://x.invalid/l) and **a < b** or `n > 0` & more');
+  // A double-encoded entity is decoded exactly once, as a reader of the page would see it.
+  assert.equal(httpKeyless.htmlToMarkdown('<li>&amp;lt;b&amp;gt;</li>'), '- &lt;b&gt;');
+});
+
 test('a page that marks its content with <main> is believed over a denser fragment', () => {
   // Found 2026-09-27: on a GitHub Docs page the keyless extractor kept the 262-character
   // summary and dropped the 17,385-character <main> around it - words-per-tag favours a
