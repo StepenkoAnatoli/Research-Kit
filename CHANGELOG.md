@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- `install-hooks.mjs --dry-run` writes nothing on any path. It read the flag after the role,
+  the posture and the uninstall had already run, so `--dry-run --role builder --fail-closed`
+  saved both and `--dry-run --uninstall` removed the installed commit gate - a preview that
+  disabled the enforcement the operator relied on (outside audit, 2026-10-03). Every preview
+  now says what it would do and touches neither git config, the machine config nor the
+  settings file.
 - `install-hooks.mjs` reports, at install time, a repository-local `core.hooksPath` in the
   directory it is run from - what husky, lefthook, simple-git-hooks and pre-commit set, which
   displaces the machine-wide gate in that repository - on stderr with the remedy, and still

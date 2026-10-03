@@ -64,7 +64,7 @@ export function installCommitGate({ kitHome = KIT_HOME, env = process.env, dryRu
   return { ok: true, hooksPath: dir, previous, executable: hookExecutability(hook), displaced };
 }
 
-export function removeCommitGate({ env = process.env, gitPaths = {} } = {}) {
+export function removeCommitGate({ env = process.env, gitPaths = {}, dryRun = false } = {}) {
   const state = readInstallState(env) ?? {};
   const previous = state.previousHooksPath ?? null;
   // Restored only while core.hooksPath is still the kit's own folder. The kit may never
@@ -73,9 +73,14 @@ export function removeCommitGate({ env = process.env, gitPaths = {} } = {}) {
   // (found 2026-09-27: a machine's /opt/myhooks was unset by an uninstall).
   const current = hooksPath('global', gitPaths);
   if (!state.hooksPath || current !== state.hooksPath) {
+    // The preview answers before anything is written, on this branch as on the next: a dry
+    // run that UNSET the installed gate was found on 2026-10-03 (outside audit) - `--dry-run`
+    // was read after the uninstall had run.
+    if (dryRun) return { ok: true, dryRun: true, restored: undefined, left: current ?? null };
     writeInstallState({ ...state, hooksPath: null, previousHooksPath: null }, env);
     return { ok: true, restored: undefined, left: current ?? null };
   }
+  if (dryRun) return { ok: true, dryRun: true, restored: previous };
   setHooksPath(previous ?? null, { scope: 'global', ...gitPaths });
   setPreviousHooksPath(null, gitPaths);
   writeInstallState({ ...state, hooksPath: null, previousHooksPath: null }, env);
@@ -214,7 +219,7 @@ export function installEditGate({ kitHome = KIT_HOME, env = process.env, dryRun 
   };
 }
 
-export function removeEditGate({ env = process.env } = {}) {
+export function removeEditGate({ env = process.env, dryRun = false } = {}) {
   const file = runtimePaths(env).settingsPath;
   const read = readSettings(file);
   if (read.state === 'absent') return { ok: true, file, removed: 0 };
@@ -234,6 +239,7 @@ export function removeEditGate({ env = process.env } = {}) {
   // Containers the kit's entry leaves empty go too, and a file with nothing left is removed:
   // --uninstall on a machine that had no settings file left {"hooks": {"PreToolUse": []}}
   // behind (found 2026-09-27). An empty settings file and none behave the same.
+  if (dryRun) return { ok: true, dryRun: true, file, removed };
   const hooks = { ...(read.settings.hooks ?? {}), PreToolUse: kept };
   if (!kept.length) delete hooks.PreToolUse;
   const next = { ...read.settings, hooks };
@@ -528,10 +534,10 @@ export function deploy({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env,
   return { ok: true, from, to: kitHome, files: copied.written.length, pruned: copied.pruned, skills, bound };
 }
 
-export function uninstall({ env = process.env, gitPaths = {} } = {}) {
-  const commit = removeCommitGate({ env, gitPaths });
-  const edit = removeEditGate({ env });
-  return { commit, edit };
+export function uninstall({ env = process.env, gitPaths = {}, dryRun = false } = {}) {
+  const commit = removeCommitGate({ env, gitPaths, dryRun });
+  const edit = removeEditGate({ env, dryRun });
+  return { commit, edit, dryRun };
 }
 
 export { ROLES, readJson };

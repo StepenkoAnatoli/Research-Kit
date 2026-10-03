@@ -1411,6 +1411,43 @@ test('research.mjs names the refusals the kit wrote, instead of dumping a stack'
 // question the real run answers. Through the real binary, in both states: the first fix of
 // this defect made a healthy deployed machine print `commit gate: undefined` and exit 1, and
 // no test drove the CLI over a deployed kit to catch it.
+// Found 2026-10-03 (outside audit): `--dry-run` was read AFTER the role, the posture and the
+// uninstall had already run, so `install-hooks --dry-run --role builder --fail-closed` saved
+// both, and `install-hooks --dry-run --uninstall` removed the installed commit gate - a
+// preview that disables the enforcement the operator is relying on. Every dry-run path is
+// read-only now: it says what it would do and touches neither git config, the machine config
+// nor the settings file.
+test('install-hooks --dry-run writes nothing on any path: role, posture, uninstall', () => {
+  const home = tempDir('rk-dryrun-ro-home-');
+  const kit = path.join(home, '.agents', 'research-kit');
+  const config = path.join(home, 'research-kit.config.json');
+  const gitconfig = path.join(home, 'gitconfig');
+  const env = { HOME: home, USERPROFILE: home, RESEARCH_KIT_HOME: kit, RESEARCH_KIT_CONFIG: config,
+    RESEARCH_KIT_INSTALL_STATE: path.join(home, 'install.json'),
+    GIT_CONFIG_GLOBAL: gitconfig, GIT_CONFIG_NOSYSTEM: '1' };
+  assert.equal(run('install.mjs', [], { root: home, env }).status, 0);
+  const installed = run('install-hooks.mjs', ['--git-only'], { root: home, env });
+  assert.equal(installed.status, 0, installed.all);
+  const hooksPath = () => spawnSync('git', ['config', '--global', '--get', 'core.hooksPath'], { env: { ...process.env, ...env }, encoding: 'utf8' }).stdout.trim();
+  assert.match(hooksPath(), /githooks$/, 'the real install did not set the gate');
+  const snapshot = () => JSON.stringify({ gitconfig: fs.readFileSync(gitconfig, 'utf8'), config: fs.existsSync(config) ? fs.readFileSync(config, 'utf8') : null,
+    settings: fs.existsSync(path.join(home, '.claude', 'settings.json')) ? fs.readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8') : null });
+  const before = snapshot();
+
+  const removal = run('install-hooks.mjs', ['--dry-run', '--uninstall'], { root: home, env });
+  assert.equal(removal.status, 0, removal.all);
+  assert.match(removal.out, /would (restore|leave) core\.hooksPath/, `the uninstall preview did not say what it would do:\n${removal.all}`);
+  assert.match(hooksPath(), /githooks$/, 'a dry-run uninstall removed the installed commit gate');
+  assert.equal(snapshot(), before, 'a dry-run uninstall changed a file');
+
+  const declared = run('install-hooks.mjs', ['--dry-run', '--git-only', '--role', 'builder', '--fail-closed'], { root: home, env });
+  assert.equal(declared.status, 0, declared.all);
+  assert.match(declared.out, /would (set|declare) role/, declared.all);
+  assert.match(declared.out, /would set posture/, declared.all);
+  assert.equal(fs.existsSync(config), false, 'a dry run wrote the machine config');
+  assert.equal(snapshot(), before, 'a dry run with --role and --fail-closed changed a file');
+});
+
 test('install-hooks --dry-run answers what the real run answers, deployed or not', () => {
   const home = tempDir('rk-dryrun-home-');
   const kit = path.join(home, '.agents', 'research-kit');
