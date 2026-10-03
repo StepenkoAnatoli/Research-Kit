@@ -45,6 +45,60 @@ test('a damaged ledger is refused before decompose asks any provider', () => {
   assert.equal(searches, 0);
 });
 
+// ADR-0135: `runResearch` refused a search provider that reports `notReady` before anything
+// was spent; `decompose` did not - only its CLI did, so a library caller could spend. The
+// session refuses for both.
+test('a search provider that is not ready is refused before decompose asks any provider, and nothing is spent', () => {
+  const dir = makeProject();
+  let searches = 0;
+  let fetches = 0;
+  const adapter = {
+    name: 'stub-transport',
+    search: (query) => { searches += 1; return { ok: true, query, results: [{ url: 'https://docs.example.com/a', title: 'A' }] }; },
+    runScrape: (url) => { fetches += 1; return { ok: true, url, title: 'A', markdown: PAGE, statusCode: 200, transport: 'stub-transport', completeness: 'full', cmd: `stub scrape ${url}` }; },
+  };
+  const notReady = { name: 'serpapi', notReady: 'serpapi: no key is configured', search: (query) => { searches += 1; return { ok: true, query, results: [] }; } };
+  assert.throws(() => decompose(dir, { topic: 'Widget pricing', adapter, searchAdapter: notReady, maxScrapes: 1 }),
+    (err) => err.code === 'SEARCH_PROVIDER_NOT_READY' && err.message === 'serpapi: no key is configured');
+  assert.equal(searches, 0, `${searches} search(es) were made through a provider that cannot run`);
+  assert.equal(fetches, 0, `${fetches} fetch(es) were made after a refused search provider`);
+  assert.equal(fs.existsSync(resolve(dir, PATHS.usage)), false, 'a usage row was written for a run that was refused');
+  assert.equal(readText(resolve(dir, PATHS.map), ''), '', 'the map was drafted by a run that was refused');
+  // The dry run is refused the same way, as research's is: a preview that says "this will
+  // search" through a provider that cannot is worse than no preview.
+  assert.throws(() => decompose(dir, { topic: 'Widget pricing', adapter, searchAdapter: notReady, maxScrapes: 1, dryRun: true }), (err) => err.code === 'SEARCH_PROVIDER_NOT_READY');
+  assert.equal(searches, 0);
+});
+
+// ADR-0135's one accounting rule, as decompose's usage row now reports it: a search that failed
+// on the search provider and was answered by the fetch provider's own search is one failed
+// ask and one degrade. The row had counted the degraded ask as no failure, and had counted a
+// degrade whether or not it answered.
+test('decompose\'s usage row counts a degraded query as research does: one failure, one degrade that answered', () => {
+  const dir = makeProject();
+  // The fetch adapter reports its usage, as a real one does; without a reported search the
+  // usage row is not written at all (a search-only run that spent nothing is not recorded).
+  const adapter = { ...stubAdapter(), search: (query) => ({ ok: true, query, searchesUsed: 1, results: [{ url: 'https://docs.example.com/limits', title: 'Limits' }] }) };
+  const searcher = { name: 'stub-search', search: (query) => ({ ok: false, query, results: [], error: 'quota exhausted' }) };
+  const lines = [];
+  const out = decompose(dir, { topic: 'Widget pricing', adapter, searchAdapter: searcher, maxScrapes: 0, log: (l) => lines.push(l) });
+  assert.equal(out.written, true);
+  assert.deepEqual(out.failures, [
+    { query: 'Widget pricing', error: 'quota exhausted', provider: 'stub-search', degraded: true, fellBackTo: 'stub-transport' },
+  ].concat(out.failures.slice(1)), 'the first failure row is the degrade, shaped as the map reads it');
+  assert.equal(out.failures.length, out.searches, 'every query failed once on the search provider');
+  assert.ok(out.failures.every((f) => f.degraded && f.fellBackTo === 'stub-transport'));
+  assert.equal(out.gathered, true, 'the fetch provider answered');
+  const usage = JSON.parse(readText(resolve(dir, PATHS.usage), '').trim().split('\n').pop());
+  assert.equal(usage.command, 'decompose');
+  assert.equal(usage.searchTransport, 'stub-search', 'the paying provider names the search side');
+  assert.equal(usage.searchFailures, out.searches, 'a degraded ask is a failed ask');
+  assert.equal(usage.degraded, out.searches, 'every degrade answered');
+  assert.ok(lines.some((l) => /^  search failed on stub-search: quota exhausted$/.test(l)));
+  assert.ok(lines.some((l) => /^  degrading to stub-transport for this query/.test(l)));
+  assert.ok(lines.some((l) => /^  search     found 1 for "Widget pricing" \(stub-transport\)$/.test(l)), `the session's found line is missing:\n${lines.join('\n')}`);
+});
+
 test('nine universal dimensions, and output obtainability is one of them', () => {
   assert.equal(UNIVERSAL_DIMENSIONS.length, 9);
   const names = UNIVERSAL_DIMENSIONS.map((d) => d.name);
