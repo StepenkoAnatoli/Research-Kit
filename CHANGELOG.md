@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- `install-hooks.mjs` reports, at install time, a repository-local `core.hooksPath` in the
+  directory it is run from - what husky, lefthook, simple-git-hooks and pre-commit set, which
+  displaces the machine-wide gate in that repository - on stderr with the remedy, and still
+  installs (ADR-0131). The installer had read and written only the global path and said
+  "installed" from inside such a repository; the displacement was found at check time, by
+  `doctor` or preflight, if at all (outside review, 2026-10-02).
 - A test that needs a file symlink reports `UNSUP` where the host refuses to make one,
   instead of going red: on Windows a file symlink needs Developer Mode or an elevated shell,
   and five tests made one unguarded, so the collect group read `FAIL ... EPERM` on such a

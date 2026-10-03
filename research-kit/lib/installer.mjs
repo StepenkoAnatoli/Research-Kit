@@ -13,7 +13,7 @@ import {
 } from './core.mjs';
 import {
   KIT_HOME, EDIT_GATE_HOOK, RETIRED_EDIT_GATE_HOOKS, RETIRED_KIT_FILES,
-  hooksPath, setHooksPath, setPreviousHooksPath, runtimePaths, skillLocations, readInstallState, writeInstallState,
+  hooksPath, setHooksPath, setPreviousHooksPath, localHooksPathOverride, runtimePaths, skillLocations, readInstallState, writeInstallState,
   saveConfig, loadConfig, ROLES, namesHook,
 } from './machine.mjs';
 import { KIT_ROOT, HOOK_MODE, hookExecutability } from './scaffold.mjs';
@@ -29,10 +29,20 @@ const UNFAMILIAR_SHAPE = 'hooks.PreToolUse is not the shape this installer walks
 
 // ---------------------------------------------------------------- the commit gate
 
-export function installCommitGate({ kitHome = KIT_HOME, env = process.env, dryRun = false, gitPaths = {} } = {}) {
+export function installCommitGate({ kitHome = KIT_HOME, env = process.env, dryRun = false, gitPaths = {}, cwd = process.cwd() } = {}) {
   const dir = path.join(kitHome, 'githooks');
   const previous = hooksPath('global', gitPaths);
   const hook = path.join(dir, 'pre-commit');
+  // The repository the operator stands in, if it is one, may set its own `core.hooksPath` -
+  // husky, lefthook, simple-git-hooks and pre-commit all do - and git runs that folder, not
+  // the machine-wide one, so the gate installed here would never run HERE. The installer read
+  // and wrote only the global path and said "installed" (outside review, 2026-10-02, three
+  // rounds); the displacement was found at check time, by doctor or preflight, if at all. It
+  // is reported at install time now, and the install still goes through: the gate is machine
+  // state, and every other repository gets it (ADR-0131). Not recorded in research/overrides.log
+  // from here - the installer is not a check, and doctor records it when it judges the project.
+  const local = localHooksPathOverride(cwd, gitPaths);
+  const displaced = local ? { cwd, local } : null;
   // The precondition is checked BEFORE the dry run answers. A dry run is the answer an
   // operator trusts INSTEAD of running the thing, so it has to report the refusal the real
   // run would give rather than preview a hooksPath that would never be set (found
@@ -41,7 +51,7 @@ export function installCommitGate({ kitHome = KIT_HOME, env = process.env, dryRu
   if (!exists(hook)) return { ok: false, dryRun, reason: `${hook} is not deployed - run bin/install.mjs first` };
   // `ok: true` on the preview as well, so the result has one shape whichever way it went and
   // a caller can ask `result.ok` without knowing whether it was a dry run.
-  if (dryRun) return { ok: true, dryRun: true, would: dir, previous };
+  if (dryRun) return { ok: true, dryRun: true, would: dir, previous, displaced };
   if (process.platform !== 'win32') { try { fs.chmodSync(hook, HOOK_MODE); } catch { /* best effort */ } }
 
   setHooksPath(dir, { scope: 'global', ...gitPaths });
@@ -51,7 +61,7 @@ export function installCommitGate({ kitHome = KIT_HOME, env = process.env, dryRu
   const replaced = [state.previousHooksPath, previous].find((p) => p && path.resolve(p) !== path.resolve(dir)) ?? null;
   setPreviousHooksPath(replaced, gitPaths);
   writeInstallState({ ...state, kitHome, hooksPath: dir, previousHooksPath: replaced }, env);
-  return { ok: true, hooksPath: dir, previous, executable: hookExecutability(hook) };
+  return { ok: true, hooksPath: dir, previous, executable: hookExecutability(hook), displaced };
 }
 
 export function removeCommitGate({ env = process.env, gitPaths = {} } = {}) {
