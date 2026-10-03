@@ -337,7 +337,7 @@ test('a fixture repository is initialised without the host\'s init.templateDir',
 });
 
 // Found 2026-10-02 (outside review, on a Windows machine without Developer Mode): a file
-// symlink needs a privilege there, and five tests made one with `fs.symlinkSync` unguarded,
+// symlink needs a privilege there, and six tests made one with `fs.symlinkSync` unguarded,
 // so the collect group went red with EPERM on a host where the code under test never ran.
 // The privilege is a host prerequisite like Python (ADR-0108): `requireSymlink` reports it
 // as UNSUP with the reason, and the runner counts it apart from a failure. The seam
