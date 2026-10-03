@@ -344,3 +344,59 @@ differences between tools.
 | [Browsertrix Crawler](https://github.com/webrecorder/browsertrix-crawler) | Browser capture uses the Chrome DevTools Protocol; a concrete comparison for navigation instrumentation. | Official repository documentation |
 | [ArchiveBox plugin contract](https://github.com/ArchiveBox/abx-plugins) | Successful, empty, skipped, and failed extraction outcomes are represented separately. | Official repository documentation |
 | [RFC 3986, section 6.2](https://www.rfc-editor.org/rfc/rfc3986#section-6.2) | Resource equivalence follows justified normalization rules or observed protocol behavior. | Internet standard |
+
+## 9. Outcome (2026-10-03, branch `main-axuse3`)
+
+Every ranked gap was reproduced on this branch before it was changed, and each fix is one
+commit through the kit's commit gate (the full suite, ADR-0120), red-first. The fixes were
+then reviewed by four independent agents - a spec reviewer, a breaker, a mutation auditor
+and an invariant auditor - and every finding of theirs was dispositioned below. The
+suite went from 1,521 tests at the publication base to 1,570.
+
+| Gap | Fix | Commit |
+|---|---|---|
+| G1 | A reviewed brief is complete and current: every judged section present and answered, a stamped brief's inputs hash matching the corpus. Unstamped briefs keep their approval (ADR-0138). | `97f021b` |
+| G2 | A mistyped table ID is a `malformed-id` corpus problem and a hygiene FAIL, never a dropped row. | `c0ca043` |
+| G3 | Entities are decoded once, at the end of the conversion; block passes convert without decoding. | `6c22c67` |
+| G4 | Same-day supersession follows the fetch ledger's order, as the collector already did. | `4367ef6` |
+| G5 | The browser transport reads the origin's status and final URL from Chromium's net log; a render with no status is graded partial (ADR-0137). | `844d887` (ADR), `6b0358e` (transport) |
+| G6 | The URL identity merge stands, as a recorded decision with its trigger (ADR-0136). | `844d887` |
+| G7 | A body is decoded in the charset its server declared, a byte-order mark first; an unknown label is a named fallback. | `f2859f0` |
+| G8 | Freshness is judged by the capture's own date, and hygiene names a table date that disagrees. | `420b3a0` |
+
+### Review of the fixes
+
+| # | Finding (severity) | Disposition | Commit |
+|---|---|---|---|
+| R1 | The G3 fix left a paragraph's link label decoded inside the link pass: `[limit 2](/x)`, and `&amp;lt;` decoded twice (S1). | fixed: the label is never decoded on its own | `8494572` |
+| B7 | A `&nbsp;`-only link survived in a list item (S3). | fixed: emptiness judged on the decoded label | `8494572` |
+| B9 | `decodeEntities` decoded `&#38;lt;` twice (S3). | fixed: one pass over every reference kind | `8494572` |
+| R2 / B5 | Bytes that are not valid UTF-8 under a UTF-8 label, or none (a `<meta>`-only charset), stayed silent U+FFFD graded full (S2). | fixed: a named fallback, graded partial | `4005083` |
+| B3 | A `utf-16` label over an 8-bit body decoded to CJK garbage with no fallback (S2). | fixed: a UTF-16 label is believed only over NUL bytes | `4005083` |
+| B4 | An unknown label over pure ASCII was graded partial; `charset="utf-8` kept its quote (S2). | fixed | `4005083` |
+| R7 | `boundedText` honoured a legacy label for JSON answers (S3). | fixed: JSON reads UTF-8, as its callers always did | `4005083` |
+| M-2a′ | No test reached the UTF-8 byte-order-mark rule on its own. | fixed: a test under a UTF-16 label | `4005083` |
+| B2 | A row with a blank Raw cell was judged by the URL's latest capture, losing its stale warning and drawing a date-mismatch with the wrong remedy (S2). | fixed: judged by the capture it names | `941792e` |
+| B6 / R5 / R9 | Supersession and the "fresher capture" hint still ordered by the table cell (S2). | fixed: by capture date | `941792e` |
+| B10 | A future date in the capture hid the row's age (S3). | fixed: `future-date` reads the capture too | `941792e` |
+| M-5h, M-5i | A timestamped capture against a day-only cell, and an unparseable cell, had no test. | fixed: two tests | `941792e` |
+| R4 | An empty-ID row with content was dropped in silence; the "templates ship empty rows" premise was false (S2). | fixed: recorded unless every cell is empty | `11bcdf3` |
+| B1 | A line appended after the draft stamp made a stale brief read as unstamped: re-approved, `brief-stale` silent (S2). | fixed: the stamp is found wherever it stands | `3016547` |
+| R3 | The unstamped-brief compatibility path was silent and bypassable (S2). | fixed: `hygiene/brief-unstamped`, ADR-0138 | `3016547` |
+| R6 | "Eleven decision briefs" miscounted (S3). | fixed: ten, root plus ten is eleven | `3016547` |
+| R8 | A `?? true` assertion that could never fail (S3). | fixed: asserts over the gate's warnings | `3016547` |
+| B8 | An `async search()` defeated the throw guard; its rejection ended the process (S3). | fixed: a Promise is a failed search that says so | `61a6248` |
+| M-3b | The `transport` group alone does not catch the child dropping `decodeFallback`; the `runtime` group does. | rejected: both groups run in the suite | - |
+| I2 | The root brief has no `Reviewed by:` line, so `review.by` is `undeclared`. | recorded: not an approval condition; the root brief predates ADR-0074 | - |
+| I5 | G2, G8 and G4 change no verdict on the 29 real corpora, so their effect is proven by the suite alone. | recorded: expected, none of the corpora holds a malformed ID, a date mismatch or a same-day supersession | - |
+
+Verified on the branch tip by the invariant auditor and again by the lead after the
+review fixes: the root corpus and all 28 nested decision projects pass preflight (the
+root and the eight nested projects whose briefs predate ADR-0055 now carry the single
+`brief-unstamped` warning, by design); the root derives `APPROVED_BRIEF` with
+`buildAuthorized: true` from inside `deriveState`; the ledger is byte-identical to the
+base; every changed module has its row in `docs/ARCHITECTURE.md`; the diff holds no key.
+
+Not verified here: the net log's status line under HTTP/2 and HTTP/3 (only HTTP/1.1 was
+seen, on loopback; such a page would be graded partial, not misread), and the suite on
+Windows and on Node 26, which CI runs.
