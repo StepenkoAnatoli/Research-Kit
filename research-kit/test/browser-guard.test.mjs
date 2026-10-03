@@ -221,6 +221,51 @@ process.stdout.write('<html><body>done</body></html>');
   assert.ok(typeof r.startedAt === 'string' && Date.parse(r.startedAt) >= before - 5 && Date.parse(r.startedAt) <= Date.now(), `startedAt: ${r.startedAt}`);
 });
 
+// ADR-0137 (output-reliability audit G5, 2026-10-03): `--dump-dom` reports no HTTP status, so
+// the child has Chromium write its net log to a file of the child's own, hands back what it
+// wrote for the transport to read the status from, and deletes the file - on every way out.
+test('the child has the browser write a net log, hands back what it wrote, and deletes it', async () => {
+  const writer = path.join(tempDir('rk-netlog-browser-'), 'browser.mjs');
+  fs.writeFileSync(writer, `
+import fs from 'node:fs';
+const args = process.argv.slice(2);
+const flag = args.find((a) => a.startsWith('--log-net-log='));
+process.stderr.write('NETLOG-AT ' + (flag ? flag.slice('--log-net-log='.length) : '') + '\\n');
+process.stderr.write('ORDER ' + args.indexOf(flag) + ' ' + args.indexOf('--dump-dom') + '\\n');
+if (flag && !args.includes('--rk-no-log')) fs.writeFileSync(flag.slice('--log-net-log='.length), '{"constants":{},"events":[{"written":"by the browser"}]}');
+process.stdout.write('<html><body>done</body></html>');
+if (args.includes('--rk-fail')) process.exit(4);
+`);
+  const run = (extra = []) => renderThroughGuard({ binary: process.execPath, args: [writer, ...extra, '--dump-dom', 'http://127.0.0.1:9/none'], url: 'http://127.0.0.1:9/none', allowInternal: true, timeout: 10_000 });
+  const where = (r) => /NETLOG-AT (.*)/.exec(r.stderr)?.[1] ?? '';
+  const r = await run();
+  assert.match(where(r), /\S/, 'the browser was not given --log-net-log');
+  const [flagAt, dumpAt] = /ORDER (-?\d+) (-?\d+)/.exec(r.stderr).slice(1).map(Number);
+  assert.ok(flagAt >= 0 && flagAt < dumpAt, 'the flag goes before --dump-dom <url>, which stay last');
+  assert.equal(r.netLog, '{"constants":{},"events":[{"written":"by the browser"}]}');
+  assert.equal(fs.existsSync(where(r)), false, 'the net log outlived the render');
+  assert.equal(fs.existsSync(path.dirname(where(r))), false, 'the net log\'s folder outlived the render');
+  // A browser that wrote nothing: no log handed back, and nothing left behind.
+  const none = await run(['--rk-no-log']);
+  assert.equal(none.netLog ?? '', '');
+  assert.equal(fs.existsSync(path.dirname(where(none))), false);
+  // A browser that failed after writing: the file is deleted all the same.
+  const failed = await run(['--rk-fail']);
+  assert.equal(failed.status, 4);
+  assert.equal(fs.existsSync(path.dirname(where(failed))), false, 'a failed render left its net log behind');
+});
+
+test('the transport\'s half passes the child\'s net log and its own internal-address decision through', () => {
+  const spawn = () => ({ status: 0, stdout: JSON.stringify({ status: 0, stdout: '<html></html>', stderr: '', refused: [], netLog: '{"events":[]}', allowInternal: true }), stderr: '' });
+  const r = renderGuarded('/opt/chrome', browserArgs('https://x.invalid/a', { uid: 1000 }), { url: 'https://x.invalid/a', env: {}, spawn, nodePath: '/opt/node' });
+  assert.equal(r.netLog, '{"events":[]}');
+  assert.equal(r.allowInternal, true);
+  const bare = () => ({ status: 0, stdout: JSON.stringify({ status: 0, stdout: '<html></html>', stderr: '', refused: [] }), stderr: '' });
+  const old = renderGuarded('/opt/chrome', [], { url: 'https://x.invalid/a', env: {}, spawn: bare, nodePath: '/opt/node' });
+  assert.equal(old.netLog, '', 'an absent log is empty, which the transport reads as no status');
+  assert.equal(old.allowInternal, undefined, 'an absent decision is left for the transport to make');
+});
+
 // Found 2026-10-01 on CI: Chromium's process startup on the runners takes anything from 4 s
 // to 43 s before the browser makes its first request - the Windows legs, and once an Ubuntu
 // one - and that time came out of the render timeout, so the page was killed before it

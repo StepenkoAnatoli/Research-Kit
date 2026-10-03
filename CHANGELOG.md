@@ -5,10 +5,19 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The browser transport reads the origin's HTTP status and final URL from Chromium's own net
+  log (`--log-net-log`, written to a private folder the guard child deletes after reading):
+  an origin's 403 page had been graded `full`, because `--dump-dom` reports no status and
+  the collector's >= 400 rule reads a number. A non-2xx answer is now a failed fetch as it is
+  on the keyless transport, a redirect into this machine's network is refused, a capture
+  carries `statusCode` as a number and the URL it ended on, and a render whose log gave no
+  status - an older Chromium, a log that could not be written - is graded `partial` naming
+  the unobserved status, never guessed from the page's text (ADR-0137, output-reliability
+  audit G5, 2026-10-03).
 - Two decisions recorded from the output-reliability audit: one page's identity is its host
   and path and the merge of spellings stands (ADR-0136, its G6); a browser capture records the
   origin's HTTP status from Chromium's net log, or is graded partial saying it could not
-  (ADR-0137, its G5; the transport change lands separately). `AGENTS.md` gains an
+  (ADR-0137, its G5; the transport change is the bullet below). `AGENTS.md` gains an
   "Orchestrator facts" section for an agent that plans and delegates work here.
 - A fetched page is decoded in the charset its server declared (a byte-order mark first), so
   a `windows-1252` page keeps its euro sign where every body had been read as UTF-8 and the
