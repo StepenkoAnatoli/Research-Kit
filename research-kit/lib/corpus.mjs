@@ -530,15 +530,21 @@ export function readCorpus(root) {
   // rows whose ID matched - `U_99`, a typo for `U-99`, was neither an unknown nor a problem.
   // The parser held 12 rows, the corpus 11 unknowns, `problems` was empty, and the gate had
   // nothing to say: a blocking question had vanished on a typo, which is the failure the gate
-  // exists to prevent. An empty ID cell stays silent - the templates ship empty tables, and a
-  // row nobody has named yet is not a malformed one.
+  // exists to prevent. A row that is empty in every cell stays silent - a blank line somebody
+  // left in a table is not a requirement. An empty ID cell on a row that HOLDS something is
+  // the typo's twin: the row says its piece and no check can find it (the first version kept
+  // every empty ID silent on the premise that the templates ship empty rows; they ship empty
+  // tables - found 2026-10-03, review of the G2 fix).
   const malformedIds = (table, artifact, pattern, form) => {
     for (const r of table.rows) {
       const id = (r.ID ?? '').trim();
-      if (!id || pattern.test(id)) continue;
+      if (pattern.test(id)) continue;
+      if (!id && !(r.cells ?? []).some((cell) => String(cell ?? '').trim())) continue;
       problems.push({
-        kind: 'malformed-id', artifact, row: id, line: r.line,
-        detail: `row ID "${id}" is not of the form ${form}, so no check reads the row - rename it (the table's IDs are ${form}) or delete the row`,
+        kind: 'malformed-id', artifact, row: id || '(empty)', line: r.line,
+        detail: id
+          ? `row ID "${id}" is not of the form ${form}, so no check reads the row - rename it (the table's IDs are ${form}) or delete the row`
+          : `a row with an empty ID cell holds content, and no check reads a row without an ID - give it one (the table's IDs are ${form}) or delete the row`,
       });
     }
   };

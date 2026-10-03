@@ -249,12 +249,33 @@ test('a subtopic whose ID does not match <LETTERS>-<n> is a corpus problem namin
   assert.equal(corpus.subtopics.length, 9);
 });
 
-test('an untouched scaffolded project, and a row with an empty ID cell, record no malformed-id problem', () => {
+test('an untouched scaffolded project, and a row that is empty in every cell, record no malformed-id problem', () => {
   const scaffolded = makeProject(undefined, { content: true });
   assert.deepEqual(readCorpus(scaffolded).problems.filter((p) => p.kind === 'malformed-id'), []);
   const dir = makePassingProject();
   corrupt(dir, PATHS.discovery, (text) => `${text}| | | | | |\n`);
   assert.deepEqual(readCorpus(dir).problems.filter((p) => p.kind === 'malformed-id'), []);
+});
+
+// Review of the G2 fix (2026-10-03): the first version kept every empty ID silent, on the
+// premise that the templates ship empty rows. They ship empty tables, and an evidence row
+// with no ID but a URL, a finding and a capture is the typo's twin - a row that says its
+// piece and that no check can find.
+test('a row with an empty ID cell that holds content is a malformed-id problem, in each table', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (text) => `${text}|  | 2026-01-01 | P | https://example.invalid/pricing | The paid plan costs 20 a month. | research/raw/x.md |\n`);
+  corrupt(dir, PATHS.discovery, (text) => `${text}| | What does the paid plan cost? | Sets the price | CLOSED | E-01 |\n`);
+  corrupt(dir, PATHS.map, (text) => `${text}|  | Pricing | It matters | GAP | |\n`);
+  const corpus = readCorpus(dir);
+  const problems = corpus.problems.filter((p) => p.kind === 'malformed-id');
+  assert.deepEqual(problems.map((p) => p.artifact).sort(), [PATHS.discovery, PATHS.evidence, PATHS.map].sort(), JSON.stringify(problems));
+  for (const p of problems) {
+    assert.equal(p.row, '(empty)');
+    assert.ok(p.line > 0, 'the parser\'s line is named');
+    assert.match(p.detail, /empty ID cell holds content/, p.detail);
+  }
+  assert.equal(corpus.evidence.length, 1, 'the row is still not an evidence row');
+  assert.equal(corpus.unknowns.length, 1);
 });
 
 test('a plan that will not parse is reported, never absorbed', () => {
