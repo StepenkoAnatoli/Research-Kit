@@ -5,11 +5,84 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The browser transport reads the origin's HTTP status and final URL from Chromium's own net
+  log (`--log-net-log`, written to a private folder the guard child deletes after reading):
+  an origin's 403 page had been graded `full`, because `--dump-dom` reports no status and
+  the collector's >= 400 rule reads a number. A non-2xx answer is now a failed fetch as it is
+  on the keyless transport, a redirect into this machine's network is refused, a capture
+  carries `statusCode` as a number and the URL it ended on, and a render whose log gave no
+  status - an older Chromium, a log that could not be written - is graded `partial` naming
+  the unobserved status, never guessed from the page's text (ADR-0137, output-reliability
+  audit G5, 2026-10-03).
+- Two decisions recorded from the output-reliability audit: one page's identity is its host
+  and path and the merge of spellings stands (ADR-0136, its G6); a browser capture records the
+  origin's HTTP status from Chromium's net log, or is graded partial saying it could not
+  (ADR-0137, its G5; the transport change is the bullet below). `AGENTS.md` gains an
+  "Orchestrator facts" section for an agent that plans and delegates work here.
+- A fetched page is decoded in the charset its server declared (a byte-order mark first), so
+  a `windows-1252` page keeps its euro sign where every body had been read as UTF-8 and the
+  capture's hash then proved a page the server never sent; a label the decoder does not know
+  falls back to UTF-8 and the keyless capture is graded partial naming the charset; a legacy
+  label over bytes that are valid UTF-8 is read as UTF-8 (output-reliability audit G7,
+  2026-10-03). The review of that fix found four readings to correct: bytes that are not
+  valid UTF-8 under a UTF-8 label, or none - the page whose charset is named only in a
+  `<meta>` tag - were still silent U+FFFD graded full, and are now a named fallback graded
+  partial; a UTF-16 label over an 8-bit body (no byte-order mark, no NUL byte) decoded to CJK
+  garbage with no fallback, and is now read as UTF-8; an unknown label over pure ASCII was
+  graded partial though the decode was exact, and a stray quote (`charset="utf-8`) reached
+  the decoder as part of the label; and `boundedText`, the JSON reading, had started to
+  honour a legacy label where RFC 8259 makes JSON UTF-8 - it reads UTF-8 again.
+- Which of two same-day evidence rows for one URL is current follows the fetch ledger, as the
+  collector already decided it, instead of the rows' order in the table: with A fetched, then
+  B, then A again, the gate had said B superseded A, and reordering two rows changed the
+  verdict (output-reliability audit G4, 2026-10-03). The review of that fix found the
+  order still read the editable table cell first, so one edit to an older row's date failed
+  the gate on the genuinely newest row; both rows are now ordered by their captures' dates.
+- Freshness is judged by the capture's own date, not the hand-editable table cell: editing an
+  evidence row's Retrieved date alone had removed its stale warning while the capture on disk
+  kept the real date. `unknown-closure` ages a row by its capture (the cell is the fallback
+  when the capture carries no date), and `hygiene` warns `date-mismatch` when the two name
+  different days (output-reliability audit G8, 2026-10-03). The review of that fix found a
+  row with a blank Raw cell judged by the URL's latest capture - a later fetch it never read -
+  so it borrowed that fetch's date, lost its stale warning and drew a date-mismatch with the
+  wrong remedy; a row is judged by the capture it names, or by its cell when it names none.
+  A future date in the capture now fails `future-date` as one in the cell does, and the
+  stale hint's "fresher capture" is found by capture date.
+- A table row whose ID is mistyped (`U_99`, `E_7`, a subtopic without its letters-dash-number
+  form) is a hygiene FAIL naming the file, the line and the form, where it had silently
+  vanished from the corpus - no unknown, no problem, no finding - and a blocking question with
+  it (output-reliability audit G2, 2026-10-03). The review of that fix found an empty ID
+  cell kept silent on a row that holds a URL, a finding and a capture - the typo's twin; a
+  row empty in every cell stays silent, one with content is recorded.
+- A package's `buildAuthorized` requires the brief to be complete and current: every judged
+  section present and answered, and a stamped brief drafted from the corpus as it is now. A
+  drafted brief with no review sections had been approved (a missing section holds no TODO),
+  and one whose evidence changed after the draft had stayed authorized. A brief with no draft
+  stamp - every brief authored before ADR-0055 - keeps its approval, its currency unchecked
+  (output-reliability audit G1, 2026-10-03). The review of that fix found the stamp anchored
+  to the end of the file, so a line appended after it - the `Reviewed by: agent` line - made
+  a stale brief read as unstamped, re-approved the build and silenced `brief-stale`; the stamp
+  is found wherever it stands, and text after it is an edit. The unchecked approval is no
+  longer silent either: `hygiene/brief-unstamped` warns on a drafted brief with no stamp and
+  names the redraft that stamps it (ADR-0138, which records the compatibility choice).
+- The keyless and browser transports' HTML conversion keeps comparison text inside list
+  items, table cells and headings: `x &lt; 5 and y &gt; 2` had come out as `x 2`, and a link
+  label inside an item lost everything from its `<` to the item's end, because the block
+  pass decoded entities and the page-level pass then stripped the decoded `<...>` as a tag.
+  Entities are decoded once, at the end (output-reliability audit G3, 2026-10-03). The
+  review of that fix found a link's label still decoded on its own before the tag-stripping
+  pass, so `<a>limit &lt; 10 and burst &gt; 2</a>` in a paragraph came out `[limit 2](/x)`
+  and `&amp;lt;` was decoded twice; the label is no longer decoded apart, a `&nbsp;`-only
+  link is dropped in a list item as in a paragraph, and `&#38;lt;` decodes once, to `&lt;`.
 - A search provider whose `search()` throws is a failed search that says so (`<provider>
   threw: <message>`), degraded and recorded like any other, so the run and its accounting
   finish: re-thrown, it ended `research` and `decompose` mid-run, and the searches paid for
   before it never reached the usage row, which is written at the end - `--status` would have
   under-counted real spend (found 2026-10-03, probing; no adapter throws by contract today).
+  The review of that guard found an `async search()` slipping past it: the Promise reached
+  the `ok` test as a failure with no error text, and its rejection ended the process after
+  all. A Promise-returning adapter is now a failed search saying adapters are synchronous,
+  and a thrown value that cannot be rendered as text is named as such.
 - The search session (ADR-0135) was probed with hostile inputs the day it landed, and three
   things it did not say by name it now does: a provider's `null` row, or results that are not
   an array, end neither `research` nor `decompose` (both had died on `row.url`, research also

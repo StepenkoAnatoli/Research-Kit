@@ -8,19 +8,58 @@
 // the verdict's single judgement, in lib/preflight.mjs.
 
 import { hostOf, siteOf, PATHS, resolve, exists, ageInDays, urlKey, readText, kitCommand, compareText } from './core.mjs';
-import { captureOf, traceOf, citedIds, parseCapture } from './corpus.mjs';
+import { captureOf, traceOf, citedIds, parseCapture, ledgerRank } from './corpus.mjs';
 import { documentGroups, closestPair } from './similarity.mjs';
 import { coverageOfUniversals } from './dimensions.mjs';
 import { verifyLedger } from './provenance.mjs';
 import { readPrior, PRIOR_PATH } from './prior.mjs';
 import { quoteAnchors, anchorFound, quoteWords, quoteChars, MIN_QUOTE_WORDS, MIN_QUOTE_CHARS } from './quotes.mjs';
-import { draftStamp, briefInputsHash } from './brief.mjs';
+import { draftStamp, briefInputsHash, briefState } from './brief.mjs';
 
 const VALID_STATUSES = ['CLOSED', 'KNOWN-UNKNOWN'];
 const MIN_CAPTURE_CHARS = 200;
 
 function finding(severity, check, rule, detail, extra = {}) {
   return { severity, check, rule, detail, ...extra };
+}
+
+// The calendar day a retrieval value names, or null. The collector writes the same `today()`
+// into the capture's front-matter and the table's Retrieved cell, but a capture written
+// before 2026-09-19 carries a full timestamp (`2026-09-13T17:38:25.128Z`) against a
+// day-only cell, so the two are compared as days, never as strings.
+function retrievedDay(value) {
+  const text = String(value ?? '').trim();
+  const iso = text.match(/^\d{4}-\d{2}-\d{2}/);
+  if (iso) return iso[0];
+  const parsed = Date.parse(text);
+  return Number.isNaN(parsed) ? null : new Date(parsed).toISOString().slice(0, 10);
+}
+
+// The date freshness is judged by. The table's Retrieved cell is typed and hand-editable;
+// the capture's `retrieved` was written by the collector at the fetch and is under the
+// ledger's hash. Until 2026-10-03 only the cell was read, so editing E-19's cell from
+// 2026-09-20 to today made its stale warning disappear while the capture on disk still
+// said 2026-09-20 (output-reliability audit, G8). A row that cites no capture, or one
+// whose capture carries no parseable date, is still judged by the cell - there is
+// nothing better to judge it by, and hygiene says when the two disagree.
+function freshnessDate(corpus, row) {
+  const capture = ownCapture(corpus, row);
+  return capture && ageInDays(capture.retrieved) !== null ? capture.retrieved : row.retrieved;
+}
+
+// The capture a row NAMES in its Raw cell - not the one `captureOf` finds for a blank cell,
+// which is the URL's latest capture and may be a later fetch the row never read. Judged by
+// that one, a row with a blank Raw cell and a 2026-01-01 reading borrowed a fresh fetch's
+// date, lost its stale warning, and drew a date-mismatch telling the operator to write the
+// later date into the row (found 2026-10-03, review of G8). A row that names no capture is
+// judged by its cell, and has nothing to reconcile against.
+function ownCapture(corpus, row) {
+  return row?.raw ? (corpus.captures.byFile.get(row.raw) ?? null) : null;
+}
+
+/** The day a row's freshness is judged by, as a comparable string ('' when it has none). */
+function freshnessDay(corpus, row) {
+  return retrievedDay(freshnessDate(corpus, row)) ?? '';
 }
 
 // ---------------------------------------------------------------- 1. discovery-contract
@@ -327,15 +366,21 @@ function unknownClosure(corpus, options = {}) {
           `${unknown.id} cites ${id}, which is not a row in ${PATHS.evidence}`, { row: unknown.id, line: unknown.line }));
         continue;
       }
-      const age = ageInDays(row.retrieved);
+      const dated = freshnessDate(corpus, row);
+      const age = ageInDays(dated);
       if (age !== null && age > maxAgeDays) {
         // A refresh that has already happened is a different instruction from one that
         // has not: "go and collect" versus "go and read what was collected".
-        const fresher = corpus.evidence.find((e) => e.url === row.url && String(e.retrieved) > String(row.retrieved));
+        const fresher = corpus.evidence.find((e) => e.url === row.url && freshnessDay(corpus, e) > freshnessDay(corpus, row));
+        // When the capture and the cell disagree, the reader looking at the table sees a
+        // date that does not explain the age - so the judging date is named.
+        const judged = retrievedDay(dated) !== retrievedDay(row.retrieved)
+          ? ` by its capture's date, ${retrievedDay(dated)} (the table says ${row.retrieved || '(blank)'})`
+          : '';
         out.push(finding('warn', 'unknown-closure', 'stale-evidence',
           fresher
-            ? `${unknown.id} rests on ${id}, retrieved ${age} days ago (limit ${maxAgeDays}) - ${fresher.id} is already a fresher capture of the same URL; re-read it and move the citation`
-            : `${unknown.id} rests on ${id}, retrieved ${age} days ago (limit ${maxAgeDays}) - re-collect with --refresh-days`,
+            ? `${unknown.id} rests on ${id}, retrieved ${age} days ago${judged} (limit ${maxAgeDays}) - ${fresher.id} is already a fresher capture of the same URL; re-read it and move the citation`
+            : `${unknown.id} rests on ${id}, retrieved ${age} days ago${judged} (limit ${maxAgeDays}) - re-collect with --refresh-days`,
           { row: unknown.id, line: unknown.line }));
       }
       if (row.type === 'L') {
@@ -566,10 +611,24 @@ export function supersededRows(corpus) {
     byUrl.get(row.url).push(row);
   }
 
+  // On ONE date the ledger decides, as `newer` (corpus.mjs) decides for the collector: the row
+  // whose capture the later fetch wrote is current, a capture no fetch recorded ranks below
+  // every one a fetch did, and only among those does the table's order still break the tie.
+  // Until 2026-10-03 (output-reliability audit, G4) the sort was by date alone and a same-day
+  // tie fell to the stable sort's TABLE ORDER: with A fetched, then B, then A again - the
+  // third fetch reusing A's file - the collector held A current while this said B had
+  // superseded it, and swapping two evidence rows swapped the verdict.
+  // The date is the capture's, as freshness is judged (`freshnessDay`), not the table cell's:
+  // ordered by the cell, one edit to an older row's date made the gate fail the genuinely
+  // newest row for citing a "superseded" capture and told the operator to cite the older one
+  // (found 2026-10-03, review of G4 and G8).
+  const rank = ledgerRank(corpus.ledger?.entries);
+  const rankOf = (row) => rank.get(row.raw || captureOf(corpus, row)?.file) ?? -1;
+
   const superseded = new Map();
   for (const rows of byUrl.values()) {
     if (rows.length < 2) continue;
-    const ordered = [...rows].sort((a, b) => compareText(a.retrieved, b.retrieved));
+    const ordered = [...rows].sort((a, b) => compareText(freshnessDay(corpus, a), freshnessDay(corpus, b)) || (rankOf(a) - rankOf(b)));
     const current = ordered[ordered.length - 1];
     // A row is never superseded by itself: a row pasted twice read "E-01 has been superseded
     // by E-01" (found 2026-09-27). The duplicate ID is hygiene's to name.
@@ -711,6 +770,16 @@ function hygiene(corpus) {
         : `redraft with ${kitCommand('brief.mjs')}`),
       { file: PATHS.brief }));
   }
+  // A drafted brief with no stamp was drafted before ADR-0055 gave drafts one. Its currency
+  // cannot be checked, so it keeps its approval (ADR-0138) - and this says so, because an
+  // approval nothing can check is otherwise silent (found 2026-10-03, review of the G1 fix).
+  const state = corpus.brief?.present ? briefState(corpus.brief.text) : 'template';
+  if (!stamp && (state === 'draft' || state === 'authored')) {
+    out.push(finding('warn', 'hygiene', 'brief-unstamped',
+      `${PATHS.brief} carries no draft stamp (it was drafted before ADR-0055), so whether it is current with the contract and `
+      + `evidence cannot be checked - redraft with ${kitCommand('brief.mjs', '--force')} (the brief is kept as a backup) and carry your judgements over`,
+      { file: PATHS.brief }));
+  }
 
   const cited = new Set(corpus.evidence.map((row) => row.raw || captureOf(corpus, row)?.file).filter(Boolean));
   for (const capture of corpus.captures.entries) {
@@ -725,15 +794,57 @@ function hygiene(corpus) {
       `${row.id} has retrieval date "${row.retrieved}", which does not parse`, { row: row.id, line: row.line }));
   }
 
+  // The cell and the capture it cites must name the same day. The collector writes one
+  // `today()` into both, so a disagreement is an edit to the table after the fetch - and
+  // until 2026-10-03 nothing said so, while freshness read the cell: editing E-19's date
+  // alone made its stale warning disappear (output-reliability audit, G8). Freshness now
+  // reads the capture (`freshnessDate`), and this is the finding that explains why the
+  // table's date is not the one being judged. A cell that does not parse is
+  // unparseable-date's to name; a capture with no date gives nothing to reconcile against.
+  for (const row of corpus.evidence) {
+    const capture = ownCapture(corpus, row);
+    const captureDay = retrievedDay(capture?.retrieved);
+    if (!captureDay) continue;
+    if (row.retrieved && ageInDays(row.retrieved) === null) continue;
+    if (retrievedDay(row.retrieved) === captureDay) continue;
+    out.push(finding('warn', 'hygiene', 'date-mismatch',
+      `${row.id} has retrieval date ${row.retrieved || '(blank)'}, but its capture ${capture.file} records retrieved ${captureDay} - `
+      + 'write the capture\'s date in the row; freshness is judged by the capture, not the table',
+      { row: row.id, line: row.line }));
+  }
+
   // No page was fetched in the future, and a future date hides the row's age from every
   // freshness check: 2030-01-01 passed without a word (found 2026-09-27). A day of slack, so
   // a date written in a time zone ahead of this machine's is not a failure.
   for (const row of corpus.evidence) {
     const age = row.retrieved ? ageInDays(row.retrieved) : null;
-    if (age === null || age >= -1) continue;
+    if (age !== null && age < -1) {
+      out.push(finding('fail', 'hygiene', 'future-date',
+        `${row.id} has retrieval date ${row.retrieved}, which is in the future - write the date the page was fetched (its capture records it)`,
+        { row: row.id, line: row.line }));
+      continue;
+    }
+    // The capture's date is the one freshness is judged by, so a future date there hides the
+    // row's age just as well, and only date-mismatch had anything to say (found 2026-10-03,
+    // review of G8). It takes a collector whose clock was ahead; it is still not evidence.
+    const capture = ownCapture(corpus, row);
+    const captureAge = capture ? ageInDays(capture.retrieved) : null;
+    if (captureAge === null || captureAge >= -1) continue;
     out.push(finding('fail', 'hygiene', 'future-date',
-      `${row.id} has retrieval date ${row.retrieved}, which is in the future - write the date the page was fetched (its capture records it)`,
-      { row: row.id, line: row.line }));
+      `${row.id}'s capture ${capture.file} records retrieved ${retrievedDay(capture.retrieved)}, which is in the future - the collector's clock was ahead `
+      + 'when the page was fetched, and freshness is judged by that date; re-collect the page',
+      { row: row.id, line: row.line, file: capture.file }));
+  }
+
+  // A row whose ID is not in its table's form is a fail, for the same reason duplicate-id is:
+  // the ID is how every check finds the row, and a row no check can find is a requirement
+  // that has silently left the gate. `U_99` was read as nothing at all - not an unknown, not a
+  // problem, not a finding (found 2026-10-03, output-reliability audit G2); readCorpus now
+  // records it, and this is where it is named.
+  for (const problem of corpus.problems) {
+    if (problem.kind !== 'malformed-id') continue;
+    out.push(finding('fail', 'hygiene', 'malformed-id',
+      `${problem.artifact}:${problem.line} ${problem.detail}`, { row: problem.row, line: problem.line }));
   }
 
   if (!out.length) out.push(finding('pass', 'hygiene', 'hygiene', 'no duplicate rows, no uncited captures'));
@@ -745,6 +856,9 @@ function hygiene(corpus) {
 function corpusShape(corpus) {
   const out = [];
   for (const problem of corpus.problems) {
+    // hygiene names a malformed ID (as a fail, beside duplicate-id); echoing it here as a warn
+    // would report one typo twice.
+    if (problem.kind === 'malformed-id') continue;
     const blocking = problem.kind === 'raw-dangling' || problem.kind === 'plan-unparsed' || problem.kind === 'kit-unparsed'
       || problem.kind === 'capture-outside' || problem.kind === 'raw-outside' || problem.kind === 'capture-too-large' || problem.kind === 'capture-unreadable';
     out.push(finding(blocking ? 'fail' : 'warn', 'corpus-shape', problem.kind,

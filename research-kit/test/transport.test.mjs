@@ -288,6 +288,51 @@ test('htmlToMarkdown keeps headings, lists, links and tables; drops scripts', ()
   assert.match(md, /\| Plan \| Credits \|/);
 });
 
+// Found 2026-10-03 (output-reliability audit, G3): a list item, table cell or heading holding
+// `x &lt; 5 and y &gt; 2` came out as `x 2`. The block pass decoded the entities inside the
+// item, and the page-level pass then stripped `< 5 and y >` as if it were a tag; a paragraph
+// survived because it is converted once. A limit written `< 10 requests` in a bulleted
+// pricing page is exactly the fact the capture exists to keep, and the ledger and the quote
+// check verify the damaged text faithfully. Entities are decoded once, at the end.
+test('comparison text inside a list item, a table cell or a heading survives conversion', () => {
+  const md = httpKeyless.htmlToMarkdown('<p>Allow when x &lt; 5 and y &gt; 2.</p><ul><li>Allow when x &lt; 5 and y &gt; 2.</li></ul>'
+    + '<table><tr><td>x &lt; 5 and y &gt; 2</td><td>&lt;10 requests</td></tr></table><h2>When x &lt; 5 and y &gt; 2</h2>');
+  assert.match(md, /^Allow when x < 5 and y > 2\.$/m, 'the paragraph');
+  assert.match(md, /^- Allow when x < 5 and y > 2\.$/m, 'the list item');
+  assert.match(md, /^\| x < 5 and y > 2 \| <10 requests \|$/m, 'the table cells');
+  assert.match(md, /^## When x < 5 and y > 2$/m, 'the heading');
+});
+
+test('an entity inside a link label, bold text or code in a list item is decoded once and kept', () => {
+  const md = httpKeyless.htmlToMarkdown('<ul><li>See <a href="https://x.invalid/l">limits &lt; 10</a> and <b>a &lt; b</b> or <code>n &gt; 0</code> &amp; more</li></ul>');
+  assert.equal(md, '- See [limits < 10](https://x.invalid/l) and **a < b** or `n > 0` & more');
+  // A double-encoded entity is decoded exactly once, as a reader of the page would see it.
+  assert.equal(httpKeyless.htmlToMarkdown('<li>&amp;lt;b&amp;gt;</li>'), '- &lt;b&gt;');
+});
+
+// Found 2026-10-03 (review of the G3 fix): the G3 change left the page-level pass decoding
+// a link's label INSIDE the link pass, before the tag-stripping pass that follows it. So a
+// link in a paragraph or a div - the one place G3's test did not look - still lost its
+// comparison text (`[limit 2](/x)`) and still double-decoded `&amp;lt;`. The label is never
+// decoded on its own: entities are decoded once, at the end, wherever the link stands.
+test('comparison text inside a link label in a paragraph or a div survives, decoded once', () => {
+  assert.equal(httpKeyless.htmlToMarkdown('<p>See <a href="/x">limit &lt; 10 and burst &gt; 2</a> now.</p>'),
+    'See [limit < 10 and burst > 2](/x) now.');
+  assert.equal(httpKeyless.htmlToMarkdown('<div>See <a href="/x">limit &lt; 10</a> now.</div>'), 'See [limit < 10](/x) now.');
+  assert.equal(httpKeyless.htmlToMarkdown('<p><a href="/x">a &amp;lt; b</a></p>'), '[a &lt; b](/x)');
+  // A label that is only `&nbsp;` is as empty as one that is only a space, in a list item as
+  // in a paragraph: the link is dropped in both, so a page's blank icon links do not become
+  // `[ ](/x)` in its bulleted text.
+  const blank = httpKeyless.htmlToMarkdown('<ul><li><a href="/x">&nbsp;</a> item</li></ul><p><a href="/y">&nbsp;</a> para</p>');
+  assert.match(blank, /^- item$/m, 'the list item keeps its text and drops the blank link');
+  assert.match(blank, /^ ?para$/m, 'the paragraph the same');
+  assert.doesNotMatch(blank, /\[ *\]\(/, 'no empty link survives anywhere');
+  // A numeric reference that spells an ampersand is decoded once too: `&#38;lt;` is the text
+  // `&lt;`, not `<`.
+  assert.equal(httpKeyless.decodeEntities('&#38;lt; &#x26;gt; &amp;amp;'), '&lt; &gt; &amp;');
+  assert.equal(httpKeyless.htmlToMarkdown('<p>&#38;lt;b&#38;gt;</p>'), '&lt;b&gt;');
+});
+
 test('a page that marks its content with <main> is believed over a denser fragment', () => {
   // Found 2026-09-27: on a GitHub Docs page the keyless extractor kept the 262-character
   // summary and dropped the 17,385-character <main> around it - words-per-tag favours a
@@ -433,8 +478,8 @@ test('with no proxy, or with the operator\'s own setting, the environment is lef
 // length bar to every body. A CLOSED unknown resting on it would be flagged for a gap that
 // does not exist.
 
-const scrapeServed = (contentType, body) => httpKeyless.scrape('https://x.invalid/api', {
-  spawn: () => ({ status: 0, stderr: '', stdout: JSON.stringify({ ok: true, url: 'https://x.invalid/api', statusCode: 200, contentType, body }) }),
+const scrapeServed = (contentType, body, extra = {}) => httpKeyless.scrape('https://x.invalid/api', {
+  spawn: () => ({ status: 0, stderr: '', stdout: JSON.stringify({ ok: true, url: 'https://x.invalid/api', statusCode: 200, contentType, body, ...extra }) }),
 });
 
 test('a short JSON or text response captured whole is graded full, and kept verbatim', () => {
@@ -457,6 +502,27 @@ test('an empty body is never graded full', () => {
   const empty = scrapeServed('application/json', '');
   assert.equal(empty.completeness, 'partial');
   assert.match(empty.omitted, /empty/);
+});
+
+// Found 2026-10-03 (output-reliability audit, G7): the child decoded every body as UTF-8,
+// whatever charset the server declared, and a body it could only read on a fallback was
+// graded like one read as declared. The child now names the fallback on its answer, and the
+// grade carries it: a capture decoded in the wrong charset is not known to be the page.
+test('G7: a body the child decoded on a UTF-8 fallback is graded partial, and the reason names the charset', () => {
+  const decodeFallback = 'the page declares charset "x-nope", which TextDecoder does not know - decoded as UTF-8';
+  const text = scrapeServed('text/plain; charset=x-nope', 'plain words', { decodeFallback });
+  assert.equal(text.completeness, 'partial');
+  assert.match(text.omitted, /x-nope/, `the text grade names the charset: ${text.omitted}`);
+  assert.equal(text.markdown, 'plain words', 'the body is still kept as the child read it');
+
+  const page = `<html><body><main><p>${'word '.repeat(400)}</p></main></body></html>`;
+  assert.equal(scrapeServed('text/html; charset=utf-8', page).completeness, 'full', 'the control: a long page read as declared is full');
+  const html = scrapeServed('text/html; charset=x-nope', page, { decodeFallback });
+  assert.equal(html.completeness, 'partial');
+  assert.match(html.omitted, /x-nope/, `the HTML grade carries the fallback: ${html.omitted}`);
+
+  const none = scrapeServed('text/plain; charset=windows-1252', 'Price: €5', { decodeFallback: '' });
+  assert.equal(none.completeness, 'full', `an empty fallback is no fallback: ${none.omitted}`);
 });
 
 // ADR-0105 (2026-09-30): a binary response is refused, not kept. Decoded as text, a PDF lost

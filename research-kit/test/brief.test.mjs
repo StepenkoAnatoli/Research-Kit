@@ -4,6 +4,7 @@
 import { test, describe, assert, makePassingProject, corrupt, fs, path } from './harness.mjs';
 import { PATHS, resolve, readText, writeText } from '../lib/core.mjs';
 import {
+  draftStamp,
   BRIEF_SECTIONS, JUDGED_SECTIONS, BRIEF_FILE_MARKER, TODO_MARK,
   briefState, briefSection, judgedSection, renderBrief,
 } from '../lib/brief.mjs';
@@ -203,6 +204,24 @@ test('an unedited draft is redrafted without --force, and nothing is backed up',
   assert.equal(again.written, true, again.reason);
   assert.equal(again.backup, undefined, 'an untouched draft is not worth a backup');
   assert.match(readText(resolve(dir, PATHS.brief)), /Gate: PASS/);
+});
+
+// The stamp was anchored to the end of the file until 2026-10-03, so a line appended after
+// it - the `Reviewed by: agent` line AGENTS.md asks for - made `draftStamp` return null: the
+// draft read as unstamped, and the edit went unseen (review of the G1 fix).
+test('a stamp is found wherever it stands, and a line appended after it is an edit', () => {
+  const dir = makePassingProject();
+  renderBrief(dir);
+  const text = readText(resolve(dir, PATHS.brief));
+  const stamp = draftStamp(text);
+  assert.ok(stamp && stamp.edited === false, 'the freshly rendered draft is unedited');
+  const appended = draftStamp(`${text}\nReviewed by: agent\n`);
+  assert.ok(appended, 'a line after the stamp hid the stamp');
+  assert.equal(appended.inputs, stamp.inputs);
+  assert.equal(appended.edited, true, 'text after the stamp is an edit');
+  assert.equal(draftStamp(`${text}\n\n   \n`)?.edited, false, 'trailing blank lines are not an edit');
+  writeText(resolve(dir, PATHS.brief), `${text}\nReviewed by: agent\n`);
+  assert.equal(renderBrief(dir).written, false, 'a draft with a line appended after the stamp was redrafted without --force');
 });
 
 test('a draft with any edit still refuses without --force', () => {

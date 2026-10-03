@@ -17,10 +17,13 @@
 import http from 'node:http';
 import net from 'node:net';
 import dns from 'node:dns';
+import fs from 'node:fs';
+import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { isInternal, internalTarget } from './http-transport.mjs';
 import { proxyVariable, MAX_PAGE_BYTES } from './runtime.mjs';
+import { tempBase } from './core.mjs';
 
 /** The body of a refused request: what Chromium renders in place of the page it was sent to. */
 export const REFUSAL_MARKER = 'research-kit-guard-refused';
@@ -231,7 +234,7 @@ export function guardFlags(port) {
 /**
  * Run `binary` through a guard that exempts only the `host:port` of `url`: `args` are its flags
  * ending in `--dump-dom <url>`; the guard's flags are inserted before those two. Resolves to Chromium's exit as spawnSync would report
- * it, plus `refused` and `truncated`.
+ * it, plus `refused`, `truncated` and `netLog` (ADR-0137).
  */
 export async function renderThroughGuard({ binary, args, url, timeout = 60_000, allowInternal = false, upstream = null, lookup = dns.lookup } = {}) {
   const asked = new URL(url);
@@ -242,9 +245,16 @@ export async function renderThroughGuard({ binary, args, url, timeout = 60_000, 
   const clock = { timer: null, started: 0, firstRequestAt: null, timedOut: false, kill: () => {} };
   const arm = () => { clearTimeout(clock.timer); clock.timer = setTimeout(() => { clock.timedOut = true; clock.kill(); }, timeout); };
   const guard = await startGuard({ allowInternal, exempt: [`${asked.hostname.replace(/^\[|\]$/g, '').includes(':') ? `[${asked.hostname.replace(/^\[|\]$/g, '')}]` : asked.hostname}:${asked.port || (asked.protocol === 'https:' ? 443 : 80)}`], upstream, lookup, pageFirst: true, onFirstRequest: () => { if (clock.firstRequestAt !== null) return; clock.firstRequestAt = Date.now(); arm(); } });
+  // Chromium's net log, for the origin's HTTP status `--dump-dom` does not report (ADR-0137,
+  // 2026-10-03): written to a private folder of this render's, read once the browser is gone,
+  // and deleted on every way out. A folder that cannot be made means no log, which the
+  // transport grades as a status not observed - never a render refused for it.
+  let logDir = null;
+  try { logDir = fs.mkdtempSync(path.join(tempBase(), 'rk-netlog-')); } catch { logDir = null; }
+  const logFile = logDir ? path.join(logDir, 'net-log.json') : null;
   try {
-    const argv = [...args.slice(0, -2), ...guardFlags(guard.port), ...args.slice(-2)];
-    return await new Promise((resolve) => {
+    const argv = [...args.slice(0, -2), ...guardFlags(guard.port), ...(logFile ? [`--log-net-log=${logFile}`] : []), ...args.slice(-2)];
+    const rendered = await new Promise((resolve) => {
       let child;
       // Its own process group on POSIX, so a timeout kills the helpers Chromium forks too: left
       // alive, they hold its stdout open and the 'close' event never comes.
@@ -309,9 +319,17 @@ export async function renderThroughGuard({ binary, args, url, timeout = 60_000, 
       child.on('close', (status, signal) => settle(status, signal));
       child.on('exit', (status, signal) => { setTimeout(() => settle(status, signal), 1000).unref(); });
     });
+    return { ...rendered, netLog: readNetLog(logFile) };
   } finally {
     await guard.close();
+    if (logDir) { try { fs.rmSync(logDir, { recursive: true, force: true }); } catch { /* a temp folder that will not go is the OS's business */ } }
   }
+}
+
+/** The net log's text, '' when there is none or it is past MAX_PAGE_BYTES (dropped whole, ADR-0082). */
+function readNetLog(file) {
+  if (!file) return '';
+  try { return fs.statSync(file).size > MAX_PAGE_BYTES ? '' : fs.readFileSync(file, 'utf8'); } catch { return ''; }
 }
 
 // ---------------------------------------------------------------- the child half
@@ -331,7 +349,9 @@ async function child() {
       || (job.allowInternalRedirects !== false && await internalTarget(new URL(job.url).hostname) !== null);
     const variable = proxyVariable(process.env);
     const result = await renderThroughGuard({ ...job, allowInternal, upstream: variable ? process.env[variable] : null });
-    process.stdout.write(JSON.stringify(result), () => process.exit(0));
+    // The decision is reported with the render: the transport judges the final URL the net log
+    // names by the same rule, and only this half resolved the URL asked for (ADR-0137).
+    process.stdout.write(JSON.stringify({ ...result, allowInternal }), () => process.exit(0));
   } catch (err) {
     process.stdout.write(JSON.stringify({ errorCode: err.code ?? 'GUARD', errorMessage: err.message }), () => process.exit(0));
   }

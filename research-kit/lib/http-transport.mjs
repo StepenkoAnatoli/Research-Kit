@@ -15,7 +15,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 import dns from 'node:dns';
-import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow, fetchFailure } from './runtime.mjs';
+import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedBody, outputOverflow, fetchFailure } from './runtime.mjs';
 
 export const name = 'http-keyless';
 export const FULL_THRESHOLD = 1500;
@@ -193,10 +193,14 @@ function codePoint(n) {
 
 export function decodeEntities(text) {
   const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', mdash: '—', ndash: '–', hellip: '…', rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”' };
-  return String(text)
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => codePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => codePoint(Number(dec)))
-    .replace(/&([a-z]+);/gi, (all, key) => named[key.toLowerCase()] ?? all);
+  // One pass over every reference kind at once: three passes in turn decoded `&#38;lt;` to
+  // `&lt;` and then to `<`, so a page spelling an ampersand numerically was read twice
+  // (found 2026-10-03, review of the G3 fix).
+  return String(text).replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (all, ref) => {
+    if (/^#x/i.test(ref)) return codePoint(parseInt(ref.slice(2), 16));
+    if (ref[0] === '#') return codePoint(Number(ref.slice(1)));
+    return named[ref.toLowerCase()] ?? all;
+  });
 }
 
 /**
@@ -309,11 +313,16 @@ export function htmlToMarkdown(html) {
   let text = String(html);
   text = replacePairs(text, BLOCK_DROP, () => ' ');
   text = replacePairs(text, { open: /<!--/g, tag: 'none', close: () => '-->' }, () => ' ');
+  // The block passes convert their bodies WITHOUT decoding entities: the page-level pass
+  // below strips every tag that is left, and a `<` decoded here would be read there as the
+  // start of one. A list item holding `x &lt; 5 and y &gt; 2` came out as `x 2`, a table cell
+  // and a heading the same, while a paragraph - converted once - survived (found 2026-10-03,
+  // output-reliability audit G3). Entities are decoded exactly once, at the end.
   text = replacePairs(text, { open: /<h([1-6])\b/gi, close: (m) => `<\\/h${m[1]}>` },
-    (p) => `\n\n${'#'.repeat(Number(p.open[1]))} ${inline(p.body)}\n\n`);
-  text = replacePairs(text, named('li'), (p) => `\n- ${inline(p.body)}`);
+    (p) => `\n\n${'#'.repeat(Number(p.open[1]))} ${inline(p.body, { decode: false })}\n\n`);
+  text = replacePairs(text, named('li'), (p) => `\n- ${inline(p.body, { decode: false })}`);
   text = replacePairs(text, named('tr'), (p) => {
-    const cells = tagPairs(p.body, { open: /<t[dh]\b/gi, close: () => '<\\/t[dh]>' }).map((c) => inline(c.body));
+    const cells = tagPairs(p.body, { open: /<t[dh]\b/gi, close: () => '<\\/t[dh]>' }).map((c) => inline(c.body, { decode: false }));
     return cells.length ? `\n| ${cells.join(' | ')} |` : '\n';
   });
   text = text.replace(/<br\s*\/?>/gi, '\n');
@@ -326,15 +335,24 @@ export function htmlToMarkdown(html) {
 // quoted value is matched as the regex matched it, anchored where the tag starts.
 const LINK = { open: /<a\b/gi, tag: { find: /href=/gi, match: /href=["']([^"']*)["'][^>]*>/iy }, close: () => '<\\/a>' };
 
-function inline(html) {
+/**
+ * Inline markup to Markdown. `decode: false` leaves entities as written, for a body that a
+ * later pass will strip tags from and decode (the block passes above); the page-level pass
+ * decodes once. A link's label is never decoded on its own: the tag-stripping pass below
+ * runs over it afterwards, and a `<` decoded first was read there as a tag (`[limit 2](/x)`
+ * for `limit &lt; 10 and burst &gt; 2`, in a paragraph; found 2026-10-03, review of the G3
+ * fix). Its emptiness is judged on the decoded text, so `&nbsp;` alone is as empty as a space.
+ */
+function inline(html, { decode = true } = {}) {
+  const finish = (text) => (decode ? decodeEntities(text) : text);
   let text = replacePairs(String(html), LINK, (p) => {
-    const label = decodeEntities(stripTags(p.body, '').text).trim();
-    return label ? `[${label}](${p.tag[1]})` : '';
+    const label = stripTags(p.body, '').text.trim();
+    return decodeEntities(label).trim() ? `[${label}](${p.tag[1]})` : '';
   });
   text = replacePairs(text, named('strong|b'), (p) => `**${p.body}**`);
   text = replacePairs(text, named('em|i'), (p) => `*${p.body}*`);
   text = replacePairs(text, named('code'), (p) => `\`${p.body}\``);
-  return decodeEntities(stripTags(text, ' ').text).replace(/[ \t]{2,}/g, ' ').trim();
+  return finish(stripTags(text, ' ').text).replace(/[ \t]{2,}/g, ' ').trim();
 }
 
 export function titleOf(html) {
@@ -370,6 +388,17 @@ export function gradeCompleteness(markdown, extraction = null) {
   return { completeness: 'partial', omitted: reasons.join('; ') };
 }
 
+/**
+ * The grade with the child's charset fallback beside it. Found 2026-10-03 (output-reliability
+ * audit, G7): a body the child could only read as UTF-8, against a charset it did not know,
+ * was graded like one read as declared. It is not known to be the page, whatever its length,
+ * and the reason names the charset the server declared.
+ */
+function withDecodeFallback(grade, job) {
+  if (!job.decodeFallback) return grade;
+  return { completeness: 'partial', omitted: [grade.omitted, job.decodeFallback].filter(Boolean).join('; ') };
+}
+
 // ---------------------------------------------------------------- the adapter
 
 export function command(argv) {
@@ -402,6 +431,7 @@ function verbatim(url, job, argv) {
   const body = job.body ?? '';
   const reasons = [];
   if (!body.length) reasons.push('the response body was empty');
+  if (job.decodeFallback) reasons.push(job.decodeFallback);
   return {
     ok: true,
     url: job.url ?? url,
@@ -465,7 +495,7 @@ export function scrape(url, opts = {}) {
   const html = job.body ?? '';
   const extraction = mainContent(html);
   const markdown = htmlToMarkdown(extraction.html);
-  const grade = gradeCompleteness(markdown, extraction);
+  const grade = withDecodeFallback(gradeCompleteness(markdown, extraction), job);
   return {
     ok: true,
     url: job.url ?? url,
@@ -701,13 +731,16 @@ async function child() {
       url = next.href;
       response = await fetch(url, init);
     }
-    const body = await boundedText(response, 'the page');
+    // Read in the charset the server declared, and a charset the decoder did not know is
+    // named on the answer, so the parent can grade the capture by it (G7, 2026-10-03).
+    const { text: body, fallback: decodeFallback } = await boundedBody(response, 'the page');
     process.stdout.write(JSON.stringify({
       ok: response.ok,
       url,
       statusCode: response.status,
       contentType: response.headers.get('content-type') ?? '',
       body,
+      decodeFallback,
       error: response.ok ? '' : `HTTP ${response.status}`,
     }));
   } catch (err) {

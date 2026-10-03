@@ -86,6 +86,11 @@ export function mergeByRank(lists) {
  * under the corpus lock. Anything that is not a rate limit returns at once, so a 404 or an
  * outage still costs exactly one call and still reaches the fallback and the failure log.
  */
+/** A thrown value as text, for a value whose own rendering throws (a Symbol, a poisoned getter). */
+function thrownText(err) {
+  try { return String(err?.message ?? err); } catch { return 'a value that cannot be rendered as text'; }
+}
+
 export function searchPatiently(provider, text, { limit, maxRateLimitRetries = 2, sleep = sleepSync, log = () => {} } = {}) {
   // A fetch-only transport (the browser, ADR-0088) is a failed search, said in words - never a
   // TypeError ending the run (found 2026-10-01, break-test).
@@ -100,7 +105,16 @@ export function searchPatiently(provider, text, { limit, maxRateLimitRetries = 2
       // search that says it was a throw: re-thrown, it ended the run, and the searches paid
       // for before it never reached the usage row, which is written at the end (found
       // 2026-10-03, probing). A throw is not a rate limit, so it is not retried.
-      return { ok: false, query: text, results: [], error: `${provider.name} threw: ${err?.message ?? err}` };
+      return { ok: false, query: text, results: [], error: `${provider.name} threw: ${thrownText(err)}` };
+    }
+    // Search adapters are synchronous (`searchSession` runs under the corpus lock, and every
+    // coordinator reads the answer as it returns). An adapter that returns a Promise - an
+    // `async search()` - reached the `r?.ok` test as a failure with no error text, and when it
+    // rejected, the rejection nobody awaited ended the process after all: the very ending the
+    // throw guard above exists to prevent (found 2026-10-03, review of that guard).
+    if (typeof r?.then === 'function') {
+      Promise.resolve(r).catch(() => {});
+      return { ok: false, query: text, results: [], error: `${provider.name} returned a Promise - search adapters are synchronous, and its answer was not waited for` };
     }
     if (r?.ok || attempt >= maxRateLimitRetries) return r;
     const wait = firecrawl.rateLimitWaitMs(r?.error);

@@ -107,6 +107,69 @@ test('a reviewed corpus reaches APPROVED_BRIEF, and every dependent field agrees
   assert.deepEqual(m.review, { mapClassified: true, findingsReviewed: true, briefReviewed: true, by: 'undeclared' });
 });
 
+// Found 2026-10-03 (output-reliability audit, G1): `briefState` read a MISSING judged section
+// as answered - empty text holds no TODO - so a drafted brief with no review sections at all
+// derived APPROVED_BRIEF and buildAuthorized: true on the repository's own corpus; and a brief
+// whose draft stamp no longer matched the corpus (an evidence finding changed after the
+// draft) stayed authorized too. Approval requires every judged section present and answered,
+// and the stamp's inputs hash current.
+test('a brief missing a judged section is not approved, however the rest reads', () => {
+  const root = approvedProject();
+  const file = resolve(root, 'research/BRIEF.md');
+  const text = fs.readFileSync(file, 'utf8');
+  const start = text.indexOf('## Decision');
+  const next = text.indexOf('\n## ', start + 1);
+  assert.ok(start > -1 && next > start, 'the fixture brief has a Decision section followed by another');
+  fs.writeFileSync(file, text.slice(0, start) + text.slice(next + 1), 'utf8');
+  const built = build(root);
+  assert.equal(built.manifest.buildAuthorized, false, 'a brief with no Decision section authorized the build');
+  assert.equal(built.manifest.review.briefReviewed, false);
+  assert.notEqual(built.manifest.state, 'APPROVED_BRIEF');
+});
+
+test('a brief drafted from an older corpus is not approved: the stamp must match the inputs', () => {
+  const root = approvedProject();
+  const file = resolve(root, 'research/EVIDENCE.md');
+  const text = fs.readFileSync(file, 'utf8');
+  const row = text.split('\n').find((l) => /^\| E-\d+ \|/.test(l));
+  assert.ok(row, 'the fixture has an evidence row');
+  const cells = row.split(' | ');
+  cells[4] = `${cells[4]} (revised after the draft)`;
+  fs.writeFileSync(file, text.replace(row, cells.join(' | ')), 'utf8');
+  const built = build(root);
+  assert.equal(built.manifest.buildAuthorized, false, 'a brief drafted before the evidence changed authorized the build');
+  assert.equal(built.manifest.review.briefReviewed, false);
+  assert.ok(built.derived.verdict.warnings.some((w) => w.rule === 'brief-stale'), 'the gate it ran names why');
+  // A line appended AFTER the stamp - a reviewer's note, the `Reviewed by: agent` line - had
+  // made the brief read as unstamped, so the same stale brief re-approved the build (found
+  // 2026-10-03, review of G1). The stamp is found wherever it stands.
+  const brief = resolve(root, 'research/BRIEF.md');
+  fs.writeFileSync(brief, `${fs.readFileSync(brief, 'utf8')}\nReviewed by: agent\n`, 'utf8');
+  const appended = build(root);
+  assert.equal(appended.manifest.review.by, 'agent', 'the appended line is read');
+  assert.equal(appended.manifest.review.briefReviewed, false, 'a line after the stamp un-staled the brief');
+  assert.equal(appended.manifest.buildAuthorized, false);
+  assert.ok(appended.derived.verdict.warnings.some((w) => w.rule === 'brief-stale'), 'brief-stale fell silent');
+});
+
+// The compatibility path the audit asked for: eleven briefs in this repository, the root's
+// own among them, were authored before ADR-0055's stamp existed. An authored, answered brief
+// with no stamp keeps its approval - its currency cannot be checked, and hygiene's
+// brief-unstamped says so (ADR-0138) rather than enforcing it on a brief that predates the
+// mechanism; a redraft with --force stamps it. A stamped brief that has been EDITED after drafting (the fixture answers its
+// TODOs after the real renderer wrote it) stays approved while its inputs still match.
+test('an authored brief without a stamp keeps its approval, and an edited stamped one with current inputs does too', () => {
+  const root = approvedProject();
+  const file = resolve(root, 'research/BRIEF.md');
+  const text = fs.readFileSync(file, 'utf8');
+  assert.match(text, /research-kit:brief-draft/, 'the fixture brief carries a stamp');
+  assert.equal(build(root).manifest.buildAuthorized, true, 'an edited brief whose inputs still match is approved');
+  fs.writeFileSync(file, text.replace(/\n?<!-- research-kit:brief-draft [^>]*-->\s*$/, '\n'), 'utf8');
+  const unstamped = build(root);
+  assert.equal(unstamped.manifest.buildAuthorized, true, 'an unstamped authored brief keeps its approval (compatibility)');
+  assert.ok(unstamped.derived.verdict.warnings.some((w) => w.rule === 'brief-unstamped'), 'an approval nothing can check is said');
+});
+
 test('an unreviewed corpus does NOT, and says which step is outstanding', () => {
   const built = build(collectedProject());
   assert.equal(built.manifest.buildAuthorized, false);

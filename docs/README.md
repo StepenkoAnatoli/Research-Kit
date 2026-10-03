@@ -14,7 +14,7 @@ in this repository.
 | see the research behind a decision about the kit itself | [`decisions/README.md`](decisions/README.md) | each project's `research/BRIEF.md` |
 | see what changed in a release | [`../CHANGELOG.md`](../CHANGELOG.md) | the tag on GitHub |
 | follow a past review or measurement | the dated files in this folder, and [`architecture-history/`](architecture-history/README.md) | |
-| review the 2026-10-03 output-reliability findings | [`review-2026-10-03-output-reliability.md`](review-2026-10-03-output-reliability.md) | eight ranked findings, reproductions, proposed corrections, and audit limits at `74c0791` |
+| review the 2026-10-03 output-reliability findings | [`review-2026-10-03-output-reliability.md`](review-2026-10-03-output-reliability.md) | eight ranked findings, reproductions, proposed corrections, and audit limits at `74c0791`; section 9 records the fix for each and the dispositions of the review of those fixes |
 
 Two habits of this repository that a newcomer should know before reading further:
 

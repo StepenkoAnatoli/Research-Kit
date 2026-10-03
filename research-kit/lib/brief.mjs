@@ -82,7 +82,7 @@ export function briefState(text) {
  * holds no judgement, so it is redrafted without --force. The second says whether the
  * corpus has moved on since, which `hygiene/brief-stale` reports (ADR-0055).
  */
-const DRAFT_STAMP = /\n?<!-- research-kit:brief-draft body=([0-9a-f]{16}) inputs=([0-9a-f]{16})(?: gate=(pass|fail|unknown))? -->\s*$/;
+const DRAFT_STAMP = /\n?<!-- research-kit:brief-draft body=([0-9a-f]{16}) inputs=([0-9a-f]{16})(?: gate=(pass|fail|unknown))? -->[ \t]*\r?\n?/g;
 
 const shortHash = (text) => sha256(foldLineEndings(text)).slice(0, 16);
 
@@ -102,12 +102,22 @@ export function briefInputsHash(snapshot) {
   }));
 }
 
-/** `{ edited, inputs }` for a stamped draft, or `null` for anything without the stamp. */
+/**
+ * `{ edited, inputs, gate }` for a stamped draft, or `null` for anything without the stamp.
+ * The stamp is found wherever it stands - the last one, if the brief holds several. It was
+ * anchored to the end of the file until 2026-10-03: a line appended after it (a reviewer's
+ * note, the `Reviewed by: agent` line AGENTS.md asks for) made the brief read as unstamped,
+ * so a stale brief re-approved the build and `brief-stale` fell silent (review of the G1
+ * fix). Text after the stamp counts as an edit, as text before it always did.
+ */
 export function draftStamp(text) {
   const body = String(text ?? '');
-  const m = DRAFT_STAMP.exec(body);
+  let m = null;
+  for (const found of body.matchAll(DRAFT_STAMP)) m = found;
   if (!m) return null;
-  return { edited: shortHash(body.slice(0, m.index)) !== m[1], inputs: m[2], gate: m[3] ?? 'unknown' };
+  const after = body.slice(m.index + m[0].length);
+  const rest = body.slice(0, m.index) + (after.trim() ? after : '');
+  return { edited: shortHash(rest) !== m[1], inputs: m[2], gate: m[3] ?? 'unknown' };
 }
 
 export function briefSection(text, key) {

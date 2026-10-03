@@ -4,12 +4,12 @@
 
 import path from 'node:path';
 import { test, describe, assert, makeProject, makePassingProject, corrupt, fs, tempDir } from './harness.mjs';
-import { PATHS, resolve, writeText, readText } from '../lib/core.mjs';
+import { PATHS, resolve, writeText, readText, today, sha256File } from '../lib/core.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 import { writeRaw, collectOne } from '../lib/collect.mjs';
-import { readCorpus } from '../lib/corpus.mjs';
+import { readCorpus, captureOf } from '../lib/corpus.mjs';
 import { CHECKS, CHECK_NAMES, runCheck, runChecks, supersededRows } from '../lib/checks.mjs';
-import { verifyLedger, rebuildLedger } from '../lib/provenance.mjs';
+import { verifyLedger, rebuildLedger, appendFetch } from '../lib/provenance.mjs';
 import { renderBrief } from '../lib/brief.mjs';
 import { UNIVERSAL_DIMENSIONS, coverageOfUniversals } from '../lib/dimensions.mjs';
 
@@ -83,6 +83,25 @@ test('unknown-closure: stale evidence warns against the operator\'s maxAgeDays',
   const dir = makePassingProject(undefined, { date: '2020-01-01' });
   const findings = runCheck('unknown-closure', snapshot(dir), { maxAgeDays: 180 });
   assert.ok(findings.some((f) => f.rule === 'stale-evidence'));
+});
+
+// Found 2026-10-03 (output-reliability audit, G8): freshness read the table's Retrieved cell,
+// which is hand-editable and was never reconciled with the capture it cites. Editing E-19's
+// date alone made its stale warning disappear while the capture on disk still said 2026-09-20.
+test('unknown-closure: freshness is judged by the capture\'s date, not the editable table date', () => {
+  const dir = makePassingProject(undefined, { date: '2020-01-01' });
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/^(\| E-01 \| )\d{4}-\d{2}-\d{2}/m, `$1${today()}`));
+  const findings = runCheck('unknown-closure', snapshot(dir), { maxAgeDays: 180 });
+  const stale = findings.find((f) => f.rule === 'stale-evidence');
+  assert.ok(stale, `the table date alone made stale evidence fresh: ${JSON.stringify(findings)}`);
+  assert.match(stale.detail, /2020-01-01/, stale.detail);
+});
+
+test('unknown-closure: a row whose capture carries no date is judged by the table date', () => {
+  const dir = makePassingProject(undefined, { date: '2020-01-01' });
+  const corpus = snapshot(dir);
+  for (const capture of corpus.captures.entries) capture.retrieved = '';
+  assert.ok(runCheck('unknown-closure', corpus, { maxAgeDays: 180 }).some((f) => f.rule === 'stale-evidence'));
 });
 
 test('unknown-closure: a KNOWN-UNKNOWN with no verification step fails', () => {
@@ -205,6 +224,25 @@ test('corpus-shape: a row whose arity does not match its header is reported, not
   const corpus = snapshot(dir);
   assert.ok(corpus.problems.some((p) => p.kind === 'table-arity'));
   assert.ok(runCheck('corpus-shape', corpus).some((f) => f.rule === 'table-arity'));
+});
+
+// Found 2026-10-03 (output-reliability audit, G2): `U_99` was dropped by readCorpus and
+// runChecks reported nothing - a blocking question vanished on a typo.
+test('hygiene: a row whose ID does not match its table fails, naming the table, the ID and the line - once', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => `${text}| U_99 | Is the service usable? | Blocks the design | OPEN | |\n`);
+  const line = readText(resolve(dir, PATHS.discovery)).split(/\r?\n/).findIndex((l) => l.startsWith('| U_99')) + 1;
+  const findings = runChecks(snapshot(dir));
+  const named = findings.filter((f) => /U_99/.test(f.detail ?? ''));
+  assert.equal(named.length, 1, `expected one finding naming U_99, got ${JSON.stringify(named)}`);
+  const [f] = named;
+  assert.equal(f.severity, 'fail');
+  assert.equal(f.check, 'hygiene');
+  assert.equal(f.rule, 'malformed-id');
+  assert.equal(f.row, 'U_99');
+  assert.equal(f.line, line);
+  assert.match(f.detail, new RegExp(`${PATHS.discovery}:${line}`), 'the table and line are not named');
+  assert.match(f.detail, /U-/, 'no remedy naming the expected form');
 });
 
 test('order is part of the interface: findings arrive in registry order', () => {
@@ -333,6 +371,154 @@ test('an unrefreshed corpus has nothing superseded, and no check changes behavio
   for (const name of CHECK_NAMES) {
     assert.equal(failures(runCheck(name, corpus, { localHooksPath: null })).length, 0, name);
   }
+});
+
+// G4 of the output-reliability audit (2026-10-03). `supersededRows` ordered same-day rows by
+// their place in the TABLE and never read the ledger, so with captures A and B of one URL
+// fetched A, then B, then A - the third fetch reuses A's file, as `collectOne` does for
+// identical bytes - the collector held A current while this check said B had superseded it,
+// and swapping the two evidence rows swapped the verdict. A same-day tie is now broken by
+// the ledger's order, the rule `newer` (corpus.mjs) already applies for the collector.
+function abaProject({ dateOfA = null, dateOfB = null } = {}) {
+  const date = dateOfA ?? today();
+  const dir = makePassingProject(tempDir('rk-checks-aba-'), { date });
+  const url = 'https://example.invalid/docs/limits';
+  const a = readCorpus(dir).captures.entries[0];
+  const b = writeRaw(dir, {
+    url, title: 'Limits', cmd: a.command, statusCode: 200, transport: 'firecrawl-cli', completeness: 'full',
+    markdown: `# Limits\n\n${'The free plan now allows 20 requests per minute and includes 500 credits. '.repeat(30)}`,
+  }, { date: dateOfB ?? date });
+  assert.notEqual(b.file, a.file, 'the fixture wrote B over A, so it proves nothing');
+  const fetched = (entry, at) => appendFetch(dir, {
+    op: 'scrape', url, type: 'P', raw: entry.file, bodySha256: sha256File(resolve(dir, entry.file)),
+    transport: 'firecrawl-cli', completeness: 'full', cmd: entry.command, at,
+  });
+  // The ledger already holds A (seq 1). Then B, then A's bytes again - its capture is reused
+  // and recorded last - so the ledger reads A, B, A.
+  fetched(b, `${b.retrieved}T01:00:00.000Z`);
+  fetched(a, `${b.retrieved}T02:00:00.000Z`);
+  const rows = (...lines) => {
+    const header = readText(resolve(dir, PATHS.evidence)).split('\n').filter((l) => l.startsWith('|')).slice(0, 2);
+    writeText(resolve(dir, PATHS.evidence), `# Evidence\n\n${header.join('\n')}\n${lines.join('\n')}\n`);
+    return snapshot(dir);
+  };
+  const row = (id, entry) => `| ${id} | ${entry.retrieved} | P | ${url} | A reading of the page. | ${entry.file} |`;
+  return { dir, url, a, b, rows, row };
+}
+
+test('supersededRows: on one day the ledger says which capture is current, whatever the table order', () => {
+  const { url, a, b, rows, row } = abaProject();
+  for (const order of [[row('E-01', a), row('E-02', b)], [row('E-02', b), row('E-01', a)]]) {
+    const corpus = rows(...order);
+    assert.equal(corpus.chain.ok, true, 'the fixture ledger does not verify, so the rank it gives is not real');
+    assert.equal(corpus.captures.byUrl.get(url).file, a.file, 'the collector itself holds A current');
+    const ids = order.map((line) => line.slice(2, 6)).join(', ');
+    assert.equal(supersededRows(corpus).get('E-02')?.id, 'E-01', `E-02 (B) was not superseded by E-01 (A) with the rows ordered ${ids}`);
+    assert.equal(supersededRows(corpus).has('E-01'), false, `the row the ledger holds current was marked superseded with the rows ordered ${ids}`);
+  }
+});
+
+test('supersededRows: a later retrieval date still wins over the ledger\'s order', () => {
+  // B is retrieved the day after A, then A's bytes come back and its capture is reused: the
+  // ledger reads A, B, A, but B's date is later, and the date decides first - as in `newer`.
+  const { a, b, rows, row } = abaProject({ dateOfB: new Date(Date.now() + 86_400_000).toISOString().slice(0, 10) });
+  for (const order of [[row('E-01', a), row('E-02', b)], [row('E-02', b), row('E-01', a)]]) {
+    const map = supersededRows(rows(...order));
+    assert.equal(map.get('E-01')?.id, 'E-02', 'the later date lost to the ledger');
+    assert.equal(map.has('E-02'), false);
+  }
+});
+
+test('supersededRows: a capture no fetch recorded ranks below one the ledger holds, then by table order', () => {
+  const { dir, a, rows, row } = abaProject();
+  // Same-day captures nobody fetched: copies of A under names the ledger never saw.
+  const unranked = (name) => {
+    const file = `${PATHS.raw}/${a.retrieved}-${name}.md`;
+    fs.copyFileSync(resolve(dir, a.file), resolve(dir, file));
+    return { ...a, file };
+  };
+  const c = unranked('limits-copy-c');
+  const d = unranked('limits-copy-d');
+  for (const order of [[row('E-01', a), row('E-02', c)], [row('E-02', c), row('E-01', a)]]) {
+    assert.equal(supersededRows(rows(...order)).get('E-02')?.id, 'E-01', 'a file no fetch produced outranked a fetched one');
+  }
+  // Among unranked rows the table's order decides, as it did before: the last row wins.
+  assert.equal(supersededRows(rows(row('E-02', c), row('E-03', d))).get('E-02')?.id, 'E-03');
+  assert.equal(supersededRows(rows(row('E-03', d), row('E-02', c))).get('E-03')?.id, 'E-02');
+});
+
+// Review of the G4 and G8 fixes (2026-10-03). Freshness and supersession read the capture's
+// date through `captureOf`, which for a row with a BLANK Raw cell answers the URL's latest
+// capture - a later fetch the row never read. So blanking E-01's Raw cell made a 2026-01-01
+// reading fresh by borrowing a fetch from today, lost the stale warning, and drew a
+// date-mismatch telling the operator to write today's date into the row. The capture a row
+// is judged by is the one it names; a row naming none is judged by its cell.
+test('unknown-closure and hygiene: a row with a blank Raw cell is judged by its own date, not by a later capture of its URL', () => {
+  const { a, b, rows, row } = abaProject({ dateOfA: '2020-01-01', dateOfB: today() });
+  const corpus = rows(row('E-01', { ...a, file: '' }));
+  assert.equal(corpus.captures.byUrl.get(b.url).file, b.file, 'the URL\'s latest capture is today\'s, which the row never read');
+  assert.equal(corpus.evidence[0].raw, '', 'the fixture row names no capture');
+  const stale = runCheck('unknown-closure', corpus, { maxAgeDays: 180 }).find((f) => f.rule === 'stale-evidence');
+  assert.ok(stale, 'a later fetch of the URL made a 2020 reading fresh');
+  assert.match(stale.detail, /2020-01-01|days ago/, stale.detail);
+  const mismatch = runCheck('hygiene', corpus).filter((f) => f.rule === 'date-mismatch');
+  assert.deepEqual(mismatch, [], `a row naming no capture has nothing to reconcile against: ${JSON.stringify(mismatch)}`);
+});
+
+// Supersession ordered same-URL rows by the TABLE cell first, against G8's own rule that the
+// capture's date is the one judged: E-01 fetched 09-20 with its cell edited to 09-30, E-02
+// fetched 09-25 and cited by U-1 - one table edit failed the gate on the genuinely newest
+// row and told the operator to cite the older one.
+test('supersededRows: the capture\'s date decides which row is current, not the editable table cell', () => {
+  const { a, b, rows, row } = abaProject({ dateOfA: '2026-09-20', dateOfB: '2026-09-25' });
+  for (const order of [[row('E-01', { ...a, retrieved: '2026-09-30' }), row('E-02', b)], [row('E-02', b), row('E-01', { ...a, retrieved: '2026-09-30' })]]) {
+    const corpus = rows(...order);
+    const map = supersededRows(corpus);
+    assert.equal(map.get('E-01')?.id, 'E-02', 'the edited cell outranked the later capture');
+    assert.equal(map.has('E-02'), false, 'the newest capture was marked superseded');
+    assert.ok(runCheck('hygiene', corpus).some((f) => f.rule === 'date-mismatch' && f.row === 'E-01'), 'the edit itself is still named');
+  }
+});
+
+// The stale-evidence hint named a fresher row by comparing table cells, so an old row whose
+// cell was edited to today hid the fresh capture that could replace it.
+test('unknown-closure: the fresher row a stale citation is pointed at is found by capture date', () => {
+  const { a, b, rows, row } = abaProject({ dateOfA: '2020-01-01', dateOfB: today() });
+  const corpus = rows(row('E-01', { ...a, retrieved: today() }), row('E-02', b));
+  const stale = runCheck('unknown-closure', corpus, { maxAgeDays: 180 }).find((f) => f.rule === 'stale-evidence');
+  assert.ok(stale, 'E-01 is judged by its 2020 capture');
+  assert.match(stale.detail, /E-02 is already a fresher capture/, stale.detail);
+});
+
+// A future date in the CAPTURE hid the row's age as well as one in the cell did, and only
+// date-mismatch reported it; a collector whose clock was ahead is still not evidence.
+test('hygiene: a capture retrieved in the future fails future-date, whatever the table cell says', () => {
+  const corpus = snapshot(makePassingProject());
+  const future = new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10);
+  const capture = captureOf(corpus, corpus.evidence[0]);
+  capture.retrieved = future;
+  assert.equal(captureOf(corpus, corpus.evidence[0]).retrieved, future, 'the in-memory capture is the one the row names');
+  const f = runCheck('hygiene', corpus).find((x) => x.rule === 'future-date');
+  assert.ok(f, 'a future date in the capture passed without a word');
+  assert.equal(f.severity, 'fail');
+  assert.equal(f.row, 'E-01');
+  assert.ok(f.detail.includes(capture.file) && f.detail.includes(future), f.detail);
+  assert.equal(runCheck('unknown-closure', corpus, { maxAgeDays: 180 }).some((x) => x.rule === 'stale-evidence'), false);
+});
+
+// Two readings the mutation audit (2026-10-03) found no test pinned: a capture dated by a full
+// timestamp agrees with a day-only cell, and a cell that does not parse is one finding.
+test('hygiene: a capture\'s full timestamp agrees with a day-only cell, and an unparseable cell is one finding', () => {
+  const corpus = snapshot(makePassingProject());
+  captureOf(corpus, corpus.evidence[0]).retrieved = `${today()}T17:38:25.128Z`;
+  const findings = runCheck('hygiene', corpus);
+  assert.equal(findings.some((f) => f.rule === 'date-mismatch'), false, JSON.stringify(findings.filter((f) => f.rule === 'date-mismatch')));
+
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/^(\| E-01 \| )\d{4}-\d{2}-\d{2}/m, '$1not-a-date'));
+  const hygiene = runCheck('hygiene', snapshot(dir));
+  assert.equal(hygiene.filter((f) => f.rule === 'unparseable-date').length, 1, JSON.stringify(hygiene));
+  assert.equal(hygiene.some((f) => f.rule === 'date-mismatch'), false, 'an unparseable cell is unparseable-date\'s to name, once');
 });
 
 // ---------------------------------------------------------------- corroboration
@@ -765,6 +951,25 @@ test('a retrieval date in the future fails hygiene', () => {
   assert.ok(f.detail.includes(`E-01 has retrieval date ${future}, which is in the future`), f.detail);
 });
 
+// Found 2026-10-03 (output-reliability audit, G8): a table date that disagrees with the capture's
+// own `retrieved` was not reported anywhere, so a date typed into the table stood unchallenged.
+test('a table date that disagrees with its capture\'s retrieved date warns date-mismatch', () => {
+  const dir = makePassingProject(undefined, { date: '2026-09-20' });
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/^(\| E-01 \| )\d{4}-\d{2}-\d{2}/m, `$1${today()}`));
+  const corpus = snapshot(dir);
+  const f = runCheck('hygiene', corpus).find((x) => x.rule === 'date-mismatch');
+  assert.ok(f, 'no finding for a table date that disagrees with the capture');
+  assert.equal(f.severity, 'warn');
+  assert.equal(f.row, 'E-01');
+  assert.ok(f.detail.includes(today()) && f.detail.includes('2026-09-20'), f.detail);
+  assert.ok(f.detail.includes(corpus.evidence[0].raw), f.detail);
+});
+
+test('a passing project whose table and capture agree has no date-mismatch finding', () => {
+  const findings = runCheck('hygiene', snapshot(makePassingProject()));
+  assert.equal(findings.some((f) => f.rule === 'date-mismatch'), false, JSON.stringify(findings));
+});
+
 // Found 2026-09-27: renaming "## Build intent" (to "## Intent") failed as "## Build intent is
 // empty", and the intent was right there under its new name. Missing and empty are told apart.
 test('a missing Build intent heading is named as missing, not empty', () => {
@@ -804,6 +1009,31 @@ test('hygiene warns when the brief was drafted from a corpus that has since chan
   assert.equal(stale.length, 1, 'a changed finding left the brief current');
   assert.equal(stale[0].severity, 'warn');
   assert.match(stale[0].detail, /brief\.mjs/);
+  // The stamp was anchored to the end of the file, so a line appended after it silenced
+  // this warning (found 2026-10-03, review of the G1 fix).
+  corrupt(dir, PATHS.brief, (text) => `${text}\nReviewed by: agent\n`);
+  assert.equal(quiet(snapshot(dir)).length, 1, 'a line after the stamp silenced brief-stale');
+});
+
+// Review of the G1 fix (2026-10-03, ADR-0138): a drafted brief with no stamp - every brief
+// drafted before ADR-0055 - keeps its approval because its currency cannot be checked, and
+// that was silent. Hygiene says so; a scaffold's template brief and a hand-written legacy
+// brief are not drafts and get no such warning.
+test('hygiene warns brief-unstamped for a drafted brief with no stamp, and for nothing else', () => {
+  const dir = makePassingProject();
+  const unstamped = (corpus) => runCheck('hygiene', corpus).filter((f) => f.rule === 'brief-unstamped');
+  assert.equal(unstamped(snapshot(dir)).length, 0, 'the scaffold is not an unstamped draft');
+  renderBrief(dir);
+  assert.equal(unstamped(snapshot(dir)).length, 0, 'a stamped draft');
+  corrupt(dir, PATHS.brief, (text) => text.replace(/\n?<!-- research-kit:brief-draft [^>]*-->\s*$/, '\n'));
+  const found = unstamped(snapshot(dir));
+  assert.equal(found.length, 1, 'an unstamped draft passed in silence');
+  assert.equal(found[0].severity, 'warn');
+  assert.match(found[0].detail, /ADR-0055/);
+  assert.match(found[0].detail, /--force/);
+  assert.equal(runCheck('hygiene', snapshot(dir)).filter((f) => f.rule === 'brief-stale').length, 0, 'unstamped is not stale');
+  writeText(resolve(dir, PATHS.brief), '# A brief somebody wrote by hand\n\n## Intent\n\nBuild it.\n');
+  assert.equal(unstamped(snapshot(dir)).length, 0, 'a legacy brief was never drafted, so it was never stamped');
 });
 
 // Found 2026-09-27: a `research.mjs --force` the same day was reported both as a refresh

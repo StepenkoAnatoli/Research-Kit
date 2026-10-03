@@ -16,10 +16,12 @@ function codePoint(n) {
 
 export function decodeEntities(text) {
   const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', mdash: '—', ndash: '–', hellip: '…', rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”' };
-  return String(text)
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => codePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => codePoint(Number(dec)))
-    .replace(/&([a-z]+);/gi, (all, key) => named[key.toLowerCase()] ?? all);
+  // One pass, like the converter (2026-10-03): `&#38;lt;` is the text `&lt;`, decoded once.
+  return String(text).replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (all, ref) => {
+    if (/^#x/i.test(ref)) return codePoint(parseInt(ref.slice(2), 16));
+    if (ref[0] === '#') return codePoint(Number(ref.slice(1)));
+    return named[ref.toLowerCase()] ?? all;
+  });
 }
 
 /**
@@ -131,10 +133,11 @@ export function htmlToMarkdown(html) {
   let text = String(html);
   text = text.replace(BLOCK_DROP, ' ');
   text = text.replace(/<!--[\s\S]*?-->/g, ' ');
-  text = text.replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, level, body) => `\n\n${'#'.repeat(Number(level))} ${inline(body)}\n\n`);
-  text = text.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_, body) => `\n- ${inline(body)}`);
+  // Entities decoded once, at the end, as the linear converter does since 2026-10-03 (G3).
+  text = text.replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, level, body) => `\n\n${'#'.repeat(Number(level))} ${inline(body, { decode: false })}\n\n`);
+  text = text.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_, body) => `\n- ${inline(body, { decode: false })}`);
   text = text.replace(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi, (_, row) => {
-    const cells = [...row.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => inline(m[1]));
+    const cells = [...row.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => inline(m[1], { decode: false }));
     return cells.length ? `\n| ${cells.join(' | ')} |` : '\n';
   });
   text = text.replace(/<br\s*\/?>/gi, '\n');
@@ -143,12 +146,13 @@ export function htmlToMarkdown(html) {
   return text.replace(/\n{3,}/g, '\n\n').split('\n').map((l) => l.replace(/[ \t]+$/, '')).join('\n').trim();
 }
 
-function inline(html) {
-  return decodeEntities(
+function inline(html, { decode = true } = {}) {
+  const finish = (text) => (decode ? decodeEntities(text) : text);
+  return finish(
     String(html)
       .replace(/<a\b[^>]*href=["']([^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, body) => {
-        const label = decodeEntities(body.replace(/<[^>]+>/g, '')).trim();
-        return label ? `[${label}](${href})` : '';
+        const label = body.replace(/<[^>]+>/g, '').trim();
+        return decodeEntities(label).trim() ? `[${label}](${href})` : '';
       })
       .replace(/<(strong|b)\b[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**')
       .replace(/<(em|i)\b[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*')

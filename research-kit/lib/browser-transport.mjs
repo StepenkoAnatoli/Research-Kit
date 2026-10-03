@@ -14,8 +14,9 @@
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import net from 'node:net';
 import { fileURLToPath } from 'node:url';
-import { mainContent, htmlToMarkdown, titleOf, gradeCompleteness } from './http-transport.mjs';
+import { mainContent, htmlToMarkdown, titleOf, gradeCompleteness, isInternal, serverReason } from './http-transport.mjs';
 import httpKeyless from './http-transport.mjs';
 import { REFUSAL_MARKER } from './browser-guard.mjs';
 import { CHILD_OUTPUT_LIMIT, MAX_PAGE_BYTES, outputOverflow } from './runtime.mjs';
@@ -80,8 +81,10 @@ export function browserArgs(url, { uid = typeof process.getuid === 'function' ? 
 
 /**
  * Run the browser through the guard child, and report its exit as spawnSync would: `status`,
- * `signal`, `stdout`, `stderr`, `error`, plus `refused` (the requests the guard turned away)
- * and `truncated` (a DOM past MAX_PAGE_BYTES, dropped rather than kept in part, ADR-0082).
+ * `signal`, `stdout`, `stderr`, `error`, plus `refused` (the requests the guard turned away),
+ * `truncated` (a DOM past MAX_PAGE_BYTES, dropped rather than kept in part, ADR-0082) and
+ * `netLog` (the text of Chromium's net log, '' when none was written, ADR-0137). A stub
+ * render that leaves `netLog` out is a render whose status was not observed.
  */
 export function renderGuarded(binary, args, { url, env = process.env, timeout = TIMEOUT_MS, allowInternalRedirects, nodePath = process.execPath, spawn = spawnSync } = {}) {
   // ADR-0110: undefined lets the child decide from the URL asked for; the operator's opt-out,
@@ -107,6 +110,10 @@ export function renderGuarded(binary, args, { url, env = process.env, timeout = 
     requests: Number(report.requests) || 0, pending: Array.isArray(report.pending) ? report.pending : [], elapsedMs: Number(report.elapsedMs) || 0,
     seen: Array.isArray(report.seen) ? report.seen : [], startedAt: typeof report.startedAt === 'string' ? report.startedAt : '',
     startupMs: Number.isFinite(report.startupMs) ? report.startupMs : null,
+    // Chromium's net log, for the origin's status (ADR-0137): '' when there is none. And the
+    // child's own decision on internal addresses, which judged the URL asked for by resolving it.
+    netLog: typeof report.netLog === 'string' ? report.netLog : '',
+    allowInternal: typeof report.allowInternal === 'boolean' ? report.allowInternal : undefined,
   };
 }
 
@@ -147,6 +154,81 @@ export function chromeErrorOf(html) {
   const text = String(html ?? '');
   if (!/id="main-frame-error"|<title>\s*Privacy error\s*<\/title>/i.test(text)) return '';
   return text.match(/\b(?:NET::)?(ERR_[A-Z_]+)\b/)?.[1] ?? 'ERR_UNKNOWN';
+}
+
+/** A URL as Chromium logs it - canonical, without the fragment it never sends - or '' when it is not one. */
+function canonicalUrl(url) {
+  try { const u = new URL(String(url)); u.hash = ''; return u.href; } catch { return ''; }
+}
+
+/**
+ * The HTTP status and final URL of the page asked for, from Chromium's net log - or null when
+ * the log does not say (ADR-0137, output-reliability audit G5, 2026-10-03).
+ *
+ * `--dump-dom` reports no status, so an origin's own "403 Forbidden" page was rendered like
+ * any page, graded full, and the collector's ">= 400 is a failed fetch" rule never fired: it
+ * reads a number, and every browser capture carried ''. Chromium reports the status itself,
+ * in the net log `--log-net-log` writes: `{ constants, events }`, where an event's `type` and
+ * its source's `type` are numbers named only by `constants.logEventTypes` and
+ * `constants.logSourceType` - so both are resolved through the log's own constants, never by
+ * number. The document is the URL_REQUEST source whose first URL_REQUEST_START_JOB names the
+ * URL asked for, a "main frame" one first; each redirect starts a new job on that source with
+ * its own URL, so the last job's URL is final, and its last HTTP_TRANSACTION_READ_RESPONSE_HEADERS
+ * carries the status line in `params.headers[0]`. A job that read no response leaves no status:
+ * a redirect's own 302 is not the page's.
+ *
+ * `log` is the log's text or its parsed JSON. Text that does not parse - Chromium killed at
+ * the timeout leaves the file without its closing `]}` - is no status, never a guess.
+ */
+export function documentStatusFromNetLog(log, requested) {
+  let parsed = log;
+  if (typeof log === 'string') { try { parsed = JSON.parse(log); } catch { return null; } }
+  const types = parsed?.constants?.logEventTypes;
+  const sources = parsed?.constants?.logSourceType;
+  const events = parsed?.events;
+  if (!types || !sources || !Array.isArray(events)) return null;
+  const URL_REQUEST = sources.URL_REQUEST;
+  const START_JOB = types.URL_REQUEST_START_JOB;
+  const HEADERS = types.HTTP_TRANSACTION_READ_RESPONSE_HEADERS;
+  if (![URL_REQUEST, START_JOB, HEADERS].every(Number.isInteger)) return null;
+  const want = canonicalUrl(requested);
+  if (!want) return null;
+  const requests = new Map();   // source id -> { first, mainFrame, url, statusCode }
+  for (const event of events) {
+    if (event?.source?.type !== URL_REQUEST) continue;
+    const id = event.source.id;
+    if (event.type === START_JOB && typeof event.params?.url === 'string') {
+      const seen = requests.get(id);
+      if (seen) { seen.url = event.params.url; seen.statusCode = null; continue; }
+      requests.set(id, { first: event.params.url, mainFrame: event.params.request_type === 'main frame', url: event.params.url, statusCode: null });
+    } else if (event.type === HEADERS) {
+      const seen = requests.get(id);
+      const line = Array.isArray(event.params?.headers) ? String(event.params.headers[0] ?? '') : '';
+      const status = /^HTTP\/[\d.]+\s+(\d{3})(?:\s|$)/.exec(line)?.[1];
+      if (seen && status) seen.statusCode = Number(status);
+    }
+  }
+  const asked = [...requests.values()].filter((r) => canonicalUrl(r.first) === want);
+  const doc = asked.find((r) => r.mainFrame) ?? asked[0];
+  if (!doc || doc.statusCode === null) return null;
+  return { statusCode: doc.statusCode, finalUrl: doc.url };
+}
+
+/** `host:port` of a URL, the port spelled out as the guard's exemption spells it; '' when it is not a URL. */
+function hostPort(url) {
+  try { const u = new URL(String(url)); return `${u.hostname.toLowerCase()}:${u.port || (u.protocol === 'https:' ? 443 : 80)}`; } catch { return ''; }
+}
+
+/**
+ * Why a URL's host is this machine's network, judged by its spelling alone - '' when it is not.
+ * A name is not resolved here: the guard judged every connection by the address it resolved
+ * to, and refused an internal one, so a page that reached a name inside was already refused.
+ */
+function internalByName(url) {
+  let host;
+  try { host = new URL(String(url)).hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase(); } catch { return ''; }
+  if (host === 'localhost' || host.endsWith('.localhost')) return `${host} is this machine`;
+  return net.isIP(host) && isInternal(host) ? `${host} is an internal address` : '';
 }
 
 /**
@@ -238,20 +320,51 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
   if (chromeError) {
     return { ok: false, url: target, transport: name, cmd, error: `the browser showed its own error page (${chromeError}) instead of ${target}` };
   }
+  // The origin's own answer, from Chromium's net log (ADR-0137, 2026-10-03): `--dump-dom`
+  // reports none, and an origin's 403 page rendered whole was graded full.
+  const observed = documentStatusFromNetLog(result.netLog, target);
+  if (observed) {
+    // A redirect that ended inside this machine's network is refused as the keyless transport
+    // refuses one (ADR-0110), unless the operator's decision - or the guard child's, for an
+    // internal URL asked for - allowed it. The guard refused such a connection already; this
+    // is the same rule read from what the browser reports it reached.
+    const optOut = allowInternalRedirects ?? (env.RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS === '1' ? true : undefined);
+    const allowed = typeof result.allowInternal === 'boolean' ? result.allowInternal
+      : optOut === true || (optOut !== false && Boolean(internalByName(target)));
+    // The host and port asked for are exempt, as they are at the guard: the operator named them.
+    const inward = allowed || hostPort(observed.finalUrl) === hostPort(target) ? '' : internalByName(observed.finalUrl);
+    if (inward) {
+      return { ok: false, url: target, transport: name, cmd,
+        error: `refused to let the page reach ${new URL(observed.finalUrl).host} - ${inward}. A page on the web may not send the browser into this machine's network; `
+          + 'if you meant that address, fetch it directly, or set RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS=1.' };
+    }
+    // A non-2xx answer is a failed fetch, worded as the keyless transport words one, so an
+    // error page is never filed as evidence whichever transport rendered it.
+    if (observed.statusCode < 200 || observed.statusCode >= 300) {
+      const said = serverReason({ contentType: 'text/html', body: html });
+      return { ok: false, url: target, transport: name, cmd, statusCode: observed.statusCode,
+        error: `HTTP ${observed.statusCode}${said ? ` - the server said: "${said}"` : ''}` };
+    }
+  }
   const extraction = mainContent(html);
   const markdown = htmlToMarkdown(extraction.html);
   const graded = gradeCompleteness(markdown, extraction);
   // A page Chromium gave up on at its deadline is what it was when the wait ended, not what
   // it would have been: partial, and the grade says what was still outstanding.
   const waited = cutAtDeadline(result, timeout);
-  if (waited) { graded.completeness = 'partial'; graded.omitted = [graded.omitted, waited].filter(Boolean).join('; '); }
+  // No status in the log - an older Chromium, a log not written or cut short, a document
+  // request not in it: the page may be an error page, and nothing says it is not. Partial,
+  // and said; a status is never guessed from the page's text (ADR-0137).
+  const unobserved = observed ? '' : "the origin's HTTP status was not observed: the browser's net log named no response for the page";
+  if (waited || unobserved) { graded.completeness = 'partial'; graded.omitted = [graded.omitted, waited, unobserved].filter(Boolean).join('; '); }
   return {
     ok: true,
-    url: target,
+    // Filed under the page it ended on, as the keyless transport files a redirect; the URL as
+    // asked when Chromium only canonicalised it.
+    url: observed && canonicalUrl(observed.finalUrl) !== canonicalUrl(target) ? observed.finalUrl : target,
     title: titleOf(html),
     markdown,
-    // --dump-dom reports no HTTP status; an error page of the site's own is still graded thin.
-    statusCode: '',
+    statusCode: observed ? observed.statusCode : '',
     transport: name,
     cmd,
     ...graded,

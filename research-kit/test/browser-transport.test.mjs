@@ -3,7 +3,7 @@
 
 import { spawn } from 'node:child_process';
 import { test, describe, assert, fs, path, KIT_ROOT, requireCapability, tempDir } from './harness.mjs';
-import browser, { browserArgs, chromeErrorOf, findBrowser, renderGuarded, TIMEOUT_MS } from '../lib/browser-transport.mjs';
+import browser, { browserArgs, chromeErrorOf, findBrowser, renderGuarded, TIMEOUT_MS, documentStatusFromNetLog } from '../lib/browser-transport.mjs';
 import { REFUSAL_MARKER } from '../lib/browser-guard.mjs';
 import { TRANSPORTS, satisfies, FETCH_SHAPE, selectTransport } from '../lib/transport.mjs';
 
@@ -23,8 +23,174 @@ const renderWith = (result) => {
   return { render, calls };
 };
 
+/**
+ * A minimal Chromium net log (ADR-0137): `constants` maps the event and source names to
+ * numbers, and `events` carries them as numbers - deliberately NOT Chromium's own numbers, so
+ * a reader that hard-coded them would fail here. `hops` is the document request's jobs, each
+ * `[url, status]`; every hop but the last is a redirect to the next. The shape is the one
+ * Chromium 141 wrote on 2026-10-03 for a loopback page: URL_REQUEST_START_JOB (begin, with
+ * `url` and `request_type: "main frame"`), HTTP_TRANSACTION_READ_RESPONSE_HEADERS (with the
+ * status line in `headers[0]`), URL_REQUEST_REDIRECTED, then the next job on the same source.
+ */
+const NETLOG_CONSTANTS = {
+  logEventPhase: { PHASE_NONE: 0, PHASE_BEGIN: 1, PHASE_END: 2 },
+  logEventTypes: { REQUEST_ALIVE: 901, URL_REQUEST_START_JOB: 902, HTTP_TRANSACTION_READ_RESPONSE_HEADERS: 903, URL_REQUEST_REDIRECTED: 904 },
+  logSourceType: { NONE: 0, SOCKET: 31, URL_REQUEST: 32 },
+};
+function netLog(hops, { id = 76, before = [] } = {}) {
+  const T = NETLOG_CONSTANTS.logEventTypes;
+  const at = (type, phase, params, source = { id, type: 32 }) => ({ time: '1', type, source, phase, ...(params ? { params } : {}) });
+  const events = [...before];
+  hops.forEach(([url, status], i) => {
+    events.push(at(T.URL_REQUEST_START_JOB, 1, { method: 'GET', request_type: 'main frame', url }));
+    // The same event type on a socket source, with another status: only URL_REQUEST sources count.
+    events.push(at(T.HTTP_TRANSACTION_READ_RESPONSE_HEADERS, 0, { headers: ['HTTP/1.1 418 I am a socket'] }, { id: 999, type: 31 }));
+    events.push(at(T.HTTP_TRANSACTION_READ_RESPONSE_HEADERS, 0, { headers: [`HTTP/1.1 ${status} Whatever`, 'content-type: text/html'] }));
+    if (i < hops.length - 1) events.push(at(T.URL_REQUEST_REDIRECTED, 0, { location: hops[i + 1][0] }));
+    events.push(at(T.URL_REQUEST_START_JOB, 2));
+  });
+  return JSON.stringify({ constants: NETLOG_CONSTANTS, events });
+}
+/** Another request's job on its own source - a favicon, the browser's own traffic. */
+const otherRequest = (id, url, status) => [
+  { time: '0', type: 902, source: { id, type: 32 }, phase: 1, params: { method: 'GET', request_type: 'other', url } },
+  { time: '0', type: 903, source: { id, type: 32 }, phase: 0, params: { headers: [`HTTP/1.1 ${status} Other`] } },
+];
+// An origin's own error page, rendered: Chromium dumps it like any page (ADR-0137).
+const FORBIDDEN = `<html><head><title>403 Forbidden</title></head><body><main><h1>403 Forbidden</h1>
+${'<p>You do not have permission to access this resource on this server, and this paragraph is long enough to grade.</p>'.repeat(20)}</main></body></html>`;
+
+// ADR-0137 (output-reliability audit G5, 2026-10-03): `--dump-dom` reports no HTTP status, so
+// every browser capture carried `statusCode: ''`, and the collector's ">= 400 is a failed
+// fetch" rule - which reads a number - never fired. An origin's 403 page was rendered like
+// any page and graded full. Chromium reports the status itself, in its net log; the transport
+// reads it from there, and where the log gives none, it says so instead of guessing.
+test('the net log names the document request\'s status and its final URL, through redirects', () => {
+  const asked = 'https://x.example/page';
+  assert.deepEqual(documentStatusFromNetLog(netLog([[asked, 403]]), asked), { statusCode: 403, finalUrl: asked });
+  // Parsed JSON is accepted as well as text.
+  assert.deepEqual(documentStatusFromNetLog(JSON.parse(netLog([[asked, 200]])), asked), { statusCode: 200, finalUrl: asked });
+  // A redirect is a new job on the same source; the last job's URL is final, and its status is the page's.
+  const hopped = netLog([[asked, 302], ['https://x.example/moved', 301], ['https://y.example/final', 200]]);
+  assert.deepEqual(documentStatusFromNetLog(hopped, asked), { statusCode: 200, finalUrl: 'https://y.example/final' });
+  assert.deepEqual(documentStatusFromNetLog(netLog([[asked, 302], ['https://x.example/denied', 403]]), asked), { statusCode: 403, finalUrl: 'https://x.example/denied' });
+  // Other requests - the browser's own, a favicon - are not the document, before it or after it.
+  const crowded = netLog([[asked, 404]], { before: [...otherRequest(8, 'https://clients2.google.com/time/1/current', 200), ...otherRequest(83, 'https://x.example/favicon.ico', 200)] });
+  assert.deepEqual(documentStatusFromNetLog(crowded, asked), { statusCode: 404, finalUrl: asked });
+  // Chromium canonicalises the URL it logs: a bare host gains its slash, a fragment is never sent.
+  assert.deepEqual(documentStatusFromNetLog(netLog([['https://x.example/', 403]]), 'https://X.example'), { statusCode: 403, finalUrl: 'https://x.example/' });
+  assert.deepEqual(documentStatusFromNetLog(netLog([[asked, 410]]), `${asked}#section`), { statusCode: 410, finalUrl: asked });
+});
+
+test('a net log with no document request, no response, or cut short gives no status at all', () => {
+  const asked = 'https://x.example/page';
+  assert.equal(documentStatusFromNetLog(netLog([['https://x.example/other', 403]]), asked), null, 'a request for another URL is not the document');
+  assert.equal(documentStatusFromNetLog(JSON.stringify({ constants: NETLOG_CONSTANTS, events: otherRequest(8, 'https://clients2.google.com/time', 200) }), asked), null);
+  // A job that never read a response - a tunnel refused, a load cancelled at the deadline.
+  const unanswered = JSON.parse(netLog([[asked, 200]]));
+  unanswered.events = unanswered.events.filter((e) => e.type !== 903);
+  assert.equal(documentStatusFromNetLog(unanswered, asked), null);
+  // A redirect whose next job never answered: the redirect's own 302 is not the page's status.
+  const lost = JSON.parse(netLog([[asked, 302], ['https://x.example/next', 200]]));
+  lost.events = lost.events.filter((e) => !(e.type === 903 && /200/.test(e.params.headers[0])));
+  assert.equal(documentStatusFromNetLog(lost, asked), null);
+  // Chromium killed at the timeout leaves its log without the closing `]}`.
+  const whole = netLog([[asked, 403]]);
+  assert.equal(documentStatusFromNetLog(whole.slice(0, -2), asked), null);
+  assert.equal(documentStatusFromNetLog(whole.slice(0, whole.length / 2), asked), null);
+  for (const nothing of [undefined, null, '', 'not json', '{}', '{"constants":{},"events":[]}', 42]) {
+    assert.equal(documentStatusFromNetLog(nothing, asked), null, `${JSON.stringify(nothing)} gave a status`);
+  }
+  // A log whose constants do not name the events read is no status, not a guess by number.
+  const renamed = JSON.parse(whole);
+  delete renamed.constants.logEventTypes.HTTP_TRANSACTION_READ_RESPONSE_HEADERS;
+  assert.equal(documentStatusFromNetLog(renamed, asked), null);
+});
+
+test('a page the origin answered 403 is not a capture, though Chromium rendered it whole', () => {
+  const asked = 'https://x.example/page';
+  const { render } = renderWith({ stdout: FORBIDDEN, netLog: netLog([[asked, 403]]) });
+  const r = browser.scrape(asked, { render, browserPath: '/bin/true', env: {}, uid: 0 });
+  // As the keyless transport answers a 4xx: not ok, and the status and the server's own words named.
+  assert.equal(r.ok, false, JSON.stringify(r).slice(0, 300));
+  assert.equal(r.statusCode, 403);
+  assert.match(r.error, /HTTP 403/);
+  assert.match(r.error, /403 Forbidden/, 'the page\'s title, as the keyless transport quotes it');
+  assert.equal(r.markdown, undefined, 'an error page is not kept');
+  // A redirect that ends on a 404 is the 404's.
+  const hopped = browser.scrape(asked, { render: renderWith({ stdout: FORBIDDEN, netLog: netLog([[asked, 302], ['https://x.example/gone', 404]]) }).render, browserPath: '/bin/true', env: {}, uid: 0 });
+  assert.equal(hopped.ok, false);
+  assert.match(hopped.error, /HTTP 404/);
+});
+
+test('a page the origin answered 200 carries the status as a number, and the URL it ended on', () => {
+  const asked = 'https://x.example/page';
+  const plain = browser.scrape(asked, { render: renderWith({ stdout: PAGE, netLog: netLog([[asked, 200]]) }).render, browserPath: '/bin/true', env: {}, uid: 0 });
+  assert.equal(plain.ok, true, plain.error);
+  assert.equal(plain.statusCode, 200);
+  assert.equal(plain.url, asked);
+  assert.equal(plain.completeness, 'full', plain.omitted);
+  const moved = browser.scrape(asked, { render: renderWith({ stdout: PAGE, netLog: netLog([[asked, 301], ['https://x.example/new-home', 200]]) }).render, browserPath: '/bin/true', env: {}, uid: 0 });
+  assert.equal(moved.ok, true, moved.error);
+  assert.equal(moved.url, 'https://x.example/new-home', 'the capture is filed under the page it is, as the keyless transport files it');
+  // Canonicalisation alone is not a redirect: the URL asked for is kept as it was spelled.
+  const bare = browser.scrape('https://x.example', { render: renderWith({ stdout: PAGE, netLog: netLog([['https://x.example/', 200]]) }).render, browserPath: '/bin/true', env: {}, uid: 0 });
+  assert.equal(bare.url, 'https://x.example');
+});
+
+test('with no net log the status is not guessed: the capture is partial and says the status was not observed', () => {
+  const asked = 'https://x.example/page';
+  // The reproduction (ADR-0137): before the change, this answered ok, statusCode '', full.
+  const r = browser.scrape(asked, { render: () => ({ status: 0, stdout: FORBIDDEN, stderr: '', signal: null, error: null }), exists: () => true, browserPath: '/bin/true', uid: 0 });
+  assert.equal(r.ok, true, r.error);
+  assert.equal(r.statusCode, '');
+  assert.equal(r.completeness, 'partial');
+  assert.match(r.omitted, /HTTP status was not observed/);
+  // A log that could not be parsed, or that holds no document request, is the same.
+  for (const log of ['{"constants":{"logEventTypes":{', netLog([['https://x.example/elsewhere', 200]])]) {
+    const s = browser.scrape(asked, { render: renderWith({ stdout: PAGE, netLog: log }).render, browserPath: '/bin/true', env: {}, uid: 0 });
+    assert.equal(s.ok, true, s.error);
+    assert.equal(s.statusCode, '');
+    assert.equal(s.completeness, 'partial');
+    assert.match(s.omitted, /HTTP status was not observed/);
+  }
+  // The note joins a deadline's note rather than replacing it.
+  const late = browser.scrape(asked, { render: renderWith({ stdout: PAGE, requests: 3, pending: [{ kind: 'http', target: 'https://cdn.x.example/slow.js', ms: 34_000 }], elapsedMs: 35_100 }).render, browserPath: '/bin/true', env: {}, uid: 0, timeout: 45_000 });
+  assert.match(late.omitted, /HTTP status was not observed/);
+  assert.match(late.omitted, /still unanswered through the guard/);
+});
+
+test('a net log whose final URL is internal is refused, as an internal redirect is', () => {
+  const asked = 'https://evil.example/a';
+  const log = netLog([[asked, 302], ['http://169.254.169.254/latest/meta-data/', 200]]);
+  const r = browser.scrape(asked, { render: renderWith({ stdout: PAGE, netLog: log }).render, browserPath: '/bin/true', env: {}, uid: 0 });
+  assert.equal(r.ok, false, 'a page the browser was redirected into this machine\'s network for was captured');
+  assert.match(r.error, /refused to let the page reach 169\.254\.169\.254 - 169\.254\.169\.254 is an internal address/);
+  assert.match(r.error, /RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS/);
+  assert.equal(r.markdown, undefined);
+  const local = browser.scrape(asked, { render: renderWith({ stdout: PAGE, netLog: netLog([[asked, 302], ['http://localhost:8080/admin', 200]]) }).render, browserPath: '/bin/true', env: {}, uid: 0 });
+  assert.equal(local.ok, false);
+  assert.match(local.error, /localhost:8080 - localhost is this machine/);
+  // The operator's decision lifts it, by the option or the variable, and so does the guard
+  // child's own (an internal URL asked for is the operator's, redirects and all - ADR-0110).
+  assert.equal(browser.scrape(asked, { render: renderWith({ stdout: PAGE, netLog: log }).render, browserPath: '/bin/true', env: {}, uid: 0, allowInternalRedirects: true }).ok, true);
+  assert.equal(browser.scrape(asked, { render: renderWith({ stdout: PAGE, netLog: log }).render, browserPath: '/bin/true', env: { RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS: '1' }, uid: 0 }).ok, true);
+  assert.equal(browser.scrape(asked, { render: renderWith({ stdout: PAGE, netLog: log, allowInternal: true }).render, browserPath: '/bin/true', env: {}, uid: 0 }).ok, true);
+  // The host and port asked for are exempt even when the operator said the page is public, as
+  // they are at the guard; another port on the same host is not.
+  const named = 'http://127.0.0.1:8080/start';
+  assert.equal(browser.scrape(named, { render: renderWith({ stdout: PAGE, netLog: netLog([[named, 302], ['http://127.0.0.1:8080/end', 200]]) }).render, browserPath: '/bin/true', env: {}, uid: 0, allowInternalRedirects: false }).ok, true);
+  const sideways = browser.scrape(named, { render: renderWith({ stdout: PAGE, netLog: netLog([[named, 302], ['http://127.0.0.1:9090/admin', 200]]) }).render, browserPath: '/bin/true', env: {}, uid: 0, allowInternalRedirects: false });
+  assert.equal(sideways.ok, false);
+  assert.match(sideways.error, /127\.0\.0\.1:9090 - 127\.0\.0\.1 is an internal address/);
+  const inside = 'http://10.0.0.5/start';
+  assert.equal(browser.scrape(inside, { render: renderWith({ stdout: PAGE, netLog: netLog([[inside, 302], ['http://10.0.0.6/end', 200]]) }).render, browserPath: '/bin/true', env: {}, uid: 0 }).ok, true,
+    'an internal URL asked for may redirect inside');
+});
+
 test('a rendered page becomes a graded capture through the keyless extractor', () => {
-  const { render, calls } = renderWith({ stdout: PAGE });
+  // ADR-0137: a render with the origin's 200 in its net log; without one it is graded partial.
+  const { render, calls } = renderWith({ stdout: PAGE, netLog: netLog([['https://nodejs.org/api/fs.html', 200]]) });
   const r = browser.scrape('https://nodejs.org/api/fs.html', { render, browserPath: '/opt/chrome', env: {} });
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.transport, 'browser');
@@ -165,7 +331,7 @@ test('a render cut at the deadline is graded partial, and says what was still un
   assert.equal(early.completeness, 'partial');
   assert.match(early.omitted, /printed the page before every load was answered; still unanswered through the guard: cdn\.x\.invalid:443 \(9 s\)/);
   // Settled on its own, everything answered: the grade is the extractor's own.
-  const settled = browser.scrape('https://x.invalid/a', { render: () => ({ status: 0, signal: null, stdout: page, stderr: '', refused: [], requests: 2, pending: [], elapsedMs: 1_200 }), browserPath: '/opt/chrome', env: {} });
+  const settled = browser.scrape('https://x.invalid/a', { render: () => ({ status: 0, signal: null, stdout: page, stderr: '', refused: [], requests: 2, pending: [], elapsedMs: 1_200, netLog: netLog([['https://x.invalid/a', 200]]) }), browserPath: '/opt/chrome', env: {} });
   assert.equal(settled.completeness, 'full', settled.omitted);
 });
 
@@ -176,7 +342,7 @@ test('a timeout says how long the browser took to make its first request, and th
   const slowStart = browser.scrape('https://x.invalid/a', { render: () => ({ status: null, signal: 'SIGKILL', error: Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' }), stdout: '', stderr: '', refused: [], requests: 3, pending: [], elapsedMs: 88_000, startupMs: 43_000 }), browserPath: '/opt/chrome', env: {}, timeout: 45_000 });
   assert.match(slowStart.error, /did not finish rendering https:\/\/x\.invalid\/a within 45s: the browser took 43 s to make its first request/);
   // Forty seconds of wall time with a thirty-second start is a ten-second render: settled, not cut at the 35 s deadline.
-  const settled = browser.scrape('https://x.invalid/a', { render: () => ({ status: 0, signal: null, stdout: page, stderr: '', refused: [], requests: 2, pending: [], elapsedMs: 40_000, startupMs: 30_000 }), browserPath: '/opt/chrome', env: {}, timeout: 45_000 });
+  const settled = browser.scrape('https://x.invalid/a', { render: () => ({ status: 0, signal: null, stdout: page, stderr: '', refused: [], requests: 2, pending: [], elapsedMs: 40_000, startupMs: 30_000, netLog: netLog([['https://x.invalid/a', 200]]) }), browserPath: '/opt/chrome', env: {}, timeout: 45_000 });
   assert.equal(settled.completeness, 'full', settled.omitted);
 });
 
@@ -217,6 +383,47 @@ server.listen(0, '127.0.0.1', () => process.stdout.write('PORT ' + server.addres
     assert.ok((last?.elapsedMs ?? 0) - (last?.startupMs ?? 0) < 30_000, 'the render ran into the kill timeout instead of the deadline');
     assert.equal(r.completeness, 'partial', 'a page cut at the deadline is not a full capture');
     assert.match(r.omitted, /still unanswered through the guard: http:\/\/127\.0\.0\.1:\d+\/never/, r.omitted);
+  } finally { proc.kill(); }
+});
+
+// ADR-0137: the status a real Chromium reports in its net log, read through the guard child.
+test('LIVE: a real Chromium\'s net log carries the origin\'s status, so a 403 page is refused and a 200 page is full', async () => {
+  const chromium = findBrowser();
+  requireCapability(chromium, 'NO-BROWSER', 'no Chromium or Chrome on this host');
+  const file = path.join(tempDir('rk-status-pages-'), 'pages.mjs');
+  fs.writeFileSync(file, `
+import http from 'node:http';
+const page = (title) => '<html><head><title>' + title + '</title></head><body><main><h1>' + title + '</h1><p>' + 'Words enough for the extractor to grade this page as content. '.repeat(40) + '</p></main></body></html>';
+const server = http.createServer((req, res) => {
+  if (req.url === '/forbidden') { res.writeHead(403, { 'content-type': 'text/html' }); return res.end(page('403 Forbidden')); }
+  if (req.url === '/hop') { res.writeHead(302, { location: '/landed' }); return res.end(); }
+  if (req.url === '/favicon.ico') { res.writeHead(404); return res.end(); }
+  res.writeHead(200, { 'content-type': 'text/html' });
+  res.end(page('Plain page'));
+});
+server.listen(0, '127.0.0.1', () => process.stdout.write('PORT ' + server.address().port + '\\n'));
+`);
+  const proc = spawn(process.execPath, [file], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const port = await new Promise((resolve, reject) => {
+    let out = '';
+    proc.stdout.on('data', (d) => { out += d; const m = out.match(/PORT (\d+)/); if (m) resolve(Number(m[1])); });
+    proc.on('exit', (code) => reject(new Error(`the page server exited ${code}`)));
+  });
+  const env = { PATH: process.env.PATH ?? '', SystemRoot: process.env.SystemRoot ?? '', HOME: process.env.HOME ?? '', USERPROFILE: process.env.USERPROFILE ?? '' };
+  try {
+    const at = (p) => browser.scrape(`http://127.0.0.1:${port}${p}`, { browserPath: chromium, env, allowInternalRedirects: true, timeout: 30_000 });
+    const denied = at('/forbidden');
+    assert.equal(denied.ok, false, `an origin's 403 page was captured: ${JSON.stringify(denied).slice(0, 300)}`);
+    assert.equal(denied.statusCode, 403);
+    assert.match(denied.error, /HTTP 403/);
+    const plain = at('/plain');
+    assert.equal(plain.ok, true, plain.error);
+    assert.equal(plain.statusCode, 200, 'the net log gave no status for a plain page');
+    assert.equal(plain.completeness, 'full', plain.omitted);
+    const hopped = at('/hop');
+    assert.equal(hopped.ok, true, hopped.error);
+    assert.equal(hopped.statusCode, 200);
+    assert.equal(hopped.url, `http://127.0.0.1:${port}/landed`);
   } finally { proc.kill(); }
 });
 

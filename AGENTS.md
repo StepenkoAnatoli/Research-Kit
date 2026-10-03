@@ -363,3 +363,34 @@ The record this protocol produces: decisions as ADRs under `docs/adr/`
 (including dated rejections with their expiry triggers), architecture
 reviews under `docs/`, and the terms the rules are named in, in
 `CONTEXT.md`.
+
+## Orchestrator facts
+
+For an agent that plans and delegates work on this repository (recorded 2026-10-03; correct
+what has gone stale).
+
+- **Gate.** `node research-kit/bin/selftest.mjs` (the offline suite, about 150 s; a group by
+  file name, e.g. `selftest.mjs checks transport`), `node research-kit/bin/preflight.mjs`
+  (the research gate on the root corpus: PASS), `node research-kit/bin/handoff.mjs` (exit 0),
+  `node research-kit/bin/doctor.mjs` (READY). The commit gate runs the suite for any commit
+  that stages `research-kit/` and refuses a stale "N tests, offline" line in
+  `research-kit/README.md` and a missing `docs/ARCHITECTURE.md` beside a `lib/`, `bin/`,
+  `hooks/` or `githooks/` change. CI runs the same suite on ubuntu, ubuntu-26.04 and windows,
+  on Node 24 and 26, plus an archive-tree check: seven jobs, all required.
+- **Baseline.** `main` is green on all seven jobs and the suite has no known flaky test; an
+  UNSUP (an unsupported capability, ADR-0108) is not red.
+- **Sources of truth.** `docs/ARCHITECTURE.md` (one row per module), `docs/adr/` (every
+  decision with a rejected alternative), `CONTEXT.md` (the domain terms), `CHANGELOG.md`
+  (Unreleased first), `docs/review-*.md` (audit findings and their outcomes).
+- **Conventions.** One commit per task with the five-part report (rule 2 above); red-first
+  tests; no `--no-verify`; the feature freeze (ADR-0117) admits bug fixes, docs, tests and
+  vendor updates only, anything else through an ADR that lifts it for that one item.
+- **Invariants.** The ledger `research/raw/.fetches.jsonl` is evidence and is never edited;
+  a package's `buildAuthorized` is derived, never supplied; captures are written only by the
+  collector; no key is ever written into the repository; the root corpus and every project
+  under `docs/decisions/` keep a passing gate.
+- **Research-Kit.** This repository is the kit; `doctor` is READY on the collector machine
+  with the Firecrawl key, informational without it. A decision about the kit itself is a
+  nested project under `docs/decisions/<date>-<slug>/research/` (ADR-0030), committed with
+  its ledger. Delegated builders work in worktrees and leave uncommitted changes; the lead
+  integrates one unit per commit through the gate.
