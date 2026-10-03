@@ -14,7 +14,7 @@ import { coverageOfUniversals } from './dimensions.mjs';
 import { verifyLedger } from './provenance.mjs';
 import { readPrior, PRIOR_PATH } from './prior.mjs';
 import { quoteAnchors, anchorFound, quoteWords, quoteChars, MIN_QUOTE_WORDS, MIN_QUOTE_CHARS } from './quotes.mjs';
-import { draftStamp, briefInputsHash } from './brief.mjs';
+import { draftStamp, briefInputsHash, briefState } from './brief.mjs';
 
 const VALID_STATUSES = ['CLOSED', 'KNOWN-UNKNOWN'];
 const MIN_CAPTURE_CHARS = 200;
@@ -768,6 +768,16 @@ function hygiene(corpus) {
       + (stamp.edited
         ? `redraft with ${kitCommand('brief.mjs', '--force')} (the edited brief is kept as a backup) and carry your judgements over`
         : `redraft with ${kitCommand('brief.mjs')}`),
+      { file: PATHS.brief }));
+  }
+  // A drafted brief with no stamp was drafted before ADR-0055 gave drafts one. Its currency
+  // cannot be checked, so it keeps its approval (ADR-0138) - and this says so, because an
+  // approval nothing can check is otherwise silent (found 2026-10-03, review of the G1 fix).
+  const state = corpus.brief?.present ? briefState(corpus.brief.text) : 'template';
+  if (!stamp && (state === 'draft' || state === 'authored')) {
+    out.push(finding('warn', 'hygiene', 'brief-unstamped',
+      `${PATHS.brief} carries no draft stamp (it was drafted before ADR-0055), so whether it is current with the contract and `
+      + `evidence cannot be checked - redraft with ${kitCommand('brief.mjs', '--force')} (the brief is kept as a backup) and carry your judgements over`,
       { file: PATHS.brief }));
   }
 

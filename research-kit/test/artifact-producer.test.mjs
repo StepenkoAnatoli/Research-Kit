@@ -139,14 +139,24 @@ test('a brief drafted from an older corpus is not approved: the stamp must match
   const built = build(root);
   assert.equal(built.manifest.buildAuthorized, false, 'a brief drafted before the evidence changed authorized the build');
   assert.equal(built.manifest.review.briefReviewed, false);
-  assert.ok(built.manifest.warnings?.some?.((w) => /brief-stale|drafted before/.test(JSON.stringify(w))) ?? true);
+  assert.ok(built.derived.verdict.warnings.some((w) => w.rule === 'brief-stale'), 'the gate it ran names why');
+  // A line appended AFTER the stamp - a reviewer's note, the `Reviewed by: agent` line - had
+  // made the brief read as unstamped, so the same stale brief re-approved the build (found
+  // 2026-10-03, review of G1). The stamp is found wherever it stands.
+  const brief = resolve(root, 'research/BRIEF.md');
+  fs.writeFileSync(brief, `${fs.readFileSync(brief, 'utf8')}\nReviewed by: agent\n`, 'utf8');
+  const appended = build(root);
+  assert.equal(appended.manifest.review.by, 'agent', 'the appended line is read');
+  assert.equal(appended.manifest.review.briefReviewed, false, 'a line after the stamp un-staled the brief');
+  assert.equal(appended.manifest.buildAuthorized, false);
+  assert.ok(appended.derived.verdict.warnings.some((w) => w.rule === 'brief-stale'), 'brief-stale fell silent');
 });
 
-// The compatibility path the audit asked for: twelve briefs in this repository, the root's
+// The compatibility path the audit asked for: eleven briefs in this repository, the root's
 // own among them, were authored before ADR-0055's stamp existed. An authored, answered brief
-// with no stamp keeps its approval - its currency cannot be checked, and that is said in the
-// map rather than enforced on a brief that predates the mechanism; a redraft with --force
-// stamps it. A stamped brief that has been EDITED after drafting (the fixture answers its
+// with no stamp keeps its approval - its currency cannot be checked, and hygiene's
+// brief-unstamped says so (ADR-0138) rather than enforcing it on a brief that predates the
+// mechanism; a redraft with --force stamps it. A stamped brief that has been EDITED after drafting (the fixture answers its
 // TODOs after the real renderer wrote it) stays approved while its inputs still match.
 test('an authored brief without a stamp keeps its approval, and an edited stamped one with current inputs does too', () => {
   const root = approvedProject();
@@ -155,7 +165,9 @@ test('an authored brief without a stamp keeps its approval, and an edited stampe
   assert.match(text, /research-kit:brief-draft/, 'the fixture brief carries a stamp');
   assert.equal(build(root).manifest.buildAuthorized, true, 'an edited brief whose inputs still match is approved');
   fs.writeFileSync(file, text.replace(/\n?<!-- research-kit:brief-draft [^>]*-->\s*$/, '\n'), 'utf8');
-  assert.equal(build(root).manifest.buildAuthorized, true, 'an unstamped authored brief keeps its approval (compatibility)');
+  const unstamped = build(root);
+  assert.equal(unstamped.manifest.buildAuthorized, true, 'an unstamped authored brief keeps its approval (compatibility)');
+  assert.ok(unstamped.derived.verdict.warnings.some((w) => w.rule === 'brief-unstamped'), 'an approval nothing can check is said');
 });
 
 test('an unreviewed corpus does NOT, and says which step is outstanding', () => {

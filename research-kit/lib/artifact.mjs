@@ -257,8 +257,8 @@ export function deriveState(root, { corpus = null, env = {} } = {}) {
   // APPROVED_BRIEF on the repository's own corpus; and a stamped brief was drafted from the
   // corpus as it is now - one whose evidence changed after the draft had stayed authorized
   // with hygiene's brief-stale warning beside it. A brief with no stamp predates ADR-0055 (the
-  // root's own and eleven decision briefs do): its currency cannot be checked, so it keeps the
-  // approval and the map says so; a redraft with --force stamps it.
+  // root's own and ten decision briefs do): its currency cannot be checked, so it keeps the
+  // approval and hygiene's brief-unstamped says so (ADR-0138); a redraft with --force stamps it.
   const briefText = snapshot.brief?.text ?? '';
   const stamp = draftStamp(briefText);
   const briefComplete = JUDGED_SECTIONS.every((key) => judgedSection(briefText, key)?.answered);

@@ -1009,6 +1009,31 @@ test('hygiene warns when the brief was drafted from a corpus that has since chan
   assert.equal(stale.length, 1, 'a changed finding left the brief current');
   assert.equal(stale[0].severity, 'warn');
   assert.match(stale[0].detail, /brief\.mjs/);
+  // The stamp was anchored to the end of the file, so a line appended after it silenced
+  // this warning (found 2026-10-03, review of the G1 fix).
+  corrupt(dir, PATHS.brief, (text) => `${text}\nReviewed by: agent\n`);
+  assert.equal(quiet(snapshot(dir)).length, 1, 'a line after the stamp silenced brief-stale');
+});
+
+// Review of the G1 fix (2026-10-03, ADR-0138): a drafted brief with no stamp - every brief
+// drafted before ADR-0055 - keeps its approval because its currency cannot be checked, and
+// that was silent. Hygiene says so; a scaffold's template brief and a hand-written legacy
+// brief are not drafts and get no such warning.
+test('hygiene warns brief-unstamped for a drafted brief with no stamp, and for nothing else', () => {
+  const dir = makePassingProject();
+  const unstamped = (corpus) => runCheck('hygiene', corpus).filter((f) => f.rule === 'brief-unstamped');
+  assert.equal(unstamped(snapshot(dir)).length, 0, 'the scaffold is not an unstamped draft');
+  renderBrief(dir);
+  assert.equal(unstamped(snapshot(dir)).length, 0, 'a stamped draft');
+  corrupt(dir, PATHS.brief, (text) => text.replace(/\n?<!-- research-kit:brief-draft [^>]*-->\s*$/, '\n'));
+  const found = unstamped(snapshot(dir));
+  assert.equal(found.length, 1, 'an unstamped draft passed in silence');
+  assert.equal(found[0].severity, 'warn');
+  assert.match(found[0].detail, /ADR-0055/);
+  assert.match(found[0].detail, /--force/);
+  assert.equal(runCheck('hygiene', snapshot(dir)).filter((f) => f.rule === 'brief-stale').length, 0, 'unstamped is not stale');
+  writeText(resolve(dir, PATHS.brief), '# A brief somebody wrote by hand\n\n## Intent\n\nBuild it.\n');
+  assert.equal(unstamped(snapshot(dir)).length, 0, 'a legacy brief was never drafted, so it was never stamped');
 });
 
 // Found 2026-09-27: a `research.mjs --force` the same day was reported both as a refresh
