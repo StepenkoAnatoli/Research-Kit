@@ -1070,7 +1070,7 @@ test('deployedDrift survives a kit home that is a file, and a dangling link in t
   writeText(path.join(from, 'bin', 'x.mjs'), body);
   writeText(path.join(dest, 'bin', 'x.mjs'), body);
   // An entry `readdirSync` lists but `statSync` cannot follow: a link whose target moved.
-  fs.symlinkSync(path.join(from, 'vanished.mjs'), path.join(from, 'dangling.mjs'));
+  requireSymlink(path.join(from, 'vanished.mjs'), path.join(from, 'dangling.mjs'), 'a dangling link in the deploy source');
   const asFile = path.join(tempDir('rk-kit-home-'), 'research-kit');
   fs.writeFileSync(asFile, 'a file where the deployed kit should be\n');
 
