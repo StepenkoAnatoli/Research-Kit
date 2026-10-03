@@ -334,9 +334,9 @@ export function readCaptures(root, { known = null, sketches: wantSketches = true
   return { entries, byUrl, byKey, byFile, sketches, renderFailures, problems };
 }
 
-function indexByKey(byKey, url, entry, rank = null) {
+function indexByKey(byKey, url, entry, rank = null, { force = false } = {}) {
   const key = urlKey(url);
-  if (newer(entry, byKey.get(key), rank)) byKey.set(key, entry);
+  if (force || newer(entry, byKey.get(key), rank)) byKey.set(key, entry);
 }
 
 /** The revision a capture name carries: `name.r3.md` is 3, `name.md` is 1 (writeRaw). */
@@ -358,7 +358,10 @@ function newer(entry, held, rank = null) {
   const a = String(entry.retrieved ?? '');
   const b = String(held.retrieved ?? '');
   if (a !== b) return a > b;
-  if (rank?.has(entry.file) && rank.has(held.file)) return rank.get(entry.file) > rank.get(held.file);
+  const ranked = Boolean(rank?.has(entry.file));
+  const heldRanked = Boolean(rank?.has(held.file));
+  if (ranked && heldRanked) return rank.get(entry.file) > rank.get(held.file);
+  if (ranked !== heldRanked) return ranked;      // a fetch on record beats a file no fetch produced
   if (baseOf(entry.file) === baseOf(held.file)) return revisionOf(entry.file) >= revisionOf(held.file);
   return true;
 }
@@ -377,31 +380,42 @@ export function ledgerRank(entries) {
   return rank;
 }
 
-export function rememberCapture(captures, entry, { rank = null } = {}) {
+export function rememberCapture(captures, entry, { rank = null, latest = false } = {}) {
   if (!captures || !entry) return entry;
-  // A capture is remembered once: the refresh before every fetch used to push every entry
-  // on disk again, and the index held n(n+1)/2 copies after n fetches (2026-10-02).
-  if (entry.file && captures.byFile?.has(entry.file)) return captures.byFile.get(entry.file);
-  captures.entries.push(entry);
-  captures.byFile.set(entry.file, entry);
-  // The same rule as readCaptures, `newer`: a capture this collector just wrote is unranked
-  // and newest by revision or by order, so it is current; a capture another collector wrote,
-  // arriving through the refresh with the ledger's rank, is current only if it is the later
-  // fetch. Unconditional replacement here undid the reopen's correct answer (2026-10-03).
-  if (entry.url && newer(entry, captures.byUrl.get(entry.url), rank)) captures.byUrl.set(entry.url, entry);
+  // A capture is LISTED once: the refresh before every fetch used to push every entry on disk
+  // again, and the index held n(n+1)/2 copies after n fetches (2026-10-02). But a known file
+  // can become current again without changing - a refetch whose bytes match an earlier
+  // capture reuses that file and records it last (A -> B -> A, outside audit, 2026-10-03) - so
+  // the slots are decided every time, for the listed entry.
+  const known = entry.file ? captures.byFile?.get(entry.file) : null;
+  const current = known ?? entry;
+  if (!known) {
+    captures.entries.push(entry);
+    captures.byFile.set(entry.file, entry);
+  }
+  // ONE rule for the current slot of a URL, the same on every path (readCaptures, this
+  // refresh, the collector's own fetch): a direct capture over any redirect alias holding
+  // its slot; the fetch that just happened (`latest`) over whatever was there; otherwise
+  // `newer` - date, the ledger's rank, revision. Rank alone let an alias that happened to be
+  // the later fetch keep the slot from a direct capture, where the reopen gives it to the
+  // direct one (outside audit, 2026-10-03).
+  if (current.url) {
+    const held = captures.byUrl.get(current.url);
+    if (!held || held.url !== current.url || latest || newer(current, held, rank)) captures.byUrl.set(current.url, current);
+  }
   // The same alias rule as readCaptures: never displace a direct capture, newest alias wins.
-  const asked = entry.url ? requestedUrl(entry.command) : '';
-  if (asked && asked !== entry.url) {
+  const asked = current.url ? requestedUrl(current.command) : '';
+  if (asked && asked !== current.url) {
     const held = captures.byUrl.get(asked);
-    if (!held || (held.url !== asked && newer(entry, held, rank))) captures.byUrl.set(asked, entry);
+    if (!held || (held.url !== asked && (latest || newer(current, held, rank)))) captures.byUrl.set(asked, current);
   }
   if (captures.byKey) {
-    for (const url of [entry.url, asked]) {
+    for (const url of [current.url, asked]) {
       const indexed = url ? captures.byUrl.get(url) : null;
-      if (indexed) indexByKey(captures.byKey, url, indexed, rank);
+      if (indexed) indexByKey(captures.byKey, url, indexed, rank, { force: latest });
     }
   }
-  return entry;
+  return current;
 }
 
 /**
