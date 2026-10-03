@@ -532,6 +532,30 @@ test('a previous hooks folder recorded as ~/... is read the way the hooks read i
   }
 });
 
+// Found 2026-10-03 (outside audit, fourth round): a previous hooks folder recorded as a RELATIVE
+// path (`.custom-hooks`) is run by git from the repository's top level, and a commit from a
+// subdirectory ran it; doctor resolved it against its own working directory and from `nested/`
+// called it missing, with the unset as remedy.
+test('a relative previous hooks folder is resolved from the repository top level, wherever doctor runs', () => {
+  requireGit('a relative previous hooks folder');
+  const { env } = machine({ settings: {} });
+  const dir = tempDir('rk-handon-relative-');
+  const gitPaths = { env: { ...process.env, GIT_CONFIG_GLOBAL: path.join(dir, 'gitconfig'), GIT_CONFIG_NOSYSTEM: '1' } };
+  const repo = path.join(dir, 'repo');
+  fs.mkdirSync(repo);
+  assert.equal(spawnSync('git', fixtureInitArgs(), { cwd: repo, env: gitPaths.env }).status, 0);
+  writeText(path.join(repo, '.custom-hooks', 'pre-commit'), '#!/bin/sh\n# husky\n');
+  spawnSync('git', ['config', '--global', 'research-kit.previousHooksPath', '.custom-hooks'], { env: gitPaths.env });
+  const nested = path.join(repo, 'nested');
+  fs.mkdirSync(nested);
+  const findings = gateHealth(nested, { env, gitPaths: { ...gitPaths, cwd: nested }, record: false });
+  assert.equal(find(findings, 'gate-hand-on'), undefined, `a working relative hand-on was reported: ${JSON.stringify(find(findings, 'gate-hand-on'))}`);
+  writeText(path.join(repo, '.custom-hooks', 'pre-commit'), '#!/bin/sh\n# research-kit commit gate - POSIX sh wrapper around bin/gate.mjs.\n');
+  const warned = find(gateHealth(nested, { env, gitPaths: { ...gitPaths, cwd: nested }, record: false }), 'gate-hand-on');
+  assert.ok(warned, 'a second kit at a relative path was not reported');
+  assert.match(warned.detail, /another copy of this kit/);
+});
+
 // --- whose pre-commit is it? ------------------------------------------------------
 
 test('a pre-commit in SOMEBODY ELSE\'S tree is foreign, not current', async () => {

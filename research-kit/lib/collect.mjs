@@ -283,7 +283,7 @@ export function collectOne(root, url, {
       cmd: entry.command,
       at: `${date}T00:00:00.000Z`,
     });
-    rememberCapture(corpus.captures, entry);
+    rememberCapture(corpus.captures, entry, { latest: true });   // the fetch that just happened is current, reused file or new
 
     // Ids are allocated from the table ON DISK, under the lock - a caller's in-memory
     // list can be stale by the time it gets here, and a duplicated E-## silently changes
@@ -326,7 +326,14 @@ function refreshCaptures(root, corpus) {
   // current only if its fetch came later - the one ordering rule the reopen uses (`newer`,
   // 2026-10-03). The ledger is read here as `recentlyGone` already reads it per page.
   const rank = ledgerRank(readLedger(root).entries);
-  const current = readCaptures(root, { known: new Set(corpus.captures.byFile.keys()), sketches: false, rank });
+  const known = new Set(corpus.captures.byFile.keys());
+  const current = readCaptures(root, { known, sketches: false, rank });
   for (const entry of current.entries) rememberCapture(corpus.captures, entry, { rank });
+  // A fetch since the snapshot may have REUSED a capture the snapshot already holds - identical
+  // bytes are never written twice - so its position in the ledger moved while its bytes did
+  // not. Every known capture the ledger names is decided again with the rank (2026-10-03).
+  for (const file of rank.keys()) {
+    if (known.has(file)) rememberCapture(corpus.captures, corpus.captures.byFile.get(file), { rank });
+  }
   return corpus.captures;
 }

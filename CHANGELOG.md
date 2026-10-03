@@ -5,6 +5,14 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- `doctor`'s hand-on check resolves a relative previous hooks folder from the repository's
+  top level, where git runs its hooks from; from a subdirectory it had called a working
+  `.custom-hooks` missing, with the unset as remedy (outside audit, fourth round, 2026-10-03).
+- The running collector and the reopened corpus agree on the current capture in two more
+  cases: a refetch whose bytes match an earlier capture (A, B, A again) makes that reused
+  capture current again in the run as on reopen, and a direct capture of a URL stays current
+  over a redirect alias of it through the refresh, as the reopen already had it (outside
+  audit, fourth round, 2026-10-03).
 - `doctor`'s hand-on check reads the recorded folder the way the hooks do, with git's
   `--type=path`, so a value written `~/custom-hooks` resolves to the folder that runs; the raw
   value had it reported as missing, with an unset as the remedy that would have removed a

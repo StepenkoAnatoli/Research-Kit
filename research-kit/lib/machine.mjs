@@ -378,6 +378,11 @@ export function previousHooksPath(opts = {}) {
   return git(['config', '--global', '--type=path', '--get', PREVIOUS_HOOKS_KEY], opts) || null;
 }
 
+/** The repository's top level from `cwd`, or null outside one: where git runs its hooks from. */
+export function repoTopLevel(opts = {}) {
+  return git(['rev-parse', '--show-toplevel'], opts) || null;
+}
+
 export function setPreviousHooksPath(value, opts = {}) {
   if (value === null) return git(['config', '--global', '--unset', PREVIOUS_HOOKS_KEY], opts);
   return git(['config', '--global', PREVIOUS_HOOKS_KEY, value], opts);

@@ -24,7 +24,7 @@ import { verifyBundle, bundleSummary } from './bundle.mjs';
 import {
   posture, machineRole, collectionPolicy, readMachineConfig, retiredEnvNotes,
   hooksPath, hooksPathEffective, runtimePaths, skillLocations,
-  readInstallState, gitVersion, isGitRepo, localHooksPathOverride, previousHooksPath, RETIRED_CONFIG_KEYS, RETIRED_EDIT_GATE_HOOKS,
+  readInstallState, gitVersion, isGitRepo, localHooksPathOverride, previousHooksPath, repoTopLevel, RETIRED_CONFIG_KEYS, RETIRED_EDIT_GATE_HOOKS,
   EDIT_GATE_HOOK, KIT_HOME, namesHook,
 } from './machine.mjs';
 
@@ -220,8 +220,12 @@ export function commitGateState({ hooksPath: dir, kitHome = KIT_HOME } = {}) {
  * pre-commit has carried; a folder with no pre-commit hands nothing on and is nobody's
  * business. Pure, like `commitGateState`, for the same reason (ADR-0004).
  */
-export function handOnState({ previous } = {}) {
-  if (!previous) return { state: 'none' };
+export function handOnState({ previous: recorded, base = process.cwd() } = {}) {
+  if (!recorded) return { state: 'none' };
+  // A relative folder is git's to resolve, from the repository's top level, where it runs its
+  // hooks: doctor resolved `.custom-hooks` against its own working directory and from a
+  // subdirectory called a working hand-on missing (outside audit, 2026-10-03).
+  const previous = path.isAbsolute(recorded) ? recorded : path.resolve(base, recorded);
   if (!isDirectory(previous)) return { state: 'missing', previous };
   const hook = path.join(previous, 'pre-commit');
   const head = (readText(hook, '') ?? '').split('\n').slice(0, 3).join('\n');
@@ -269,7 +273,7 @@ export function gateHealth(root, { env = process.env, gitPaths = {}, record = tr
   }
   // What the hooks hand on to (ADR-0134). Quiet when nothing is recorded or the folder holds
   // somebody else's hooks: that hand-on is the point of ADR-0112.
-  const handOn = handOnState({ previous: previousHooksPath(gitPaths) });
+  const handOn = handOnState({ previous: previousHooksPath(gitPaths), base: repoTopLevel({ ...gitPaths, cwd: root }) ?? root });
   if (handOn.state === 'kit') {
     out.push(f('warn', 'gate-hand-on',
       `the hooks folder the install replaced, ${handOn.previous}, is another copy of this kit's gate - every commit runs both, and the older one decides on its own rules (on 2026-10-03 one crashed and failed open)`,

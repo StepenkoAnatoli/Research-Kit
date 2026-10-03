@@ -317,6 +317,48 @@ test('a collector with a stale snapshot sees the LAST capture another writer sav
   assert.equal(seen2.entry.file, v10.entry.file, `the stale collector took ${seen2.entry.file} as current`);
 });
 
+// Found 2026-10-03 (outside audit, fourth round): two cases where the run and the reopen still
+// disagreed. (1) A -> B -> A: the third fetch REUSES the first capture's file (identical bytes
+// are never written twice) and records it last in the ledger, so the reopen said A while the
+// run - `rememberCapture` returning early for a known file, the refresh skipping known files -
+// kept B. (2) A direct capture arriving through the refresh after a redirect alias of the same
+// URL was compared by ledger rank and lost; the reopen keeps a direct capture over any alias.
+// One rule now, on every path: direct over alias, the fetch that just happened, then rank.
+test('refetching earlier content makes its reused capture current again, in the run and for a stale snapshot', () => {
+  const url = 'https://x.invalid/aba';
+  const dir = makeProject();
+  const writer = readCorpus(dir);
+  const stale = readCorpus(dir);
+  const body = (text) => (u) => ({ ...stubAdapter().runScrape(u), markdown: `${PAGE}\n\n${text}` });
+  const a1 = collectOne(dir, url, { corpus: writer, runScrape: body('A') });
+  const b = collectOne(dir, url, { corpus: writer, force: true, runScrape: body('B') });
+  const a2 = collectOne(dir, url, { corpus: writer, force: true, runScrape: body('A') });
+  assert.equal(a2.entry.file, a1.entry.file, 'identical bytes reuse the first capture');
+  assert.notEqual(b.entry.file, a1.entry.file);
+  assert.equal(cacheDecision(writer.captures, url).entry.file, a1.entry.file, `the writing run holds ${cacheDecision(writer.captures, url).entry.file} current`);
+  const seen = collectOne(dir, url, { corpus: stale, runScrape: stubAdapter().runScrape });
+  assert.equal(seen.status, 'cached');
+  assert.equal(seen.entry.file, a1.entry.file, `a stale snapshot refreshed to ${seen.entry.file}`);
+  assert.equal(readCorpus(dir).captures.byUrl.get(url).file, a1.entry.file);
+});
+
+test('a direct capture stays current over a redirect alias of the same URL, through the refresh as on reopen', () => {
+  const asked = 'https://x.invalid/asked';
+  const landing = 'https://x.invalid/landing';
+  const dir = makeProject();
+  const writer = readCorpus(dir);
+  const stale = readCorpus(dir);
+  // A direct capture of the asked URL, titled to sort LAST; then a fetch of the same URL that
+  // redirected, its capture titled to sort FIRST, so the refresh meets the alias before the direct.
+  const direct = collectOne(dir, asked, { corpus: writer, runScrape: (u) => ({ ...stubAdapter().runScrape(u), title: 'Z original direct page' }) });
+  collectOne(dir, asked, { corpus: writer, force: true, runScrape: (u) => ({ ...stubAdapter().runScrape(u), url: landing, title: 'A redirect landing', markdown: `${PAGE}\n\nlanded`, cmd: `stub scrape ${u}` }) });
+  const reopened = readCorpus(dir);
+  assert.equal(reopened.captures.byUrl.get(asked).file, direct.entry.file, 'the reopen must keep the direct capture');
+  const seen = collectOne(dir, asked, { corpus: stale, runScrape: stubAdapter().runScrape });
+  assert.equal(seen.status, 'cached');
+  assert.equal(seen.entry.file, direct.entry.file, `the refresh let the alias displace the direct capture: ${seen.entry.file}`);
+});
+
 test('a collected page says WHY it was fetched, in words, not as a cache code', () => {
   // Found 2026-09-26 in a live-collection log: "collected https://docs.firecrawl.dev/... -
   // not-collected". The reason was cacheDecision's internal code for "no capture yet",
