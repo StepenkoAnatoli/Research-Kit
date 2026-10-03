@@ -523,7 +523,10 @@ test('a previous hooks folder recorded as ~/... is read the way the hooks read i
     writeText(path.join(hooks, 'pre-commit'), '#!/bin/sh\n# research-kit commit gate - POSIX sh wrapper around bin/gate.mjs.\n');
     const warned = find(gateHealth(project, { env, gitPaths: { ...gitPaths, cwd: project }, record: false }), 'gate-hand-on');
     assert.ok(warned, 'a second kit was not reported');
-    assert.ok(warned.detail.includes(hooks), `the finding names ${warned.detail} rather than the resolved folder`);
+    // Expanded, not as typed: git spells the home its own way (on the Windows runner a
+    // forward-slash 8.3 path), so the folder's NAME is asserted and the `~` is asserted gone.
+    assert.ok(warned.detail.includes(name), `the finding does not name the folder: ${warned.detail}`);
+    assert.doesNotMatch(warned.detail, /~\//, `the finding carries the typed ~ instead of the resolved folder: ${warned.detail}`);
   } finally {
     fs.rmSync(hooks, { recursive: true, force: true });
   }
