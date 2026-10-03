@@ -57,6 +57,15 @@ not changed), **open** (nothing landed; the cell says what would).
 | H4 | Search orchestration is still two coordinators (`decompose`, `runResearch`); `creditsPolicy` closed the exhaustion half only. | open | As G8. An ADR with a rejected alternative before any consolidation; not written. |
 | H5 | Comment chronology in `core.mjs` (423 of 1,004 lines) and `research-run.mjs` (346 of 961), and the map at about 32,000 words with rows over 10,000 characters. | open | As G7: where the record lives is an ADR question. The auditor's own estimate is 600-1,000 runtime lines reducible, medium confidence, not a demonstrated refactor. |
 
+## From the audit of 2026-10-03 (second auditor, fourth round, at 4e12f68)
+
+| # | Finding | Status | Evidence |
+|---|---|---|---|
+| J1 | A, B, A again: the third fetch reuses the first capture's file and records it last, the reopen says A, the run kept B - `rememberCapture` returned early for a known file and the refresh skipped known files. | fixed | b5062a7: the slot is decided every time, the collector's own fetch is `latest`, the refresh decides every known capture the ledger names again. Test "refetching earlier content makes its reused capture current again" (`collect.test.mjs`), red first. |
+| J2 | A direct capture arriving through the refresh after a redirect alias of the same URL lost on ledger rank, where the reopen keeps a direct capture over any alias; a regression of 6f90806. | fixed | b5062a7: a direct capture displaces an alias holding its slot on every path. Test "a direct capture stays current over a redirect alias of the same URL", red first. |
+| J3 | A previous hooks folder recorded as a relative path (`.custom-hooks`) was called missing from a subdirectory; git runs the hook from the repository's top level and a commit from that subdirectory ran it. | fixed | f6c1f7d: `handOnState` resolves a relative folder from `repoTopLevel`. Test "a relative previous hooks folder is resolved from the repository top level", red first. |
+| J4 | Two search coordinators; comment chronology and the map's size. | open | As H4 and H5. The auditor notes this round added another incident account to the map's module table, which is true: the map's habit and its size are one ADR question, recorded once more as open. |
+
 What this register does not do: it does not re-litigate ADR-0002 (fail-open), ADR-0108
 (UNSUP) or ADR-0129 (stop on exhaustion), which the review and the audit both closed as
 the right defaults.
