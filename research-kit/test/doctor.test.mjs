@@ -500,6 +500,35 @@ test('doctor warns when the hooks folder the install replaced is another copy of
     'with nothing recorded there is nothing to say');
 });
 
+// Found 2026-10-03 (outside audit, second round): the hooks read the recorded folder with
+// `git config --type=path`, which expands a leading `~`; the doctor reader took the raw value,
+// so `~/custom-hooks` with a legitimate pre-commit in it was reported "no longer exists" with
+// an unset as the remedy - advice that would have removed a working hand-on.
+test('a previous hooks folder recorded as ~/... is read the way the hooks read it', () => {
+  requireGit('a home-relative previous hooks folder');
+  const { env } = machine({ settings: {} });
+  const dir = tempDir('rk-handon-tilde-');
+  const gitPaths = { env: { ...process.env, GIT_CONFIG_GLOBAL: path.join(dir, 'gitconfig'), GIT_CONFIG_NOSYSTEM: '1' } };
+  const name = `rk-custom-hooks-${process.pid}-${Date.now()}`;
+  const home = process.env.HOME;
+  const hooks = path.join(home, name);
+  writeText(path.join(hooks, 'pre-commit'), '#!/bin/sh\n# husky\n');
+  spawnSync('git', ['config', '--global', 'research-kit.previousHooksPath', `~/${name}`], { env: gitPaths.env });
+  const project = makeProject();
+  try {
+    const findings = gateHealth(project, { env, gitPaths: { ...gitPaths, cwd: project }, record: false });
+    assert.equal(find(findings, 'gate-hand-on'), undefined,
+      `a working hand-on was reported: ${JSON.stringify(find(findings, 'gate-hand-on'))}`);
+    // And the kit case names the folder as git resolves it, not as it was typed.
+    writeText(path.join(hooks, 'pre-commit'), '#!/bin/sh\n# research-kit commit gate - POSIX sh wrapper around bin/gate.mjs.\n');
+    const warned = find(gateHealth(project, { env, gitPaths: { ...gitPaths, cwd: project }, record: false }), 'gate-hand-on');
+    assert.ok(warned, 'a second kit was not reported');
+    assert.ok(warned.detail.includes(hooks), `the finding names ${warned.detail} rather than the resolved folder`);
+  } finally {
+    fs.rmSync(hooks, { recursive: true, force: true });
+  }
+});
+
 // --- whose pre-commit is it? ------------------------------------------------------
 
 test('a pre-commit in SOMEBODY ELSE\'S tree is foreign, not current', async () => {
