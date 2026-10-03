@@ -5,6 +5,32 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- Reopening a corpus keeps the LAST same-day capture of a URL current. The index broke a
+  tie on the retrieval date by filename order, so twelve same-day revisions reopened with
+  `.r9.md` current (it sorts after `.r12.md`) and a page re-titled "API v10" reopened under
+  its "API v9" capture; the collector's own run had it right and the disk disagreed with it.
+  Same date: the ledger's order decides, then a higher revision of the same name (outside
+  audit, 2026-10-03).
+- `decompose.mjs` refuses a ledger that cannot record a fetch before it asks any provider,
+  as `research.mjs` has since ADR-0122: on a damaged ledger phase 0 made four searches and
+  one fetch, spending, before the refusal came from inside the collector (outside audit,
+  2026-10-03).
+- The README, AGENTS.md, the project template, CONTEXT.md and the gate's own fix lines no
+  longer say that `git commit --no-verify` is recorded in `research/overrides.log`: git skips
+  the hook, so nothing can record it, as `checks.mjs` has said since ADR-0035. The other two
+  overrides are recorded as before (outside audit, 2026-10-03).
+- A repository-local `core.hooksPath` is detected from any subdirectory of the repository,
+  by `install-hooks.mjs`, `doctor` and preflight alike: the probe looked for `.git` beside
+  the working directory and reported nothing below the root, so a nested decision project
+  and an install run from a subfolder missed the displacement warning (outside audit,
+  2026-10-03). The map's `machine.mjs` row, broken across three lines with its first cell
+  separator missing, is one row again.
+- `install-hooks.mjs --dry-run` writes nothing on any path. It read the flag after the role,
+  the posture and the uninstall had already run, so `--dry-run --role builder --fail-closed`
+  saved both and `--dry-run --uninstall` removed the installed commit gate - a preview that
+  disabled the enforcement the operator relied on (outside audit, 2026-10-03). Every preview
+  now says what it would do and touches neither git config, the machine config nor the
+  settings file.
 - `install-hooks.mjs` reports, at install time, a repository-local `core.hooksPath` in the
   directory it is run from - what husky, lefthook, simple-git-hooks and pre-commit set, which
   displaces the machine-wide gate in that repository - on stderr with the remedy, and still

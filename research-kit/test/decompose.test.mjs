@@ -21,6 +21,30 @@ function stubAdapter(results = []) {
   };
 }
 
+// Found 2026-10-03 (outside audit): `runResearch` refuses a ledger that cannot record a fetch
+// BEFORE it asks a provider anything (ADR-0122), so no credit is spent on a run whose
+// captures handoff would refuse. `decompose` did not: on the same damaged ledger it made
+// four searches and one fetch, then threw LEDGER_DAMAGED from inside collectOne. Phase 0
+// spends too, so it asks first.
+test('a damaged ledger is refused before decompose asks any provider', () => {
+  const dir = makeProject();
+  fs.writeFileSync(resolve(dir, PATHS.ledger), '{broken ledger\n');
+  let searches = 0;
+  let fetches = 0;
+  const adapter = {
+    name: 'stub-transport',
+    search: (query) => { searches += 1; return { ok: true, query, results: [{ url: 'https://docs.example.com/a', title: 'A' }] }; },
+    runScrape: (url) => { fetches += 1; return { ok: true, url, title: 'A', markdown: PAGE, statusCode: 200, transport: 'stub-transport', completeness: 'full', cmd: `stub scrape ${url}` }; },
+  };
+  assert.throws(() => decompose(dir, { topic: 'Widget pricing', adapter, maxScrapes: 1 }), (err) => err.code === 'LEDGER_DAMAGED');
+  assert.equal(searches, 0, `${searches} search(es) were made against a ledger that cannot record their result`);
+  assert.equal(fetches, 0, `${fetches} fetch(es) were made against a ledger that cannot record them`);
+  // The dry run is refused the same way: a preview that says "this will collect" onto a chain
+  // that cannot record it is worse than no preview.
+  assert.throws(() => decompose(dir, { topic: 'Widget pricing', adapter, maxScrapes: 1, dryRun: true }), (err) => err.code === 'LEDGER_DAMAGED');
+  assert.equal(searches, 0);
+});
+
 test('nine universal dimensions, and output obtainability is one of them', () => {
   assert.equal(UNIVERSAL_DIMENSIONS.length, 9);
   const names = UNIVERSAL_DIMENSIONS.map((d) => d.name);

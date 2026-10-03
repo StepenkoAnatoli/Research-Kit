@@ -246,7 +246,7 @@ export function duplicateKey(text) {
   }
 }
 
-export function readCaptures(root, { known = null, sketches: wantSketches = true } = {}) {
+export function readCaptures(root, { known = null, sketches: wantSketches = true, rank = null } = {}) {
   const dir = resolve(root, PATHS.raw);
   const entries = [];
   const problems = [];
@@ -307,8 +307,7 @@ export function readCaptures(root, { known = null, sketches: wantSketches = true
   for (const entry of entries) {
     byFile.set(entry.file, entry);
     if (!entry.url) continue;
-    const held = byUrl.get(entry.url);
-    if (!held || String(entry.retrieved) >= String(held.retrieved)) byUrl.set(entry.url, entry);
+    if (newer(entry, byUrl.get(entry.url), rank)) byUrl.set(entry.url, entry);
   }
   // A fetch that redirected is also indexed under the URL it was asked for - the one the
   // plan keeps naming. Aliases come second, so a capture of the asked-for URL itself is
@@ -320,8 +319,7 @@ export function readCaptures(root, { known = null, sketches: wantSketches = true
     if (!entry.url) continue;                    // a capture with no url of its own stays unreachable
     const asked = requestedUrl(entry.command);
     if (!asked || asked === entry.url) continue;
-    const held = byAsked.get(asked);
-    if (!held || String(entry.retrieved) >= String(held.retrieved)) byAsked.set(asked, entry);
+    if (newer(entry, byAsked.get(asked), rank)) byAsked.set(asked, entry);
   }
   for (const [asked, entry] of byAsked) if (!byUrl.has(asked)) byUrl.set(asked, entry);
   // And by `urlKey`, so a page is found under any spelling of its URL - `www.`, a trailing
@@ -329,17 +327,40 @@ export function readCaptures(root, { known = null, sketches: wantSketches = true
   // differently from its capture paid for it again (found 2026-10-02, break-test pass 3).
   // Newest wins among the spellings; a spelling's own entry still wins in `byUrl`.
   const byKey = new Map();
-  for (const [url, entry] of byUrl) indexByKey(byKey, url, entry);
+  for (const [url, entry] of byUrl) indexByKey(byKey, url, entry, rank);
   // Sketches ride alongside the index rather than inside `captureEntry`, because an entry
   // is serialised into artifact manifests and a 128-value fingerprint per capture would
   // bloat every package to answer a question only one check asks (ADR-0036 amendment).
   return { entries, byUrl, byKey, byFile, sketches, renderFailures, problems };
 }
 
-function indexByKey(byKey, url, entry) {
+function indexByKey(byKey, url, entry, rank = null) {
   const key = urlKey(url);
-  const held = byKey.get(key);
-  if (!held || String(entry.retrieved) >= String(held.retrieved)) byKey.set(key, entry);
+  if (newer(entry, byKey.get(key), rank)) byKey.set(key, entry);
+}
+
+/** The revision a capture name carries: `name.r3.md` is 3, `name.md` is 1 (writeRaw). */
+const revisionOf = (file) => { const m = /\.r(\d+)\.md$/.exec(String(file ?? '')); return m ? Number(m[1]) : 1; };
+const baseOf = (file) => String(file ?? '').replace(/\.r\d+\.md$/, '.md');
+
+/**
+ * Should `entry` displace `held` as the newest capture of its URL? By retrieval date first.
+ * On the SAME date: the ledger's order when the reader knows it (`rank`, capture file -> the
+ * position of the fetch that wrote it, from `readCorpus`), then a higher revision of the same
+ * name, then the later name in `listFiles().sort()` order - which was the whole rule until
+ * 2026-10-03, so twelve same-day revisions reopened with `.r9.md` current (it sorts after
+ * `.r12.md`) and a page re-titled "API v10" reopened under its "API v9" capture (outside
+ * audit). The collector's own run was right - `rememberCapture` makes the new capture
+ * current - and the disk disagreed with it as soon as the corpus was reopened.
+ */
+function newer(entry, held, rank = null) {
+  if (!held) return true;
+  const a = String(entry.retrieved ?? '');
+  const b = String(held.retrieved ?? '');
+  if (a !== b) return a > b;
+  if (rank?.has(entry.file) && rank.has(held.file)) return rank.get(entry.file) > rank.get(held.file);
+  if (baseOf(entry.file) === baseOf(held.file)) return revisionOf(entry.file) >= revisionOf(held.file);
+  return true;
 }
 
 /** The one writer of the in-memory index, for a URL collected mid-run. */
@@ -355,7 +376,7 @@ export function rememberCapture(captures, entry) {
   const asked = entry.url ? requestedUrl(entry.command) : '';
   if (asked && asked !== entry.url) {
     const held = captures.byUrl.get(asked);
-    if (!held || (held.url !== asked && String(entry.retrieved) >= String(held.retrieved))) captures.byUrl.set(asked, entry);
+    if (!held || (held.url !== asked && newer(entry, held))) captures.byUrl.set(asked, entry);
   }
   if (captures.byKey) {
     for (const url of [entry.url, asked]) {
@@ -465,10 +486,13 @@ export function readCorpus(root) {
     }
   }
 
-  const captures = readCaptures(root);
-  for (const p of captures.problems) problems.push({ ...p, artifact: PATHS.raw });
-
+  // The ledger first: its order is what says which of two same-day captures of a URL is the
+  // later one (`newer`), and a capture no fetch recorded ranks below every one a fetch did.
   const ledger = readLedger(root);
+  const rank = new Map();
+  ledger.entries.forEach((e, i) => { if (e.op === 'scrape' && e.raw) rank.set(e.raw, i); });
+  const captures = readCaptures(root, { rank });
+  for (const p of captures.problems) problems.push({ ...p, artifact: PATHS.raw });
   for (const p of ledger.problems) problems.push({ ...p, artifact: PATHS.ledger });
 
   const unknowns = unknownsTable.rows

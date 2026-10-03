@@ -955,6 +955,18 @@ test('install-hooks reports a repository-local core.hooksPath that displaces the
   const global = spawnSync('git', ['config', '--global', '--get', 'core.hooksPath'], { env: gitPaths.env, encoding: 'utf8' }).stdout.trim();
   assert.match(global, /githooks$/, 'the machine-wide path was not set');
 
+  // From a SUBDIRECTORY of that repository the same local path displaces the gate - git finds
+  // the repository by walking up - and the probe looked only for `.git` beside it, so it said
+  // `null` there (outside audit, 2026-10-03). A nested decision project (docs/decisions/*) is
+  // exactly such a subdirectory, so doctor's local-override warning was missing there too.
+  const nested = path.join(repo, 'docs', 'decisions', 'one');
+  fs.mkdirSync(nested, { recursive: true });
+  assert.equal(installCommitGate({ kitHome: KIT_ROOT, env, gitPaths, cwd: nested }).displaced?.local, '.husky',
+    'a subdirectory of the repository did not report the displacement');
+  const warned = gateHealth(nested, { env, gitPaths: { ...gitPaths, cwd: nested }, record: false });
+  assert.ok(warned.some((f) => f.name === 'gate-local-override' && /\.husky/.test(f.detail)),
+    `doctor in a subdirectory did not warn: ${JSON.stringify(warned.map((f) => [f.name, f.detail]))}`);
+
   const clean = path.join(dir, 'plain-project');
   fs.mkdirSync(clean);
   assert.equal(spawnSync('git', fixtureInitArgs(), { cwd: clean, env: gitPaths.env }).status, 0);

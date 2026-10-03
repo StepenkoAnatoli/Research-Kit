@@ -1,7 +1,7 @@
 // ADR-0089: a judge-free report of how a corpus's citations hold up.
 // Research: docs/decisions/2026-09-28-kit-measurement.
 
-import { test, describe, assert, makePassingProject, tempDir, corrupt } from './harness.mjs';
+import { test, describe, assert, makePassingProject, tempDir, corrupt, fs } from './harness.mjs';
 import { PATHS } from '../lib/core.mjs';
 import { measureCorpus, renderMeasure } from '../lib/measure.mjs';
 import { spawnSync } from 'node:child_process';
@@ -29,7 +29,9 @@ test('quotes are counted found or not, and an edited capture stops the link from
   assert.deepEqual(m.anchoredRows, { count: 1, percent: 100 });
   assert.deepEqual(m.quotesFound, { count: 1, of: 2, percent: 50 });
 
-  const capture = m.rows && (() => { const s = spawnSync('ls', [`${dir}/research/raw`], { encoding: 'utf8' }).stdout.split('\n').find((f) => f.endsWith('.md')); return `research/raw/${s}`; })();
+  // Listed with fs, not `ls`: the shell-out returned ENOENT on Windows and `.stdout.split`
+  // threw on undefined (outside audit, 2026-10-03) - a portability defect of the test alone.
+  const capture = `research/raw/${fs.readdirSync(`${dir}/research/raw`).find((f) => f.endsWith('.md'))}`;
   corrupt(dir, capture, (t) => `${t}\nedited after fetch\n`);
   m = measureCorpus(dir);
   assert.equal(m.linkWorks.count, 0, 'an edited capture is not a working citation');

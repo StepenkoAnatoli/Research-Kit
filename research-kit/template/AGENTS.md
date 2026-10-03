@@ -92,9 +92,9 @@ approved research. Declare it in the brief with the line `Reviewed by: agent`; a
 carries it as `review.by`. There is no human review step.
 
 There are exactly three overrides - `git commit --no-verify`, a deliberate
-`research/GATE_OFF`, and a repository-local `core.hooksPath` - and all three are recorded
-in `research/overrides.log`, a local log that is never committed. If you take one, say so in
-your reply.
+`research/GATE_OFF`, and a repository-local `core.hooksPath`. The last two are recorded in
+`research/overrides.log`, a local log that is never committed; `--no-verify` records nothing,
+because git does not run the hook it skips. If you take one, say so in your reply.
 
 ## Rule 2 - questions are for intent, never for facts
 

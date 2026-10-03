@@ -14,6 +14,7 @@ import {
 import { readCorpus, cacheDecision, tableRow, appendJsonLine, parseCapture } from './corpus.mjs';
 import { seedRows, UNIVERSAL_DIMENSIONS } from './dimensions.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
+import { assertAppendable } from './provenance.mjs';
 import { urlKey, matchesQuery, mergeByRank, searchPatiently, canSearch, isWebUrl } from './research-run.mjs';
 import { KIT_ROOT, UNTITLED_TOPIC } from './scaffold.mjs';
 import { fallbackCost } from './runtime.mjs';
@@ -419,6 +420,11 @@ export function decompose(root, {
 
   const loaded = recipe ? loadRecipe(recipe) : { name: '', dimensions: [] };
   const rows = seedRows(loaded.dimensions);
+  // A ledger that cannot record a fetch is refused BEFORE any provider is asked, as
+  // `runResearch` does (ADR-0122): phase 0 spends too, and on a damaged ledger it made four
+  // searches and one fetch before `collectOne` threw (outside audit, 2026-10-03). The dry run
+  // is refused the same way.
+  assertAppendable(root);
   const corpus = readCorpus(root);
 
   let material = [];

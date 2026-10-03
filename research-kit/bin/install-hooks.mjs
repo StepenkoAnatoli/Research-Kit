@@ -32,31 +32,36 @@ boxes. A builder must not collect, and its collection CLIs refuse before any ada
 }
 
 try {
+  // Read FIRST. Until 2026-10-03 it was read after the role, the posture and the uninstall had
+  // run, so `--dry-run --role builder --fail-closed` saved both and `--dry-run --uninstall`
+  // removed the installed commit gate (outside audit). A preview writes nothing, on any path.
+  const dryRun = Boolean(flags['dry-run']);
+  const would = dryRun ? 'would ' : '';
+
   if (flags.role !== undefined) {
     const role = String(flags.role);
     if (!ROLES.includes(role)) {
       process.stderr.write(`unknown role "${role}". Known roles: ${ROLES.join(', ')}\n`);
       process.exit(2);
     }
-    saveConfig({ role });
-    process.stdout.write(`role: ${role}${role === 'builder' ? ' - this machine will refuse to collect' : ' - this machine may collect'}\n`);
+    if (!dryRun) saveConfig({ role });
+    process.stdout.write(`${would}${dryRun ? 'set ' : ''}role: ${role}${role === 'builder' ? ' - this machine will refuse to collect' : ' - this machine may collect'}\n`);
   }
 
-  if (flags['fail-closed']) { saveConfig({ failOpen: false }); process.stdout.write('posture: fail-closed\n'); }
-  if (flags['fail-open']) { saveConfig({ failOpen: true }); process.stdout.write('posture: fail-open\n'); }
+  if (flags['fail-closed']) { if (!dryRun) saveConfig({ failOpen: false }); process.stdout.write(`${would}${dryRun ? 'set ' : ''}posture: fail-closed\n`); }
+  if (flags['fail-open']) { if (!dryRun) saveConfig({ failOpen: true }); process.stdout.write(`${would}${dryRun ? 'set ' : ''}posture: fail-open\n`); }
 
   if (flags.uninstall) {
-    const result = uninstall();
+    const result = uninstall({ dryRun });
     if (result.commit.restored === undefined) {
-      process.stdout.write(`commit gate: core.hooksPath left as ${result.commit.left ?? '(unset)'} - the kit did not set it, or it was changed since\n`);
+      process.stdout.write(`commit gate: ${would}leave core.hooksPath as ${result.commit.left ?? '(unset)'} - the kit did not set it, or it was changed since\n`);
     } else {
-      process.stdout.write(`commit gate: restored core.hooksPath to ${result.commit.restored ?? '(unset)'}\n`);
+      process.stdout.write(`commit gate: ${would}restore${dryRun ? '' : 'd'} core.hooksPath to ${result.commit.restored ?? '(unset)'}\n`);
     }
-    process.stdout.write(`edit gate: removed ${result.edit.removed ?? 0} registration(s)${result.edit.ok ? '' : ` - ${result.edit.reason}`}\n`);
+    process.stdout.write(`edit gate: ${would}remove${dryRun ? '' : 'd'} ${result.edit.removed ?? 0} registration(s)${result.edit.ok ? '' : ` - ${result.edit.reason}`}\n`);
     process.exit(result.edit.ok ? 0 : 1);
   }
 
-  const dryRun = Boolean(flags['dry-run']);
   const wantCommit = !flags['edit-only'];
   const wantEdit = !flags['git-only'];
   let failed = false;
