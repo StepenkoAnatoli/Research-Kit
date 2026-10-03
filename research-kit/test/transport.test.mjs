@@ -1147,3 +1147,36 @@ test('ADR-0139: a scrape asks for a live page, and a cached answer is recorded, 
   assert.equal(live.cacheState, '');
   assert.equal(live.cachedAt, '');
 });
+
+// ADR-0140 (gap audit 2026-10-03, rank 3): the converted Markdown was all the corpus kept, so a
+// conversion defect (G3) was permanent and the ledger certified it. Every transport that
+// converts HTML hands back the text it converted, as `source`, for the collector to keep.
+test('ADR-0140: the keyless adapter returns the HTML it converted as source, and none for a verbatim body', () => {
+  const body = `<html><head><title>T</title></head><body><main><p>${'A documented limit applies here. '.repeat(60)}</p></main></body></html>`;
+  const page = httpKeyless.scrape('https://x.invalid/p', {
+    spawn: () => ({ status: 0, stderr: '', stdout: JSON.stringify({ ok: true, url: 'https://x.invalid/p', statusCode: 200, contentType: 'text/html', body }) }),
+  });
+  assert.equal(page.ok, true, page.error);
+  assert.equal(page.source, body, 'the source is the decoded body the converter read');
+  assert.notEqual(page.markdown, body);
+  const json = httpKeyless.scrape('https://x.invalid/j', {
+    spawn: () => ({ status: 0, stderr: '', stdout: JSON.stringify({ ok: true, url: 'https://x.invalid/j', statusCode: 200, contentType: 'application/json', body: '{"a":1}' }) }),
+  });
+  assert.equal(json.ok, true);
+  assert.equal(json.source, undefined, 'a verbatim capture is its own source');
+});
+
+test('ADR-0140: the Firecrawl adapter asks for rawHtml beside markdown and returns it as source', () => {
+  const calls = [];
+  const payload = JSON.stringify({ success: true, data: { markdown: 'x'.repeat(1600), rawHtml: '<html><body>' + 'x'.repeat(1600) + '</body></html>', metadata: { sourceURL: 'https://x.invalid/p', statusCode: 200 } } });
+  const page = firecrawl.scrape('https://x.invalid/p', { execFn: (argv) => { calls.push(argv); return { ok: true, status: 0, stdout: payload, stderr: '' }; } });
+  assert.equal(page.ok, true, page.error);
+  const argv = calls[0];
+  const at = argv.indexOf('--format');
+  assert.ok(at > 0 && argv[at + 1] === 'markdown,rawHtml', `rawHtml is not asked for: ${argv.join(' ')}`);
+  assert.ok(argv.includes('--only-main-content'), 'the Markdown is still the main content');
+  assert.equal(page.source, '<html><body>' + 'x'.repeat(1600) + '</body></html>');
+  // A payload with Markdown alone (the 1.25.3 fixture) has no source to keep.
+  const fixture = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-scrape-1.25.3.json'));
+  assert.equal(firecrawl.normalizeScrape(fixture, 'https://docs.firecrawl.dev/sdks/cli').source, '');
+});

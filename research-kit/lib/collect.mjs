@@ -52,6 +52,36 @@ export function captureName(url, { date = today(), title = '' } = {}) {
   return `${date}-${slug || 'page'}-${host}-${urlDigest(url)}.md`;
 }
 
+/** The source sibling of a capture: `<capture>.source.html` (ADR-0140). */
+export function sourcePathFor(file) {
+  return String(file).replace(/\.md$/, '.source.html');
+}
+
+/**
+ * Write the text a capture was converted from beside it (ADR-0140), LF-folded like the body,
+ * and return `{ file, sha256 }` - or null when there is nothing to keep: no source, a source
+ * that IS the capture (a verbatim text or JSON answer), one over CAPTURE_MAX_BYTES, or a
+ * sibling already on disk with other content, which is never overwritten (a capture's files
+ * are written once). Found 2026-10-03 (gap audit, rank 3): the converted Markdown was all
+ * the corpus kept, so a conversion defect (G3) was permanent and the ledger certified it.
+ */
+export function writeSource(root, captureFile, source, markdown) {
+  if (typeof source !== 'string' || !source.trim()) return null;
+  const text = foldLineEndings(source);
+  if (text === foldLineEndings(String(markdown ?? ''))) return null;
+  if (Buffer.byteLength(text, 'utf8') > CAPTURE_MAX_BYTES) return null;
+  const file = sourcePathFor(captureFile);
+  if (file === captureFile) return null;
+  const abs = resolve(root, file);
+  assertCapturePath(root, abs);
+  if (exists(abs)) {
+    if (readText(abs) !== text) return null;
+  } else {
+    writeText(abs, text);
+  }
+  return { file, sha256: bodyHashOf(root, file) };
+}
+
 /**
  * Write one capture with its front-matter. Returns the corpus's own index entry, so a
  * caller stores a fact instead of reconstructing one.
@@ -274,12 +304,15 @@ export function collectOne(root, url, {
 
     const entry = writeRaw(root, result, { date });
     const bodySha256 = bodyHashOf(root, entry.file);
+    const source = writeSource(root, entry.file, result.source, result.markdown);
     appendFetch(root, {
       op: 'scrape',
       url: entry.url,
       type,
       raw: entry.file,
       bodySha256,
+      source: source?.file,
+      sourceSha256: source?.sha256,
       transport: entry.transport || transportName,
       discoveredBy,
       completeness: entry.completeness,

@@ -562,3 +562,11 @@ test('by default the browser renders through the guard child, which is handed th
   assert.equal(jobs[1].job.allowInternalRedirects, undefined, 'with nothing decided, the child decides from the URL');
   assert.equal(plain.stdout, PAGE);
 });
+
+// ADR-0140: the rendered DOM is the text the browser capture was converted from.
+test('ADR-0140: a browser capture carries the rendered DOM as its source', () => {
+  const asked = 'https://x.example/page';
+  const page = browser.scrape(asked, { render: renderWith({ stdout: PAGE, netLog: netLog([[asked, 200]]) }).render, browserPath: '/bin/true', env: {}, uid: 0 });
+  assert.equal(page.ok, true, page.error);
+  assert.equal(page.source, PAGE);
+});

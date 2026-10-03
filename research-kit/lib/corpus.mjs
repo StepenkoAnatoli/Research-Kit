@@ -275,6 +275,9 @@ export function readCaptures(root, { known = null, sketches: wantSketches = true
   const renderFailures = new Map();
   for (const name of listFiles(dir).sort()) {
     if (name.startsWith('.')) continue;
+    // A capture's source sibling (ADR-0140) is the text it was converted from: the ledger
+    // names and verifies it, and nothing cites, grades or exports it.
+    if (name.endsWith('.source.html')) continue;
     const abs = path.join(dir, name);
     const rel = `${PATHS.raw}/${name}`;
     // A caller that already holds a capture does not read it again: a capture is never

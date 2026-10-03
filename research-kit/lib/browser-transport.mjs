@@ -364,6 +364,7 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
     url: observed && canonicalUrl(observed.finalUrl) !== canonicalUrl(target) ? observed.finalUrl : target,
     title: titleOf(html),
     markdown,
+    source: html,          // the rendered DOM this Markdown was converted from (ADR-0140)
     statusCode: observed ? observed.statusCode : '',
     transport: name,
     cmd,
