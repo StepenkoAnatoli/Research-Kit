@@ -5,6 +5,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- Two decisions recorded from the output-reliability audit: one page's identity is its host
+  and path and the merge of spellings stands (ADR-0136, its G6); a browser capture records the
+  origin's HTTP status from Chromium's net log, or is graded partial saying it could not
+  (ADR-0137, its G5; the transport change lands separately). `AGENTS.md` gains an
+  "Orchestrator facts" section for an agent that plans and delegates work here.
 - A fetched page is decoded in the charset its server declared (a byte-order mark first), so
   a `windows-1252` page keeps its euro sign where every body had been read as UTF-8 and the
   capture's hash then proved a page the server never sent; a label the decoder does not know
