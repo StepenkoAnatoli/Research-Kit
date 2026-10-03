@@ -70,6 +70,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   finish: re-thrown, it ended `research` and `decompose` mid-run, and the searches paid for
   before it never reached the usage row, which is written at the end - `--status` would have
   under-counted real spend (found 2026-10-03, probing; no adapter throws by contract today).
+  The review of that guard found an `async search()` slipping past it: the Promise reached
+  the `ok` test as a failure with no error text, and its rejection ended the process after
+  all. A Promise-returning adapter is now a failed search saying adapters are synchronous,
+  and a thrown value that cannot be rendered as text is named as such.
 - The search session (ADR-0135) was probed with hostile inputs the day it landed, and three
   things it did not say by name it now does: a provider's `null` row, or results that are not
   an array, end neither `research` nor `decompose` (both had died on `row.url`, research also

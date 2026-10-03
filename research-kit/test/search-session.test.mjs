@@ -343,6 +343,50 @@ test('a provider that throws is a failed ask naming the throw, asked once, and t
   assert.equal(got.error, 'odd threw: a string, not an Error');
 });
 
+// Review of that guard (2026-10-03): an adapter with an `async search()` returns a Promise,
+// which the guard never sees thrown - it reached the `ok` test as a failure with no error
+// text, and its rejection, awaited by nobody, ended the process after all. A thrown Symbol,
+// or an object whose `message` getter throws, escaped the guard the same way, from inside
+// the template literal that rendered it.
+test('an async provider is a failed ask that says so, and a throw that cannot be rendered still is one', async () => {
+  const rejected = { name: 'asyncp', async search() { throw new Error('vendor payload unparsable'); } };
+  const fetch = provider({ name: 'fetch', results: rows('fetch', 1) });
+  const { s, recorded } = session({ adapter: fetch, searchAdapter: rejected });
+  const unhandled = [];
+  const onRejection = (reason) => unhandled.push(reason);
+  process.on('unhandledRejection', onRejection);
+  try {
+    const found = s.ask('q');
+    assert.equal(found.ok, true, 'the fetch provider answered after the async provider');
+    assert.equal(found.provider, 'fetch');
+    assert.equal(recorded.length, 1);
+    assert.match(recorded[0].error, /asyncp returned a Promise/, recorded[0].error);
+    assert.match(recorded[0].error, /synchronous/, recorded[0].error);
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(unhandled, [], 'the rejection nobody awaited reached the process');
+  } finally {
+    process.off('unhandledRejection', onRejection);
+  }
+
+  const resolving = { name: 'asyncok', async search() { return { ok: true, query: 'q', results: rows('asyncok', 1), searchesUsed: 1 }; } };
+  const { s: s2, recorded: r2 } = session({ adapter: provider({ name: 'browser', searchable: false }), searchAdapter: resolving });
+  const got = s2.ask('q');
+  assert.equal(got.ok, false, 'an answer nobody waited for is not an answer');
+  assert.match(got.error, /asyncok returned a Promise/);
+  assert.equal(r2.length, 1);
+
+  const symbol = { name: 'sym', search() { throw Symbol('x'); } };
+  const { s: s3 } = session({ adapter: provider({ name: 'browser', searchable: false }), searchAdapter: symbol });
+  assert.equal(s3.ask('q').ok, false, 'a thrown Symbol escaped the guard');
+  assert.match(s3.ask('q').error, /sym threw: /);
+  const poisoned = { name: 'poison', search() { throw { get message() { throw new Error('no'); } }; } };
+  const { s: s4 } = session({ adapter: provider({ name: 'browser', searchable: false }), searchAdapter: poisoned });
+  const bad = s4.ask('q');
+  assert.equal(bad.ok, false);
+  assert.match(bad.error, /poison threw: a value that cannot be rendered as text/);
+});
+
 test('searchPatiently and mergeByRank live here and stay importable from research-run', () => {
   assert.equal(viaResearchRun, mergeByRank);
   assert.equal(patientlyViaResearchRun, searchPatiently);
