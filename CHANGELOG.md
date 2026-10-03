@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A fetched page is decoded in the charset its server declared (a byte-order mark first), so
+  a `windows-1252` page keeps its euro sign where every body had been read as UTF-8 and the
+  capture's hash then proved a page the server never sent; a label the decoder does not know
+  falls back to UTF-8 and the keyless capture is graded partial naming the charset; a legacy
+  label over bytes that are valid UTF-8 is read as UTF-8 (output-reliability audit G7,
+  2026-10-03).
 - Which of two same-day evidence rows for one URL is current follows the fetch ledger, as the
   collector already decided it, instead of the rows' order in the table: with A fetched, then
   B, then A again, the gate had said B superseded A, and reordering two rows changed the

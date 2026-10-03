@@ -455,8 +455,8 @@ test('with no proxy, or with the operator\'s own setting, the environment is lef
 // length bar to every body. A CLOSED unknown resting on it would be flagged for a gap that
 // does not exist.
 
-const scrapeServed = (contentType, body) => httpKeyless.scrape('https://x.invalid/api', {
-  spawn: () => ({ status: 0, stderr: '', stdout: JSON.stringify({ ok: true, url: 'https://x.invalid/api', statusCode: 200, contentType, body }) }),
+const scrapeServed = (contentType, body, extra = {}) => httpKeyless.scrape('https://x.invalid/api', {
+  spawn: () => ({ status: 0, stderr: '', stdout: JSON.stringify({ ok: true, url: 'https://x.invalid/api', statusCode: 200, contentType, body, ...extra }) }),
 });
 
 test('a short JSON or text response captured whole is graded full, and kept verbatim', () => {
@@ -479,6 +479,27 @@ test('an empty body is never graded full', () => {
   const empty = scrapeServed('application/json', '');
   assert.equal(empty.completeness, 'partial');
   assert.match(empty.omitted, /empty/);
+});
+
+// Found 2026-10-03 (output-reliability audit, G7): the child decoded every body as UTF-8,
+// whatever charset the server declared, and a body it could only read on a fallback was
+// graded like one read as declared. The child now names the fallback on its answer, and the
+// grade carries it: a capture decoded in the wrong charset is not known to be the page.
+test('G7: a body the child decoded on a UTF-8 fallback is graded partial, and the reason names the charset', () => {
+  const decodeFallback = 'the page declares charset "x-nope", which TextDecoder does not know - decoded as UTF-8';
+  const text = scrapeServed('text/plain; charset=x-nope', 'plain words', { decodeFallback });
+  assert.equal(text.completeness, 'partial');
+  assert.match(text.omitted, /x-nope/, `the text grade names the charset: ${text.omitted}`);
+  assert.equal(text.markdown, 'plain words', 'the body is still kept as the child read it');
+
+  const page = `<html><body><main><p>${'word '.repeat(400)}</p></main></body></html>`;
+  assert.equal(scrapeServed('text/html; charset=utf-8', page).completeness, 'full', 'the control: a long page read as declared is full');
+  const html = scrapeServed('text/html; charset=x-nope', page, { decodeFallback });
+  assert.equal(html.completeness, 'partial');
+  assert.match(html.omitted, /x-nope/, `the HTML grade carries the fallback: ${html.omitted}`);
+
+  const none = scrapeServed('text/plain; charset=windows-1252', 'Price: €5', { decodeFallback: '' });
+  assert.equal(none.completeness, 'full', `an empty fallback is no fallback: ${none.omitted}`);
 });
 
 // ADR-0105 (2026-09-30): a binary response is refused, not kept. Decoded as text, a PDF lost

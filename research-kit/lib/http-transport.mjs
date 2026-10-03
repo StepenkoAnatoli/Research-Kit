@@ -15,7 +15,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import net from 'node:net';
 import dns from 'node:dns';
-import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedText, outputOverflow, fetchFailure } from './runtime.mjs';
+import { fetchEnv, CHILD_OUTPUT_LIMIT, boundedBody, outputOverflow, fetchFailure } from './runtime.mjs';
 
 export const name = 'http-keyless';
 export const FULL_THRESHOLD = 1500;
@@ -381,6 +381,17 @@ export function gradeCompleteness(markdown, extraction = null) {
   return { completeness: 'partial', omitted: reasons.join('; ') };
 }
 
+/**
+ * The grade with the child's charset fallback beside it. Found 2026-10-03 (output-reliability
+ * audit, G7): a body the child could only read as UTF-8, against a charset it did not know,
+ * was graded like one read as declared. It is not known to be the page, whatever its length,
+ * and the reason names the charset the server declared.
+ */
+function withDecodeFallback(grade, job) {
+  if (!job.decodeFallback) return grade;
+  return { completeness: 'partial', omitted: [grade.omitted, job.decodeFallback].filter(Boolean).join('; ') };
+}
+
 // ---------------------------------------------------------------- the adapter
 
 export function command(argv) {
@@ -413,6 +424,7 @@ function verbatim(url, job, argv) {
   const body = job.body ?? '';
   const reasons = [];
   if (!body.length) reasons.push('the response body was empty');
+  if (job.decodeFallback) reasons.push(job.decodeFallback);
   return {
     ok: true,
     url: job.url ?? url,
@@ -476,7 +488,7 @@ export function scrape(url, opts = {}) {
   const html = job.body ?? '';
   const extraction = mainContent(html);
   const markdown = htmlToMarkdown(extraction.html);
-  const grade = gradeCompleteness(markdown, extraction);
+  const grade = withDecodeFallback(gradeCompleteness(markdown, extraction), job);
   return {
     ok: true,
     url: job.url ?? url,
@@ -712,13 +724,16 @@ async function child() {
       url = next.href;
       response = await fetch(url, init);
     }
-    const body = await boundedText(response, 'the page');
+    // Read in the charset the server declared, and a charset the decoder did not know is
+    // named on the answer, so the parent can grade the capture by it (G7, 2026-10-03).
+    const { text: body, fallback: decodeFallback } = await boundedBody(response, 'the page');
     process.stdout.write(JSON.stringify({
       ok: response.ok,
       url,
       statusCode: response.status,
       contentType: response.headers.get('content-type') ?? '',
       body,
+      decodeFallback,
       error: response.ok ? '' : `HTTP ${response.status}`,
     }));
   } catch (err) {
