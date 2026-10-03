@@ -91,7 +91,17 @@ export function searchPatiently(provider, text, { limit, maxRateLimitRetries = 2
   // TypeError ending the run (found 2026-10-01, break-test).
   if (!canSearch(provider)) return { ok: false, query: text, results: [], error: `${provider?.name ?? 'this transport'} fetches pages but does not search` };
   for (let attempt = 0; ; attempt += 1) {
-    const r = provider.search(text, { limit });
+    let r;
+    try {
+      r = provider.search(text, { limit });
+    } catch (err) {
+      // Every adapter returns its failures by contract, so a throw is one of their bugs - an
+      // unguarded parse of a vendor payload - and the kit cannot prevent it. Kept as a failed
+      // search that says it was a throw: re-thrown, it ended the run, and the searches paid
+      // for before it never reached the usage row, which is written at the end (found
+      // 2026-10-03, probing). A throw is not a rate limit, so it is not retried.
+      return { ok: false, query: text, results: [], error: `${provider.name} threw: ${err?.message ?? err}` };
+    }
     if (r?.ok || attempt >= maxRateLimitRetries) return r;
     const wait = firecrawl.rateLimitWaitMs(r?.error);
     if (wait === null) return r;
