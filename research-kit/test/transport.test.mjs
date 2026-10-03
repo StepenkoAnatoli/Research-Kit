@@ -310,6 +310,29 @@ test('an entity inside a link label, bold text or code in a list item is decoded
   assert.equal(httpKeyless.htmlToMarkdown('<li>&amp;lt;b&amp;gt;</li>'), '- &lt;b&gt;');
 });
 
+// Found 2026-10-03 (review of the G3 fix): the G3 change left the page-level pass decoding
+// a link's label INSIDE the link pass, before the tag-stripping pass that follows it. So a
+// link in a paragraph or a div - the one place G3's test did not look - still lost its
+// comparison text (`[limit 2](/x)`) and still double-decoded `&amp;lt;`. The label is never
+// decoded on its own: entities are decoded once, at the end, wherever the link stands.
+test('comparison text inside a link label in a paragraph or a div survives, decoded once', () => {
+  assert.equal(httpKeyless.htmlToMarkdown('<p>See <a href="/x">limit &lt; 10 and burst &gt; 2</a> now.</p>'),
+    'See [limit < 10 and burst > 2](/x) now.');
+  assert.equal(httpKeyless.htmlToMarkdown('<div>See <a href="/x">limit &lt; 10</a> now.</div>'), 'See [limit < 10](/x) now.');
+  assert.equal(httpKeyless.htmlToMarkdown('<p><a href="/x">a &amp;lt; b</a></p>'), '[a &lt; b](/x)');
+  // A label that is only `&nbsp;` is as empty as one that is only a space, in a list item as
+  // in a paragraph: the link is dropped in both, so a page's blank icon links do not become
+  // `[ ](/x)` in its bulleted text.
+  const blank = httpKeyless.htmlToMarkdown('<ul><li><a href="/x">&nbsp;</a> item</li></ul><p><a href="/y">&nbsp;</a> para</p>');
+  assert.match(blank, /^- item$/m, 'the list item keeps its text and drops the blank link');
+  assert.match(blank, /^ ?para$/m, 'the paragraph the same');
+  assert.doesNotMatch(blank, /\[ *\]\(/, 'no empty link survives anywhere');
+  // A numeric reference that spells an ampersand is decoded once too: `&#38;lt;` is the text
+  // `&lt;`, not `<`.
+  assert.equal(httpKeyless.decodeEntities('&#38;lt; &#x26;gt; &amp;amp;'), '&lt; &gt; &amp;');
+  assert.equal(httpKeyless.htmlToMarkdown('<p>&#38;lt;b&#38;gt;</p>'), '&lt;b&gt;');
+});
+
 test('a page that marks its content with <main> is believed over a denser fragment', () => {
   // Found 2026-09-27: on a GitHub Docs page the keyless extractor kept the 262-character
   // summary and dropped the 17,385-character <main> around it - words-per-tag favours a

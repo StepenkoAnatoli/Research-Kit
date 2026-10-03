@@ -39,7 +39,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   items, table cells and headings: `x &lt; 5 and y &gt; 2` had come out as `x 2`, and a link
   label inside an item lost everything from its `<` to the item's end, because the block
   pass decoded entities and the page-level pass then stripped the decoded `<...>` as a tag.
-  Entities are decoded once, at the end (output-reliability audit G3, 2026-10-03).
+  Entities are decoded once, at the end (output-reliability audit G3, 2026-10-03). The
+  review of that fix found a link's label still decoded on its own before the tag-stripping
+  pass, so `<a>limit &lt; 10 and burst &gt; 2</a>` in a paragraph came out `[limit 2](/x)`
+  and `&amp;lt;` was decoded twice; the label is no longer decoded apart, a `&nbsp;`-only
+  link is dropped in a list item as in a paragraph, and `&#38;lt;` decodes once, to `&lt;`.
 - A search provider whose `search()` throws is a failed search that says so (`<provider>
   threw: <message>`), degraded and recorded like any other, so the run and its accounting
   finish: re-thrown, it ended `research` and `decompose` mid-run, and the searches paid for

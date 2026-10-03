@@ -193,10 +193,14 @@ function codePoint(n) {
 
 export function decodeEntities(text) {
   const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', mdash: '—', ndash: '–', hellip: '…', rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”' };
-  return String(text)
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => codePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec) => codePoint(Number(dec)))
-    .replace(/&([a-z]+);/gi, (all, key) => named[key.toLowerCase()] ?? all);
+  // One pass over every reference kind at once: three passes in turn decoded `&#38;lt;` to
+  // `&lt;` and then to `<`, so a page spelling an ampersand numerically was read twice
+  // (found 2026-10-03, review of the G3 fix).
+  return String(text).replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (all, ref) => {
+    if (/^#x/i.test(ref)) return codePoint(parseInt(ref.slice(2), 16));
+    if (ref[0] === '#') return codePoint(Number(ref.slice(1)));
+    return named[ref.toLowerCase()] ?? all;
+  });
 }
 
 /**
@@ -334,13 +338,16 @@ const LINK = { open: /<a\b/gi, tag: { find: /href=/gi, match: /href=["']([^"']*)
 /**
  * Inline markup to Markdown. `decode: false` leaves entities as written, for a body that a
  * later pass will strip tags from and decode (the block passes above); the page-level pass
- * decodes once.
+ * decodes once. A link's label is never decoded on its own: the tag-stripping pass below
+ * runs over it afterwards, and a `<` decoded first was read there as a tag (`[limit 2](/x)`
+ * for `limit &lt; 10 and burst &gt; 2`, in a paragraph; found 2026-10-03, review of the G3
+ * fix). Its emptiness is judged on the decoded text, so `&nbsp;` alone is as empty as a space.
  */
 function inline(html, { decode = true } = {}) {
   const finish = (text) => (decode ? decodeEntities(text) : text);
   let text = replacePairs(String(html), LINK, (p) => {
-    const label = finish(stripTags(p.body, '').text).trim();
-    return label ? `[${label}](${p.tag[1]})` : '';
+    const label = stripTags(p.body, '').text.trim();
+    return decodeEntities(label).trim() ? `[${label}](${p.tag[1]})` : '';
   });
   text = replacePairs(text, named('strong|b'), (p) => `**${p.body}**`);
   text = replacePairs(text, named('em|i'), (p) => `*${p.body}*`);
