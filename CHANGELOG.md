@@ -5,6 +5,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- `doctor` warns when the hooks folder the install replaced - what every kit hook hands on to
+  (ADR-0112) - is another copy of this kit's gate, or no longer exists, and names the
+  one-line remedy (ADR-0134). On the maintainer's machine that folder was the previous
+  implementation's own `githooks/`: every commit ran two gates and the older one crashed and
+  failed open while doctor said READY (2026-10-03).
 - Internal: a run's exhaustion policy (switch or stop) lives in `lib/credits.mjs`, `canSearch`
   beside the other transport capabilities in `lib/transport.mjs`, and one line-ending fold in
   `lib/core.mjs` serves the capture body, the scaffold-template comparison and the brief's

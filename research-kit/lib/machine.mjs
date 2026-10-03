@@ -368,6 +368,11 @@ export function setHooksPath(value, { scope = 'global', ...opts } = {}) {
  */
 export const PREVIOUS_HOOKS_KEY = 'research-kit.previousHooksPath';
 
+/** The hooks folder the install replaced, or null: what every kit hook hands on to (ADR-0112). */
+export function previousHooksPath(opts = {}) {
+  return git(['config', '--global', '--get', PREVIOUS_HOOKS_KEY], opts) || null;
+}
+
 export function setPreviousHooksPath(value, opts = {}) {
   if (value === null) return git(['config', '--global', '--unset', PREVIOUS_HOOKS_KEY], opts);
   return git(['config', '--global', PREVIOUS_HOOKS_KEY, value], opts);
