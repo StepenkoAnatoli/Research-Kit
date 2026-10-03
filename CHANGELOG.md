@@ -5,6 +5,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The tested Firecrawl CLI is 1.25.3 (from 1.25.2): the release is one fix, `--objective`
+  optional for alexandria feedback (firecrawl/cli#301), with nothing on scrape, search or
+  `--status`; its output was captured from the real CLI anyway (three credits) and is read
+  unchanged by the adapter's parsers (`research-kit/test/fixtures/*-1.25.3.*`). `doctor`, the
+  install line and the workflows' install spec name 1.25.3.
 - Internal: one search session (`lib/search-session.mjs`, ADR-0135) owns how a query is put to
   the search providers - the merge, the one degrade to the fetch provider, the rate-limit
   patience, the meters, the failure rows and the refuse-before-spend readiness gate - and

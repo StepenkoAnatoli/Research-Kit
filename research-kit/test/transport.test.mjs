@@ -656,7 +656,7 @@ test('O-4: the status parser reads the CLI\'s actual output', () => {
 });
 
 // Captured from firecrawl-cli v1.24.6 on 2026-09-26, the version TESTED_CLI_VERSION moved to
-// that day (and on from, 2026-10-02 - the 1.25.2 fixtures below).
+// that day (and on from, 2026-10-02 and 2026-10-03 - the 1.25.2 and 1.25.3 fixtures below).
 // Why it moved: 1.23.3 bundles axios 1.15.2, which sends plain proxied requests that an
 // HTTPS proxy requiring CONNECT tunnels refuses with 405 - every call failed behind one
 // (research/BRIEF.md, 2026-09-26 addendum). 1.24.6 bundles axios 1.18.0.
@@ -698,10 +698,10 @@ const REAL_SEARCH_1252 = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firec
 const REAL_SCRAPE_1252 = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-scrape-1.25.2.json'));
 const REAL_SCRAPE_1252_STDERR = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-scrape-1.25.2.stderr.txt'));
 
-test('O-4: the status parser reads the TESTED version\'s actual output (1.25.2)', () => {
+test('O-4: the status parser reads 1.25.2\'s actual output, the previously tested version', () => {
   assert.ok(REAL_STATUS_1252, 'the fixture must exist');
   const s = firecrawl.parseStatus(REAL_STATUS_1252);
-  assert.equal(s.version, firecrawl.TESTED_CLI_VERSION, 'the fixture and the tested version must be the same release');
+  assert.equal(s.version, '1.25.2', 'the fixture is the release its name says');
   assert.equal(s.authenticated, true);
   assert.equal(s.credits, 154);
   assert.equal(s.creditLimit, 1000);
@@ -724,6 +724,50 @@ test('O-4: 1.25.2 scrape stdout is one JSON value - the receipt is on stderr - a
   assert.doesNotThrow(() => JSON.parse(REAL_SCRAPE_1252), 'stdout holds nothing before or after the payload');
   assert.match(REAL_SCRAPE_1252_STDERR, /^Scrape ID: [0-9a-f-]+\s*$/, 'the receipt went to stderr');
   const page = firecrawl.normalizeScrape(REAL_SCRAPE_1252, 'https://docs.firecrawl.dev/sdks/cli');
+  assert.equal(page.url, 'https://docs.firecrawl.dev/sdks/cli');
+  assert.equal(page.title, 'CLI | Firecrawl');
+  assert.equal(page.statusCode, 200);
+  assert.ok(page.markdown.length > 20000, `the whole page text is kept (${page.markdown.length} chars)`);
+  assert.equal(page.completeness, 'full');
+  assert.equal(page.transport, 'firecrawl-cli');
+});
+
+// Captured from firecrawl-cli v1.25.3 on 2026-10-03, the same way (a scratch prefix, the key
+// per command, three credits, stdout and stderr apart). The release is one fix - `--objective`
+// optional for alexandria feedback (firecrawl/cli#301) - with nothing on scrape, search or
+// `--status`; the capture says so rather than the note: the same fields come back.
+const REAL_STATUS_1253 = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-status-1.25.3.txt'));
+const REAL_SEARCH_1253 = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-search-1.25.3.json'));
+const REAL_SCRAPE_1253 = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-scrape-1.25.3.json'));
+const REAL_SCRAPE_1253_STDERR = readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-scrape-1.25.3.stderr.txt'));
+
+test('O-4: the status parser reads the TESTED version\'s actual output (1.25.3)', () => {
+  assert.ok(REAL_STATUS_1253, 'the fixture must exist');
+  const s = firecrawl.parseStatus(REAL_STATUS_1253);
+  assert.equal(s.version, firecrawl.TESTED_CLI_VERSION, 'the fixture and the tested version must be the same release');
+  assert.equal(s.authenticated, true);
+  assert.equal(s.credits, 1175);
+  assert.equal(s.creditLimit, 1500, 'the plan behind the capture allows 1,500 a cycle; the parser reads the comma');
+  assert.equal(s.concurrencyLimit, 2);
+});
+
+test('O-4: 1.25.3 search output normalises as 1.25.2\'s did - data.tools still reaches no result', () => {
+  const raw = JSON.parse(REAL_SEARCH_1253);
+  assert.ok(Array.isArray(raw.data.web) && raw.data.web.length, 'the fixture must carry real results');
+  assert.ok(Array.isArray(raw.data.tools) && raw.data.tools.length, 'the fixture must carry the populated tools list');
+  const rows = firecrawl.normalizeSearch(REAL_SEARCH_1253);
+  assert.equal(rows.length, raw.data.web.length);
+  assert.deepEqual(rows.map((r) => r.url), raw.data.web.map((r) => r.url));
+  assert.deepEqual(rows.map((r) => r.position), [1, 2, 3]);
+  for (const row of rows) assert.match(row.url, /^https?:\/\//);
+  assert.equal(JSON.stringify(rows).includes('capability'), false, 'a tool entry leaked into the results');
+  assert.equal(firecrawl.creditsUsed(REAL_SEARCH_1253), 2, 'the vendor says what the search cost');
+});
+
+test('O-4: 1.25.3 scrape stdout is one JSON value - the receipt is on stderr - and normalises whole', () => {
+  assert.doesNotThrow(() => JSON.parse(REAL_SCRAPE_1253), 'stdout holds nothing before or after the payload');
+  assert.match(REAL_SCRAPE_1253_STDERR, /^Scrape ID: [0-9a-f-]+\s*$/, 'the receipt went to stderr');
+  const page = firecrawl.normalizeScrape(REAL_SCRAPE_1253, 'https://docs.firecrawl.dev/sdks/cli');
   assert.equal(page.url, 'https://docs.firecrawl.dev/sdks/cli');
   assert.equal(page.title, 'CLI | Firecrawl');
   assert.equal(page.statusCode, 200);

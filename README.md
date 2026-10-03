@@ -85,7 +85,7 @@ exists for Claude Code only; every other agent gets the commit gate.
 | Node 22+ | everything | Node 22, 24 and 26 are each tested on every commit |
 | Git | everything | projects are git repositories; the commit gate is a git hook |
 | Python 3.11+ | the test suite only | the cross-language conformance runners; without it the suite blocks rather than passing |
-| Firecrawl CLI 1.25.2 and a Firecrawl account | metered collection | `npm install -g firecrawl-cli@1.25.2`, then `firecrawl login`. Free tier: 1,000 credits a month, no card |
+| Firecrawl CLI 1.25.3 and a Firecrawl account | metered collection | `npm install -g firecrawl-cli@1.25.3`, then `firecrawl login`. Free tier: 1,000 credits a month, no card |
 | Chromium or Chrome | the `browser` transport | free; reads pages built by JavaScript |
 | SerpAPI key or a SearXNG instance | searching, optional | a second meter, so search stops competing with fetching |
 
@@ -445,7 +445,7 @@ evaluated and deliberately not wired in, because its terms allow retention for t
 **Firecrawl setup**
 
 ```bash
-npm install -g firecrawl-cli@1.25.2
+npm install -g firecrawl-cli@1.25.3
 firecrawl login
 ```
 
