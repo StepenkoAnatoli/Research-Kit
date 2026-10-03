@@ -204,6 +204,59 @@ test('a cited capture that is not on disk is a corpus problem', () => {
   assert.ok(readCorpus(dir).problems.some((p) => p.kind === 'raw-dangling'));
 });
 
+// Found 2026-10-03 (output-reliability audit, G2): a row whose ID did not match its table's
+// pattern - `U_99`, a typo for `U-99` - was dropped by readCorpus's filter and nothing said so.
+// The table parser held 12 rows, the corpus 11 unknowns, problems was empty, and the gate had
+// nothing to report: a blocking question had vanished on a typo.
+function lineOf(dir, rel, prefix) {
+  return readText(resolve(dir, rel)).split(/\r?\n/).findIndex((line) => line.startsWith(prefix)) + 1;
+}
+
+test('an unknown whose ID does not match U-<n> is a corpus problem naming the ID and its line, and the well-formed rows survive', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => `${text}| U_99 | Is the service usable? | Blocks the design | OPEN | |\n`);
+  const corpus = readCorpus(dir);
+  const problems = corpus.problems.filter((p) => p.kind === 'malformed-id');
+  assert.equal(problems.length, 1, JSON.stringify(corpus.problems));
+  assert.equal(problems[0].artifact, PATHS.discovery);
+  assert.equal(problems[0].row, 'U_99');
+  assert.equal(problems[0].line, lineOf(dir, PATHS.discovery, '| U_99'));
+  assert.match(problems[0].detail, /U_99/);
+  assert.deepEqual(corpus.unknowns.map((u) => u.id), ['U-1'], 'the well-formed row did not survive');
+});
+
+test('an evidence row whose ID does not match E-<n> is a corpus problem naming the ID and its line', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (text) => `${text}| E_7 | 2026-01-01 | P | https://example.invalid/other | a claim | research/raw/other.md |\n`);
+  const corpus = readCorpus(dir);
+  const problems = corpus.problems.filter((p) => p.kind === 'malformed-id');
+  assert.equal(problems.length, 1, JSON.stringify(corpus.problems));
+  assert.equal(problems[0].artifact, PATHS.evidence);
+  assert.equal(problems[0].row, 'E_7');
+  assert.equal(problems[0].line, lineOf(dir, PATHS.evidence, '| E_7'));
+  assert.deepEqual(corpus.evidence.map((e) => e.id), ['E-01']);
+});
+
+test('a subtopic whose ID does not match <LETTERS>-<n> is a corpus problem naming the ID and its line', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.map, (text) => `${text}| D10 | Something else | It matters | GAP | |\n`);
+  const corpus = readCorpus(dir);
+  const problems = corpus.problems.filter((p) => p.kind === 'malformed-id');
+  assert.equal(problems.length, 1, JSON.stringify(corpus.problems));
+  assert.equal(problems[0].artifact, PATHS.map);
+  assert.equal(problems[0].row, 'D10');
+  assert.equal(problems[0].line, lineOf(dir, PATHS.map, '| D10'));
+  assert.equal(corpus.subtopics.length, 9);
+});
+
+test('an untouched scaffolded project, and a row with an empty ID cell, record no malformed-id problem', () => {
+  const scaffolded = makeProject(undefined, { content: true });
+  assert.deepEqual(readCorpus(scaffolded).problems.filter((p) => p.kind === 'malformed-id'), []);
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => `${text}| | | | | |\n`);
+  assert.deepEqual(readCorpus(dir).problems.filter((p) => p.kind === 'malformed-id'), []);
+});
+
 test('a plan that will not parse is reported, never absorbed', () => {
   const dir = makePassingProject();
   writeText(resolve(dir, PATHS.plan), '{ not json');

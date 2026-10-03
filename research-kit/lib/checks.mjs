@@ -736,6 +736,17 @@ function hygiene(corpus) {
       { row: row.id, line: row.line }));
   }
 
+  // A row whose ID is not in its table's form is a fail, for the same reason duplicate-id is:
+  // the ID is how every check finds the row, and a row no check can find is a requirement
+  // that has silently left the gate. `U_99` was read as nothing at all - not an unknown, not a
+  // problem, not a finding (found 2026-10-03, output-reliability audit G2); readCorpus now
+  // records it, and this is where it is named.
+  for (const problem of corpus.problems) {
+    if (problem.kind !== 'malformed-id') continue;
+    out.push(finding('fail', 'hygiene', 'malformed-id',
+      `${problem.artifact}:${problem.line} ${problem.detail}`, { row: problem.row, line: problem.line }));
+  }
+
   if (!out.length) out.push(finding('pass', 'hygiene', 'hygiene', 'no duplicate rows, no uncited captures'));
   return out;
 }
@@ -745,6 +756,9 @@ function hygiene(corpus) {
 function corpusShape(corpus) {
   const out = [];
   for (const problem of corpus.problems) {
+    // hygiene names a malformed ID (as a fail, beside duplicate-id); echoing it here as a warn
+    // would report one typo twice.
+    if (problem.kind === 'malformed-id') continue;
     const blocking = problem.kind === 'raw-dangling' || problem.kind === 'plan-unparsed' || problem.kind === 'kit-unparsed'
       || problem.kind === 'capture-outside' || problem.kind === 'raw-outside' || problem.kind === 'capture-too-large' || problem.kind === 'capture-unreadable';
     out.push(finding(blocking ? 'fail' : 'warn', 'corpus-shape', problem.kind,

@@ -207,6 +207,25 @@ test('corpus-shape: a row whose arity does not match its header is reported, not
   assert.ok(runCheck('corpus-shape', corpus).some((f) => f.rule === 'table-arity'));
 });
 
+// Found 2026-10-03 (output-reliability audit, G2): `U_99` was dropped by readCorpus and
+// runChecks reported nothing - a blocking question vanished on a typo.
+test('hygiene: a row whose ID does not match its table fails, naming the table, the ID and the line - once', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => `${text}| U_99 | Is the service usable? | Blocks the design | OPEN | |\n`);
+  const line = readText(resolve(dir, PATHS.discovery)).split(/\r?\n/).findIndex((l) => l.startsWith('| U_99')) + 1;
+  const findings = runChecks(snapshot(dir));
+  const named = findings.filter((f) => /U_99/.test(f.detail ?? ''));
+  assert.equal(named.length, 1, `expected one finding naming U_99, got ${JSON.stringify(named)}`);
+  const [f] = named;
+  assert.equal(f.severity, 'fail');
+  assert.equal(f.check, 'hygiene');
+  assert.equal(f.rule, 'malformed-id');
+  assert.equal(f.row, 'U_99');
+  assert.equal(f.line, line);
+  assert.match(f.detail, new RegExp(`${PATHS.discovery}:${line}`), 'the table and line are not named');
+  assert.match(f.detail, /U-/, 'no remedy naming the expected form');
+});
+
 test('order is part of the interface: findings arrive in registry order', () => {
   const dir = makePassingProject();
   corrupt(dir, PATHS.discovery, (text) => text.replace('CLOSED', 'OPEN'));

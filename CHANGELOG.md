@@ -5,6 +5,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A table row whose ID is mistyped (`U_99`, `E_7`, a subtopic without its letters-dash-number
+  form) is a hygiene FAIL naming the file, the line and the form, where it had silently
+  vanished from the corpus - no unknown, no problem, no finding - and a blocking question with
+  it. An empty ID cell stays silent (output-reliability audit G2, 2026-10-03).
 - A package's `buildAuthorized` requires the brief to be complete and current: every judged
   section present and answered, and a stamped brief drafted from the corpus as it is now. A
   drafted brief with no review sections had been approved (a missing section holds no TODO),
