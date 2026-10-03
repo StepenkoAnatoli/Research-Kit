@@ -287,6 +287,36 @@ test('reopening a corpus keeps the LAST same-day capture current: by revision, a
   assert.equal(cacheDecision(again.captures, page).entry.file, v10.entry.file);
 });
 
+// Found 2026-10-03 (outside audit, second round): the reopen was fixed and the RUN was not. A
+// collector refreshes its snapshot under the lock before each fetch (`refreshCaptures`), and
+// that path read the new captures without the ledger's order and remembered each one as
+// current in filename order - so a collector whose snapshot predated another writer's twelve
+// same-day revisions reported `.r9.md` as its cache hit, and "API v9" over "API v10". One
+// ordering rule now, `newer`, with the ledger's rank on both paths.
+test('a collector with a stale snapshot sees the LAST capture another writer saved, by revision and by ledger order', () => {
+  const url = 'https://x.invalid/stale';
+  const dir = makeProject();
+  const stale = readCorpus(dir);                       // this collector's snapshot, taken first
+  const other = readCorpus(dir);                       // another collector on the same corpus
+  for (let n = 1; n <= 12; n += 1) {
+    collectOne(dir, url, { corpus: other, force: true, runScrape: (u) => ({ ...stubAdapter().runScrape(u), markdown: `${PAGE}\n\nrevision ${n}` }) });
+  }
+  const seen = collectOne(dir, url, { corpus: stale, runScrape: stubAdapter().runScrape });
+  assert.equal(seen.status, 'cached');
+  assert.match(seen.entry.file, /\.r12\.md$/, `the stale collector took ${seen.entry.file} as current`);
+
+  const page = 'https://x.invalid/stale-title';
+  const dir2 = makeProject();
+  const stale2 = readCorpus(dir2);
+  const other2 = readCorpus(dir2);
+  const titled = (title, body) => (u) => ({ ...stubAdapter().runScrape(u), title, markdown: body });
+  collectOne(dir2, page, { corpus: other2, runScrape: titled('API v9', PAGE) });
+  const v10 = collectOne(dir2, page, { corpus: other2, force: true, runScrape: titled('API v10', `${PAGE}\n\nv10`) });
+  const seen2 = collectOne(dir2, page, { corpus: stale2, runScrape: stubAdapter().runScrape });
+  assert.equal(seen2.status, 'cached');
+  assert.equal(seen2.entry.file, v10.entry.file, `the stale collector took ${seen2.entry.file} as current`);
+});
+
 test('a collected page says WHY it was fetched, in words, not as a cache code', () => {
   // Found 2026-09-26 in a live-collection log: "collected https://docs.firecrawl.dev/... -
   // not-collected". The reason was cacheDecision's internal code for "no capture yet",

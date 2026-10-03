@@ -368,9 +368,14 @@ export function setHooksPath(value, { scope = 'global', ...opts } = {}) {
  */
 export const PREVIOUS_HOOKS_KEY = 'research-kit.previousHooksPath';
 
-/** The hooks folder the install replaced, or null: what every kit hook hands on to (ADR-0112). */
+/**
+ * The hooks folder the install replaced, or null: what every kit hook hands on to (ADR-0112).
+ * Read with `--type=path`, as `hand-on.sh` reads it, so a value typed `~/hooks` resolves to the
+ * folder git will run; the raw value made doctor call a working `~/custom-hooks` missing and
+ * prescribe the unset that would have removed it (outside audit, 2026-10-03).
+ */
 export function previousHooksPath(opts = {}) {
-  return git(['config', '--global', '--get', PREVIOUS_HOOKS_KEY], opts) || null;
+  return git(['config', '--global', '--type=path', '--get', PREVIOUS_HOOKS_KEY], opts) || null;
 }
 
 export function setPreviousHooksPath(value, opts = {}) {

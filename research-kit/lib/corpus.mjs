@@ -364,24 +364,41 @@ function newer(entry, held, rank = null) {
 }
 
 /** The one writer of the in-memory index, for a URL collected mid-run. */
-export function rememberCapture(captures, entry) {
+/**
+ * The ledger's order as a rank: capture file -> position of the fetch that wrote it. The
+ * tie-break `newer` uses on one date, built the same way for a reopen (`readCorpus`) and for
+ * the collector's refresh under the lock (`refreshCaptures`) - the two had different rules
+ * until 2026-10-03, and a collector with a stale snapshot took `.r9.md` as current where the
+ * reopened corpus said `.r12.md` (outside audit).
+ */
+export function ledgerRank(entries) {
+  const rank = new Map();
+  (entries ?? []).forEach((e, i) => { if (e?.op === 'scrape' && e.raw) rank.set(e.raw, i); });
+  return rank;
+}
+
+export function rememberCapture(captures, entry, { rank = null } = {}) {
   if (!captures || !entry) return entry;
   // A capture is remembered once: the refresh before every fetch used to push every entry
   // on disk again, and the index held n(n+1)/2 copies after n fetches (2026-10-02).
   if (entry.file && captures.byFile?.has(entry.file)) return captures.byFile.get(entry.file);
   captures.entries.push(entry);
   captures.byFile.set(entry.file, entry);
-  if (entry.url) captures.byUrl.set(entry.url, entry);
+  // The same rule as readCaptures, `newer`: a capture this collector just wrote is unranked
+  // and newest by revision or by order, so it is current; a capture another collector wrote,
+  // arriving through the refresh with the ledger's rank, is current only if it is the later
+  // fetch. Unconditional replacement here undid the reopen's correct answer (2026-10-03).
+  if (entry.url && newer(entry, captures.byUrl.get(entry.url), rank)) captures.byUrl.set(entry.url, entry);
   // The same alias rule as readCaptures: never displace a direct capture, newest alias wins.
   const asked = entry.url ? requestedUrl(entry.command) : '';
   if (asked && asked !== entry.url) {
     const held = captures.byUrl.get(asked);
-    if (!held || (held.url !== asked && newer(entry, held))) captures.byUrl.set(asked, entry);
+    if (!held || (held.url !== asked && newer(entry, held, rank))) captures.byUrl.set(asked, entry);
   }
   if (captures.byKey) {
     for (const url of [entry.url, asked]) {
       const indexed = url ? captures.byUrl.get(url) : null;
-      if (indexed) indexByKey(captures.byKey, url, indexed);
+      if (indexed) indexByKey(captures.byKey, url, indexed, rank);
     }
   }
   return entry;
@@ -489,9 +506,7 @@ export function readCorpus(root) {
   // The ledger first: its order is what says which of two same-day captures of a URL is the
   // later one (`newer`), and a capture no fetch recorded ranks below every one a fetch did.
   const ledger = readLedger(root);
-  const rank = new Map();
-  ledger.entries.forEach((e, i) => { if (e.op === 'scrape' && e.raw) rank.set(e.raw, i); });
-  const captures = readCaptures(root, { rank });
+  const captures = readCaptures(root, { rank: ledgerRank(ledger.entries) });
   for (const p of captures.problems) problems.push({ ...p, artifact: PATHS.raw });
   for (const p of ledger.problems) problems.push({ ...p, artifact: PATHS.ledger });
 
