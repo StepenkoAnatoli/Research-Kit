@@ -455,8 +455,15 @@ export function cliVersion({ execFn = exec, ...opts } = {}) {
  * no `url`, so none reaches a result) beside `data.web`; `--status` is the same text. The
  * bundle is unchanged (SDK 4.40.0, node >= 22), so the proxy behaviour that forced the
  * previous move is not in question.
+ *
+ * Moved from 1.25.2 to 1.25.3 on 2026-10-03. The release is one commit, "fix: make --objective
+ * optional for alexandria feedback" (firecrawl/cli#301), with nothing on scrape, search or
+ * `--status`; the bundle is unchanged (SDK 4.40.0, axios 1.18.0, node >= 22). Captured anyway,
+ * the same way (test/fixtures/*-1.25.3.*): the three outputs read unchanged by these parsers -
+ * the receipt on stderr, `data.tools` populated and reaching no result, `--status` the same
+ * text with a 1,500-credit cycle behind it.
  */
-export const TESTED_CLI_VERSION = '1.25.2';
+export const TESTED_CLI_VERSION = '1.25.3';
 export const SUPPORTED_CLI_MAJOR = 1;
 
 /**
