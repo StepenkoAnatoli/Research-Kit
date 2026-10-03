@@ -8,7 +8,7 @@
 // the verdict's single judgement, in lib/preflight.mjs.
 
 import { hostOf, siteOf, PATHS, resolve, exists, ageInDays, urlKey, readText, kitCommand, compareText } from './core.mjs';
-import { captureOf, traceOf, citedIds, parseCapture } from './corpus.mjs';
+import { captureOf, traceOf, citedIds, parseCapture, ledgerRank } from './corpus.mjs';
 import { documentGroups, closestPair } from './similarity.mjs';
 import { coverageOfUniversals } from './dimensions.mjs';
 import { verifyLedger } from './provenance.mjs';
@@ -596,10 +596,20 @@ export function supersededRows(corpus) {
     byUrl.get(row.url).push(row);
   }
 
+  // On ONE date the ledger decides, as `newer` (corpus.mjs) decides for the collector: the row
+  // whose capture the later fetch wrote is current, a capture no fetch recorded ranks below
+  // every one a fetch did, and only among those does the table's order still break the tie.
+  // Until 2026-10-03 (output-reliability audit, G4) the sort was by date alone and a same-day
+  // tie fell to the stable sort's TABLE ORDER: with A fetched, then B, then A again - the
+  // third fetch reusing A's file - the collector held A current while this said B had
+  // superseded it, and swapping two evidence rows swapped the verdict.
+  const rank = ledgerRank(corpus.ledger?.entries);
+  const rankOf = (row) => rank.get(row.raw || captureOf(corpus, row)?.file) ?? -1;
+
   const superseded = new Map();
   for (const rows of byUrl.values()) {
     if (rows.length < 2) continue;
-    const ordered = [...rows].sort((a, b) => compareText(a.retrieved, b.retrieved));
+    const ordered = [...rows].sort((a, b) => compareText(a.retrieved, b.retrieved) || (rankOf(a) - rankOf(b)));
     const current = ordered[ordered.length - 1];
     // A row is never superseded by itself: a row pasted twice read "E-01 has been superseded
     // by E-01" (found 2026-09-27). The duplicate ID is hygiene's to name.

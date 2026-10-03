@@ -4,12 +4,12 @@
 
 import path from 'node:path';
 import { test, describe, assert, makeProject, makePassingProject, corrupt, fs, tempDir } from './harness.mjs';
-import { PATHS, resolve, writeText, readText, today } from '../lib/core.mjs';
+import { PATHS, resolve, writeText, readText, today, sha256File } from '../lib/core.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 import { writeRaw, collectOne } from '../lib/collect.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { CHECKS, CHECK_NAMES, runCheck, runChecks, supersededRows } from '../lib/checks.mjs';
-import { verifyLedger, rebuildLedger } from '../lib/provenance.mjs';
+import { verifyLedger, rebuildLedger, appendFetch } from '../lib/provenance.mjs';
 import { renderBrief } from '../lib/brief.mjs';
 import { UNIVERSAL_DIMENSIONS, coverageOfUniversals } from '../lib/dimensions.mjs';
 
@@ -371,6 +371,80 @@ test('an unrefreshed corpus has nothing superseded, and no check changes behavio
   for (const name of CHECK_NAMES) {
     assert.equal(failures(runCheck(name, corpus, { localHooksPath: null })).length, 0, name);
   }
+});
+
+// G4 of the output-reliability audit (2026-10-03). `supersededRows` ordered same-day rows by
+// their place in the TABLE and never read the ledger, so with captures A and B of one URL
+// fetched A, then B, then A - the third fetch reuses A's file, as `collectOne` does for
+// identical bytes - the collector held A current while this check said B had superseded it,
+// and swapping the two evidence rows swapped the verdict. A same-day tie is now broken by
+// the ledger's order, the rule `newer` (corpus.mjs) already applies for the collector.
+function abaProject({ dateOfB = null } = {}) {
+  const date = today();
+  const dir = makePassingProject(tempDir('rk-checks-aba-'), { date });
+  const url = 'https://example.invalid/docs/limits';
+  const a = readCorpus(dir).captures.entries[0];
+  const b = writeRaw(dir, {
+    url, title: 'Limits', cmd: a.command, statusCode: 200, transport: 'firecrawl-cli', completeness: 'full',
+    markdown: `# Limits\n\n${'The free plan now allows 20 requests per minute and includes 500 credits. '.repeat(30)}`,
+  }, { date: dateOfB ?? date });
+  assert.notEqual(b.file, a.file, 'the fixture wrote B over A, so it proves nothing');
+  const fetched = (entry, at) => appendFetch(dir, {
+    op: 'scrape', url, type: 'P', raw: entry.file, bodySha256: sha256File(resolve(dir, entry.file)),
+    transport: 'firecrawl-cli', completeness: 'full', cmd: entry.command, at,
+  });
+  // The ledger already holds A (seq 1). Then B, then A's bytes again - its capture is reused
+  // and recorded last - so the ledger reads A, B, A.
+  fetched(b, `${b.retrieved}T01:00:00.000Z`);
+  fetched(a, `${b.retrieved}T02:00:00.000Z`);
+  const rows = (...lines) => {
+    const header = readText(resolve(dir, PATHS.evidence)).split('\n').filter((l) => l.startsWith('|')).slice(0, 2);
+    writeText(resolve(dir, PATHS.evidence), `# Evidence\n\n${header.join('\n')}\n${lines.join('\n')}\n`);
+    return snapshot(dir);
+  };
+  const row = (id, entry) => `| ${id} | ${entry.retrieved} | P | ${url} | A reading of the page. | ${entry.file} |`;
+  return { dir, url, a, b, rows, row };
+}
+
+test('supersededRows: on one day the ledger says which capture is current, whatever the table order', () => {
+  const { url, a, b, rows, row } = abaProject();
+  for (const order of [[row('E-01', a), row('E-02', b)], [row('E-02', b), row('E-01', a)]]) {
+    const corpus = rows(...order);
+    assert.equal(corpus.chain.ok, true, 'the fixture ledger does not verify, so the rank it gives is not real');
+    assert.equal(corpus.captures.byUrl.get(url).file, a.file, 'the collector itself holds A current');
+    const ids = order.map((line) => line.slice(2, 6)).join(', ');
+    assert.equal(supersededRows(corpus).get('E-02')?.id, 'E-01', `E-02 (B) was not superseded by E-01 (A) with the rows ordered ${ids}`);
+    assert.equal(supersededRows(corpus).has('E-01'), false, `the row the ledger holds current was marked superseded with the rows ordered ${ids}`);
+  }
+});
+
+test('supersededRows: a later retrieval date still wins over the ledger\'s order', () => {
+  // B is retrieved the day after A, then A's bytes come back and its capture is reused: the
+  // ledger reads A, B, A, but B's date is later, and the date decides first - as in `newer`.
+  const { a, b, rows, row } = abaProject({ dateOfB: new Date(Date.now() + 86_400_000).toISOString().slice(0, 10) });
+  for (const order of [[row('E-01', a), row('E-02', b)], [row('E-02', b), row('E-01', a)]]) {
+    const map = supersededRows(rows(...order));
+    assert.equal(map.get('E-01')?.id, 'E-02', 'the later date lost to the ledger');
+    assert.equal(map.has('E-02'), false);
+  }
+});
+
+test('supersededRows: a capture no fetch recorded ranks below one the ledger holds, then by table order', () => {
+  const { dir, a, rows, row } = abaProject();
+  // Same-day captures nobody fetched: copies of A under names the ledger never saw.
+  const unranked = (name) => {
+    const file = `${PATHS.raw}/${a.retrieved}-${name}.md`;
+    fs.copyFileSync(resolve(dir, a.file), resolve(dir, file));
+    return { ...a, file };
+  };
+  const c = unranked('limits-copy-c');
+  const d = unranked('limits-copy-d');
+  for (const order of [[row('E-01', a), row('E-02', c)], [row('E-02', c), row('E-01', a)]]) {
+    assert.equal(supersededRows(rows(...order)).get('E-02')?.id, 'E-01', 'a file no fetch produced outranked a fetched one');
+  }
+  // Among unranked rows the table's order decides, as it did before: the last row wins.
+  assert.equal(supersededRows(rows(row('E-02', c), row('E-03', d))).get('E-02')?.id, 'E-03');
+  assert.equal(supersededRows(rows(row('E-03', d), row('E-02', c))).get('E-03')?.id, 'E-02');
 });
 
 // ---------------------------------------------------------------- corroboration

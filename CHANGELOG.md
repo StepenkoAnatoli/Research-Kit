@@ -5,6 +5,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- Which of two same-day evidence rows for one URL is current follows the fetch ledger, as the
+  collector already decided it, instead of the rows' order in the table: with A fetched, then
+  B, then A again, the gate had said B superseded A, and reordering two rows changed the
+  verdict (output-reliability audit G4, 2026-10-03).
 - Freshness is judged by the capture's own date, not the hand-editable table cell: editing an
   evidence row's Retrieved date alone had removed its stale warning while the capture on disk
   kept the real date. `unknown-closure` ages a row by its capture (the cell is the fallback
