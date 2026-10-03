@@ -15,7 +15,8 @@ import { readCorpus, cacheDecision, tableRow, appendJsonLine, parseCapture } fro
 import { seedRows, UNIVERSAL_DIMENSIONS } from './dimensions.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
 import { assertAppendable } from './provenance.mjs';
-import { urlKey, matchesQuery, mergeByRank, searchPatiently, canSearch, isWebUrl } from './research-run.mjs';
+import { urlKey, matchesQuery, mergeByRank, searchPatiently, isWebUrl } from './research-run.mjs';
+import { canSearch } from './transport.mjs';
 import { KIT_ROOT, UNTITLED_TOPIC } from './scaffold.mjs';
 import { fallbackCost } from './runtime.mjs';
 

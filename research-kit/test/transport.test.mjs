@@ -7,7 +7,7 @@ import { test, describe, assert, tempDir, fs, path, KIT_ROOT } from './harness.m
 import { readText, writeText } from '../lib/core.mjs';
 import * as firecrawl from '../lib/firecrawl.mjs';
 import * as httpKeyless from '../lib/http-transport.mjs';
-import { TRANSPORTS, TRANSPORT_NAMES, selectTransport, selectSearch, probeFirecrawl, unusedKeyNote } from '../lib/transport.mjs';
+import { TRANSPORTS, TRANSPORT_NAMES, selectTransport, selectSearch, probeFirecrawl, unusedKeyNote, canSearch } from '../lib/transport.mjs';
 import { mergeByRank } from '../lib/research-run.mjs';
 
 describe('transport');
@@ -560,7 +560,6 @@ test('an anonymous CLI fetches, and the keyless route searches for it', async ()
   const authed = selectTransport({ env: {}, probe: () => ({ installed: true, authenticated: true, version: '1.24.6', credits: 900 }), config: {} });
   assert.equal(authed.search.name, firecrawl.name);
   // And no fallback asks it to search when the keyless route fails: that search cannot succeed.
-  const { canSearch } = await import('../lib/research-run.mjs');
   assert.equal(canSearch(chosen.adapter), false, 'a failed keyless search fell back to the anonymous CLI, which cannot search');
   assert.equal(canSearch(authed.adapter), true);
 });

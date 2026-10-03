@@ -68,6 +68,12 @@ export function satisfies(adapter, shape) {
  * So: a module that declares `CONTRACTS` is taken at its word. The two that predate the
  * split declare nothing and are duck-typed, which for them is still correct.
  */
+/** Whether a transport can search: the browser fetches only (ADR-0088). */
+// A Firecrawl CLI with no key has a search function and no search: Firecrawl refuses it
+// (CLI 1.24.6, 2026-10-01), so a fallback to it only adds a second failure. Here beside
+// `isSearchOnly` because both are a transport's own capability, asked of any provider.
+export const canSearch = (provider) => typeof provider?.search === 'function' && provider?.name !== firecrawl.ANONYMOUS_NAME;
+
 export function isSearchOnly(adapter) {
   if (Array.isArray(adapter?.CONTRACTS)) {
     return adapter.CONTRACTS.includes('search') && !adapter.CONTRACTS.includes('fetch');
