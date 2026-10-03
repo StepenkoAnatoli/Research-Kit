@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   PATHS, HEADERS, resolve, today, sha256, titleFromUrl, hostOf, urlDigest, writeText, readText, exists,
-  sleepSync, urlKey, ageInDays, realInside,
+  sleepSync, urlKey, ageInDays, realInside, foldLineEndings,
 } from './core.mjs';
 import { rateLimitWaitMs } from './firecrawl.mjs';
 import {
@@ -81,7 +81,7 @@ export function writeRaw(root, result, { date = today() } = {}) {
   // LF - so a capture written with the CR bytes a server sent (copyright.gov, keyless,
   // 2026-10-02) hashed one way on the collector and checked out another way everywhere else,
   // failing handoff on a capture nobody had touched.
-  const body = String(result.markdown ?? '').replace(/\r\n?/g, '\n');
+  const body = foldLineEndings(result.markdown);
   const text = `${front}${body}\n`;
   // A capture is never overwritten with different bytes. The name is date + title + URL
   // digest, so a re-collection the same day lands on the same name: an identical page

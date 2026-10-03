@@ -600,6 +600,15 @@ test('a write cut short leaves the file it was replacing untouched, and no scrat
   assert.deepEqual(fs.readdirSync(dir), ['EVIDENCE.md'], 'a scratch file was left behind');
 });
 
+// 2026-10-03 (architecture pass): one fold for the bytes the kit writes and compares - CRLF
+// and a lone CR both become LF. Four sites carried their own regex, two of which disagreed.
+test('foldLineEndings turns CRLF and a lone CR into LF, and leaves LF alone', async () => {
+  const { foldLineEndings } = await import('../lib/core.mjs');
+  assert.equal(foldLineEndings('a\r\nb\rc\nd'), 'a\nb\nc\nd');
+  assert.equal(foldLineEndings('plain\n'), 'plain\n');
+  assert.equal(foldLineEndings(null), '', 'absent text folds to the empty string, as writeRaw expects');
+});
+
 test('writeText keeps the replaced file\'s mode, and writes through a symlink to its target', () => {
   const dir = tempDir('rk-atomic-');
   const target = path.join(dir, 'config.json');

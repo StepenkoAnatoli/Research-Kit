@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { PATHS, resolve, exists, isDirectory, readJson, readText, tempBase } from './core.mjs';
+import { PATHS, resolve, exists, isDirectory, readJson, readText, tempBase, foldLineEndings } from './core.mjs';
 import { GATE_MARKERS, TEMPLATE_DIR } from './scaffold.mjs';
 import { runPreflight, verdictContext, readGateState, fixCommand } from './preflight.mjs';
 import { readCorpus } from './corpus.mjs';
@@ -53,8 +53,7 @@ export function isEmptyArchitectureMap(text) {
   if (typeof text !== 'string') return false;
   const template = readText(path.join(TEMPLATE_DIR, 'docs', 'ARCHITECTURE.md'));
   if (template === null) return false;
-  const lf = (value) => value.replace(/\r\n/g, '\n');
-  return lf(text) === lf(template);
+  return foldLineEndings(text) === foldLineEndings(template);
 }
 
 /** One staged file's text: the index's bytes, or, outside a repository, the working tree's. */
