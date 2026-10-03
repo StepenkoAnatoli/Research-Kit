@@ -458,6 +458,48 @@ test('gateHealth names an absent commit gate and the command that installs it', 
   if (commit.severity === 'warn') assert.match(commit.fix, /install-hooks\.mjs/);
 });
 
+// --- what do the hooks hand on to? ---------------------------------------------------
+
+// Found 2026-10-03 on the maintainer's machine: after "research gate: allow" every commit
+// printed "gate error: number 0 is not iterable" and "allowing this commit (fail-open)" -
+// wording that exists only in old versions of this kit. The hooks hand on to the folder the
+// install replaced (ADR-0112), and that folder was the previous implementation's own
+// githooks/: two gates on every commit, the older one deciding on its own rules and failing
+// open. doctor said nothing; it reports it now, with the one-line remedy (ADR-0134).
+test('handOnState: the folder the install replaced is none, missing, another copy of this kit, or somebody else\'s hooks', async () => {
+  const { handOnState } = await import('../lib/doctor.mjs');
+  assert.equal(handOnState({ previous: null }).state, 'none');
+  assert.equal(handOnState({ previous: path.join(tempDir('rk-gone-'), 'nowhere') }).state, 'missing');
+  const old = tempDir('rk-old-kit-');
+  writeText(path.join(old, 'pre-commit'), '#!/bin/sh\n# research-kit commit gate - POSIX sh wrapper around bin/gate.mjs.\nexit 0\n');
+  assert.equal(handOnState({ previous: old }).state, 'kit');
+  const husky = tempDir('rk-husky-hooks-');
+  writeText(path.join(husky, 'pre-commit'), '#!/bin/sh\n# husky\n');
+  assert.equal(handOnState({ previous: husky }).state, 'other');
+  assert.equal(handOnState({ previous: tempDir('rk-empty-hooks-') }).state, 'other', 'a folder with no pre-commit hands nothing on, and is nobody\'s business');
+});
+
+test('doctor warns when the hooks folder the install replaced is another copy of this kit\'s gate', () => {
+  requireGit('the recorded previous hooks folder');
+  const { env } = machine({ settings: {} });
+  const dir = tempDir('rk-handon-');
+  const gitPaths = { env: { ...process.env, GIT_CONFIG_GLOBAL: path.join(dir, 'gitconfig'), GIT_CONFIG_NOSYSTEM: '1' } };
+  const old = path.join(dir, 'old-kit-githooks');
+  writeText(path.join(old, 'pre-commit'), '#!/bin/sh\n# research-kit commit gate - POSIX sh wrapper around bin/gate.mjs.\n');
+  spawnSync('git', ['config', '--global', 'research-kit.previousHooksPath', old], { env: gitPaths.env });
+  const project = makeProject();
+  const warned = gateHealth(project, { env, gitPaths: { ...gitPaths, cwd: project }, record: false });
+  const finding = find(warned, 'gate-hand-on');
+  assert.ok(finding, `no gate-hand-on finding: ${JSON.stringify(warned.map((x) => x.name))}`);
+  assert.equal(finding.severity, 'warn');
+  assert.match(finding.detail, /another copy of this kit/);
+  assert.match(finding.fix, /--unset research-kit\.previousHooksPath/);
+
+  spawnSync('git', ['config', '--global', '--unset', 'research-kit.previousHooksPath'], { env: gitPaths.env });
+  assert.equal(find(gateHealth(project, { env, gitPaths: { ...gitPaths, cwd: project }, record: false }), 'gate-hand-on'), undefined,
+    'with nothing recorded there is nothing to say');
+});
+
 // --- whose pre-commit is it? ------------------------------------------------------
 
 test('a pre-commit in SOMEBODY ELSE\'S tree is foreign, not current', async () => {

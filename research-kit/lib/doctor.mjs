@@ -24,7 +24,7 @@ import { verifyBundle, bundleSummary } from './bundle.mjs';
 import {
   posture, machineRole, collectionPolicy, readMachineConfig, retiredEnvNotes,
   hooksPath, hooksPathEffective, runtimePaths, skillLocations,
-  readInstallState, gitVersion, isGitRepo, localHooksPathOverride, RETIRED_CONFIG_KEYS, RETIRED_EDIT_GATE_HOOKS,
+  readInstallState, gitVersion, isGitRepo, localHooksPathOverride, previousHooksPath, RETIRED_CONFIG_KEYS, RETIRED_EDIT_GATE_HOOKS,
   EDIT_GATE_HOOK, KIT_HOME, namesHook,
 } from './machine.mjs';
 
@@ -209,6 +209,26 @@ export function commitGateState({ hooksPath: dir, kitHome = KIT_HOME } = {}) {
   return { state: 'current', hook, mode, expected };
 }
 
+/**
+ * WHAT the kit's hooks hand on to (ADR-0112): `none` / `missing` / `kit` / `other`.
+ *
+ * The install records the `core.hooksPath` it replaced, and every hook in githooks/ runs
+ * that folder's hook after its own. On the maintainer's machine that folder was the previous
+ * implementation's own githooks/ - two gates on every commit, the older one deciding on its
+ * own rules, and on 2026-10-03 crashing ("number 0 is not iterable") and failing open after
+ * the current gate had allowed. Recognised by the header every version of this kit's
+ * pre-commit has carried; a folder with no pre-commit hands nothing on and is nobody's
+ * business. Pure, like `commitGateState`, for the same reason (ADR-0004).
+ */
+export function handOnState({ previous } = {}) {
+  if (!previous) return { state: 'none' };
+  if (!isDirectory(previous)) return { state: 'missing', previous };
+  const hook = path.join(previous, 'pre-commit');
+  const head = (readText(hook, '') ?? '').split('\n').slice(0, 3).join('\n');
+  if (/research-kit commit gate/.test(head)) return { state: 'kit', previous, hook };
+  return { state: 'other', previous, hook: exists(hook) ? hook : null };
+}
+
 export function gateHealth(root, { env = process.env, gitPaths = {}, record = true } = {}) {
   const out = [];
   const global = hooksPath('global', gitPaths);
@@ -246,6 +266,18 @@ export function gateHealth(root, { env = process.env, gitPaths = {}, record = tr
   }
   if (effective && global && path.resolve(effective) !== path.resolve(global)) {
     out.push(f('warn', 'gate-hooks-path', `effective core.hooksPath here is ${effective}, not the machine-wide ${global}`));
+  }
+  // What the hooks hand on to (ADR-0134). Quiet when nothing is recorded or the folder holds
+  // somebody else's hooks: that hand-on is the point of ADR-0112.
+  const handOn = handOnState({ previous: previousHooksPath(gitPaths) });
+  if (handOn.state === 'kit') {
+    out.push(f('warn', 'gate-hand-on',
+      `the hooks folder the install replaced, ${handOn.previous}, is another copy of this kit's gate - every commit runs both, and the older one decides on its own rules (on 2026-10-03 one crashed and failed open)`,
+      'git config --global --unset research-kit.previousHooksPath'));
+  } else if (handOn.state === 'missing') {
+    out.push(f('warn', 'gate-hand-on',
+      `the hooks folder the install replaced, ${handOn.previous}, no longer exists - the hooks hand on to nothing there`,
+      'git config --global --unset research-kit.previousHooksPath'));
   }
 
   const runtime = runtimePaths(env);
