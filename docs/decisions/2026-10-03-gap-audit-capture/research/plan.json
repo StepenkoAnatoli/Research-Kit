@@ -1,0 +1,111 @@
+{
+  "topic": "What do web-capture, annotation and HTTP standards require of a faithful, re-anchorable and current capture, as a benchmark for Research-Kit's captures",
+  "notes": "Phase 0 split the compound topic into four fragments (ADR-0085) and gathered Edge screenshot pages, exome capture kits and electrode papers; only the two W3C annotation-model pages were on topic, and they came through the keyless transport (one graded partial). The owner pages are named by hand below, one per standard; the two queries cover the facts whose owner page could not be named with certainty (Hypothesis's anchoring, Firecrawl's robots statement). Budget: at most 20 pages for the project, 2 already spent in phase 0. The two robots searches found only glossary articles that say nothing about Firecrawl's own behaviour; the four Firecrawl owner pages were located afterwards with a separate Firecrawl search (a locator, not evidence) and named here by hand.",
+  "depth": "deep",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 2,
+  "maxScrapes": 18,
+  "prefer": [
+    "w3.org",
+    "hypothes.is",
+    "github.com",
+    "html.spec.whatwg.org",
+    "encoding.spec.whatwg.org",
+    "iipc.github.io",
+    "specs.webrecorder.net",
+    "rfc-editor.org",
+    "docs.firecrawl.dev"
+  ],
+  "queries": [
+    {
+      "q": "Hypothesis fuzzy anchoring TextQuoteSelector re-anchor annotations when page text changes",
+      "why": "U-1: how Hypothesis re-anchors a quote on changed text, in its own words",
+      "prefer": [
+        "web.hypothes.is",
+        "hypothes.is",
+        "github.com"
+      ]
+    },
+    {
+      "q": "Firecrawl robots.txt scrape respect",
+      "why": "U-5: whether Firecrawl's documentation says its scrape honours robots.txt",
+      "prefer": [
+        "docs.firecrawl.dev",
+        "firecrawl.dev"
+      ]
+    }
+  ],
+  "urls": [
+    {
+      "url": "https://www.w3.org/TR/annotation-model/",
+      "type": "P",
+      "why": "U-1: the Text Quote Selector (exact, prefix, suffix) as the W3C Recommendation defines it; re-fetched through Firecrawl because the phase-0 keyless capture is graded partial"
+    },
+    {
+      "url": "https://web.hypothes.is/blog/fuzzy-anchoring/",
+      "type": "P",
+      "why": "U-1: Hypothesis's own description of fuzzy anchoring - quote, prefix/suffix context, position, and the tolerance it accepts"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/hypothesis/client/main/src/annotator/anchoring/match-quote.ts",
+      "type": "P",
+      "why": "U-1: the anchoring package's quote matcher in the hypothesis/client source - the algorithm and its error tolerance"
+    },
+    {
+      "url": "https://html.spec.whatwg.org/multipage/parsing.html",
+      "type": "P",
+      "why": "U-2: 'determining the character encoding' and the prescan algorithm, as the WHATWG HTML Standard defines them"
+    },
+    {
+      "url": "https://encoding.spec.whatwg.org/",
+      "type": "P",
+      "why": "U-2: the BOM rule ('BOM sniff') and the decode algorithm in the Encoding Standard"
+    },
+    {
+      "url": "https://iipc.github.io/warc-specifications/specifications/warc-format/warc-1.1/",
+      "type": "P",
+      "why": "U-3: WARC 1.1 record types, WARC-Date, WARC-Payload-Digest and the response record's Content-Type"
+    },
+    {
+      "url": "https://specs.webrecorder.net/wacz/latest/",
+      "type": "P",
+      "why": "U-3: what WACZ adds - datapackage.json, datapackage-digest.json and pages.jsonl"
+    },
+    {
+      "url": "https://www.rfc-editor.org/rfc/rfc9111",
+      "type": "P",
+      "why": "U-4: HTTP caching - freshness, validation with If-None-Match and If-Modified-Since, and 304 handling"
+    },
+    {
+      "url": "https://www.rfc-editor.org/rfc/rfc9110",
+      "type": "P",
+      "why": "U-4: HTTP semantics - Last-Modified, ETag, Date and the conditional request fields"
+    },
+    {
+      "url": "https://www.rfc-editor.org/rfc/rfc9309",
+      "type": "P",
+      "why": "U-5: the Robots Exclusion Protocol - group matching, rule evaluation, and how a 4xx or 5xx robots.txt is treated"
+    },
+    {
+      "url": "https://www.firecrawl.dev/",
+      "type": "P",
+      "why": "U-5: Firecrawl's own FAQ on its home page - the robots.txt statement and the 'FirecrawlAgent' user-agent it names"
+    },
+    {
+      "url": "https://docs.firecrawl.dev/api-reference/endpoint/scrape",
+      "type": "P",
+      "why": "U-5: the scrape endpoint's parameters - whether a robots.txt option exists on scrape at all"
+    },
+    {
+      "url": "https://docs.firecrawl.dev/api-reference/endpoint/crawl-post",
+      "type": "P",
+      "why": "U-5: the crawl endpoint's ignoreRobotsTxt and robotsUserAgent parameters and their defaults"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/firecrawl/firecrawl/main/README.md",
+      "type": "P",
+      "why": "U-5: the vendor README's statement that Firecrawl respects robots.txt by default"
+    }
+  ]
+}
