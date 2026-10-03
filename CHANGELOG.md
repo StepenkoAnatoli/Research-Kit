@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A table row written after a blank line is recorded, not dropped: a blank line ends a
+  Markdown table (GitHub renders the rows after it as prose), and `parseTable` had dropped
+  them in silence, so a blocking unknown written below a blank line left the gate, which
+  printed PASS. Every row-shaped line between a table's end and the next heading is now a
+  `table-split` problem naming its line, and `hygiene` fails it; a second table with its own
+  header is not one (gap audit 2026-10-03, rank 1).
 - The browser transport reads the origin's HTTP status and final URL from Chromium's own net
   log (`--log-net-log`, written to a private folder the guard child deletes after reading):
   an origin's 403 page had been graded `full`, because `--dump-dom` reports no status and

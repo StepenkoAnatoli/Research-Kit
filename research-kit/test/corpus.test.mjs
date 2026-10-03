@@ -278,6 +278,36 @@ test('a row with an empty ID cell that holds content is a malformed-id problem, 
   assert.equal(corpus.unknowns.length, 1);
 });
 
+// Gap audit 2026-10-03, rank 1: a blank line inside a table ends it (as GFM renders it), and
+// every row-shaped line after the blank vanished with no problem recorded - a blocking unknown
+// written below a blank line dropped out of the gate, which printed PASS. The rows stay out of
+// the table (GitHub shows them as prose), but the parser now says so, by line.
+test('a row-shaped line after the table ended is a table-split problem naming the line, in each table', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace(/(\| U-1 \|[^\n]*\n)/, '$1\n| U-2 | A second blocking question? | It decides the design | OPEN | |\n'));
+  corrupt(dir, PATHS.evidence, (text) => `${text}\n| E-02 | 2026-01-01 | P | https://example.invalid/more | A second reading. | research/raw/x.md |\n`);
+  corrupt(dir, PATHS.map, (text) => `${text}\n| D-99 | Another dimension | It matters | GAP | |\n`);
+  const corpus = readCorpus(dir);
+  const split = corpus.problems.filter((p) => p.kind === 'table-split');
+  assert.deepEqual(split.map((p) => p.artifact).sort(), [PATHS.discovery, PATHS.evidence, PATHS.map].sort(), JSON.stringify(corpus.problems));
+  for (const p of split) {
+    assert.ok(p.line > 0, 'the line is named');
+    assert.match(p.detail, /blank line/, p.detail);
+    assert.match(p.detail, /U-2|E-02|D-99/, p.detail);
+  }
+  assert.equal(corpus.unknowns.length, 1, 'the row after the blank is still not an unknown: GFM ends the table there');
+  assert.equal(lineOf(dir, PATHS.discovery, '| U-2'), split.find((p) => p.artifact === PATHS.discovery).line);
+});
+
+test('a second table after a blank line, with its own header and separator, is not a split', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => `${text}\n| Note | Text |\n|---|---|\n| n-1 | a note table below the unknowns |\n`);
+  const corpus = readCorpus(dir);
+  assert.deepEqual(corpus.problems.filter((p) => p.kind === 'table-split'), []);
+  // The repository's own SOURCES.md holds two tables with different headers, blank-separated.
+  assert.deepEqual(readCorpus('/home/user/Research-Kit').problems.filter((p) => p.kind === 'table-split'), []);
+});
+
 test('a plan that will not parse is reported, never absorbed', () => {
   const dir = makePassingProject();
   writeText(resolve(dir, PATHS.plan), '{ not json');
