@@ -16,7 +16,7 @@ import {
 import { rateLimitWaitMs } from './firecrawl.mjs';
 import {
   captureEntry, cacheDecision, rememberCapture, appendRow, upsertRow, nextId,
-  readCaptures, parseTable, readLedger, CAPTURE_MAX_BYTES,
+  readCaptures, parseTable, readLedger, ledgerRank, CAPTURE_MAX_BYTES,
 } from './corpus.mjs';
 import { appendFetch, withLock } from './provenance.mjs';
 import { firstFinding } from './finding.mjs';
@@ -322,7 +322,11 @@ export function collectOne(root, url, {
  */
 function refreshCaptures(root, corpus) {
   // Only what the snapshot does not hold, and no sketches: those are the gate's (ADR-0036).
-  const current = readCaptures(root, { known: new Set(corpus.captures.byFile.keys()), sketches: false });
-  for (const entry of current.entries) rememberCapture(corpus.captures, entry);
+  // With the ledger's rank, so a capture another collector wrote since the snapshot is
+  // current only if its fetch came later - the one ordering rule the reopen uses (`newer`,
+  // 2026-10-03). The ledger is read here as `recentlyGone` already reads it per page.
+  const rank = ledgerRank(readLedger(root).entries);
+  const current = readCaptures(root, { known: new Set(corpus.captures.byFile.keys()), sketches: false, rank });
+  for (const entry of current.entries) rememberCapture(corpus.captures, entry, { rank });
   return corpus.captures;
 }

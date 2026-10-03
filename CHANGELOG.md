@@ -5,6 +5,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A collector whose snapshot predates another writer's captures now sees the last of them as
+  current, on the same date by the ledger's order and then by revision: the refresh under
+  the lock read without the ledger's rank and remembered each capture as current in filename
+  order, so the reopen fix of the same day was undone during a run - `.r9.md` as the cache hit
+  where the disk held `.r12.md` (outside audit, second round, 2026-10-03).
 - `doctor` warns when the hooks folder the install replaced - what every kit hook hands on to
   (ADR-0112) - is another copy of this kit's gate, or no longer exists, and names the
   one-line remedy (ADR-0134). On the maintainer's machine that folder was the previous
