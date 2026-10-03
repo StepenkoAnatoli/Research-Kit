@@ -36,7 +36,7 @@ import { checkEntryName } from './artifact-zip.mjs';
 import { readCorpus, parseCapture } from './corpus.mjs';
 import { verifyHandoff } from './handoff.mjs';
 import { runPreflight } from './preflight.mjs';
-import { briefState, reviewedBy } from './brief.mjs';
+import { briefState, reviewedBy, draftStamp, briefInputsHash, judgedSection, JUDGED_SECTIONS } from './brief.mjs';
 import { firstFinding } from './finding.mjs';
 import { validateArtifact, MANIFEST_PATH, MANIFEST_DIGEST_PATH, README_PATH } from './artifact-validator.mjs';
 
@@ -251,7 +251,19 @@ export function deriveState(root, { corpus = null, env = {} } = {}) {
   // Review, derived.
   const rows = snapshot.subtopics ?? [];
   const mapClassified = rows.length > 0 && rows.every((r) => ['COVERED', 'DISMISSED', 'GAP'].includes(r.status));
-  const briefReviewed = briefState(snapshot.brief?.text ?? '') === 'authored';
+  // Reviewed means three things (2026-10-03, output-reliability audit G1): the brief is
+  // authored (drafted, no TODO left); every judged section is PRESENT and answered - a missing
+  // section holds no TODO, so a drafted brief with no review sections at all had derived
+  // APPROVED_BRIEF on the repository's own corpus; and a stamped brief was drafted from the
+  // corpus as it is now - one whose evidence changed after the draft had stayed authorized
+  // with hygiene's brief-stale warning beside it. A brief with no stamp predates ADR-0055 (the
+  // root's own and eleven decision briefs do): its currency cannot be checked, so it keeps the
+  // approval and the map says so; a redraft with --force stamps it.
+  const briefText = snapshot.brief?.text ?? '';
+  const stamp = draftStamp(briefText);
+  const briefComplete = JUDGED_SECTIONS.every((key) => judgedSection(briefText, key)?.answered);
+  const briefCurrent = !stamp || stamp.inputs === briefInputsHash(snapshot);
+  const briefReviewed = briefState(briefText) === 'authored' && briefComplete && briefCurrent;
   // Who did it is the reviewer's declaration, not a fact the kit can check (ADR-0074), and
   // it is not one of the approval conditions.
   const by = reviewedBy(snapshot.brief?.text ?? '');

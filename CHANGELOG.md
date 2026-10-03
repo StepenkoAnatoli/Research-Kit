@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A package's `buildAuthorized` requires the brief to be complete and current: every judged
+  section present and answered, and a stamped brief drafted from the corpus as it is now. A
+  drafted brief with no review sections had been approved (a missing section holds no TODO),
+  and one whose evidence changed after the draft had stayed authorized. A brief with no draft
+  stamp - every brief authored before ADR-0055 - keeps its approval, its currency unchecked
+  (output-reliability audit G1, 2026-10-03).
 - The keyless and browser transports' HTML conversion keeps comparison text inside list
   items, table cells and headings: `x &lt; 5 and y &gt; 2` had come out as `x 2`, and a link
   label inside an item lost everything from its `<` to the item's end, because the block
