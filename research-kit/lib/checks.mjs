@@ -43,8 +43,23 @@ function retrievedDay(value) {
 // whose capture carries no parseable date, is still judged by the cell - there is
 // nothing better to judge it by, and hygiene says when the two disagree.
 function freshnessDate(corpus, row) {
-  const capture = captureOf(corpus, row);
+  const capture = ownCapture(corpus, row);
   return capture && ageInDays(capture.retrieved) !== null ? capture.retrieved : row.retrieved;
+}
+
+// The capture a row NAMES in its Raw cell - not the one `captureOf` finds for a blank cell,
+// which is the URL's latest capture and may be a later fetch the row never read. Judged by
+// that one, a row with a blank Raw cell and a 2026-01-01 reading borrowed a fresh fetch's
+// date, lost its stale warning, and drew a date-mismatch telling the operator to write the
+// later date into the row (found 2026-10-03, review of G8). A row that names no capture is
+// judged by its cell, and has nothing to reconcile against.
+function ownCapture(corpus, row) {
+  return row?.raw ? (corpus.captures.byFile.get(row.raw) ?? null) : null;
+}
+
+/** The day a row's freshness is judged by, as a comparable string ('' when it has none). */
+function freshnessDay(corpus, row) {
+  return retrievedDay(freshnessDate(corpus, row)) ?? '';
 }
 
 // ---------------------------------------------------------------- 1. discovery-contract
@@ -356,7 +371,7 @@ function unknownClosure(corpus, options = {}) {
       if (age !== null && age > maxAgeDays) {
         // A refresh that has already happened is a different instruction from one that
         // has not: "go and collect" versus "go and read what was collected".
-        const fresher = corpus.evidence.find((e) => e.url === row.url && String(e.retrieved) > String(row.retrieved));
+        const fresher = corpus.evidence.find((e) => e.url === row.url && freshnessDay(corpus, e) > freshnessDay(corpus, row));
         // When the capture and the cell disagree, the reader looking at the table sees a
         // date that does not explain the age - so the judging date is named.
         const judged = retrievedDay(dated) !== retrievedDay(row.retrieved)
@@ -603,13 +618,17 @@ export function supersededRows(corpus) {
   // tie fell to the stable sort's TABLE ORDER: with A fetched, then B, then A again - the
   // third fetch reusing A's file - the collector held A current while this said B had
   // superseded it, and swapping two evidence rows swapped the verdict.
+  // The date is the capture's, as freshness is judged (`freshnessDay`), not the table cell's:
+  // ordered by the cell, one edit to an older row's date made the gate fail the genuinely
+  // newest row for citing a "superseded" capture and told the operator to cite the older one
+  // (found 2026-10-03, review of G4 and G8).
   const rank = ledgerRank(corpus.ledger?.entries);
   const rankOf = (row) => rank.get(row.raw || captureOf(corpus, row)?.file) ?? -1;
 
   const superseded = new Map();
   for (const rows of byUrl.values()) {
     if (rows.length < 2) continue;
-    const ordered = [...rows].sort((a, b) => compareText(a.retrieved, b.retrieved) || (rankOf(a) - rankOf(b)));
+    const ordered = [...rows].sort((a, b) => compareText(freshnessDay(corpus, a), freshnessDay(corpus, b)) || (rankOf(a) - rankOf(b)));
     const current = ordered[ordered.length - 1];
     // A row is never superseded by itself: a row pasted twice read "E-01 has been superseded
     // by E-01" (found 2026-09-27). The duplicate ID is hygiene's to name.
@@ -773,7 +792,7 @@ function hygiene(corpus) {
   // table's date is not the one being judged. A cell that does not parse is
   // unparseable-date's to name; a capture with no date gives nothing to reconcile against.
   for (const row of corpus.evidence) {
-    const capture = captureOf(corpus, row);
+    const capture = ownCapture(corpus, row);
     const captureDay = retrievedDay(capture?.retrieved);
     if (!captureDay) continue;
     if (row.retrieved && ageInDays(row.retrieved) === null) continue;
@@ -789,10 +808,22 @@ function hygiene(corpus) {
   // a date written in a time zone ahead of this machine's is not a failure.
   for (const row of corpus.evidence) {
     const age = row.retrieved ? ageInDays(row.retrieved) : null;
-    if (age === null || age >= -1) continue;
+    if (age !== null && age < -1) {
+      out.push(finding('fail', 'hygiene', 'future-date',
+        `${row.id} has retrieval date ${row.retrieved}, which is in the future - write the date the page was fetched (its capture records it)`,
+        { row: row.id, line: row.line }));
+      continue;
+    }
+    // The capture's date is the one freshness is judged by, so a future date there hides the
+    // row's age just as well, and only date-mismatch had anything to say (found 2026-10-03,
+    // review of G8). It takes a collector whose clock was ahead; it is still not evidence.
+    const capture = ownCapture(corpus, row);
+    const captureAge = capture ? ageInDays(capture.retrieved) : null;
+    if (captureAge === null || captureAge >= -1) continue;
     out.push(finding('fail', 'hygiene', 'future-date',
-      `${row.id} has retrieval date ${row.retrieved}, which is in the future - write the date the page was fetched (its capture records it)`,
-      { row: row.id, line: row.line }));
+      `${row.id}'s capture ${capture.file} records retrieved ${retrievedDay(capture.retrieved)}, which is in the future - the collector's clock was ahead `
+      + 'when the page was fetched, and freshness is judged by that date; re-collect the page',
+      { row: row.id, line: row.line, file: capture.file }));
   }
 
   // A row whose ID is not in its table's form is a fail, for the same reason duplicate-id is:

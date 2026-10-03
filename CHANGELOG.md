@@ -26,12 +26,19 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 - Which of two same-day evidence rows for one URL is current follows the fetch ledger, as the
   collector already decided it, instead of the rows' order in the table: with A fetched, then
   B, then A again, the gate had said B superseded A, and reordering two rows changed the
-  verdict (output-reliability audit G4, 2026-10-03).
+  verdict (output-reliability audit G4, 2026-10-03). The review of that fix found the
+  order still read the editable table cell first, so one edit to an older row's date failed
+  the gate on the genuinely newest row; both rows are now ordered by their captures' dates.
 - Freshness is judged by the capture's own date, not the hand-editable table cell: editing an
   evidence row's Retrieved date alone had removed its stale warning while the capture on disk
   kept the real date. `unknown-closure` ages a row by its capture (the cell is the fallback
   when the capture carries no date), and `hygiene` warns `date-mismatch` when the two name
-  different days (output-reliability audit G8, 2026-10-03).
+  different days (output-reliability audit G8, 2026-10-03). The review of that fix found a
+  row with a blank Raw cell judged by the URL's latest capture - a later fetch it never read -
+  so it borrowed that fetch's date, lost its stale warning and drew a date-mismatch with the
+  wrong remedy; a row is judged by the capture it names, or by its cell when it names none.
+  A future date in the capture now fails `future-date` as one in the cell does, and the
+  stale hint's "fresher capture" is found by capture date.
 - A table row whose ID is mistyped (`U_99`, `E_7`, a subtopic without its letters-dash-number
   form) is a hygiene FAIL naming the file, the line and the form, where it had silently
   vanished from the corpus - no unknown, no problem, no finding - and a blocking question with
