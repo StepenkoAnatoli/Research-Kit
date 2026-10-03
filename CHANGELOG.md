@@ -15,7 +15,14 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   capture's hash then proved a page the server never sent; a label the decoder does not know
   falls back to UTF-8 and the keyless capture is graded partial naming the charset; a legacy
   label over bytes that are valid UTF-8 is read as UTF-8 (output-reliability audit G7,
-  2026-10-03).
+  2026-10-03). The review of that fix found four readings to correct: bytes that are not
+  valid UTF-8 under a UTF-8 label, or none - the page whose charset is named only in a
+  `<meta>` tag - were still silent U+FFFD graded full, and are now a named fallback graded
+  partial; a UTF-16 label over an 8-bit body (no byte-order mark, no NUL byte) decoded to CJK
+  garbage with no fallback, and is now read as UTF-8; an unknown label over pure ASCII was
+  graded partial though the decode was exact, and a stray quote (`charset="utf-8`) reached
+  the decoder as part of the label; and `boundedText`, the JSON reading, had started to
+  honour a legacy label where RFC 8259 makes JSON UTF-8 - it reads UTF-8 again.
 - Which of two same-day evidence rows for one URL is current follows the fetch ledger, as the
   collector already decided it, instead of the rows' order in the table: with A fetched, then
   B, then A again, the gate had said B superseded A, and reordering two rows changed the

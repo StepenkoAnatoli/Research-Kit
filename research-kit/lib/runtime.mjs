@@ -125,26 +125,38 @@ export const CHILD_OUTPUT_LIMIT = 8 * MAX_PAGE_BYTES;
  */
 export function charsetOf(contentType) {
   const match = /;\s*charset\s*=\s*("([^"]*)"|'([^']*)'|([^;\s]*))/i.exec(String(contentType ?? ''));
-  return (match ? (match[2] ?? match[3] ?? match[4]) : '').trim().toLowerCase();
+  // A stray quote (`charset="utf-8`, unbalanced) is not part of the label (2026-10-03).
+  return (match ? (match[2] ?? match[3] ?? match[4]) : '').replace(/^["']+|["']+$/g, '').trim().toLowerCase();
 }
 
 /**
  * The decoder for a body: `{ decoder, charset, fallback }`, where `charset` is the encoding
- * actually used and `fallback` is '' or a sentence saying why it is not the one declared.
+ * actually used and `fallback` is '' or a sentence saying why the text is not known to be
+ * the body as the server meant it.
  *
  * Found 2026-10-03 (output-reliability audit, G7): every body was decoded as UTF-8 whatever
  * Content-Type said, so a `charset=windows-1252` page holding byte 0x80 came back with
  * U+FFFD where the euro sign was - silently, and the capture's hash then proved a page the
- * server never sent. Two rules, in this order:
+ * server never sent. The rules, in this order (the later ones from the review of that fix,
+ * the same day):
  *  - a byte-order mark outranks the header: a UTF-8 or UTF-16 BOM is the file saying what
  *    it is, and a server that mislabels a BOM'd file is common; the decoder drops the mark.
- *  - the declared label is given to TextDecoder, which knows the WHATWG labels (windows-1252,
- *    iso-8859-1, shift_jis, ...) on a Node built with full ICU, as Node 22+ is. A label it
- *    does not know throws RangeError; the body is then read as UTF-8 - the only honest
- *    choice left - and `fallback` says so, because a body read in the wrong charset is not
- *    known to be the page, and the caller decides what that means for the capture.
- * An absent charset is UTF-8, as it always was, and `new TextDecoder('utf-8')` is
- * `new TextDecoder()`: a UTF-8 body decodes byte for byte as before this change.
+ *  - a label TextDecoder does not know (it knows the WHATWG labels - windows-1252,
+ *    iso-8859-1, shift_jis, ... - on a Node built with full ICU, as Node 22+ is) means the
+ *    body is read as UTF-8, the only honest choice left; that is a named fallback when a byte
+ *    outside ASCII is present, and an exact reading when none is.
+ *  - a UTF-8 label, or none, reads as UTF-8, as it always did; bytes that are not valid UTF-8
+ *    under it are a named fallback, because a page that names its charset only in a <meta>
+ *    tag arrives exactly so, and U+FFFD where its euro sign was is not the page.
+ *  - a UTF-16 label over a body with no NUL byte is not believed: UTF-16 text of any page
+ *    holds one for every ASCII character, and an 8-bit body read as UTF-16 is CJK garbage
+ *    from end to end. Such a body is read as UTF-8 - exact when it is valid UTF-8, a named
+ *    fallback when it is not.
+ *  - a legacy label over bytes that form valid UTF-8 is read as UTF-8: a server default of
+ *    iso-8859-1 in front of files written as UTF-8 is the common misconfiguration, and bytes
+ *    outside ASCII that form valid UTF-8 are almost never intended as Latin-1 text. The
+ *    declared charset decides only bytes that are not valid UTF-8, which is the legacy page
+ *    the declaration exists for.
  */
 /** Any byte outside ASCII - the only bodies whose charset changes what they say. */
 function hasHighByte(bytes) {
@@ -152,35 +164,44 @@ function hasHighByte(bytes) {
   return false;
 }
 
+/** Any NUL byte - which UTF-16 text of a page cannot avoid, and 8-bit text never holds. */
+function hasNul(bytes) {
+  for (let i = 0; i < bytes.length; i += 1) if (bytes[i] === 0) return true;
+  return false;
+}
+
+function validUtf8(bytes) {
+  try { new TextDecoder('utf-8', { fatal: true }).decode(bytes); return true; } catch { return false; }
+}
+
+const utf8Reading = (fallback = '') => ({ decoder: new TextDecoder('utf-8'), charset: 'utf-8', fallback });
+
 export function decoderFor(contentType, bytes, who = 'the body') {
   const b = bytes ?? [];
-  if (b[0] === 0xEF && b[1] === 0xBB && b[2] === 0xBF) return { decoder: new TextDecoder('utf-8'), charset: 'utf-8', fallback: '' };
+  if (b[0] === 0xEF && b[1] === 0xBB && b[2] === 0xBF) return utf8Reading();
   if (b[0] === 0xFF && b[1] === 0xFE) return { decoder: new TextDecoder('utf-16le'), charset: 'utf-16le', fallback: '' };
   if (b[0] === 0xFE && b[1] === 0xFF) return { decoder: new TextDecoder('utf-16be'), charset: 'utf-16be', fallback: '' };
   const declared = charsetOf(contentType);
-  if (!declared) return { decoder: new TextDecoder('utf-8'), charset: 'utf-8', fallback: '' };
-  // A legacy label over UTF-8 bytes is the common misconfiguration (a server default of
-  // iso-8859-1 in front of files written as UTF-8): read as declared, `café` is `cafÃ©`, which
-  // the always-UTF-8 reading before this change got right by accident. Bytes outside ASCII that
-  // form valid UTF-8 are almost never intended as Latin-1 text, so UTF-8 is preferred for them;
-  // the declared charset decides only bytes that are not valid UTF-8, which is the legacy page
-  // the declaration exists for. A UTF family label needs no such check.
-  if (!/^(utf-?8|unicode-1-1-utf-8|utf-?16(le|be)?)$/.test(declared) && hasHighByte(b)) {
-    try {
-      new TextDecoder('utf-8', { fatal: true }).decode(b);
-      return { decoder: new TextDecoder('utf-8'), charset: 'utf-8', fallback: '' };
-    } catch { /* not UTF-8: the declaration stands */ }
-  }
+  let decoder;
   try {
-    const decoder = new TextDecoder(declared);
-    return { decoder, charset: decoder.encoding, fallback: '' };
+    decoder = new TextDecoder(declared || 'utf-8');
   } catch {
-    return {
-      decoder: new TextDecoder('utf-8'),
-      charset: 'utf-8',
-      fallback: `${who} declares charset "${declared}", which TextDecoder does not know - decoded as UTF-8, so bytes outside ASCII may read as U+FFFD`,
-    };
+    return utf8Reading(hasHighByte(b)
+      ? `${who} declares charset "${declared}", which TextDecoder does not know - decoded as UTF-8, so bytes outside ASCII may read as U+FFFD`
+      : '');
   }
+  if (decoder.encoding === 'utf-8') {
+    return utf8Reading(hasHighByte(b) && !validUtf8(b)
+      ? `${who} ${declared ? `declares charset "${declared}"` : 'declares no charset'} but holds bytes that are not valid UTF-8 - decoded as UTF-8, so those read as U+FFFD`
+      : '');
+  }
+  if (decoder.encoding.startsWith('utf-16') && !hasNul(b)) {
+    return utf8Reading(hasHighByte(b) && !validUtf8(b)
+      ? `${who} declares charset "${declared}" but holds no NUL byte, which UTF-16 text of a page cannot avoid - decoded as UTF-8, so bytes outside ASCII may read as U+FFFD`
+      : '');
+  }
+  if (hasHighByte(b) && validUtf8(b)) return utf8Reading();
+  return { decoder, charset: decoder.encoding, fallback: '' };
 }
 
 /**
@@ -191,6 +212,12 @@ export function decoderFor(contentType, bytes, who = 'the body') {
  * the body in the refusal and in the fallback.
  */
 export async function boundedBody(response, who) {
+  const bytes = await boundedBytes(response, who);
+  const { decoder, charset, fallback } = decoderFor(response.headers.get('content-type'), bytes, who);
+  return { text: decoder.decode(bytes), charset, fallback };
+}
+
+async function boundedBytes(response, who) {
   const tooLarge = () => new Error(`${who} is larger than ${MAX_PAGE_BYTES / MiB} MiB - not read (ADR-0082)`);
   if (Number(response.headers.get('content-length')) > MAX_PAGE_BYTES) {
     await response.body?.cancel();
@@ -203,20 +230,19 @@ export async function boundedBody(response, who) {
     if (size > MAX_PAGE_BYTES) throw tooLarge();
     chunks.push(chunk);
   }
-  const bytes = Buffer.concat(chunks);
-  const { decoder, charset, fallback } = decoderFor(response.headers.get('content-type'), bytes, who);
-  return { text: decoder.decode(bytes), charset, fallback };
+  return Buffer.concat(chunks);
 }
 
 /**
- * `boundedBody`'s text alone, for a caller that parses the body rather than keeps it: the
- * JSON answers of SerpAPI, SearXNG and the Wayback Machine, which RFC 8259 makes UTF-8 and
- * where a charset fallback changes nothing a parse would accept. Best effort there by
- * design: a caller whose body becomes a capture reads `boundedBody` and records the
- * fallback (the keyless child does). G7, 2026-10-03.
+ * A response body read as UTF-8, whatever Content-Type says, for a caller that parses the
+ * body rather than keeps it: the JSON answers of SerpAPI, SearXNG and the Wayback Machine,
+ * which RFC 8259 makes UTF-8. The G7 change had this read through `decoderFor` for a day,
+ * so a legacy label on a JSON answer changed how it was parsed; the review of that fix
+ * (2026-10-03) returned it to the reading its callers had always had. A caller whose body
+ * becomes a capture reads `boundedBody` and records the fallback (the keyless child does).
  */
 export async function boundedText(response, who) {
-  return (await boundedBody(response, who)).text;
+  return new TextDecoder().decode(await boundedBytes(response, who));
 }
 
 /** A sentence naming a child's output overflow, or null when that is not what happened. */
