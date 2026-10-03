@@ -15,10 +15,9 @@ import { readCorpus, cacheDecision, tableRow, appendJsonLine, parseCapture } fro
 import { seedRows, UNIVERSAL_DIMENSIONS } from './dimensions.mjs';
 import { collectOne, DEFAULT_SOURCE_TYPE } from './collect.mjs';
 import { assertAppendable } from './provenance.mjs';
-import { urlKey, matchesQuery, mergeByRank, searchPatiently, isWebUrl } from './research-run.mjs';
-import { canSearch } from './transport.mjs';
+import { urlKey, matchesQuery, isWebUrl } from './research-run.mjs';
+import { searchSession } from './search-session.mjs';
 import { KIT_ROOT, UNTITLED_TOPIC } from './scaffold.mjs';
-import { fallbackCost } from './runtime.mjs';
 
 export const RECIPE_DIR = path.join(KIT_ROOT, 'recipes');
 
@@ -421,6 +420,18 @@ export function decompose(root, {
 
   const loaded = recipe ? loadRecipe(recipe) : { name: '', dimensions: [] };
   const rows = seedRows(loaded.dimensions);
+  // A failed search is kept, not just printed: a map written after every search failed
+  // looks exactly like a map written from a quiet topic. The session hands one row per
+  // failed ask (ADR-0135); the map and `searchSummary` read them from here.
+  const failures = [];
+  // HOW a query is put to the search providers is the session's (ADR-0135), shared with
+  // `runResearch`: the merge, the one degrade to the fetch provider's own search, the
+  // meters. Phase 0 asks once per query, with no rate-limit patience (one call, as before).
+  const session = searchSession({ adapter, searchAdapter, searchAdapters, limit, maxRateLimitRetries: 0, log, record: (row) => failures.push(row) });
+  // A search provider that cannot run is refused before anything is spent, as `runResearch`
+  // refuses it (ADR-0135): until then only the CLI checked, so a library caller searched
+  // through a provider with no key and degraded onto the fetch provider's meter.
+  session.assertReady();
   // A ledger that cannot record a fetch is refused BEFORE any provider is asked, as
   // `runResearch` does (ADR-0122): phase 0 spends too, and on a damaged ledger it made four
   // searches and one fetch before `collectOne` threw (outside audit, 2026-10-03). The dry run
@@ -433,90 +444,33 @@ export function decompose(root, {
   let ownerSkipped = [];
   let spent = 0;
   let searches = 0;
-  let searchesUsed = 0;
-  // By the provider that paid, as research-run records it (searchesOn).
-  const searchesOn = {};
-  const countOn = (provider, used) => {
-    if (!Number.isFinite(used)) return;
-    searchesUsed += used;
-    if (used) searchesOn[provider] = (searchesOn[provider] ?? 0) + used;
-  };
-  let searchCreditsEstimate = 0;
   let cached = 0;
   let failedScrapes = 0;
-  const failures = [];
 
   const queries = topicQueries(topic);
   if (isCompound(queries, topic)) log(`compound topic: searching each of its ${queries.length} parts, not the whole topic (ADR-0085)`);
   if (dryRun) {
     // Named, as research's dry run names its queries: the dry run seeded the map and said
     // nothing about the four searches a real run spends (found 2026-09-27).
-    const merged = (searchAdapters ?? []).filter(Boolean);
-    const meter = merged.length > 1 ? merged.map((one) => one.name).join(' + ') : (searchAdapter?.name ?? adapter?.name ?? 'the search provider this machine selects');
+    const meter = session.meter || 'the search provider this machine selects';
     for (const query of queries) log(`  would search "${query}" on ${meter}, keeping up to ${limit} result(s)`);
     if (maxScrapes > 0) log(`  and scrape up to ${maxScrapes} of the pages found`);
   }
   if (!dryRun && adapter) {
     searches = queries.length;
     const seen = new Set();
-    // The SEARCH side (ADR-0027). Absent means "the fetch adapter" - what this function
-    // did before the split, so a caller that has not been updated is unaffected.
-    const searchers = (searchAdapters ?? []).filter(Boolean);
-    const searcher = searchAdapter ?? searchers[0] ?? adapter;
     for (const query of queries) {
-      if (searchers.length > 1) {
-        const lists = [];
-        const missed = [];
-        for (const one of searchers) {
-          const r = searchPatiently(one, query, { limit, maxRateLimitRetries: 0 });
-          countOn(one.name, r?.searchesUsed);
-          if (Number.isFinite(r?.creditsEstimate)) searchCreditsEstimate += r.creditsEstimate;
-          if (!r?.ok) {
-            missed.push({ query, error: r?.error, provider: one.name });
-            log(`  search failed on ${one.name}: ${r?.error}`);
-            continue;
-          }
-          lists.push({ provider: one.name, results: r.results ?? [] });
-        }
-        // A provider that missed a query another one answered is recorded, but the query is
-        // answered: `covered` keeps it out of the lost count (searchSummary).
-        for (const miss of missed) failures.push(lists.length ? { ...miss, covered: true } : miss);
-        for (const row of mergeByRank(lists)) {
-          if (!isWebUrl(row.url) || seen.has(urlKey(row.url))) continue;   // only http(s) pages are material
-          seen.add(urlKey(row.url));
-          material.push({ ...row, rankedBy: (row.providers ?? [row.provider]).filter(Boolean).join('+'), foundBy: query });
-        }
-        continue;
-      }
-      // One call, as before (no retries); a provider that cannot search is a named failure
-      // rather than a TypeError - the browser fetches only (ADR-0088, found 2026-10-01).
-      let found = searchPatiently(searcher, query, { limit, maxRateLimitRetries: 0 });
-      countOn(searcher.name, found?.searchesUsed);
-      if (Number.isFinite(found?.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
-      let ranker = searcher.name;
-      // One bounded fallback, reported rather than absorbed (RR-1, RR-2).
-      if (!found.ok && searcher !== adapter && canSearch(adapter)) {
-        failures.push({ query, error: found.error, provider: searcher.name, degraded: true, fellBackTo: adapter.name });
-        log(`  search failed on ${searcher.name}: ${found.error}`);
-        log(`  degrading to ${adapter.name} for this query - ${fallbackCost(adapter.name)}`);
-        found = searchPatiently(adapter, query, { limit, maxRateLimitRetries: 0 });
-        countOn(adapter.name, found?.searchesUsed);
-        if (Number.isFinite(found?.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
-        ranker = adapter.name;
-      }
-      if (!found.ok) {
-        // A failed search is kept, not just printed: a map written after every search
-        // failed looks exactly like a map written from a quiet topic.
-        failures.push({ query, error: found.error, provider: ranker });
-        log(`  search failed: ${query} - ${found.error}`);
-        continue;
-      }
+      const found = session.ask(query);
+      if (!found.ok) continue;
       for (const row of found.results) {
         // One page, one candidate - the identity runResearch uses (urlKey). Only an http(s)
         // page is material: a `file:` or `javascript:` result reached the fetch adapter.
         if (!isWebUrl(row.url) || seen.has(urlKey(row.url))) continue;
         seen.add(urlKey(row.url));
-        material.push({ ...row, rankedBy: ranker, foundBy: query });
+        // Under a merge every finder is named - a URL both returned is attributed to both;
+        // alone, the provider that ranked it (DR-2).
+        const rankedBy = found.merged ? (row.providers ?? [row.provider]).filter(Boolean).join('+') : found.provider;
+        material.push({ ...row, rankedBy, foundBy: query });
       }
     }
     // Each part of a compound topic gets its share of the list: in search order, the first
@@ -570,17 +524,18 @@ export function decompose(root, {
     // 2026-09-27: two runs made 8 SerpAPI searches - the vendor counted them - and
     // `research.mjs --status` counted 0, because only research-run wrote a usage row. The
     // same row, for the same reason research-run writes one for a search-only run (DR-1).
+    const { searchesUsed, searchesOn, searchCreditsEstimate, searchFailures, degraded } = session.meters();
     if (spent || searchesUsed) {
       appendJsonLine(root, PATHS.usage, {
         at: new Date().toISOString(), command: 'decompose', budget: maxScrapes,
         attempts: spent, spent, cached, failed: failedScrapes,
         transport: adapter.name,
-        searchTransport: searchers.length > 1 ? searchers.map((one) => one.name).join('+') : searcher.name,
+        searchTransport: session.name,
         searchesUsed,
         searchesOn,
         ...(searchCreditsEstimate ? { searchCreditsEstimate } : {}),
-        searchFailures: failures.filter((x) => !x.degraded).length,
-        degraded: failures.filter((x) => x.degraded).length,
+        searchFailures,
+        degraded,
       });
     }
   }
