@@ -299,15 +299,27 @@ review and by the record these rules produce.
    - **what it touched** - the files, the map rows and ADRs it owes, the
      domain terms it added or sharpened;
    - **what you verified** - the commands run and their state (the suite,
-     preflight, the acceptance of the change);
+     preflight, the acceptance of the change). Each claim carries one of
+     three words: **verified** (run, and the result seen), **untested**
+     (written, not run), **expected** (reasoned, not run) - so a reader can
+     tell evidence from belief, which "the suite passes" and "this should
+     pass" do not do on their own;
    - **what you got wrong and fixed** - the misread, the false assumption,
-     the first attempt that had to be redone.
+     the first attempt that had to be redone. A mistake is reported in six
+     fields - **mistake** (what was wrong), **where** (the file and line, or
+     the step), **impact** (what it broke or would have broken, and whether
+     anything already delivered is affected), **cause** (one line), **fix**
+     (what changed), **verified** (the command re-run, and its result) -
+     because a line that says only what was wrong leaves the two facts a
+     reader needs, the impact and the proof of the fix, to be guessed.
    The parts are named so nobody has to infer them: someone who has never
    seen the brief that produced the work must still be able to read the
    report. **The got-wrong line is not optional** - if nothing was gotten
    wrong, it is written as "nothing to report", never omitted, because a
    report that never admits a mistake cannot be distinguished from one that
-   never checked.
+   never checked. The three status words and the six fields are taken from
+   Anthropic's careful-coding skill (2026-10-03); the rest of that discipline
+   the protocol already carried, and the gate enforces the part a gate can.
 
    **The short form** (ADR-0075). A commit that touches no declared code path
    (`research/kit.json`) - tests, docs, wording, a fixture - may carry the

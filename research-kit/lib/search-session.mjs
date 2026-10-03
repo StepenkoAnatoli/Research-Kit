@@ -101,6 +101,17 @@ export function searchPatiently(provider, text, { limit, maxRateLimitRetries = 2
 }
 
 /**
+ * What a coordinator may receive as a result list: an array, each row an object. A `null`
+ * row from a provider ended both coordinators with a TypeError on `row.url`, and a list that
+ * was not an array ended research's `noteOutcome` on `.some` (found 2026-10-03, probing).
+ * Whether a row's URL is usable stays the coordinator's question (`isWebUrl`,
+ * `selectCandidates`); this only keeps the shape every reader of a row assumes.
+ */
+export function resultRows(results) {
+  return Array.isArray(results) ? results.filter((row) => row !== null && typeof row === 'object') : [];
+}
+
+/**
  * The session for one run: the providers it may ask, how patiently, where its lines and
  * its failure rows go, and - when the coordinator has one - the credits policy that says
  * which provider serves a call after the paying one ran dry (ADR-0133).
@@ -184,8 +195,11 @@ export function searchSession({
    * describe it; the refusal belongs where the money is.
    */
   function assertReady() {
-    if (searchAdapter?.notReady) {
-      const err = new Error(searchAdapter.notReady);
+    // Every provider the session may ask, not only the search side: a merge whose partner
+    // could not run would have failed on it, covered, on every query (2026-10-03, probing).
+    for (const one of [searchAdapter, ...providers]) {
+      if (!one?.notReady) continue;
+      const err = new Error(one.notReady);
       err.code = 'SEARCH_PROVIDER_NOT_READY';
       throw err;
     }
@@ -206,7 +220,7 @@ export function searchSession({
         misses.push(fail(provider.name, text, r?.error));
         continue;
       }
-      lists.push({ provider: provider.name, results: r.results ?? [] });
+      lists.push({ provider: provider.name, results: resultRows(r.results) });
     }
     // A provider that missed a query another one answered is recorded, but the query is
     // answered: `covered` keeps it out of the lost count (decompose's `searchSummary`).
@@ -225,7 +239,10 @@ export function searchSession({
   function askSingle(text) {
     const first = askProvider(searcher, text);
     let found = first.r;
-    let ranker = first.provider.name;
+    // A session built with no provider at all has nothing to ask: `searchPatiently` already
+    // names the failure, and the name it uses is the one charged here, so a library caller
+    // reads a failed search rather than a TypeError (found 2026-10-03, probing).
+    let ranker = first.provider?.name ?? 'this transport';
     count(ranker, found);
     let fellBack = false;
 
@@ -257,7 +274,7 @@ export function searchSession({
     // Said per query: a run whose searches all came back empty printed only "collected 0,
     // failed 0", with nothing to say a search had run (found 2026-09-27). What an empty
     // answer means is the coordinator's to say.
-    const results = found.results ?? [];
+    const results = resultRows(found.results);
     if (results.length) log(`  search     found ${results.length} for "${text}" (${ranker})`);
     return { ok: true, query: text, results, provider: ranker, providers: [ranker], merged: false, searchId: found.searchId ?? null, degraded: fellBack };
   }
