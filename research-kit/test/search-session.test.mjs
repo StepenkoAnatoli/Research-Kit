@@ -318,6 +318,31 @@ test('assertReady refuses a not-ready provider anywhere in a merge, before anyth
   assert.equal(b.calls, 0);
 });
 
+// Found 2026-10-03 probing: a provider whose `search()` THREW ended both coordinators, and
+// the searches paid for before the throw never reached the usage row, which is written at the
+// end of a run. The four adapters return failures by contract, so a throw is one of their
+// bugs - an unguarded parse of a vendor payload - and the kit cannot prevent it; it can keep
+// it a failed search, named as a throw, so the run and its accounting finish.
+test('a provider that throws is a failed ask naming the throw, asked once, and the run goes on', () => {
+  let asks = 0;
+  const thrower = { name: 'serp', search() { asks += 1; throw new TypeError("Cannot read properties of undefined (reading 'organic_results')"); } };
+  const fetch = provider({ name: 'fetch', results: rows('fetch', 1) });
+  const { s, recorded, lines } = session({ adapter: fetch, searchAdapter: thrower, maxRateLimitRetries: 2 });
+  const found = s.ask('q');
+  assert.equal(found.ok, true, 'the fetch provider answered after the throw');
+  assert.equal(found.provider, 'fetch');
+  assert.equal(asks, 1, 'a throw is not retried as a rate limit would be');
+  assert.deepEqual(recorded, [{ query: 'q', error: "serp threw: Cannot read properties of undefined (reading 'organic_results')", provider: 'serp', degraded: true, fellBackTo: 'fetch' }]);
+  assert.equal(lines[0], "  search failed on serp: serp threw: Cannot read properties of undefined (reading 'organic_results')");
+  assert.deepEqual(s.meters().searchFailuresOn, { serp: 1 });
+
+  const thrownValue = { name: 'odd', search() { throw 'a string, not an Error'; } };
+  const { s: odd } = session({ adapter: provider({ name: 'browser', searchable: false }), searchAdapter: thrownValue });
+  const got = odd.ask('q');
+  assert.equal(got.ok, false);
+  assert.equal(got.error, 'odd threw: a string, not an Error');
+});
+
 test('searchPatiently and mergeByRank live here and stay importable from research-run', () => {
   assert.equal(viaResearchRun, mergeByRank);
   assert.equal(patientlyViaResearchRun, searchPatiently);
