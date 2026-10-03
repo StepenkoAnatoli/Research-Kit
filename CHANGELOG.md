@@ -5,6 +5,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- `decompose.mjs` refuses a ledger that cannot record a fetch before it asks any provider,
+  as `research.mjs` has since ADR-0122: on a damaged ledger phase 0 made four searches and
+  one fetch, spending, before the refusal came from inside the collector (outside audit,
+  2026-10-03).
 - The README, AGENTS.md, the project template, CONTEXT.md and the gate's own fix lines no
   longer say that `git commit --no-verify` is recorded in `research/overrides.log`: git skips
   the hook, so nothing can record it, as `checks.mjs` has said since ADR-0035. The other two
