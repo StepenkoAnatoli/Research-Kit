@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- Internal: a run's exhaustion policy (switch or stop) lives in `lib/credits.mjs`, `canSearch`
+  beside the other transport capabilities in `lib/transport.mjs`, and one line-ending fold in
+  `lib/core.mjs` serves the capture body, the scaffold-template comparison and the brief's
+  draft stamp; the last two now fold a lone CR as well as CRLF, so a brief holding a lone CR
+  reads as hand-edited once until re-stamped (ADR-0133, from the architecture pass of
+  2026-10-03).
 - Reopening a corpus keeps the LAST same-day capture of a URL current. The index broke a
   tie on the retrieval date by filename order, so twelve same-day revisions reopened with
   `.r9.md` current (it sorts after `.r12.md`) and a page re-titled "API v10" reopened under
