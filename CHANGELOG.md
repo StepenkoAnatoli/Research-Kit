@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The standing protocol's commit report (rule 2, `AGENTS.md` and the scaffold's template)
+  takes two devices from Anthropic's careful-coding skill: each verification claim carries
+  one of three status words - verified, untested, expected - and a mistake is reported in
+  six fields - mistake, where, impact, cause, fix, verified. The rest of that discipline the
+  protocol already carried; the skill itself is not shipped (it is phase-2 discipline, and
+  the freeze, ADR-0117, is not lifted for a second installed skill).
 - The tested Firecrawl CLI is 1.25.3 (from 1.25.2): the release is one fix, `--objective`
   optional for alexandria feedback (firecrawl/cli#301), with nothing on scrape, search or
   `--status`; its output was captured from the real CLI anyway (three credits) and is read
