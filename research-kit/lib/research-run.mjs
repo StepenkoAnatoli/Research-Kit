@@ -12,9 +12,12 @@ import { readCorpus, cacheDecision, appendJsonLine } from './corpus.mjs';
 import { assertAppendable } from './provenance.mjs';
 import { collectOne, recentlyGone, DEFAULT_SOURCE_TYPE } from './collect.mjs';
 import { creditsPolicy } from './credits.mjs';
-import { canSearch } from './transport.mjs';
-import { fallbackCost } from './runtime.mjs';
+import { searchSession, searchPatiently, mergeByRank } from './search-session.mjs';
 import * as wayback from './witness.mjs';
+
+// The asking of the search providers moved to `search-session.mjs` (ADR-0135); both names
+// stay importable from here.
+export { mergeByRank, searchPatiently };
 
 /** The budget tiers, in credits of scrape. Tuned for a ~1,000-credit free month. */
 export const DEPTH_SCRAPES = Object.freeze({
@@ -173,61 +176,6 @@ function mentionsWhy(url, why) {
 }
 
 /**
- * Interleave several providers' results by RANK, not by concatenation.
- *
- * WHY RANK AND NOT ORDER. On 2026-09-22 a search for the EU Deforestation Regulation
- * returned, from one provider, eight pages about US financial regulation and nothing about
- * the subject - while the other returned seventeen, all on topic. Concatenating would have
- * let the failing provider spend the entire page budget before the working one was reached.
- * Round-robin bounds that: each provider contributes its best result, then its second, and
- * a provider that is wholly wrong costs at most its share.
- *
- * `provider` is carried on every row so the ledger records WHICH search surfaced a URL -
- * that is how a claim about search quality stays checkable afterwards instead of being an
- * impression.
- *
- * EVERY finder is recorded, not the first one. The initial version credited whichever
- * provider came first in the round - always the same one, since the order is fixed - and
- * its comment claimed that agreement therefore did not inflate the count. It did, and a
- * live run proved it: sixteen results, nine distinct, so seven URLs were returned by both
- * and all seven were attributed to the provider that happened to be asked first. Six of
- * eight collected rows then read as that provider's finds.
- *
- * That is provenance which reads as a measurement and is really an artefact of loop order -
- * precisely the kind of number this repository keeps catching itself quoting. `provider` is
- * the first finder, `providers` is all of them, and a row both returned says so.
- */
-export function mergeByRank(lists) {
-  const merged = [];
-  const at = new Map();
-  const depth = Math.max(0, ...lists.map((l) => l.results.length));
-  for (let rank = 0; rank < depth; rank += 1) {
-    for (const list of lists) {
-      const row = list.results[rank];
-      if (!row?.url) continue;
-      const already = at.get(row.url);
-      if (already) {
-        if (!already.providers.includes(list.provider)) already.providers.push(list.provider);
-        continue;
-      }
-      const entry = { ...row, provider: list.provider, providers: [list.provider] };
-      at.set(row.url, entry);
-      merged.push(entry);
-    }
-  }
-  // A URL every provider returned is not evidence that the first one found it. Rows the
-  // others also returned later in their own lists are folded here too, not only at the
-  // same rank.
-  for (const list of lists) {
-    for (const row of list.results) {
-      const entry = row?.url ? at.get(row.url) : null;
-      if (entry && !entry.providers.includes(list.provider)) entry.providers.push(list.provider);
-    }
-  }
-  return merged;
-}
-
-/**
  * One page, one name: the identity used to decide "we already have this page".
  *
  * Scheme, `www.`, host case, a trailing slash and the fragment are dropped; the path's case
@@ -309,40 +257,6 @@ export function selectCandidates(results, { prefer = [], perQuery = 3, seen = ne
     .slice(0, perQuery);
 }
 
-/**
- * Run the plan.
- *
- * `{ transport, budget, attempts, spent, cached, failed, results, discovered }`.
- * Nothing is collected when `dryRun` is set - `attempts` still shows what it would
- * cost, against the same cap - and a cache hit never counts against the budget.
- */
-/**
- * One search, with the patience the fetch side already had (`collectOne`).
- *
- * A rate limit is an instruction to wait, not a failure. Measured 2026-09-26: the 11th and
- * 12th Firecrawl searches inside a minute came back "Rate limit exceeded ... retry after
- * 5s" - E-01's documented 10 /search per minute - and a run logged them as failures and
- * moved on, so a plan with more than ten queries lost the rest of that minute's searches.
- *
- * The vendor's own delay is used (`rateLimitWaitMs`), and the retries are bounded: a
- * provider that keeps refusing is a different problem from a busy minute, and this runs
- * under the corpus lock. Anything that is not a rate limit returns at once, so a 404 or an
- * outage still costs exactly one call and still reaches the fallback and the failure log.
- */
-export function searchPatiently(provider, text, { limit, maxRateLimitRetries = 2, sleep = sleepSync, log = () => {} } = {}) {
-  // A fetch-only transport (the browser, ADR-0088) is a failed search, said in words - never a
-  // TypeError ending the run (found 2026-10-01, break-test).
-  if (!canSearch(provider)) return { ok: false, query: text, results: [], error: `${provider?.name ?? 'this transport'} fetches pages but does not search` };
-  for (let attempt = 0; ; attempt += 1) {
-    const r = provider.search(text, { limit });
-    if (r?.ok || attempt >= maxRateLimitRetries) return r;
-    const wait = firecrawl.rateLimitWaitMs(r?.error);
-    if (wait === null) return r;
-    log(`  waiting    ${Math.round(wait / 1000)}s - ${provider.name} search hit the vendor rate limit`);
-    sleep(wait);
-  }
-}
-
 // One lookup for one newly collected page, recorded beside the corpus - never in raw/ or the
 // ledger - so a witness cannot alter or fail the capture it witnesses (ADR-0106).
 function witnessCapture(root, url, raw, lookup, log) {
@@ -358,6 +272,13 @@ function witnessCapture(root, url, raw, lookup, log) {
   log(`  witness   ${url} - ${record.witnessed ? record.snapshot : record.reason}`);
 }
 
+/**
+ * Run the plan.
+ *
+ * `{ transport, budget, attempts, spent, cached, failed, results, discovered }`.
+ * Nothing is collected when `dryRun` is set - `attempts` still shows what it would
+ * cost, against the same cap - and a cache hit never counts against the budget.
+ */
 export function runResearch(root, {
   adapter,
   // The SEARCH side (ADR-0027). Absent means "the fetch adapter", which is what every
@@ -384,6 +305,28 @@ export function runResearch(root, {
   log = () => {},
 } = {}) {
   const ask = (provider, text) => searchPatiently(provider, text, { limit: settings.limit, maxRateLimitRetries, sleep, log });
+
+  // Credits run out mid-run: WHAT a run does then - switch once to the fallback (ADR-0086)
+  // or stop and leave the rest `uncollected` (ADR-0129) - is one policy with one state
+  // owner, `credits.mjs`. This coordinator sequences the run and asks which provider serves
+  // each call; `credits.stopped` / `credits.fellBack` are read back for the summary.
+  const credits = creditsPolicy({
+    adapter,
+    fallbackAdapter,
+    ask,
+    record: (row) => appendJsonLine(root, PATHS.failures, row),
+    log,
+  });
+  // HOW a query is put to the search providers - the merge, the one degrade, the meters, the
+  // failure rows - is the session's (ADR-0135); this coordinator decides what to do with
+  // each answer. Its failure rows land in the failure log as `op: "search"`.
+  const session = searchSession({
+    adapter, searchAdapter, searchAdapters, askOne: ask, credits, log,
+    record: (f) => appendJsonLine(root, PATHS.failures, {
+      at: new Date().toISOString(), op: 'search', query: f.query, provider: f.provider, error: f.error,
+      ...(f.degraded ? { degraded: true } : {}),
+    }),
+  });
 
   // Refuse an incompatible vendor CLI BEFORE anything is spent.
   //
@@ -412,11 +355,7 @@ ${compatibility.remedy}`);
   // reason: this is the last point before anything is spent. selectSearch REPORTS the
   // problem rather than throwing, so --dry-run and doctor can describe it; the refusal
   // belongs where the money is.
-  if (searchAdapter?.notReady) {
-    const err = new Error(searchAdapter.notReady);
-    err.code = 'SEARCH_PROVIDER_NOT_READY';
-    throw err;
-  }
+  session.assertReady();
 
   // A ledger that cannot record a fetch refuses here too, for the same reason (ADR-0122):
   // a chain whose hashes no longer link, a torn tail, an unparsed line. Every fetch recorded
@@ -443,44 +382,8 @@ ${compatibility.remedy}`);
   let spent = 0;
   let cached = 0;
   let failed = 0;
-  // The search side keeps its OWN counters, because it is a separate meter and a summary
-  // that merged them would hide the whole point of the split.
-  let searchesUsed = 0;
-  // The same searches, by the provider that PAID for them. `searchesUsed` is their sum, and
-  // under a merge it was logged against one provider's name: one query on SerpAPI and
-  // Firecrawl read as two SerpAPI searches, charged to its free-plan meter (found
-  // 2026-09-28, end-to-end run).
-  const searchesOn = {};
-  const countOn = (provider, used) => {
-    if (!Number.isFinite(used)) return;
-    searchesUsed += used;
-    if (used) searchesOn[provider] = (searchesOn[provider] ?? 0) + used;
-  };
-  let searchCreditsEstimate = 0;
   let overBudget = 0;
-  let searchFailures = 0;
-  // The same failures, by provider. `searchFailures` mixes providers, so it cannot say
-  // whether the meter the summary reports on was the one that failed (RR-7).
-  const searchFailuresOn = {};
-  const failedOn = (provider) => { searchFailuresOn[provider] = (searchFailuresOn[provider] ?? 0) + 1; };
-  let degraded = 0;
-
-  const searchers = (searchAdapters ?? []).filter(Boolean);
-  const searcher = searchAdapter ?? searchers[0] ?? adapter;
-  const searchName = searcher?.name ?? adapter?.name ?? '';
-
-  // Credits run out mid-run: WHAT a run does then - switch once to the fallback (ADR-0086)
-  // or stop and leave the rest `uncollected` (ADR-0129) - is one policy with one state
-  // owner, `credits.mjs`. This coordinator sequences the run and asks which provider serves
-  // each call; `credits.stopped` / `credits.fellBack` are read back for the summary.
-  const credits = creditsPolicy({
-    adapter,
-    fallbackAdapter,
-    ask,
-    record: (row) => appendJsonLine(root, PATHS.failures, row),
-    log,
-  });
-  const { exhausted, live, onExhaustion, askLive, countUncollected, countSkippedSearch } = credits;
+  const { exhausted, live, onExhaustion, countUncollected, countSkippedSearch } = credits;
 
   const seen = new Set(corpus.captures.entries.map((e) => e.url).filter(Boolean).map(urlKey));
   const targets = [];
@@ -550,7 +453,7 @@ ${compatibility.remedy}`);
       // Named, because a preview that omits the searches previews nothing for a plan made of
       // them (found 2026-09-27). Pages are not known until the search runs; the query and the
       // meter it would spend on are.
-      log(`  would search "${text}" on ${searchers.length > 1 ? searchers.map((one) => one.name).join(' + ') : searchName}, keeping up to ${settings.perQuery} page(s)`);
+      log(`  would search "${text}" on ${session.meter}, keeping up to ${settings.perQuery} page(s)`);
       continue;
     }
     // What a search came back with, reported the same way whichever path ran it: an empty
@@ -570,108 +473,33 @@ ${compatibility.remedy}`);
         });
       }
     };
-    // MORE THAN ONE PROVIDER: ask each, interleave by rank, and attribute every row.
-    // The meters are genuinely separate (ADR-0027), so this costs one search on each rather
-    // than more of either. A provider that fails here does not stop the run - the others
-    // still contribute, and the failure is recorded like any other.
-    if (searchers.length > 1) {
-      const lists = [];
-      for (const planned of searchers) {
-        const asked = askLive(planned, text);
-        const { r } = asked;
-        const one = asked.provider;
-        countOn(one.name, r.searchesUsed);
-        if (Number.isFinite(r.creditsEstimate)) searchCreditsEstimate += r.creditsEstimate;
-        if (!r.ok) {
-          searchFailures += 1;
-          failedOn(one.name);
-          log(`  search failed on ${one.name}: ${r.error}`);
-          appendJsonLine(root, PATHS.failures, {
-            at: new Date().toISOString(), op: 'search', query: text, provider: one.name, error: r.error,
-          });
-          continue;
-        }
-        lists.push({ provider: one.name, results: r.results ?? [] });
-      }
-      if (!lists.length) {
-        log(`  search failed on every provider: ${text}`);
-        continue;
-      }
-      const merged = mergeByRank(lists);
-      log(`  searched   ${lists.map((l) => `${l.provider} ${l.results.length}`).join(', ')} -> ${merged.length} distinct`);
-      discovered.push({ query: text, results: merged, provider: lists.map((l) => l.provider).join('+'), searchId: null });
-      noteOutcome(merged, lists.map((l) => l.provider).join('+'));
-      for (const candidate of selectCandidates(merged, { prefer, perQuery: settings.perQuery, seen, query: text })) {
-        targets.push({
-          url: candidate.url,
-          type: DEFAULT_SOURCE_TYPE,
-          usedFor: typeof query === 'object' ? (query.why ?? '') : '',
-          from: 'search',
-          // All finders, not the first. A URL both returned is attributed to both.
-          rankedBy: (candidate.providers ?? [candidate.provider]).filter(Boolean).join('+'),
-        });
-        seen.add(urlKey(candidate.url));
-      }
-      continue;
-    }
-
-    const firstAsk = askLive(searcher, text);
-    let found = firstAsk.r;
-    let ranker = firstAsk.provider.name;
-
-    // A second meter is a second thing that can be down. One bounded fallback to the
-    // fetch provider's own search (RR-1, RR-2): it keeps the run alive, it costs fetch
-    // credits, and it is REPORTED rather than absorbed - a silent fallback is a bill the
-    // operator did not know they were paying.
-    // Only to a provider that can search: degrading to the browser replaced the real failure
-    // with a TypeError (found 2026-10-01).
-    if (!found.ok && firstAsk.provider !== live(adapter) && canSearch(live(adapter))) {
-      const reason = found.error;
-      searchFailures += 1;
-      failedOn(ranker);
-      appendJsonLine(root, PATHS.failures, {
-        at: new Date().toISOString(), op: 'search', query: text, provider: ranker, error: reason, degraded: true,
-      });
-      log(`  search failed on ${ranker}: ${reason}`);
-      const next = askLive(adapter, text);
-      log(`  degrading to ${next.provider.name} for this query - ${fallbackCost(next.provider.name)}`);
-      found = next.r;
-      ranker = next.provider.name;
-      if (found.ok) degraded += 1;
-    }
-
-    if (!found.ok) {
-      failedOn(ranker);
-      log(`  search failed: ${text} - ${found.error}`);
-      appendJsonLine(root, PATHS.failures, {
-        at: new Date().toISOString(), op: 'search', query: text, provider: ranker, error: found.error,
-      });
-      continue;
-    }
-    countOn(ranker, found.searchesUsed);
-    if (Number.isFinite(found.creditsEstimate)) searchCreditsEstimate += found.creditsEstimate;
-    // Said per query: a run whose searches all came back empty printed only "collected 0,
-    // failed 0", with nothing to say a search had run (found 2026-09-27). An empty search is
-    // recorded beside the failures, because it is the same question for the operator: this
-    // query produced nothing to read.
-    if (found.results.length) log(`  search     found ${found.results.length} for "${text}" (${ranker})`);
-    discovered.push({ query: text, results: found.results, provider: ranker, searchId: found.searchId ?? null });
-    noteOutcome(found.results, ranker);
+    const found = session.ask(text);
+    if (!found.ok) continue;
+    discovered.push({ query: text, results: found.results, provider: found.provider, searchId: found.searchId });
+    noteOutcome(found.results, found.provider);
     for (const candidate of selectCandidates(found.results, { prefer, perQuery: settings.perQuery, seen, query: text })) {
-      targets.push({
-        // Discovered by a search, not chosen by a person: context until an agent reads
-        // the page and promotes it. Ranking preference is not source authority.
+      // Discovered by a search, not chosen by a person: context until an agent reads the
+      // page and promotes it. Ranking preference is not source authority. The target row is
+      // this coordinator's, and the two paths spell it differently (ADR-0135 leaves that):
+      // under a merge `rankedBy` names ALL finders - a URL both returned is attributed to
+      // both - and alone it names WHICH provider ranked it, not just which query found it
+      // (DR-2); two providers' rankings are two different provenance claims, and a bare
+      // query string cannot carry both.
+      targets.push(found.merged ? {
+        url: candidate.url,
+        type: DEFAULT_SOURCE_TYPE,
+        usedFor: typeof query === 'object' ? (query.why ?? '') : '',
+        from: 'search',
+        rankedBy: (candidate.providers ?? [candidate.provider]).filter(Boolean).join('+'),
+      } : {
         url: candidate.url,
         type: DEFAULT_SOURCE_TYPE,
         usedFor: (typeof query === 'object' && query.why) || text,
-        // WHICH provider ranked it, not just which query found it (DR-2). Two providers'
-        // rankings are two different provenance claims, and a bare query string cannot
-        // carry both.
-        from: `query: ${text} (via ${ranker})`,
-        rankedBy: ranker,
+        from: `query: ${text} (via ${found.provider})`,
+        rankedBy: found.provider,
       });
-      // Recorded as the merged path records it, so the next query cannot pick this page
-      // again and lose its own best result to a duplicate.
+      // Recorded either way, so the next query cannot pick this page again and lose its own
+      // best result to a duplicate.
       seen.add(urlKey(candidate.url));
     }
   }
@@ -747,13 +575,14 @@ ${compatibility.remedy}`);
   // A run that only searched still spent something - on a different meter. Logging only
   // when `spent` was non-zero would make a search-only run invisible in the usage record
   // (DR-1).
+  const { searchesUsed, searchesOn, searchCreditsEstimate, searchFailures, searchFailuresOn, degraded } = session.meters();
   if (!dryRun && (spent || searchesUsed)) {
     appendJsonLine(root, PATHS.usage, {
       at: new Date().toISOString(), depth: tier, budget, attempts, spent, cached, failed,
       transport: adapter.name,
       ...(credits.fellBack ? { fellBackTo: credits.fellBack.to } : {}),
       ...(credits.stopped ? { stopped: credits.stopped.during } : {}),
-      searchTransport: searchName,
+      searchTransport: session.name,
       searchesUsed,
       searchesOn,
       ...(searchCreditsEstimate ? { searchCreditsEstimate } : {}),
@@ -764,7 +593,7 @@ ${compatibility.remedy}`);
 
   return {
     transport: adapter.name,
-    searchTransport: searchName,
+    searchTransport: session.name,
     depth: tier, budget, maxScrapes: settings.maxScrapes, attempts, spent, cached, failed,
     // Pages the budget left out this run; the next run reaches them, a cached page being free.
     overBudget,

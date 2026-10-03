@@ -5,6 +5,13 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- Internal: one search session (`lib/search-session.mjs`, ADR-0135) owns how a query is put to
+  the search providers - the merge, the one degrade to the fetch provider, the rate-limit
+  patience, the meters, the failure rows and the refuse-before-spend readiness gate - and
+  `research` asks it; `decompose` follows in the next change. Two of `research`'s counts move
+  with it, deliberately: usage a provider reports on a failed ask is counted whether or not the
+  degrade answers (today's providers report none), and a search that failed without degrading
+  counts in the usage row's `searchFailures` as it already did per provider.
 - `doctor`'s hand-on check resolves a relative previous hooks folder from the repository's
   top level, where git runs its hooks from; from a subdirectory it had called a working
   `.custom-hooks` missing, with the unset as remedy (outside audit, fourth round, 2026-10-03).
