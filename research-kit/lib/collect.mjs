@@ -73,6 +73,10 @@ export function writeRaw(root, result, { date = today() } = {}) {
     `completeness: ${one(result.completeness ?? 'unspecified')}`,
     ...(result.omitted ? [`omitted: ${one(result.omitted)}`] : []),
     ...(result.title ? [`title: ${one(result.title)}`] : []),
+    // A vendor's cached answer, written down when it says so (ADR-0139): the day the kit asked
+    // is `retrieved`; the moment the vendor says it took the bytes is `cachedAt`.
+    ...(result.cacheState ? [`cacheState: ${one(result.cacheState)}`] : []),
+    ...(result.cachedAt ? [`cachedAt: ${one(result.cachedAt)}`] : []),
     '---',
     '',
   ].join('\n');
@@ -282,6 +286,8 @@ export function collectOne(root, url, {
       omitted: entry.omitted,
       cmd: entry.command,
       at: `${date}T00:00:00.000Z`,
+      cacheState: result.cacheState,
+      cachedAt: result.cachedAt,
     });
     rememberCapture(corpus.captures, entry, { latest: true });   // the fetch that just happened is current, reused file or new
 

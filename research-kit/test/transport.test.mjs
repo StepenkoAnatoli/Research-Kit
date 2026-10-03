@@ -1124,3 +1124,26 @@ test('a keyless fetch of a refused port says the connection was refused', async 
   assert.equal(r.ok, false);
   assert.match(r.error, /ECONNREFUSED/, r.error);
 });
+
+// ADR-0139 (gap audit 2026-10-03, rank 2): Firecrawl serves a cached copy up to two days old by
+// default, and the adapter asked for nothing fresher - a capture stamped `retrieved: today`
+// could be yesterday's copy, with `cacheState` and `cachedAt` discarded. A scrape is a live
+// fetch now, and a cached answer, if the vendor sends one anyway, is written down.
+test('ADR-0139: a scrape asks for a live page, and a cached answer is recorded, never silent', () => {
+  const calls = [];
+  const execFn = (argv) => { calls.push(argv); return { ok: true, status: 0, stdout: readText(path.join(KIT_ROOT, 'test', 'fixtures', 'firecrawl-scrape-1.25.3.json')), stderr: '' }; };
+  const page = firecrawl.scrape('https://docs.firecrawl.dev/sdks/cli', { execFn });
+  assert.equal(page.ok, true, page.error);
+  const argv = calls[0];
+  const at = argv.indexOf('--max-age');
+  assert.ok(at > 0 && argv[at + 1] === '0', `the scrape does not ask for a live page: ${argv.join(' ')}`);
+  assert.ok(at > argv.indexOf('scrape') + 1, 'the URL stays the token after scrape, as requestedUrl reads it');
+  assert.match(page.cmd, /--max-age 0/);
+  // The 1.25.3 fixture is a cache hit, as real answers were on 2026-10-03.
+  assert.equal(page.cacheState, 'hit');
+  assert.equal(page.cachedAt, '2026-10-03T11:26:29.902Z');
+  // A payload with no cache fields records none.
+  const live = firecrawl.normalizeScrape(JSON.stringify({ success: true, data: { markdown: 'x'.repeat(1600), metadata: { sourceURL: 'https://x.invalid/p', statusCode: 200 } } }), 'https://x.invalid/p');
+  assert.equal(live.cacheState, '');
+  assert.equal(live.cachedAt, '');
+});

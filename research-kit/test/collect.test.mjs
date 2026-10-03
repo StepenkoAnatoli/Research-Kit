@@ -1280,3 +1280,23 @@ test('a capture is written with LF line endings only, so git normalisation canno
   assert.ok(text.includes('\n---\n# Title\n\nline one\nline two\nline three\n'), JSON.stringify(text.slice(-60)));
   assert.equal(entry.bytes, Buffer.byteLength('# Title\n\nline one\nline two\nline three\n', 'utf8'), 'bytes counts the normalised body');
 });
+
+// ADR-0139: a vendor's cached answer travels into the capture's front matter and the ledger.
+test('ADR-0139: a cached vendor answer is written into the capture and its ledger entry', () => {
+  const dir = makeProject();
+  const url = 'https://x.invalid/cached';
+  const scrape = (u) => ({ ok: true, url: u, title: 'Cached', markdown: `# Cached\n\n${'The free plan allows 10 requests per minute. '.repeat(40)}`, statusCode: 200,
+    transport: 'stub-transport', completeness: 'full', omitted: '', cmd: `stub scrape ${u}`, cacheState: 'hit', cachedAt: '2026-10-02T16:46:39.718Z' });
+  const outcome = collectOne(dir, url, { runScrape: scrape, corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.equal(outcome.status, 'collected', outcome.reason);
+  const capture = readText(resolve(dir, outcome.entry.file));
+  assert.match(capture, /^cacheState: hit$/m, capture.slice(0, 400));
+  assert.match(capture, /^cachedAt: 2026-10-02T16:46:39\.718Z$/m);
+  const entry = readCorpus(dir).ledger.entries.at(-1);
+  assert.equal(entry.cacheState, 'hit');
+  assert.equal(entry.cachedAt, '2026-10-02T16:46:39.718Z');
+  // A live answer writes neither field.
+  const live = collectOne(dir, 'https://x.invalid/live', { runScrape: (u) => ({ ...scrape(u), cacheState: '', cachedAt: '' }), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.doesNotMatch(readText(resolve(dir, live.entry.file)), /cacheState|cachedAt/);
+  assert.equal('cacheState' in readCorpus(dir).ledger.entries.at(-1), false);
+});

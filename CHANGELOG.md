@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A Firecrawl scrape is a live fetch: the adapter passes `--max-age 0`, because the vendor
+  serves a cached copy up to two days old by default and a capture stamped `retrieved: today`
+  could be yesterday's page - a `--force` or `--refresh-days` re-fetch meant to see a change
+  could not. A cached answer, if the vendor sends one anyway, is written into the capture's
+  front matter (`cacheState`, `cachedAt`) and the ledger entry (ADR-0139, gap audit
+  2026-10-03, rank 2).
 - A table row written after a blank line is recorded, not dropped: a blank line ends a
   Markdown table (GitHub renders the rows after it as prose), and `parseTable` had dropped
   them in silence, so a blocking unknown written below a blank line left the gate, which

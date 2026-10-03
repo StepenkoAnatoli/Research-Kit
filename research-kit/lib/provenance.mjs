@@ -420,6 +420,8 @@ export function appendFetch(root, fields) {
     // hash it was written with - the chain covers the canonical entry, and an absent
     // field was never in it.
     if (fields.discoveredBy) entry.discoveredBy = String(fields.discoveredBy);
+    if (fields.cacheState) entry.cacheState = String(fields.cacheState);   // ADR-0139
+    if (fields.cachedAt) entry.cachedAt = String(fields.cachedAt);
     entry.entrySha256 = entryHash(entry);
     appendLine(resolve(root, PATHS.ledger), JSON.stringify(entry));
     return entry;
