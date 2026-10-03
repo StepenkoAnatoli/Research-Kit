@@ -2,7 +2,7 @@
 // config and settings paths, an injected probe, and no host state consulted.
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, KIT_ROOT, requireCapability } from './harness.mjs';
+import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, KIT_ROOT, requireCapability, requireGit, fixtureInitArgs } from './harness.mjs';
 import { TESTED_CLI_VERSION } from '../lib/firecrawl.mjs';
 import { PATHS, resolve, readText, writeText, readJson } from '../lib/core.mjs';
 import { runDoctor, machineHealth, gateHealth, editGateState } from '../lib/doctor.mjs';
@@ -925,6 +925,55 @@ test('install-hooks records the hooks folder it replaced where the hooks can rea
   assert.equal(installCommitGate({ kitHome: KIT_ROOT, env: fresh.env, gitPaths: freshPaths }).ok, true);
   assert.equal(spawnSync('git', ['config', '--global', '--get', 'research-kit.previousHooksPath'], { env: freshPaths.env, encoding: 'utf8' }).stdout.trim(), '',
     'a machine with no hooks folder before the kit got a record of one');
+});
+
+// Found 2026-10-02 (outside review, three rounds): a repository-local `core.hooksPath` - what
+// husky, lefthook, simple-git-hooks and pre-commit set - displaces the machine-wide gate in
+// that repository, silently, and the installer never looked: it read and wrote the global
+// path and said "installed" while standing in a repository where the gate would not run.
+// Detection lived only at check time, in doctor and preflight. The install reports it now,
+// at the moment the operator is reading, and still installs: the gate is machine state and
+// every other repository gets it (ADR-0131).
+test('install-hooks reports a repository-local core.hooksPath that displaces the gate where it is run', () => {
+  requireGit('a repository-local core.hooksPath');
+  const { env } = machine();
+  const dir = tempDir('research-kit-displaced-');
+  const gitPaths = { env: { ...process.env, GIT_CONFIG_GLOBAL: path.join(dir, 'gitconfig'), GIT_CONFIG_NOSYSTEM: '1' } };
+  const repo = path.join(dir, 'husky-project');
+  fs.mkdirSync(repo);
+  assert.equal(spawnSync('git', fixtureInitArgs(), { cwd: repo, env: gitPaths.env }).status, 0);
+  spawnSync('git', ['config', '--local', 'core.hooksPath', '.husky'], { cwd: repo, env: gitPaths.env });
+
+  const preview = installCommitGate({ kitHome: KIT_ROOT, env, gitPaths, cwd: repo, dryRun: true });
+  assert.equal(preview.ok, true);
+  assert.equal(preview.displaced?.local, '.husky', `the dry run did not report the displacement: ${JSON.stringify(preview)}`);
+
+  const result = installCommitGate({ kitHome: KIT_ROOT, env, gitPaths, cwd: repo });
+  assert.equal(result.ok, true, 'the install must still go through: the gate is machine state');
+  assert.equal(result.displaced?.local, '.husky', `the install did not report the displacement: ${JSON.stringify(result)}`);
+  assert.equal(path.resolve(result.displaced.cwd), path.resolve(repo));
+  const global = spawnSync('git', ['config', '--global', '--get', 'core.hooksPath'], { env: gitPaths.env, encoding: 'utf8' }).stdout.trim();
+  assert.match(global, /githooks$/, 'the machine-wide path was not set');
+
+  const clean = path.join(dir, 'plain-project');
+  fs.mkdirSync(clean);
+  assert.equal(spawnSync('git', fixtureInitArgs(), { cwd: clean, env: gitPaths.env }).status, 0);
+  assert.equal(installCommitGate({ kitHome: KIT_ROOT, env, gitPaths, cwd: clean }).displaced, null, 'a repository without a local path was reported as displaced');
+  assert.equal(installCommitGate({ kitHome: KIT_ROOT, env, gitPaths, cwd: dir }).displaced, null, 'a folder that is not a repository was reported as displaced');
+
+  // The CLI says it, on stderr, with the remedy, and still exits 0: the install succeeded.
+  const home = path.join(tempDir('rk-home-'), 'home');
+  fs.mkdirSync(path.join(home, '.agents'), { recursive: true });
+  fs.symlinkSync(KIT_ROOT, path.join(home, '.agents', 'research-kit'), 'junction');
+  const cli = spawnSync(process.execPath, [path.join(KIT_ROOT, 'bin', 'install-hooks.mjs'), '--git-only', '--dry-run'], {
+    cwd: repo, encoding: 'utf8', timeout: 60_000,
+    env: { ...gitPaths.env, HOME: home, USERPROFILE: home, RESEARCH_KIT_CONFIG: env.RESEARCH_KIT_CONFIG, RESEARCH_KIT_INSTALL_STATE: env.RESEARCH_KIT_INSTALL_STATE },
+  });
+  assert.equal(cli.status, 0, `${cli.stdout}\n${cli.stderr}`);
+  assert.match(cli.stdout, /would set core\.hooksPath=/);
+  assert.match(cli.stderr, /this repository sets core\.hooksPath=\.husky/, `the CLI did not say it: ${cli.stderr}`);
+  assert.match(cli.stderr, /displaces/);
+  assert.match(cli.stderr, /git config --local --unset core\.hooksPath/, 'the remedy was not named');
 });
 
 // Found 2026-09-27: with the kit not deployed, install-hooks refused the commit gate but

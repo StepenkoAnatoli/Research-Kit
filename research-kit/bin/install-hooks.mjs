@@ -69,6 +69,13 @@ try {
     if (!result.ok) { process.stderr.write(`commit gate: ${result.reason}\n`); failed = true; }
     else if (result.dryRun) process.stdout.write(`would set core.hooksPath=${result.would} (was ${result.previous ?? 'unset'})\n`);
     else process.stdout.write(`commit gate: core.hooksPath=${result.hooksPath} (was ${result.previous ?? 'unset'})\n`);
+    // Said on stderr, after the install line, and the exit code stays 0: the machine-wide gate
+    // IS installed, and this one repository is where it will not run (ADR-0131).
+    if (result.ok && result.displaced) {
+      process.stderr.write(`commit gate: this repository sets core.hooksPath=${result.displaced.local}, which displaces the gate here `
+        + '(husky, lefthook, simple-git-hooks and pre-commit all do this) - the gate runs in every other repository on this machine. '
+        + 'To gate this one too: git config --local --unset core.hooksPath\n');
+    }
   }
 
   if (wantEdit) {
