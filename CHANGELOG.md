@@ -5,6 +5,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The README, AGENTS.md, the project template, CONTEXT.md and the gate's own fix lines no
+  longer say that `git commit --no-verify` is recorded in `research/overrides.log`: git skips
+  the hook, so nothing can record it, as `checks.mjs` has said since ADR-0035. The other two
+  overrides are recorded as before (outside audit, 2026-10-03).
 - A repository-local `core.hooksPath` is detected from any subdirectory of the repository,
   by `install-hooks.mjs`, `doctor` and preflight alike: the probe looked for `.git` beside
   the working directory and reported nothing below the root, so a nested decision project

@@ -117,15 +117,15 @@ for (const finding of verdict.findings.slice(0, 10)) {
 }
 // A rule block happens only when the gate PASSES, so the phase-1 line would be false there.
 const why = verdict.breach?.rule === SUITE_RULE
-  ? 'The research gate passes. This is the suite rule: in the kit\'s own checkout, a commit\ntouching research-kit/ needs a green suite (ADR-0120). Overrides, all recorded:'
+  ? 'The research gate passes. This is the suite rule: in the kit\'s own checkout, a commit\ntouching research-kit/ needs a green suite (ADR-0120). Overrides:'
   : verdict.breach
-    ? 'The research gate passes. This is the architecture-map rule: a commit touching a declared\ncode path (research/kit.json) stages docs/ARCHITECTURE.md with it. Overrides, all recorded:'
-    : 'Phase 1 is not done until preflight prints PASS. Overrides, all recorded:';
+    ? 'The research gate passes. This is the architecture-map rule: a commit touching a declared\ncode path (research/kit.json) stages docs/ARCHITECTURE.md with it. Overrides:'
+    : 'Phase 1 is not done until preflight prints PASS. Overrides:';
 process.stderr.write(`
 Fix: ${verdict.fix}
 
 ${why}
-  git commit --no-verify        the native escape hatch
-  research/GATE_OFF             turn the gate off for this repository, deliberately
+  git commit --no-verify        the native escape hatch - git skips this hook, so nothing records it; say so in your reply
+  research/GATE_OFF             turn the gate off for this repository, deliberately - recorded in research/overrides.log
 `);
 process.exit(1);

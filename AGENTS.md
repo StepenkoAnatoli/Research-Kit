@@ -191,11 +191,13 @@ The sequence is decompose -> contract -> collect -> gate -> brief.
    `doctor.mjs` and preflight detect it and log it to
    `research/overrides.log`; `husky`, `lefthook`, `simple-git-hooks`, and
    `pre-commit` all set a local hooksPath, and collide with the machine-wide
-   gate for exactly that reason). All three are recorded in
+   gate for exactly that reason). The last two are recorded in
    `research/overrides.log` - a local log on the machine that took the
    override, never committed (ADR-0081) - and
    `node research-kit/bin/doctor.mjs`
-   reports how many times each has been used. If you take an override, say so in
+   reports how many times each has been used; `--no-verify` skips the hook, and
+   a hook git did not run records nothing, so that one is accounted for by your
+   reply alone. If you take an override, say so in
    your reply. Deleting `DISCOVERY.md` does not turn the gate off - a gated project
    missing its contract fails harder.
 

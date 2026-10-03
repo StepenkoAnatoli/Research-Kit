@@ -175,7 +175,7 @@ export function runSuiteHere(root, { timeout = SUITE_TIMEOUT_MS } = {}) {
 
 export function suiteBreach(root, stagedPaths, { run = () => runSuiteHere(root), announce = null } = {}) {
   if (!suiteOwed(root, stagedPaths)) return null;
-  const fix = `make the suite green (node ${KIT_DIR}/bin/selftest.mjs), then commit again; git commit --no-verify overrides, and is recorded`;
+  const fix = `make the suite green (node ${KIT_DIR}/bin/selftest.mjs), then commit again; git commit --no-verify overrides, and records nothing - say so in your reply`;
   // Called right before the run, so what a caller says about the suite running is true.
   if (announce) announce();
   const result = run();
@@ -388,8 +388,8 @@ export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = n
       // So this blocks, and says which failure it was. Blocking is the safe direction for
       // a gate: a commit refused because the gate could not do its job is recoverable in
       // one command, and an unnoticed commit of unproven evidence is not. The escape
-      // hatches remain what they always were - `--no-verify`, or `research/GATE_OFF` -
-      // and both are recorded rather than silent.
+      // hatches remain what they always were - `--no-verify`, which git takes without running
+      // this hook and so records nothing, or `research/GATE_OFF`, which is recorded.
       return {
         ...base,
         verdict: 'block',
@@ -398,7 +398,7 @@ export function evaluate(root, { gate = 'commit', stagedPaths = null, corpus = n
         indexNote: `could not read the index: ${materialised.detail ?? materialised.reason}`,
         reason: `the commit gate judges the staged bytes and could not read them (${materialised.reason})`,
         fix: 'check that git works here (git status), then commit again; '
-          + 'git commit --no-verify overrides, and is recorded',
+          + 'git commit --no-verify overrides, and records nothing - say so in your reply',
         findings: [],
       };
     }

@@ -65,9 +65,10 @@ The work splits into **two phases**, usually done by different agents. Phase 1 i
 it ends with a passing gate and a brief, and never writes product code. Phase 2 is the
 build: a builder reads the brief and implements, and should never need to re-research.
 
-**What the gate does not stop, so you know where to look.** Three overrides exist and each
-one is recorded in a local log that `doctor` counts: `git commit --no-verify`, a
-`research/GATE_OFF` file, and a repository-local `core.hooksPath`, which tools such as
+**What the gate does not stop, so you know where to look.** Three overrides exist. `git commit
+--no-verify` skips the hook, and a hook git did not run cannot record anything, so that one
+leaves no trace beyond the commit itself. The other two are recorded in a local log that
+`doctor` counts: a `research/GATE_OFF` file, and a repository-local `core.hooksPath`, which tools such as
 husky set and which displaces the machine-wide hook in that repository: `install-hooks.mjs`
 reports it when run inside such a repository, and `doctor` reports and records it. The gate's
 default posture is fail-open: a broken installation lets a commit through with one line
