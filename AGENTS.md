@@ -344,7 +344,7 @@ review and by the record these rules produce.
    In the kit's own repository this rule is enforced (ADR-0120): the commit gate runs
    the suite for any commit that stages something under `research-kit/`, and blocks
    while it is red. A docs-only commit owes nothing, an unsupported test is not red, and
-   `git commit --no-verify` still goes through, recorded. Projects built on the kit carry
+   `git commit --no-verify` still goes through, and records nothing. Projects built on the kit carry
    this rule as prose, because the check does not apply to them.
 
 The record this protocol produces: decisions as ADRs under `docs/adr/`
