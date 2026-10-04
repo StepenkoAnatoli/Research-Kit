@@ -5,6 +5,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The handoff remedies print a capture path inside a git command only when it is letters, digits,
+  `.`, `_`, `-` and `/` - the collector's own alphabet. Any other name is named but not printed as a
+  command, with a note on how to type it (quoted for the shell, prefixed `:(literal)`): double quotes
+  left PowerShell expanding `$copy` to nothing and git reading `[12]` as a glob, and either restored a
+  neighbouring file and discarded its uncommitted work (found 2026-10-04 by the second external review).
 - `createTempFolder` keeps its record deepest-first as it goes: a mkdir that failed part-way (ENOSPC
   on the third missing ancestor) threw before the sort that ordered the removal, and an ancestor the
   run had created was left behind, empty (found 2026-10-04 by the second external review).
