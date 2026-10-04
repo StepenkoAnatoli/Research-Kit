@@ -5,6 +5,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- For a capture name a shell or git would read, the handoff remedies no longer say "quote it for your
+  shell and prefix `:(literal)`" - cmd expands `%NAME%` inside double quotes - but have the operator list
+  the names in `handoff-names.txt` and run `git --literal-pathspecs checkout HEAD
+  --pathspec-from-file=handoff-names.txt`, which types no name (found 2026-10-04 by the third external
+  review).
 - The handoff remedies classify every affected capture name, not only the five the text lists: an
   unsafe sixth name got no note and the instruction to handle it "the same way" (found 2026-10-04 by
   the third external review).

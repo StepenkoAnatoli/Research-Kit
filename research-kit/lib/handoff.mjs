@@ -112,24 +112,28 @@ export function alteredRemedy(files = [], { isRepo = true } = {}) {
   // step further, never a claim. Re-collecting is not offered: a new fetch writes a new
   // capture (`.r2.md`) beside this one, or refuses to overwrite a differing source sibling,
   // and verifyLedger still checks the entry that names this file.
+  // The paragraphs that print one command per file are left out when no name is printable:
+  // a heading over an empty block reads as a command that went missing.
   return [
     ...head,
-    'First, whether this checkout changed the file after the commit - this prints the file',
-    'when it differs from the committed copy:',
-    '',
-    ...shown.map((file) => `    git status --porcelain -- ${file}`),
-    '',
-    'If it prints the file, restore the committed copy, which spends nothing and touches no',
-    'other file, then run handoff again:',
-    '',
-    ...shown.map((file) => `    git checkout HEAD -- ${file}`),
-    ...(rest ? ['', `and the remaining ${rest} safe-named files handoff lists above the same way, each by name.`] : []),
-    ...unsafeNote(unsafe),
+    ...(shown.length ? [
+      'First, whether this checkout changed the file after the commit - this prints the file',
+      'when it differs from the committed copy:',
+      '',
+      ...shown.map((file) => `    git status --porcelain -- ${file}`),
+      '',
+      'If it prints the file, restore the committed copy, which spends nothing and touches no',
+      'other file, then run handoff again:',
+      '',
+      ...shown.map((file) => `    git checkout HEAD -- ${file}`),
+      ...(rest ? ['', `and the remaining ${rest} safe-named files handoff lists above the same way, each by name.`] : []),
+    ] : []),
+    ...unsafeNote(unsafe, [`git --literal-pathspecs checkout HEAD --pathspec-from-file=${NAMES_FILE}`]),
     '',
     'If handoff still fails on it, or the status printed nothing, the altered bytes were',
     'committed. Find the last commit that held the fetched bytes - the one before the change:',
     '',
-    ...shown.map((file) => `    git log --oneline -- ${file}`),
+    ...(shown.length ? shown.map((file) => `    git log --oneline -- ${file}`) : ['    git log --oneline -- research/raw/']),
     '',
     'and restore the file from it with `git checkout <that commit> -- <file>`, here or on the',
     'collector, where the ledger was written. If no commit holds them, the capture is unproven',
@@ -165,13 +169,31 @@ function classify(files) {
   return { safe, shown: safe.slice(0, 5), rest: Math.max(0, safe.length - 5), unsafe: files.filter((file) => !safePathspec(file)) };
 }
 
-/** The sentence for the files that are named but not printed as commands. */
-function unsafeNote(files) {
+/** The file an operator lists unsafe names in, for `--pathspec-from-file` (NAMES_FILE). */
+export const NAMES_FILE = 'handoff-names.txt';
+
+/**
+ * The note for the files that are named but not printed as commands, with the commands that
+ * take the names from a FILE instead of the command line. "Quote it for your shell and prefix
+ * :(literal)" was not enough: cmd expands `%NAME%` inside double quotes and PowerShell `$name`,
+ * so a typed name can still change before git sees it (third external review, 2026-10-04,
+ * verified by running in cmd). `--pathspec-from-file` hands git the bytes of the file, no shell
+ * in between, and `--literal-pathspecs` makes git take each line as written, not as a pattern.
+ * Both are git 2.25+ (January 2020).
+ */
+function unsafeNote(files, commands) {
   return files.length ? [
     '',
     `Not printed as a command, because a shell or git would read part of the name: ${files.join(', ')}.`,
-    'Type the same commands yourself with the name quoted for YOUR shell and prefixed',
-    ':(literal), so git takes it as written and not as a pattern.',
+    'No quoting is safe for these in every shell (cmd expands %NAME% even inside quotes,',
+    'PowerShell expands $name), so let git read the names from a file instead: put each one',
+    `on a line of its own, exactly as listed, in a file named ${NAMES_FILE} at the project`,
+    'root (any editor), then run',
+    '',
+    ...commands.map((command) => `    ${command}`),
+    '',
+    `delete ${NAMES_FILE}, and run handoff again. --literal-pathspecs makes git take each line`,
+    'as written, not as a pattern.',
   ] : [];
 }
 
@@ -239,14 +261,19 @@ export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } =
       '    git add .gitattributes',
     ]),
     '',
-    'Rewrite ONLY the affected files through the pin. `git rm --cached` removes the index',
-    'entry only - the file stays on disk - so the checkout has to write it again, as LF:',
-    '',
-    ...shown.flatMap((file) => [
-      `    git rm --cached --quiet -- ${file}`,
-      `    git checkout HEAD -- ${file}`,
+    ...(shown.length ? [
+      'Rewrite ONLY the affected files through the pin. `git rm --cached` removes the index',
+      'entry only - the file stays on disk - so the checkout has to write it again, as LF:',
+      '',
+      ...shown.flatMap((file) => [
+        `    git rm --cached --quiet -- ${file}`,
+        `    git checkout HEAD -- ${file}`,
+      ]),
+    ] : []),
+    ...unsafeNote(unsafe, [
+      `git --literal-pathspecs rm --cached --quiet --pathspec-from-file=${NAMES_FILE}`,
+      `git --literal-pathspecs checkout HEAD --pathspec-from-file=${NAMES_FILE}`,
     ]),
-    ...unsafeNote(unsafe),
     ...(files.length > named.length ? [
       '',
       'and the rest of the captures the same way:',

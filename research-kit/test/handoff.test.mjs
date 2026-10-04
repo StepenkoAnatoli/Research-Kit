@@ -5,7 +5,7 @@ import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path,
 import { evaluate } from '../lib/gate.mjs';
 import { TEMPLATE_DIR } from '../lib/scaffold.mjs';
 import { PATHS, resolve, writeText } from '../lib/core.mjs';
-import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, alteredRemedy, safePathspec, insideRepository, PIN_LINES } from '../lib/handoff.mjs';
+import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, alteredRemedy, safePathspec, insideRepository, NAMES_FILE, PIN_LINES } from '../lib/handoff.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
 
@@ -259,7 +259,11 @@ test('a capture path a shell or git would read is named but never printed as a c
       const commands = remedy.split('\n').filter((l) => /^ {4}\S/.test(l));
       assert.ok(commands.every((l) => !l.includes('topic')), `printed as a command:\n${remedy}`);
       assert.ok(remedy.includes(bad), 'the file is still named');
-      assert.match(remedy, /:\(literal\)/, 'the operator is told how to type it');
+      // "Quote it for your shell" was not enough: cmd expands %NAME% inside quotes (third
+      // review). The names go in a file git reads itself, with pattern syntax switched off.
+      assert.doesNotMatch(remedy, /quoted for YOUR shell/);
+      assert.match(remedy, new RegExp(`--pathspec-from-file=${NAMES_FILE}`));
+      assert.match(remedy, /^ {4}git --literal-pathspecs (checkout|rm) /m, 'the printed command types no name');
     }
   }
   // A safe name beside an unsafe one: the safe one still prints, the unsafe one is noted.
@@ -381,6 +385,39 @@ test('an unsafe name beyond the fifth is still noted, and only safe names are "t
   // precondition (ADR-0062), which types no name; the unsafe sixth is still noted.
   assert.match(lineEndingRemedy([...safe, 'research/raw/topic[12].md'], { isRepo: true }), /Not printed as a command.*topic\[12\]/);
   assert.doesNotMatch(lineEndingRemedy([...safe, 'research/raw/f.md'], { isRepo: true }), /Not printed as a command/);
+});
+
+// Judged by running it: the names-file commands restore exactly the unsafe-named capture and
+// leave a neighbour that the name, read as a pattern or by a shell, would have matched.
+test('the names-file commands, run as printed, restore only the file named in the file', () => {
+  requireGit('the names-file commands');
+  const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const dir = tempDir('rk-names-file-');
+  fs.mkdirSync(path.join(dir, 'research', 'raw'), { recursive: true });
+  const capture = 'research/raw/topic $copy[1].md';     // a glob, and a PowerShell variable
+  const neighbour = 'research/raw/topic $copy1.md';     // what the glob matches
+  fs.writeFileSync(path.join(dir, capture), 'fetched\n');
+  fs.writeFileSync(path.join(dir, neighbour), 'neighbour\n');
+  for (const args of [fixtureInitArgs(), ['config', 'user.email', 't@t'], ['config', 'user.name', 't'], ['add', '-A'], fixtureCommitArgs('corpus')]) {
+    assert.equal(git(dir, ...args).status, 0, `git ${args.join(' ')}`);
+  }
+  fs.writeFileSync(path.join(dir, capture), 'fetched\naltered\n');
+  fs.writeFileSync(path.join(dir, neighbour), 'neighbour\nuncommitted work\n');
+
+  const remedy = alteredRemedy([capture], { isRepo: true });
+  fs.writeFileSync(path.join(dir, NAMES_FILE), `${capture}\n`);
+  // The restore commands are the ones that read the names file; the committed-case paragraph
+  // also prints a folder-wide `git log`, which types no name either.
+  const commands = remedy.split('\n').filter((l) => /^ {4}git /.test(l)).map((l) => l.trim());
+  assert.ok(commands.every((l) => !l.includes('$copy')), `a command types the name:\n${remedy}`);
+  const restores = commands.filter((l) => l.includes('--pathspec-from-file'));
+  assert.deepEqual(restores, [`git --literal-pathspecs checkout HEAD --pathspec-from-file=${NAMES_FILE}`]);
+  for (const line of restores) {
+    const r = git(dir, ...line.split(/\s+/).slice(1));
+    assert.equal(r.status, 0, `${line}\n${r.stderr}`);
+  }
+  assert.equal(fs.readFileSync(path.join(dir, capture), 'utf8'), 'fetched\n', 'the named capture was restored');
+  assert.equal(fs.readFileSync(path.join(dir, neighbour), 'utf8'), 'neighbour\nuncommitted work\n', 'the neighbour the glob matches kept its work');
 });
 
 test('a report holding both causes prints both remedies', () => {
