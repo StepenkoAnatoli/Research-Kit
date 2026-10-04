@@ -17,6 +17,7 @@ in this repository.
 | review the 2026-10-03 output-reliability findings | [`review-2026-10-03-output-reliability.md`](review-2026-10-03-output-reliability.md) | eight ranked findings, reproductions, proposed corrections, and audit limits at `74c0791`; section 9 records the fix for each and the dispositions of the review of those fixes |
 | read the 2026-10-03 gap audit of the kit | [`review-2026-10-03-gap-audit.md`](review-2026-10-03-gap-audit.md) | fifteen ranked gaps against nine comparison sets collected through the kit, what is solid, and the outcome of ranks 1 to 3 (ADR-0139, ADR-0140) |
 | read the 2026-10-04 gap audit of the kit (the second) | [`review-2026-10-04-gap-audit.md`](review-2026-10-04-gap-audit.md) | seventeen ranked gaps against three new comparison sets collected through the kit, the previous audit's open ranks re-verified, an external review re-verified, and what is solid; answer-only, nothing implemented |
+| read the 2026-10-04 break-test (pass 5) | [`build-report-2026-10-04-break-test-pass5.md`](build-report-2026-10-04-break-test-pass5.md) | an all-green baseline, eleven probe groups with no new failure, one Low finding fixed: the result file names the failing tests |
 | read the 2026-10-04 break-test (pass 4) | [`build-report-2026-10-04-break-test.md`](build-report-2026-10-04-break-test.md) | thirteen green runs, five findings, four fixed as their own commits, one recorded as a decided trade-off |
 
 Two habits of this repository that a newcomer should know before reading further:
