@@ -86,16 +86,27 @@ export function browserArgs(url, { uid = typeof process.getuid === 'function' ? 
  * `netLog` (the text of Chromium's net log, '' when none was written, ADR-0137). A stub
  * render that leaves `netLog` out is a render whose status was not observed.
  */
+/**
+ * How long the parent waits for the guard child: the launch allowance and the render budget -
+ * each `timeout`, ADR-0119 - and 10 s for the child to kill the browser and report. Shorter,
+ * and the parent is the timeout: at timeout + 10 s it killed a render that was inside its
+ * budget on the operator's PC (2026-10-04, break-test pass 6 F1), and the child's record of
+ * where the time went died with it - the verdict read "never made a request in 0 s".
+ */
+export function guardChildTimeout(timeout = TIMEOUT_MS) {
+  return 2 * timeout + 10_000;
+}
+
 export function renderGuarded(binary, args, { url, env = process.env, timeout = TIMEOUT_MS, allowInternalRedirects, nodePath = process.execPath, spawn = spawnSync } = {}) {
   // ADR-0110: undefined lets the child decide from the URL asked for; the operator's opt-out,
   // or a caller's explicit choice, overrides it.
   const allow = allowInternalRedirects ?? (env.RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS === '1' ? true : undefined);
   const job = { binary, args, url: String(url), timeout, ...(allow === undefined ? {} : { allowInternalRedirects: allow }) };
   const result = spawn(nodePath, [GUARD_CHILD], {
-    input: JSON.stringify(job), encoding: 'utf8', timeout: timeout + 10_000, windowsHide: true, maxBuffer: CHILD_OUTPUT_LIMIT, env,
+    input: JSON.stringify(job), encoding: 'utf8', timeout: guardChildTimeout(timeout), windowsHide: true, maxBuffer: CHILD_OUTPUT_LIMIT, env,
   });
   const failed = (code, message) => ({ status: null, signal: null, stdout: '', stderr: '', error: Object.assign(new Error(message), { code }), refused: [] });
-  if (result.error?.code === 'ETIMEDOUT') return failed('ETIMEDOUT', 'the guard child did not finish');
+  if (result.error?.code === 'ETIMEDOUT') return failed('ETIMEDOUT', `the guard child did not finish within ${Math.round(guardChildTimeout(timeout) / 1000)} s - the launch allowance, the render budget and 10 s to report (ADR-0119) - so its record of where the time went was lost`);
   const overflow = outputOverflow(result, 'the browser');
   if (overflow) return failed('ENOBUFS', overflow);
   if (result.error) return failed(result.error.code ?? 'SPAWN', result.error.message);
@@ -293,9 +304,12 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
   if (timedOut && !dumpedWhole) {
     // Where the time went: a browser that never asked for anything is a launch that did not
     // finish, which is not the page's doing (ADR-0119).
-    const startup = Number.isFinite(result.startupMs) && result.startupMs !== null
-      ? `: the browser took ${Math.round(result.startupMs / 1000)} s to make its first request`
-      : `: the browser never made a request in ${Math.round((Number(result.elapsedMs) || 0) / 1000)} s`;
+    // A child the parent gave up on left no record: say that, not "never made a request in 0 s".
+    const gaveUp = /^the guard child did not finish/.test(result.error?.message ?? '');
+    const startup = gaveUp ? `: ${result.error.message}`
+      : Number.isFinite(result.startupMs) && result.startupMs !== null
+        ? `: the browser took ${Math.round(result.startupMs / 1000)} s to make its first request`
+        : `: the browser never made a request in ${Math.round((Number(result.elapsedMs) || 0) / 1000)} s`;
     return { ok: false, url: target, transport: name, cmd, error: `the browser did not finish rendering ${target} within ${Math.round(timeout / 1000)}s${startup}${said}` };
   }
   // A signal that is not the timeout's is a crash, and says so (found 2026-09-29: a SIGTRAP

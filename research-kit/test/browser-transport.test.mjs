@@ -570,3 +570,29 @@ test('ADR-0140: a browser capture carries the rendered DOM as its source', () =>
   assert.equal(page.ok, true, page.error);
   assert.equal(page.source, PAGE);
 });
+
+// Found 2026-10-04 on the operator's Windows PC, one full run in three (break-test pass 6, F1):
+// Chromium took most of its launch allowance to make a request, the render then ran most of
+// its own budget, and the parent's spawnSync - set to timeout + 10 s - killed the guard child
+// mid-render. ADR-0119 allows a browser that does make a request 2 x timeout of wall time, so
+// the parent must wait at least as long or IT is the timeout, and the child's record of where
+// the time went dies with it: the verdict read "the browser never made a request in 0 s".
+test('the parent waits for the launch allowance AND the render budget before giving the guard child up (ADR-0119)', () => {
+  const seen = [];
+  const spawn = (cmd, argv, options) => { seen.push(options); return { status: 0, stdout: JSON.stringify({ status: 0, stdout: '<html></html>', stderr: '', refused: [] }), stderr: '' }; };
+  renderGuarded('/opt/chrome', [], { url: 'https://x.invalid/a', env: {}, spawn, nodePath: '/opt/node', timeout: 15_000 });
+  renderGuarded('/opt/chrome', [], { url: 'https://x.invalid/a', env: {}, spawn, nodePath: '/opt/node', timeout: 45_000 });
+  assert.equal(seen[0].timeout, 2 * 15_000 + 10_000, 'launch allowance + render budget + 10 s for the child to kill the browser and report');
+  assert.equal(seen[1].timeout, 2 * 45_000 + 10_000);
+});
+
+test('a guard child the parent gave up on is said to be that, not a browser that never made a request in 0 s', () => {
+  const gaveUp = () => ({ error: Object.assign(new Error('spawnSync /opt/node ETIMEDOUT'), { code: 'ETIMEDOUT' }), status: null, signal: 'SIGTERM', stdout: '', stderr: '' });
+  const r = renderGuarded('/opt/chrome', [], { url: 'https://x.invalid/a', env: {}, spawn: gaveUp, nodePath: '/opt/node', timeout: 15_000 });
+  assert.equal(r.error.code, 'ETIMEDOUT');
+  assert.match(r.error.message, /the guard child did not finish within 40 s/, r.error.message);
+  const page = browser.scrape('https://x.invalid/a', { render: () => r, browserPath: '/opt/chrome', env: {}, timeout: 15_000 });
+  assert.equal(page.ok, false);
+  assert.match(page.error, /did not finish rendering https:\/\/x\.invalid\/a within 15s: the guard child did not finish within 40 s/, page.error);
+  assert.doesNotMatch(page.error, /never made a request in 0 s/);
+});
