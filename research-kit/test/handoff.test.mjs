@@ -5,7 +5,7 @@ import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path,
 import { evaluate } from '../lib/gate.mjs';
 import { TEMPLATE_DIR } from '../lib/scaffold.mjs';
 import { PATHS, resolve, writeText } from '../lib/core.mjs';
-import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, PIN_LINES } from '../lib/handoff.mjs';
+import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, alteredRemedy, PIN_LINES } from '../lib/handoff.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
 
@@ -157,15 +157,64 @@ test('a line-ending rewrite gets the LOCAL remedy, and no push remedy', () => {
   assert.match(inRepo, /re-collecting spends paid credits/);
 });
 
-test('a genuinely tampered capture still gets the PUSH remedy', () => {
+// Until 2026-10-04 a capture changed after its fetch got the PUSH remedy - "something did not
+// travel, the remedy lives on the COLLECTOR machine" - which sends the same bytes again when
+// the change was committed, and when it is local to this checkout sends an operator to another
+// machine for a file whose committed copy is a `git checkout` away (break-test pass 4, F5b).
+test('a capture changed after its fetch gets the ALTERED remedy, and no push remedy', () => {
   const dir = makePassingProject();
   const capture = readCorpus(dir).captures.entries[0];
   corrupt(dir, capture.file, (text) => `${text}\nrewritten by hand\n`);
 
   const report = verifyHandoff(dir);
+  assert.equal(report.ok, false);
   assert.equal(report.lineEndings.length, 0);
-  assert.equal(report.didNotTravel, true);
-  assert.match(handoffRemedy(report), /git add -f research\/raw\//);
+  assert.deepEqual(report.altered.map((e) => e.file), [capture.file]);
+  assert.equal(report.didNotTravel, false, 'the capture is here; its bytes changed after the fetch');
+
+  const remedy = handoffRemedy(report);
+  assert.doesNotMatch(remedy, /Something did not travel/, 'the push remedy sends the same bytes again');
+  assert.doesNotMatch(remedy, /git add/);
+  assert.match(remedy, /changed AFTER its fetch/);
+  // The fixture has no git metadata, so no command that cannot work here is printed.
+  assert.match(remedy, /no git metadata/);
+  assert.doesNotMatch(remedy, /git checkout/);
+
+  const escaped = capture.file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const inRepo = alteredRemedy([capture.file], { isRepo: true });
+  assert.match(inRepo, new RegExp(`^ {4}git status --porcelain -- ${escaped}$`, 'm'), 'first, whether the change is local');
+  assert.match(inRepo, new RegExp(`^ {4}git checkout HEAD -- ${escaped}$`, 'm'), 'the committed copy restores a local change for nothing');
+  assert.match(inRepo, /research\.mjs.*--force/, 'a committed alteration is the collector\'s to restore or re-collect');
+  assert.doesNotMatch(inRepo, /git checkout HEAD -- research\/raw\/$/m, 'a folder-wide checkout discards uncommitted work');
+  for (const line of inRepo.split('\n').filter((l) => /^ {4}\S/.test(l)).map((l) => l.trim())) {
+    assert.match(line, /^(git|node) /, `not a command: ${line}`);
+    assert.doesNotMatch(line, /#/, `a trailing comment is a file name in cmd: ${line}`);
+  }
+});
+
+test('the altered-capture remedy, run as printed, restores a capture changed in this checkout', () => {
+  requireGit('the altered-capture remedy');
+  const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const dir = makePassingProject();
+  for (const args of [fixtureInitArgs(), ['config', 'user.email', 't@t'], ['config', 'user.name', 't'],
+    ['add', '-A'], fixtureCommitArgs('corpus')]) {
+    assert.equal(git(dir, ...args).status, 0, `git ${args.join(' ')}`);
+  }
+  const capture = readCorpus(dir).captures.entries[0];
+  corrupt(dir, capture.file, (text) => `${text}\nrewritten by hand\n`);
+  const before = verifyHandoff(dir);
+  assert.equal(before.altered.length, 1, 'the fixture did not produce an altered capture');
+
+  const remedy = handoffRemedy(before);
+  assert.doesNotMatch(remedy, /no git metadata/, 'this checkout has a repository');
+  for (const line of remedy.split('\n').map((l) => l.trim())) {
+    if (line.startsWith('git ') && !line.startsWith('git status')) {
+      const r = git(dir, ...line.split(/\s+/).slice(1));
+      assert.equal(r.status, 0, `${line}\n${r.stderr}`);
+    }
+  }
+  const after = verifyHandoff(dir);
+  assert.equal(after.ok, true, `the remedy did not restore it:\n${remedy}\n${JSON.stringify(after.findings.map((f) => f.detail))}`);
 });
 
 test('a report holding both causes prints both remedies', () => {

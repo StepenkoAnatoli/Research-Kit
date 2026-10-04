@@ -5,6 +5,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- `handoff` gives a capture changed after its fetch its own remedy: restore it from the committed copy
+  when the change is local to the checkout, else the collector restores or re-collects it. It got the
+  push remedy ("something did not travel"), which sends the same bytes again when the change was
+  committed and sends an operator to another machine when the fix was one `git checkout` away
+  (break-test pass 4, F5b, 2026-10-04).
 - The suite removes a temp folder it had to create: a `TMPDIR` naming a folder that does not exist yet
   is still created (a CI job exports `RUNNER_TEMP` before creating it), and the created chain now goes
   with the scratch at exit - only the folders the run itself made, each by a non-recursive rmdir, so a

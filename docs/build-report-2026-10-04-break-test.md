@@ -131,13 +131,18 @@ hygiene: an uncited capture no fetch produced is named as such, a collected one 
 **Status: applied** (c722306). Suite green.
 
 **(b)** A capture altered after its fetch gets the "something did not travel ... the remedy lives
-on the COLLECTOR machine" remedy. **Status: not changed, by decision.** `handoff.test.mjs:160`
-pins it: `a genuinely tampered capture still gets the PUSH remedy` - on a builder the restoration
-is the collector's commit, so the remedy is the same push and pull.
+on the COLLECTOR machine" remedy. **Status: decided against at first, then fixed at the operator's
+request.** The pinned test (`a genuinely tampered capture still gets the PUSH remedy`) rested on
+"the restoration is the collector's commit", which holds only when the change was committed - and
+then a push sends the same bytes again; a change local to the checkout is one `git checkout HEAD --`
+away. `alteredRemedy` in `lib/handoff.mjs` prints both cases, per file, and the report carries the
+captures as `altered` instead of "did not travel". **Tests:** `handoff > a capture changed after its
+fetch gets the ALTERED remedy, and no push remedy`; `handoff > the altered-capture remedy, run as
+printed, restores a capture changed in this checkout`.
 
 ## Remaining risks
 
-- Finding 3, fixed after the report. Finding 5(b), decided.
+- Findings 3 and 5(b), fixed after the report at the operator's request.
 - Windows case-insensitive filesystems: a case-only twin of a capture would be one file on NTFS
   and git would check out whichever came last; not run (no Windows host here). Reading only.
 - Not probed: a slow disk (no tool here), a real old Python (stubbed), the real Firecrawl
