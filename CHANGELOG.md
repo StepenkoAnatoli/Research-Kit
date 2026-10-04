@@ -5,6 +5,9 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- Without git on PATH, handoff's fallback walks the project's physical path for a `.git` entry (a
+  junction's lexical parents are not where git looks) and reads `GIT_CEILING_DIRECTORIES` as git does:
+  absolute entries only, resolved until an empty entry (found 2026-10-04 by the third external review).
 - For a capture name a shell or git would read, the handoff remedies no longer say "quote it for your
   shell and prefix `:(literal)`" - cmd expands `%NAME%` inside double quotes - but have the operator list
   the names in `handoff-names.txt` and run `git --literal-pathspecs checkout HEAD

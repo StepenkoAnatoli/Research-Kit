@@ -431,14 +431,27 @@ export function insideRepository(root, { run = spawnSync } = {}) {
   return answer?.status === 0 && String(answer.stdout ?? '').trim() === 'true';
 }
 
+/**
+ * The fallback without git: a `.git` entry in the PHYSICAL ancestry of `dir` - realpath first,
+ * because a junction or symlink's lexical parents are not where git looks (a project reached
+ * through a junction into a repository was told "no git metadata", and one linked out of it
+ * was given the repository's commands; third external review, 2026-10-04). Ceilings as git
+ * reads GIT_CEILING_DIRECTORIES: absolute entries only (relative ones are ignored), each
+ * resolved through realpath until an EMPTY entry, after which the rest are taken as written.
+ */
 function gitEntryAbove(dir) {
-  const ceilings = new Set(String(process.env.GIT_CEILING_DIRECTORIES ?? '').split(path.delimiter)
-    .filter(Boolean).map((c) => { try { return fs.realpathSync(c.replace(/^:/, '')); } catch { return path.resolve(c.replace(/^:/, '')); } }));
   const real = (p) => { try { return fs.realpathSync(p); } catch { return p; } };
-  for (let p = dir; ; p = path.dirname(p)) {
+  const ceilings = new Set();
+  let resolve = true;
+  for (const entry of String(process.env.GIT_CEILING_DIRECTORIES ?? '').split(path.delimiter)) {
+    if (entry === '') { resolve = false; continue; }
+    if (!path.isAbsolute(entry)) continue;
+    ceilings.add(resolve ? real(entry) : entry);
+  }
+  for (let p = real(dir); ; p = path.dirname(p)) {
     if (exists(path.join(p, '.git'))) return true;
     const parent = path.dirname(p);
-    if (parent === p || ceilings.has(real(parent))) return false;
+    if (parent === p || ceilings.has(parent)) return false;
   }
 }
 

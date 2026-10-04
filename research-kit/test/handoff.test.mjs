@@ -370,6 +370,37 @@ test('without git on PATH the answer falls back to a .git entry above, stopping 
   assert.equal(outsideAnyRepository(path.join(outer, 'docs'), () => insideRepository(nested, { run: noGit })), false, 'a ceiling below the .git stops the walk');
 });
 
+// Found 2026-10-04 by the third external review: the fallback walked the LEXICAL parents of a
+// junction, so a project reached through a link into a repository read as outside it, and one
+// linked out of a repository read as inside; and it turned relative ceiling entries, which git
+// ignores, into ceilings.
+test('without git the fallback walks the physical path, and ignores a relative ceiling as git does', () => {
+  const noGit = () => ({ error: Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' }) });
+  const repo = tempDir('rk-phys-repo-');
+  fs.mkdirSync(path.join(repo, '.git'));
+  const inside = path.join(repo, 'docs', 'project');
+  fs.mkdirSync(inside, { recursive: true });
+  const elsewhere = tempDir('rk-phys-elsewhere-');
+  const outsideTarget = path.join(elsewhere, 'project');
+  fs.mkdirSync(outsideTarget);
+
+  // A link OUTSIDE the repository pointing INTO it: physically inside, so a repository.
+  const linkIn = path.join(elsewhere, 'link-in');
+  fs.symlinkSync(inside, linkIn, 'junction');   // a junction on Windows, a symlink elsewhere; no privilege needed
+  assert.equal(insideRepository(linkIn, { run: noGit }), true, 'the physical ancestry holds the .git');
+  // A link INSIDE the repository pointing OUT of it: physically outside, so not one.
+  const linkOut = path.join(repo, 'link-out');
+  fs.symlinkSync(outsideTarget, linkOut, 'junction');
+  assert.equal(outsideAnyRepository(elsewhere, () => insideRepository(linkOut, { run: noGit })), false, 'the lexical parent is not where git looks');
+
+  // A relative ceiling entry is ignored, as git ignores it: the .git above still counts.
+  const saved = process.env.GIT_CEILING_DIRECTORIES;
+  process.env.GIT_CEILING_DIRECTORIES = 'docs';
+  try { assert.equal(insideRepository(inside, { run: noGit }), true); } finally {
+    if (saved === undefined) delete process.env.GIT_CEILING_DIRECTORIES; else process.env.GIT_CEILING_DIRECTORIES = saved;
+  }
+});
+
 // Found 2026-10-04 by the third external review: the safety check ran over the five names the
 // text lists, so an unsafe SIXTH file got no note and "handle the remaining files the same
 // way, each by name" - an instruction to type the glob that restores a neighbour.
