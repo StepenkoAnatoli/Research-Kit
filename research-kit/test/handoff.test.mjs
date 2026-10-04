@@ -5,7 +5,7 @@ import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path,
 import { evaluate } from '../lib/gate.mjs';
 import { TEMPLATE_DIR } from '../lib/scaffold.mjs';
 import { PATHS, resolve, writeText } from '../lib/core.mjs';
-import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, alteredRemedy, PIN_LINES } from '../lib/handoff.mjs';
+import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, alteredRemedy, pathspec, PIN_LINES } from '../lib/handoff.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
 
@@ -215,6 +215,25 @@ test('the altered-capture remedy, run as printed, restores a capture changed in 
   }
   const after = verifyHandoff(dir);
   assert.equal(after.ok, true, `the remedy did not restore it:\n${remedy}\n${JSON.stringify(after.findings.map((f) => f.detail))}`);
+});
+
+// Found 2026-10-04 by an external review: a ledger rewritten by hand can name a capture whose
+// path holds a space, and `git checkout HEAD -- research/raw/topic copy.md` is TWO pathspecs
+// in cmd, PowerShell and sh alike - two unrelated files restored and their uncommitted work
+// discarded, the capture untouched, exit 0. The collector's own names hold no space.
+test('a capture path holding whitespace is one pathspec in every printed command', () => {
+  const spaced = 'research/raw/topic copy.md';
+  assert.equal(pathspec(spaced), '"research/raw/topic copy.md"');
+  assert.equal(pathspec('research/raw/topic.md'), 'research/raw/topic.md', 'a plain path is not quoted');
+  for (const remedy of [alteredRemedy([spaced], { isRepo: true }), lineEndingRemedy([spaced], { isRepo: true })]) {
+    // Only the commands that name the file: the line-ending remedy also prints a folder-level
+    // status check and the .gitattributes add, which name no capture.
+    const commands = remedy.split('\n').filter((l) => /^ {4}git /.test(l) && l.includes('topic')).map((l) => l.trim());
+    assert.ok(commands.length >= 2, remedy);
+    for (const line of commands) {
+      assert.match(line, /-- "research\/raw\/topic copy\.md"$/, `two pathspecs: ${line}`);
+    }
+  }
 });
 
 test('a report holding both causes prints both remedies', () => {

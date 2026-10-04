@@ -104,12 +104,12 @@ export function alteredRemedy(files = [], { isRepo = true } = {}) {
     'First, whether the change is local to this checkout - this prints the file when it',
     'differs from the committed copy:',
     '',
-    ...named.map((file) => `    git status --porcelain -- ${file}`),
+    ...named.map((file) => `    git status --porcelain -- ${pathspec(file)}`),
     '',
     'If it prints the file, the committed copy is the fetched one. Restore it from the',
     'commit, which spends nothing and touches no other file:',
     '',
-    ...named.map((file) => `    git checkout HEAD -- ${file}`),
+    ...named.map((file) => `    git checkout HEAD -- ${pathspec(file)}`),
     ...(files.length > named.length ? ['', 'and the remaining files handoff names above the same way, each by name.'] : []),
     '',
     'If it prints nothing, the altered bytes were committed and this checkout is faithful to',
@@ -120,6 +120,19 @@ export function alteredRemedy(files = [], { isRepo = true } = {}) {
     '',
     'Pushing from the collector sends the same bytes and fixes nothing here.',
   ].join('\n');
+}
+
+/**
+ * A capture path as a git pathspec: double-quoted when it holds whitespace, as `spellCommand`
+ * quotes a kit path (ADR-0050), and as it is otherwise. The collector's own capture names come
+ * from `makeSlug` and hold none, but the path printed here is whatever the LEDGER names, and
+ * a ledger rewritten by hand can name `research/raw/topic copy.md`: unquoted, cmd, PowerShell
+ * and sh all hand git two pathspecs, and `git checkout HEAD --` then restores two unrelated
+ * files - discarding their uncommitted work - and leaves the capture alone (found 2026-10-04
+ * by an external review). Double quotes are read the same way by all three shells (ADR-0070).
+ */
+export function pathspec(file) {
+  return /\s/.test(file) ? `"${file}"` : file;
 }
 
 /** The .gitattributes lines that pin the corpus to LF (ADR-0020). */
@@ -189,8 +202,8 @@ export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } =
     'entry only - the file stays on disk - so the checkout has to write it again, as LF:',
     '',
     ...named.flatMap((file) => [
-      `    git rm --cached --quiet -- ${file}`,
-      `    git checkout HEAD -- ${file}`,
+      `    git rm --cached --quiet -- ${pathspec(file)}`,
+      `    git checkout HEAD -- ${pathspec(file)}`,
     ]),
     ...(files.length > named.length ? [
       '',

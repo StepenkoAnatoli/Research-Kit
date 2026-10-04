@@ -5,6 +5,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The handoff remedies quote a capture path that holds whitespace in every printed git command:
+  unquoted, `git checkout HEAD -- research/raw/topic copy.md` is two pathspecs and restores two
+  unrelated files, discarding their uncommitted work. The collector's own names hold none; a ledger
+  rewritten by hand can (found 2026-10-04 by an external review).
 - `createTempFolder` in the test harness records a folder as the run's only when its own mkdir created
   it: recording from the existence check before the mkdir let a folder another process created in
   between be removed at exit (found 2026-10-04 by an external review of the F3 fix).
