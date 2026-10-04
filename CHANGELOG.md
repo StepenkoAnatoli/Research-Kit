@@ -5,6 +5,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- `handoff` asks git whether the project is inside a work tree before printing the runnable remedies:
+  the walk up for a `.git` entry walked past a bare repository the project sat inside and printed a
+  checkout git refused. Without git on PATH the walk remains, stopping at a `GIT_CEILING_DIRECTORIES`
+  entry (found 2026-10-04 by the second external review).
 - The handoff remedies print a capture path inside a git command only when it is letters, digits,
   `.`, `_`, `-` and `/` - the collector's own alphabet. Any other name is named but not printed as a
   command, with a note on how to type it (quoted for the shell, prefixed `:(literal)`): double quotes

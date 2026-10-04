@@ -13,7 +13,9 @@
 // One blanket text for all of them is what used to send operators to re-collect a corpus
 // already on disk.
 
+import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { PATHS, HEADERS, resolve, exists, readText, kitCommand } from './core.mjs';
 import { readCorpus, captureOf, traceOf } from './corpus.mjs';
 import { verifyLedger } from './provenance.mjs';
@@ -375,17 +377,31 @@ export function verifyHandoff(root, { corpus = null } = {}) {
 }
 
 /**
- * Whether `root` is inside a git repository: a `.git` entry (a folder, or the file a worktree
- * carries) in `root` or any folder above it. It was `root/.git` alone, so a nested decision
- * project (ADR-0030, `docs/decisions/<name>/`), which has none of its own, was told it had
- * "no git metadata" and given no checkout command, although the enclosing repository restores
- * its tracked captures as it does any other (found 2026-10-04 by an external review). Git's
- * pathspecs are relative to the cwd, so the printed commands run unchanged from the project.
+ * Whether the printed git commands would run from `root`: git's own answer to
+ * `rev-parse --is-inside-work-tree`, asked from that folder. It was `root/.git` alone, so a
+ * nested decision project (ADR-0030, `docs/decisions/<name>/`), which has none of its own,
+ * was told it had "no git metadata" (first external review, 2026-10-04); then a walk up for a
+ * `.git` entry, which walked past a bare repository the project sat inside and printed a
+ * checkout that git refused with "this operation must be run in a work tree" (second review,
+ * verified by running). The commands are git's, so git decides whether they run - ceilings,
+ * bare repositories, worktree files and all. Without git on PATH the walk is the best answer
+ * left, and it stops at a GIT_CEILING_DIRECTORIES entry as git would.
  */
-export function insideRepository(root) {
-  for (let p = path.resolve(root); ; p = path.dirname(p)) {
+export function insideRepository(root, { run = spawnSync } = {}) {
+  const dir = path.resolve(root);
+  const answer = run('git', ['-C', dir, 'rev-parse', '--is-inside-work-tree'], { encoding: 'utf8', windowsHide: true });
+  if (answer?.error?.code === 'ENOENT') return gitEntryAbove(dir);
+  return answer?.status === 0 && String(answer.stdout ?? '').trim() === 'true';
+}
+
+function gitEntryAbove(dir) {
+  const ceilings = new Set(String(process.env.GIT_CEILING_DIRECTORIES ?? '').split(path.delimiter)
+    .filter(Boolean).map((c) => { try { return fs.realpathSync(c.replace(/^:/, '')); } catch { return path.resolve(c.replace(/^:/, '')); } }));
+  const real = (p) => { try { return fs.realpathSync(p); } catch { return p; } };
+  for (let p = dir; ; p = path.dirname(p)) {
     if (exists(path.join(p, '.git'))) return true;
-    if (path.dirname(p) === p) return false;
+    const parent = path.dirname(p);
+    if (parent === p || ceilings.has(real(parent))) return false;
   }
 }
 

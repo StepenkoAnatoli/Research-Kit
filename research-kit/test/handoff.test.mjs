@@ -5,13 +5,26 @@ import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path,
 import { evaluate } from '../lib/gate.mjs';
 import { TEMPLATE_DIR } from '../lib/scaffold.mjs';
 import { PATHS, resolve, writeText } from '../lib/core.mjs';
-import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, alteredRemedy, safePathspec, PIN_LINES } from '../lib/handoff.mjs';
+import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, alteredRemedy, safePathspec, insideRepository, PIN_LINES } from '../lib/handoff.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
 
 describe('handoff');
 
 const names = (report) => report.findings.map((f) => f.name);
+
+// Run `fn` with git's repository discovery stopped at the fixture's parent: a scratch folder
+// has no .git of its own, but the question is now git's, and a developer's temp folder may sit
+// under a repository (a dotfiles home). GIT_CEILING_DIRECTORIES is git's own way to say "look
+// no further", and the walk the kit falls back on without git honours it too.
+function outsideAnyRepository(dir, fn) {
+  const saved = process.env.GIT_CEILING_DIRECTORIES;
+  process.env.GIT_CEILING_DIRECTORIES = fs.realpathSync(path.dirname(dir));
+  try { return fn(); } finally {
+    if (saved === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
+    else process.env.GIT_CEILING_DIRECTORIES = saved;
+  }
+}
 
 test('a corpus that arrived whole passes', () => {
   const report = verifyHandoff(makePassingProject());
@@ -147,11 +160,12 @@ test('a line-ending rewrite gets the LOCAL remedy, and no push remedy', () => {
     'sending an operator to the collector for a corpus already on disk is the defect this fixes');
   assert.doesNotMatch(remedy, /git add/);
   // Outside a repository the remedy refuses to print a command that cannot work there rather
-  // than one that would destroy what it cannot restore - the branch asked directly, because
-  // insideRepository also looks above the fixture's scratch folder (2026-10-04).
-  const outside = lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo: false });
+  // than one that would destroy what it cannot restore. Through handoffRemedy, so the choice
+  // of branch is tested too (the second review found the branch asked directly let a detection
+  // that always said "repository" pass every test).
+  const outside = outsideAnyRepository(dir, () => handoffRemedy(report));
   assert.match(outside, /no git metadata/);
-  assert.doesNotMatch(outside, /git add/);
+  assert.doesNotMatch(outside, /git add|git checkout/);
 
   // In a real repository the same cause gets the runnable, non-destructive remedy.
   const inRepo = lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo: true });
@@ -179,10 +193,9 @@ test('a capture changed after its fetch gets the ALTERED remedy, and no push rem
   assert.doesNotMatch(remedy, /Something did not travel/, 'the push remedy sends the same bytes again');
   assert.doesNotMatch(remedy, /git add/);
   assert.match(remedy, /changed AFTER its fetch/);
-  // Outside a repository no command that cannot work is printed. Asked of the branch directly:
-  // the fixture's scratch folder has no .git of its own, but insideRepository looks above it
-  // too, and a developer's temp folder may sit under a repository (a dotfiles home).
-  const outside = alteredRemedy([capture.file], { isRepo: false });
+  // Outside a repository no command that cannot work is printed - through handoffRemedy, so
+  // the choice of branch is tested, with git's discovery stopped above the scratch folder.
+  const outside = outsideAnyRepository(dir, () => handoffRemedy(report));
   assert.match(outside, /no git metadata/);
   assert.doesNotMatch(outside, /git checkout/);
 
@@ -312,6 +325,40 @@ test('a nested decision project inside the repository gets the runnable remedy, 
     if (line.startsWith('git checkout HEAD')) assert.equal(git(nested, ...line.split(/\s+/).slice(1)).status, 0, line);
   }
   assert.equal(verifyHandoff(nested).ok, true, 'the committed copy restored the nested capture');
+});
+
+// Found 2026-10-04 by the second external review: a walk up for a `.git` entry walked past a
+// bare repository the project sat inside, and printed a checkout git refused with "this
+// operation must be run in a work tree". The question is git's, so git is asked.
+test('a project inside a bare repository is not given a checkout git would refuse', () => {
+  requireGit('asking git whether the project is in a work tree');
+  const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const outer = tempDir('rk-bare-outer-');
+  assert.equal(git(outer, ...fixtureInitArgs()).status, 0);
+  const bare = path.join(outer, 'bare.git');
+  assert.equal(git(outer, ...fixtureInitArgs('--bare', bare)).status, 0, 'git init --bare');
+  const project = path.join(bare, 'corpus');
+  makePassingProject(project);
+  const capture = readCorpus(project).captures.entries[0];
+  corrupt(project, capture.file, (text) => `${text}\nrewritten by hand\n`);
+
+  assert.equal(insideRepository(project), false, 'git itself says this is not a work tree');
+  const remedy = handoffRemedy(verifyHandoff(project));
+  assert.match(remedy, /no git metadata/);
+  assert.doesNotMatch(remedy, /git checkout/);
+  // The enclosing work tree, asked the same way, is one.
+  assert.equal(insideRepository(outer), true);
+});
+
+test('without git on PATH the answer falls back to a .git entry above, stopping at a ceiling', () => {
+  const noGit = () => ({ error: Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' }) });
+  const outer = tempDir('rk-nogit-outer-');
+  fs.mkdirSync(path.join(outer, '.git'));
+  const nested = path.join(outer, 'docs', 'decisions', 'x');
+  fs.mkdirSync(nested, { recursive: true });
+  assert.equal(insideRepository(nested, { run: noGit }), true, 'a .git folder above counts');
+  assert.equal(outsideAnyRepository(outer, () => insideRepository(nested, { run: noGit })), true, 'the ceiling is above the .git, so it still counts');
+  assert.equal(outsideAnyRepository(path.join(outer, 'docs'), () => insideRepository(nested, { run: noGit })), false, 'a ceiling below the .git stops the walk');
 });
 
 test('a report holding both causes prints both remedies', () => {
