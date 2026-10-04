@@ -158,9 +158,18 @@ export function requireGit(what) {
   return requireCapability(gitProbe, 'GIT-NOT-FOUND', `git is not on PATH, so ${what} cannot be checked`);
 }
 
-/** The interpreter to run, or UNSUPPORTED (it blocks) naming what could not be checked. */
-export function requirePython(what) {
-  return requireCapability(findPython(), 'PYTHON-NOT-FOUND', `no python or python3 on this host, so ${what} cannot be checked`);
+/**
+ * The interpreter to run, or UNSUPPORTED (it blocks) naming what could not be checked - and
+ * what WAS found: "python3 3.8.10; the conformance runners need 3.11+" sends the operator to
+ * the right place, "no python on this host" sent them to the wrong one when a too-old or
+ * broken interpreter was on PATH (break-test pass 4, F2, 2026-10-04). The detail is
+ * checkPython's own, so the suite and the kit describe the host in the same words.
+ */
+export function requirePython(what, { run } = {}) {
+  const found = findPython(run ? { run } : {});
+  if (found) return found;
+  const probe = process.env.RESEARCH_KIT_TEST_NO_PYTHON === '1' && !run ? { detail: 'no python on PATH' } : checkPython(run ? { run } : {});
+  return requireCapability(null, 'PYTHON-NOT-FOUND', `${probe.detail}, so ${what} cannot be checked`);
 }
 
 /**

@@ -24,7 +24,7 @@ import { runCheck } from '../lib/checks.mjs';
 import { writeZip } from '../lib/archive.mjs';
 import { writeArtifact } from '../lib/artifact.mjs';
 import { collectedProject, IDENTITY } from './artifact-fixtures.mjs';
-import { deployedDrift } from '../lib/installer.mjs';
+import { deployedDrift, deploy } from '../lib/installer.mjs';
 
 describe('hardening');
 
@@ -1124,6 +1124,23 @@ test('deployedDrift walks a folder link that loops back to an ancestor once', ()
   fs.symlinkSync(dest, path.join(dest, 'sub', 'loop'), 'junction'); // junction: no privilege needed on Windows
   const drift = deployedDrift({ from, kitHome: dest });
   assert.deepEqual(drift.kit.extra, [], `a loop was walked more than once: ${drift.kit.extra.length} extra files`);
+});
+
+// Found 2026-10-04 (break-test pass 4, F1): the conformance runners import
+// `conformance_common.py`, CPython writes `bin/__pycache__/*.pyc`, `.gitignore` hides it from
+// git - and the deploy walk copied it into the installed kit, where `deployedDrift` then
+// counted it as a stale file on every machine that had run the suite before `doctor`.
+test('a Python bytecode cache in the checkout is neither deployed nor counted as drift', () => {
+  const from = tempDir('rk-drift-src-');
+  const dest = tempDir('rk-drift-dest-');
+  fs.mkdirSync(path.join(from, 'bin', '__pycache__'), { recursive: true });
+  writeText(path.join(from, 'bin', 'x.mjs'), 'export const x = 1;\n');
+  fs.writeFileSync(path.join(from, 'bin', '__pycache__', 'conformance_common.cpython-311.pyc'), Buffer.from([0xa7, 0x0d, 0x0d, 0x0a, 0, 0, 0, 0]));
+  deploy({ from, kitHome: dest, env: { HOME: tempDir('rk-home-') } });
+  assert.equal(fs.existsSync(path.join(dest, 'bin', '__pycache__')), false, 'the bytecode cache was deployed as part of the kit');
+  assert.equal(fs.existsSync(path.join(dest, 'bin', 'x.mjs')), true, 'the kit itself was deployed');
+  const drift = deployedDrift({ from, kitHome: dest });
+  assert.equal(drift.drifted, 0, `the cache in the checkout counted as drift: ${JSON.stringify(drift.kit)}`);
 });
 
 // Found 2026-09-30 (outside break-test): scanForSecrets wrapped the whole walk in one

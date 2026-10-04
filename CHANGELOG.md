@@ -5,6 +5,19 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The `uncited-capture` warning says "was collected" only of a file the ledger records a fetch of; a
+  file under `research/raw` that no fetch produced is named as such (break-test pass 4, F5a,
+  2026-10-04).
+- The suite's `requirePython` names the interpreter it rejected (`python3 3.8.10; the conformance
+  runners need 3.11+`) instead of "no python or python3 on this host" whatever was found
+  (break-test pass 4, F2, 2026-10-04).
+- `verifyLedger` refuses a ledger entry that names a source sibling without its `sourceSha256`
+  (`body-unmodified/unhashed`) instead of skipping the check as it does for the first ledgers'
+  hashless captures: a rechained entry could name an altered sibling and pass (break-test pass 4,
+  F4, 2026-10-04).
+- The installer's tree walks skip `__pycache__`: the conformance runners' Python bytecode cache was
+  deployed with the kit and `doctor` then reported the deployed kit as stale on every machine that
+  had run the suite first (break-test pass 4, F1, 2026-10-04).
 - `doctor`'s committed-key scan skips `research/raw` at any depth, not only the root's: a nested
   decision project's captures are page content like the root's, and CI had scanned the second gap
   audit's corpora and reported a Google page's source sibling (ADR-0140), which carries Google's own

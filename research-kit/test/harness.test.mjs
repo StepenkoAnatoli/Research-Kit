@@ -8,7 +8,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { test, describe, assert, tempDir, fs, path, KIT_ROOT, importTestFiles, LEAKED_GIT_CONTEXT, stripLeakedGitContext, findPython, errorCodeOf, dominantFailureCause, requireGit, fixtureInitArgs } from './harness.mjs';
+import { test, describe, assert, tempDir, fs, path, KIT_ROOT, importTestFiles, LEAKED_GIT_CONTEXT, stripLeakedGitContext, findPython, requirePython, errorCodeOf, dominantFailureCause, requireGit, fixtureInitArgs } from './harness.mjs';
 
 describe('harness');
 
@@ -231,6 +231,22 @@ test('findPython picks the interpreter checkPython would, and none too old', () 
   assert.equal(findPython({ run: hosts({ python: '3.12.1' }) }), 'python', 'a Windows host has only `python`');
   assert.equal(findPython({ run: hosts({ python: '3.8.10' }) }), null, 'an interpreter too old for the runners was chosen');
   assert.equal(findPython({ run: hosts({}) }), null);
+});
+
+// Found 2026-10-04 (break-test pass 4, F2): a host whose python3 is 3.8, or a stub that exits
+// 1, was reported as "no python or python3 on this host" - the one message, whatever
+// checkPython had actually found. The operator on Ubuntu 20.04 reads "no python" with a
+// python3 on PATH and looks in the wrong place; the detail checkPython already composes
+// names the interpreter and the floor.
+test('requirePython names the interpreter it rejected, not only its absence', () => {
+  const hosts = (versions) => (exe) => (versions[exe]
+    ? { status: 0, stdout: `Python ${versions[exe]}\n`, stderr: '' }
+    : { error: Object.assign(new Error(`spawn ${exe} ENOENT`), { code: 'ENOENT' }) });
+  assert.equal(requirePython('the probe', { run: hosts({ python3: '3.12.1' }) }), 'python3', 'a usable interpreter is returned as before');
+  assert.throws(() => requirePython('the probe', { run: hosts({ python3: '3.8.10' }) }),
+    (err) => err.name === 'Unsupported' && err.code === 'PYTHON-NOT-FOUND' && /python3 3\.8\.10; the conformance runners need 3\.11\+/.test(err.reason) && /the probe cannot be checked/.test(err.reason));
+  assert.throws(() => requirePython('the probe', { run: hosts({}) }),
+    (err) => err.name === 'Unsupported' && /no python on PATH/.test(err.reason));
 });
 
 // Found 2026-09-29 (break-test): with TMPDIR on a 1 MiB volume - a full disk, a small

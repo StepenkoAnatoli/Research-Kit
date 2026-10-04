@@ -323,7 +323,7 @@ function listTree(root, { limit = Infinity } = {}) {
     try { names = fs.readdirSync(dir); } catch { return; }        // a file, a refusal, a vanished folder
     for (const name of names) {
       if (out.length >= limit) return;                            // the caller asked for a few
-      if (name === 'node_modules' || name === '.git') continue;
+      if (name === 'node_modules' || name === '.git' || name === '__pycache__') continue;
       const abs = path.join(dir, name);
       let stat;
       try { stat = fs.statSync(abs); } catch { continue; }        // a dangling symlink, or a race
@@ -357,7 +357,11 @@ function copyTree(from, to, { prune = [], mirror = false } = {}) {
     for (const name of fs.readdirSync(dir)) {
       const abs = path.join(dir, name);
       const rel = path.relative(from, abs);
-      if (rel.split(path.sep)[0] === 'node_modules' || name === '.git') continue;
+      // `__pycache__` is CPython's byproduct of the conformance runners the suite spawns: not the
+      // kit, hidden from git by .gitignore, and until 2026-10-04 deployed anyway, after which
+      // `deployedDrift` counted it as a stale file on every machine that ran the suite (break-test
+      // pass 4, F1). Skipped in both walks, so neither the mirror nor the drift report sees it.
+      if (rel.split(path.sep)[0] === 'node_modules' || name === '.git' || name === '__pycache__') continue;
       if (fs.statSync(abs).isDirectory()) { walk(abs); continue; }
       const target = path.join(to, rel);
       ensureDir(path.dirname(target));

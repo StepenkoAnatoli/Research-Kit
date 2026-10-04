@@ -8,7 +8,7 @@ import { HEADERS } from '../lib/core.mjs';
 import { collectOne, writeRaw, writeSource, captureName, bodyHashOf } from '../lib/collect.mjs';
 import { rateLimitWaitMs } from '../lib/firecrawl.mjs';
 import { topicMatch } from '../lib/research-run.mjs';
-import { verifyLedger } from '../lib/provenance.mjs';
+import { verifyLedger, entryHash } from '../lib/provenance.mjs';
 import * as checksModule from '../lib/checks.mjs';
 import { supersededRows } from '../lib/checks.mjs';
 import { runResearch, readPlan, rankCandidate, selectCandidates, parsePreference, urlKey, DEPTH_SCRAPES, usageSummary } from '../lib/research-run.mjs';
@@ -1423,6 +1423,30 @@ test('ADR-0140: an oversized source is not kept, and the omission names the limi
   assert.match(bigEntry.sourceOmitted, /CAPTURE_MAX_BYTES|MB/, bigEntry.sourceOmitted);
   assert.deepEqual(fs.readdirSync(resolve(dir, PATHS.raw)).filter((f) => f.endsWith('.source.html')), [], 'an oversized source was written');
   assert.equal(verifyLedger(dir, { corpus: readCorpus(dir) }).ok, true);
+});
+
+// Break-test pass 4, F4 (2026-10-04): `verifyLedger` skipped the hash check for ANY named file
+// whose entry carried no hash - a rule written for captures of the first ledgers, which have
+// none. A rechained ledger that names a source but drops its `sourceSha256` therefore passed
+// with the sibling altered: a verifier that cannot verify a source must say so, never nod.
+test('ADR-0140: a ledger entry that names a source without its hash is refused, not skipped', () => {
+  const dir = makeProject();
+  const url = 'https://x.invalid/unhashed';
+  const markdown = `# Limits\n\n${'The free plan allows 10 requests per minute. '.repeat(40)}`;
+  const outcome = collectOne(dir, url, { runScrape: (u) => ({ ok: true, url: u, title: 'Limits', markdown, source: '<html>x</html>', statusCode: 200, transport: 'stub-transport', completeness: 'full', omitted: '', cmd: `stub scrape ${u}` }), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.equal(outcome.status, 'collected', outcome.reason);
+  const ledger = resolve(dir, 'research/raw/.fetches.jsonl');
+  const entries = readText(ledger).trim().split('\n').map((line) => JSON.parse(line));
+  const last = entries.at(-1);
+  assert.ok(last.source && last.sourceSha256, 'the fixture entry names a hashed source');
+  delete last.sourceSha256;
+  last.entrySha256 = entryHash(last);                       // a forged chain, rehashed so chain-intact holds
+  fs.writeFileSync(ledger, `${entries.map((e) => JSON.stringify(e)).join('\n')}\n`);
+  fs.writeFileSync(resolve(dir, last.source), '<html>TAMPERED</html>\n');
+  const chain = verifyLedger(dir, { corpus: readCorpus(dir) });
+  assert.equal(chain.ok, false, 'an unhashed source passed verification with its sibling altered');
+  const named = chain.problems.filter((p) => p.file === last.source);
+  assert.ok(named.some((p) => p.rule === 'body-unmodified' && p.kind === 'unhashed'), JSON.stringify(chain.problems));
 });
 
 // Mutation audit (2026-10-04): the guard against a sibling name that is the capture's own.

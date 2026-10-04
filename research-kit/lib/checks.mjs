@@ -782,10 +782,17 @@ function hygiene(corpus) {
   }
 
   const cited = new Set(corpus.evidence.map((row) => row.raw || captureOf(corpus, row)?.file).filter(Boolean));
+  // "Was collected" is the ledger's to say: a file under research/raw that no scrape entry
+  // names was planted or copied there, and that is what its reader needs to hear (break-test
+  // pass 4, F5a, 2026-10-04). The same warning, in the words that are true of the file.
+  const fetched = new Set((corpus.ledger?.entries ?? []).filter((e) => e.op !== 'fail' && e.raw).map((e) => e.raw));
   for (const capture of corpus.captures.entries) {
     if (cited.has(capture.file)) continue;
     out.push(finding('warn', 'hygiene', 'uncited-capture',
-      `${capture.file} was collected but no evidence row cites it`, { file: capture.file }));
+      fetched.has(capture.file)
+        ? `${capture.file} was collected but no evidence row cites it`
+        : `${capture.file} is under ${PATHS.raw} but no ledger entry records a fetch of it and no evidence row cites it`,
+      { file: capture.file }));
   }
 
   for (const row of corpus.evidence) {
