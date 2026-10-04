@@ -83,8 +83,9 @@ export function ledgerLostRemedy() {
 export function alteredRemedy(files = [], { isRepo = true } = {}) {
   const named = files.slice(0, 5);
   const more = files.length > named.length ? `, +${files.length - named.length} more` : '';
-  const safe = named.filter(safePathspec);
-  const unsafe = named.filter((file) => !safePathspec(file));
+  // Classified over EVERY affected file, never over the five the text names: an unsafe sixth
+  // file got no note and "handle the remaining files the same way" (third review, 2026-10-04).
+  const { safe, shown, rest, unsafe } = classify(files);
   const head = [
     'Everything travelled, and a capture was changed AFTER its fetch: its bytes no longer',
     'match the hash the ledger recorded, and not by line endings. An edited capture is not',
@@ -116,19 +117,19 @@ export function alteredRemedy(files = [], { isRepo = true } = {}) {
     'First, whether this checkout changed the file after the commit - this prints the file',
     'when it differs from the committed copy:',
     '',
-    ...safe.map((file) => `    git status --porcelain -- ${file}`),
+    ...shown.map((file) => `    git status --porcelain -- ${file}`),
     '',
     'If it prints the file, restore the committed copy, which spends nothing and touches no',
     'other file, then run handoff again:',
     '',
-    ...safe.map((file) => `    git checkout HEAD -- ${file}`),
-    ...(files.length > named.length ? ['', 'and the remaining files handoff names above the same way, each by name.'] : []),
+    ...shown.map((file) => `    git checkout HEAD -- ${file}`),
+    ...(rest ? ['', `and the remaining ${rest} safe-named files handoff lists above the same way, each by name.`] : []),
     ...unsafeNote(unsafe),
     '',
     'If handoff still fails on it, or the status printed nothing, the altered bytes were',
     'committed. Find the last commit that held the fetched bytes - the one before the change:',
     '',
-    ...safe.map((file) => `    git log --oneline -- ${file}`),
+    ...shown.map((file) => `    git log --oneline -- ${file}`),
     '',
     'and restore the file from it with `git checkout <that commit> -- <file>`, here or on the',
     'collector, where the ledger was written. If no commit holds them, the capture is unproven',
@@ -152,6 +153,16 @@ export function alteredRemedy(files = [], { isRepo = true } = {}) {
  */
 export function safePathspec(file) {
   return /^[A-Za-z0-9._/-]+$/.test(file);
+}
+
+/**
+ * The affected files split for printing: `safe` (printable as commands), `shown` (the first
+ * five of them, one command each), `rest` (how many safe ones are left for "the same way"),
+ * `unsafe` (every file that is only named). All of `files`, never the five the text names.
+ */
+function classify(files) {
+  const safe = files.filter(safePathspec);
+  return { safe, shown: safe.slice(0, 5), rest: Math.max(0, safe.length - 5), unsafe: files.filter((file) => !safePathspec(file)) };
 }
 
 /** The sentence for the files that are named but not printed as commands. */
@@ -185,8 +196,7 @@ export const PIN_LINES = Object.freeze(['research/raw/* text eol=lf', '*.jsonl t
 export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } = {}) {
   const named = files.slice(0, 5);
   const more = files.length > named.length ? `, +${files.length - named.length} more` : '';
-  const safe = named.filter(safePathspec);
-  const unsafe = named.filter((file) => !safePathspec(file));
+  const { shown, rest, unsafe } = classify(files);
 
   if (!isRepo) {
     return [
@@ -232,7 +242,7 @@ export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } =
     'Rewrite ONLY the affected files through the pin. `git rm --cached` removes the index',
     'entry only - the file stays on disk - so the checkout has to write it again, as LF:',
     '',
-    ...safe.flatMap((file) => [
+    ...shown.flatMap((file) => [
       `    git rm --cached --quiet -- ${file}`,
       `    git checkout HEAD -- ${file}`,
     ]),

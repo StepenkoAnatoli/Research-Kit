@@ -366,6 +366,23 @@ test('without git on PATH the answer falls back to a .git entry above, stopping 
   assert.equal(outsideAnyRepository(path.join(outer, 'docs'), () => insideRepository(nested, { run: noGit })), false, 'a ceiling below the .git stops the walk');
 });
 
+// Found 2026-10-04 by the third external review: the safety check ran over the five names the
+// text lists, so an unsafe SIXTH file got no note and "handle the remaining files the same
+// way, each by name" - an instruction to type the glob that restores a neighbour.
+test('an unsafe name beyond the fifth is still noted, and only safe names are "the same way"', () => {
+  const safe = ['a', 'b', 'c', 'd', 'e'].map((n) => `research/raw/${n}.md`);
+  const sixth = alteredRemedy([...safe, 'research/raw/topic[12].md'], { isRepo: true });
+  assert.match(sixth, /Not printed as a command.*research\/raw\/topic\[12\]\.md/, 'the sixth, unsafe name is noted');
+  assert.doesNotMatch(sixth, /the same way/, 'nothing safe is left over to do "the same way"');
+  const seven = alteredRemedy([...safe, 'research/raw/f.md', 'research/raw/g.md'], { isRepo: true });
+  assert.match(seven, /remaining 2 .*the same way/, 'the safe names past the fifth are the ones done the same way');
+  assert.doesNotMatch(seven, /Not printed as a command/);
+  // The line-ending remedy's past-five block is the folder-wide checkout behind its status
+  // precondition (ADR-0062), which types no name; the unsafe sixth is still noted.
+  assert.match(lineEndingRemedy([...safe, 'research/raw/topic[12].md'], { isRepo: true }), /Not printed as a command.*topic\[12\]/);
+  assert.doesNotMatch(lineEndingRemedy([...safe, 'research/raw/f.md'], { isRepo: true }), /Not printed as a command/);
+});
+
 test('a report holding both causes prints both remedies', () => {
   const dir = makePassingProject();
   const capture = readCorpus(dir).captures.entries[0];

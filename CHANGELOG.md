@@ -5,6 +5,9 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The handoff remedies classify every affected capture name, not only the five the text lists: an
+  unsafe sixth name got no note and the instruction to handle it "the same way" (found 2026-10-04 by
+  the third external review).
 - `handoff` asks git whether the project is inside a work tree before printing the runnable remedies:
   the walk up for a `.git` entry walked past a bare repository the project sat inside and printed a
   checkout git refused. Without git on PATH the walk remains, stopping at a `GIT_CEILING_DIRECTORIES`
