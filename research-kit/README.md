@@ -347,7 +347,7 @@ When Firecrawl's credits run out mid-run, a local run stops, reports what is lef
 or run it with `--fallback`, which switches the rest of the run to `browser` when a browser
 is installed, else `http-keyless`, each capture's ledger entry naming the transport that
 fetched it (ADR-0086). The unattended collectors pass `--fallback`. Tavily is not a fallback: its terms
-reserve training on what is sent (C-6, re-checked 2026-09-28). Beside each capture the collector keeps the text it was converted from, `<capture>.source.html`, named and hashed in the same ledger entry (ADR-0140), so a conversion can be checked or redone later; it is never cited or graded itself.
+reserve training on what is sent (C-6, re-checked 2026-09-28). A Firecrawl scrape is a live fetch: the adapter passes `--max-age 0`, because the vendor otherwise answers from a copy up to two days old; a cached answer, if one is sent anyway, is recorded in the capture's front matter and the ledger entry as `cacheState` and `cachedAt` (ADR-0139). Beside each capture the collector keeps the text it was converted from, `<capture>.source.html`, named and hashed in the same ledger entry (ADR-0140), so a conversion can be checked or redone later; it is never cited or graded itself.
 
 ## What is built
 
