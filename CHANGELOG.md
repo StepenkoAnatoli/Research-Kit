@@ -5,6 +5,9 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The suite's `requirePython` names the interpreter it rejected (`python3 3.8.10; the conformance
+  runners need 3.11+`) instead of "no python or python3 on this host" whatever was found
+  (break-test pass 4, F2, 2026-10-04).
 - `verifyLedger` refuses a ledger entry that names a source sibling without its `sourceSha256`
   (`body-unmodified/unhashed`) instead of skipping the check as it does for the first ledgers'
   hashless captures: a rechained entry could name an altered sibling and pass (break-test pass 4,
