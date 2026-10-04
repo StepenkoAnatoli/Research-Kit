@@ -1,0 +1,1357 @@
+<!DOCTYPE html><html lang="en-US"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+img:is([sizes="auto" i], [sizes^="auto," i]) { contain-intrinsic-size: 3000px 1500px; }</style><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+:root { --wp-block-synced-color: #7a00df; --wp-block-synced-color--rgb: 122,0,223; --wp-bound-block-color: var(--wp-block-synced-color); --wp-editor-canvas-background: #ddd; --wp-admin-theme-color: #007cba; --wp-admin-theme-color--rgb: 0,124,186; --wp-admin-theme-color-darker-10: #006ba1; --wp-admin-theme-color-darker-10--rgb: 0,107,160.5; --wp-admin-theme-color-darker-20: #005a87; --wp-admin-theme-color-darker-20--rgb: 0,90,135; --wp-admin-border-width-focus: 2px; }
+
+@media (min-resolution: 192dpi) {
+  :root { --wp-admin-border-width-focus: 1.5px; }
+}
+
+.wp-element-button { cursor: pointer; }
+
+:root .has-very-light-gray-background-color { background-color: rgb(238, 238, 238); }
+
+:root .has-very-dark-gray-background-color { background-color: rgb(49, 49, 49); }
+
+:root .has-very-light-gray-color { color: rgb(238, 238, 238); }
+
+:root .has-very-dark-gray-color { color: rgb(49, 49, 49); }
+
+:root .has-vivid-green-cyan-to-vivid-cyan-blue-gradient-background { background: linear-gradient(135deg, rgb(0, 208, 132), rgb(6, 147, 227)); }
+
+:root .has-purple-crush-gradient-background { background: linear-gradient(135deg, rgb(52, 226, 228), rgb(71, 33, 251) 50%, rgb(171, 29, 254)); }
+
+:root .has-hazy-dawn-gradient-background { background: linear-gradient(135deg, rgb(250, 172, 168), rgb(218, 208, 236)); }
+
+:root .has-subdued-olive-gradient-background { background: linear-gradient(135deg, rgb(250, 250, 225), rgb(103, 166, 113)); }
+
+:root .has-atomic-cream-gradient-background { background: linear-gradient(135deg, rgb(253, 215, 154), rgb(0, 74, 89)); }
+
+:root .has-nightshade-gradient-background { background: linear-gradient(135deg, rgb(51, 9, 104), rgb(49, 205, 207)); }
+
+:root .has-midnight-gradient-background { background: linear-gradient(135deg, rgb(2, 3, 129), rgb(40, 116, 252)); }
+
+:root { --wp--preset--font-size--normal: 16px; --wp--preset--font-size--huge: 42px; }
+
+.has-regular-font-size { font-size: 1em; }
+
+.has-larger-font-size { font-size: 2.625em; }
+
+.has-normal-font-size { font-size: var(--wp--preset--font-size--normal); }
+
+.has-huge-font-size { font-size: var(--wp--preset--font-size--huge); }
+
+:root .has-text-align-center { text-align: center; }
+
+:root .has-text-align-left { text-align: left; }
+
+:root .has-text-align-right { text-align: right; }
+
+.has-fit-text { white-space: nowrap !important; }
+
+#end-resizable-editor-section { display: none; }
+
+.aligncenter { clear: both; }
+
+.items-justified-left { justify-content: flex-start; }
+
+.items-justified-center { justify-content: center; }
+
+.items-justified-right { justify-content: flex-end; }
+
+.items-justified-space-between { justify-content: space-between; }
+
+.screen-reader-text { border: 0px; clip-path: inset(50%); height: 1px; margin: -1px; overflow: hidden; padding: 0px; position: absolute; width: 1px; overflow-wrap: normal !important; word-break: normal !important; }
+
+.screen-reader-text:focus { background-color: rgb(221, 221, 221); clip-path: none; color: rgb(68, 68, 68); display: block; font-size: 1em; height: auto; left: 5px; line-height: normal; padding: 15px 23px 14px; text-decoration: none; top: 5px; width: auto; z-index: 100000; }
+
+html :where(.has-border-color) { border-style: solid; }
+
+html :where([style^="border-color"], [style*=";border-color"], [style*="; border-color"]) { border-style: solid; }
+
+html :where([style^="border-top-color"], [style*=";border-top-color"], [style*="; border-top-color"]) { border-top-style: solid; }
+
+html :where([style^="border-right-color"], [style*=";border-right-color"], [style*="; border-right-color"]) { border-right-style: solid; }
+
+html :where([style^="border-bottom-color"], [style*=";border-bottom-color"], [style*="; border-bottom-color"]) { border-bottom-style: solid; }
+
+html :where([style^="border-left-color"], [style*=";border-left-color"], [style*="; border-left-color"]) { border-left-style: solid; }
+
+html :where([style^="border-width"], [style*=";border-width"], [style*="; border-width"]) { border-style: solid; }
+
+html :where([style^="border-top-width"], [style*=";border-top-width"], [style*="; border-top-width"]) { border-top-style: solid; }
+
+html :where([style^="border-right-width"], [style*=";border-right-width"], [style*="; border-right-width"]) { border-right-style: solid; }
+
+html :where([style^="border-bottom-width"], [style*=";border-bottom-width"], [style*="; border-bottom-width"]) { border-bottom-style: solid; }
+
+html :where([style^="border-left-width"], [style*=";border-left-width"], [style*="; border-left-width"]) { border-left-style: solid; }
+
+html :where(img[class*="wp-image-"]) { height: auto; max-width: 100%; }
+
+:where(figure) { margin: 0px 0px 1em; }
+
+html :where(.is-position-sticky) { --wp-admin--admin-bar--position-offset: var(--wp-admin--admin-bar--height,0px); }
+
+@media screen and (max-width: 600px) {
+  html :where(.is-position-sticky) { --wp-admin--admin-bar--position-offset: 0px; }
+}</style><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+.wp-block-image > a, .wp-block-image > figure > a { display: inline-block; }
+
+.wp-block-image img { box-sizing: border-box; height: auto; max-width: 100%; vertical-align: bottom; }
+
+@media not (prefers-reduced-motion) {
+  .wp-block-image img.hide { visibility: hidden; }
+  .wp-block-image img.show { animation: 0.4s ease 0s 1 normal none running show-content-image; }
+}
+
+.wp-block-image[style*="border-radius"] img, .wp-block-image[style*="border-radius"] > a { border-radius: inherit; }
+
+.wp-block-image.has-custom-border img { box-sizing: border-box; }
+
+.wp-block-image.aligncenter { text-align: center; }
+
+.wp-block-image.alignfull > a, .wp-block-image.alignwide > a { width: 100%; }
+
+.wp-block-image.alignfull img, .wp-block-image.alignwide img { height: auto; width: 100%; }
+
+.wp-block-image .aligncenter, .wp-block-image .alignleft, .wp-block-image .alignright, .wp-block-image.aligncenter, .wp-block-image.alignleft, .wp-block-image.alignright { display: table; }
+
+.wp-block-image .aligncenter > figcaption, .wp-block-image .alignleft > figcaption, .wp-block-image .alignright > figcaption, .wp-block-image.aligncenter > figcaption, .wp-block-image.alignleft > figcaption, .wp-block-image.alignright > figcaption { caption-side: bottom; display: table-caption; }
+
+.wp-block-image .alignleft { float: left; margin: 0.5em 1em 0.5em 0px; }
+
+.wp-block-image .alignright { float: right; margin: 0.5em 0px 0.5em 1em; }
+
+.wp-block-image .aligncenter { margin-left: auto; margin-right: auto; }
+
+.wp-block-image :where(figcaption) { margin-bottom: 1em; margin-top: 0.5em; }
+
+.wp-block-image.is-style-circle-mask img { border-radius: 9999px; }
+
+@supports ((-webkit-mask-image:none) or (mask-image:none)) or (-webkit-mask-image:none) {
+  .wp-block-image.is-style-circle-mask img { border-radius: 0px; mask-image: url("data:image/svg+xml;utf8,<svg viewBox=\"0 0 100 100\" xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"50\" cy=\"50\" r=\"50\"/></svg>"); mask-mode: alpha; mask-position: center center; mask-repeat: no-repeat; mask-size: contain; }
+}
+
+:root :where(.wp-block-image.is-style-rounded img, .wp-block-image .is-style-rounded img) { border-radius: 9999px; }
+
+.wp-block-image figure { margin: 0px; }
+
+.wp-lightbox-container { display: flex; flex-direction: column; position: relative; }
+
+.wp-lightbox-container img { cursor: zoom-in; }
+
+.wp-lightbox-container img:hover + button { opacity: 1; }
+
+.wp-lightbox-container button { align-items: center; backdrop-filter: blur(16px) saturate(180%); background-color: rgba(90, 90, 90, 0.25); border-width: medium; border-style: none; border-color: currentcolor; border-image: none; border-radius: 4px; cursor: zoom-in; display: flex; height: 20px; justify-content: center; opacity: 0; padding: 0px; position: absolute; right: 16px; text-align: center; top: 16px; width: 20px; z-index: 100; }
+
+@media not (prefers-reduced-motion) {
+  .wp-lightbox-container button { transition: opacity 0.2s; }
+}
+
+.wp-lightbox-container button:focus-visible { outline: -webkit-focus-ring-color auto 3px; outline-offset: 3px; }
+
+.wp-lightbox-container button:hover { cursor: pointer; opacity: 1; }
+
+.wp-lightbox-container button:focus { opacity: 1; }
+
+.wp-lightbox-container button:focus, .wp-lightbox-container button:hover, .wp-lightbox-container button:not(:hover):not(:active):not(.has-background) { background-color: rgba(90, 90, 90, 0.25); border-width: medium; border-style: none; border-color: currentcolor; border-image: none; }
+
+.wp-lightbox-overlay { box-sizing: border-box; cursor: zoom-out; height: 100vh; left: 0px; overflow: hidden; position: fixed; top: 0px; visibility: hidden; width: 100%; z-index: 100000; }
+
+.wp-lightbox-overlay .wp-lightbox-close-button { align-items: center; cursor: pointer; display: flex; font-family: inherit; gap: 8px; justify-content: center; line-height: 1; min-height: 40px; min-width: 40px; padding: 0px 4px; position: absolute; right: calc(env(safe-area-inset-right) + 16px); top: calc(env(safe-area-inset-top) + 16px); z-index: 5000000; }
+
+.wp-lightbox-overlay .wp-lightbox-close-button:focus, .wp-lightbox-overlay .wp-lightbox-close-button:hover, .wp-lightbox-overlay .wp-lightbox-close-button:not(:hover):not(:active):not(.has-background) { background: none; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; }
+
+.wp-lightbox-overlay .wp-lightbox-close-button:has(.wp-lightbox-close-text:not([hidden])) .wp-lightbox-close-icon svg { height: 1em; width: 1em; }
+
+.wp-lightbox-overlay .wp-lightbox-close-icon svg { display: block; }
+
+.wp-lightbox-overlay .wp-lightbox-navigation-button-next, .wp-lightbox-overlay .wp-lightbox-navigation-button-prev { align-items: center; bottom: 16px; cursor: pointer; display: flex; font-family: inherit; gap: 4px; justify-content: center; line-height: 1; min-height: 40px; min-width: 40px; padding: 0px 8px; position: absolute; z-index: 2000002; }
+
+.wp-lightbox-overlay .wp-lightbox-navigation-button-next[hidden], .wp-lightbox-overlay .wp-lightbox-navigation-button-prev[hidden] { display: none; }
+
+@media (min-width: 960px) {
+  .wp-lightbox-overlay .wp-lightbox-navigation-button-next, .wp-lightbox-overlay .wp-lightbox-navigation-button-prev { bottom: 50%; transform: translateY(-50%); }
+}
+
+.wp-lightbox-overlay .wp-lightbox-navigation-button-next:focus, .wp-lightbox-overlay .wp-lightbox-navigation-button-next:hover, .wp-lightbox-overlay .wp-lightbox-navigation-button-next:not(:hover):not(:active):not(.has-background), .wp-lightbox-overlay .wp-lightbox-navigation-button-prev:focus, .wp-lightbox-overlay .wp-lightbox-navigation-button-prev:hover, .wp-lightbox-overlay .wp-lightbox-navigation-button-prev:not(:hover):not(:active):not(.has-background) { background: none; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; padding: 0px 8px; }
+
+.wp-lightbox-overlay .wp-lightbox-navigation-button-next:has(.wp-lightbox-navigation-text:not([hidden])) .wp-lightbox-navigation-icon svg, .wp-lightbox-overlay .wp-lightbox-navigation-button-prev:has(.wp-lightbox-navigation-text:not([hidden])) .wp-lightbox-navigation-icon svg { display: block; height: 1.5em; width: 1.5em; }
+
+.wp-lightbox-overlay .wp-lightbox-navigation-button-prev { left: calc(env(safe-area-inset-left) + 16px); }
+
+.wp-lightbox-overlay .wp-lightbox-navigation-button-next { right: calc(env(safe-area-inset-right) + 16px); }
+
+.wp-lightbox-overlay .wp-lightbox-navigation-icon svg { vertical-align: middle; }
+
+.wp-lightbox-overlay .lightbox-image-container { height: var(--wp--lightbox-container-height); left: 50%; overflow: hidden; position: absolute; top: 50%; transform: translate(-50%, -50%); transform-origin: left top; width: var(--wp--lightbox-container-width); z-index: 2000001; }
+
+.wp-lightbox-overlay .wp-block-image { align-items: center; box-sizing: border-box; display: flex; height: 100%; justify-content: center; margin: 0px; position: relative; transform-origin: 0px 0px; width: 100%; z-index: 3000000; }
+
+.wp-lightbox-overlay .wp-block-image img { height: var(--wp--lightbox-image-height); min-height: var(--wp--lightbox-image-height); min-width: var(--wp--lightbox-image-width); width: var(--wp--lightbox-image-width); }
+
+.wp-lightbox-overlay .wp-block-image figcaption { display: none; }
+
+.wp-lightbox-overlay button { background: none; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; }
+
+.wp-lightbox-overlay .scrim { background-color: rgb(255, 255, 255); height: 100%; opacity: 0.9; position: absolute; width: 100%; z-index: 2000000; }
+
+.wp-lightbox-overlay.active { visibility: visible; }
+
+@media not (prefers-reduced-motion) {
+  .wp-lightbox-overlay.active { animation: 0.25s ease 0s 1 normal both running turn-on-visibility; }
+  .wp-lightbox-overlay.active img { animation: 0.35s ease 0s 1 normal both running turn-on-visibility; }
+  .wp-lightbox-overlay.show-closing-animation:not(.active) { animation: 0.35s ease 0s 1 normal both running turn-off-visibility; }
+  .wp-lightbox-overlay.show-closing-animation:not(.active) img { animation: 0.25s ease 0s 1 normal both running turn-off-visibility; }
+  .wp-lightbox-overlay.zoom.active { animation: auto ease 0s 1 normal none running none; opacity: 1; visibility: visible; }
+  .wp-lightbox-overlay.zoom.active .lightbox-image-container { animation: 0.4s ease 0s 1 normal none running lightbox-zoom-in; }
+  .wp-lightbox-overlay.zoom.active .lightbox-image-container img { animation: auto ease 0s 1 normal none running none; }
+  .wp-lightbox-overlay.zoom.active .scrim { animation: 0.4s ease 0s 1 normal forwards running turn-on-visibility; }
+  .wp-lightbox-overlay.zoom.show-closing-animation:not(.active) { animation: auto ease 0s 1 normal none running none; }
+  .wp-lightbox-overlay.zoom.show-closing-animation:not(.active) .lightbox-image-container { animation: 0.4s ease 0s 1 normal none running lightbox-zoom-out; }
+  .wp-lightbox-overlay.zoom.show-closing-animation:not(.active) .lightbox-image-container img { animation: auto ease 0s 1 normal none running none; }
+  .wp-lightbox-overlay.zoom.show-closing-animation:not(.active) .scrim { animation: 0.4s ease 0s 1 normal forwards running turn-off-visibility; }
+}
+
+@keyframes show-content-image { 
+  0% { visibility: hidden; }
+  99% { visibility: hidden; }
+  100% { visibility: visible; }
+}
+
+@keyframes turn-on-visibility { 
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes turn-off-visibility { 
+  0% { opacity: 1; visibility: visible; }
+  99% { opacity: 0; visibility: visible; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+@keyframes lightbox-zoom-in { 
+  0% { transform: translate(calc((-100vw + var(--wp--lightbox-scrollbar-width))/2 + var(--wp--lightbox-initial-left-position)),calc(-50vh + var(--wp--lightbox-initial-top-position))) scale(var(--wp--lightbox-scale)); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes lightbox-zoom-out { 
+  0% { transform: translate(-50%, -50%) scale(1); visibility: visible; }
+  99% { visibility: visible; }
+  100% { transform: translate(calc((-100vw + var(--wp--lightbox-scrollbar-width))/2 + var(--wp--lightbox-initial-left-position)),calc(-50vh + var(--wp--lightbox-initial-top-position))) scale(var(--wp--lightbox-scale)); visibility: hidden; }
+}</style><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+.wp-block-columns { box-sizing: border-box; display: flex; flex-wrap: wrap !important; }
+
+@media (min-width: 782px) {
+  .wp-block-columns { flex-wrap: nowrap !important; }
+}
+
+.wp-block-columns { align-items: normal !important; }
+
+.wp-block-columns.are-vertically-aligned-top { align-items: flex-start; }
+
+.wp-block-columns.are-vertically-aligned-center { align-items: center; }
+
+.wp-block-columns.are-vertically-aligned-bottom { align-items: flex-end; }
+
+@media (max-width: 781px) {
+  .wp-block-columns:not(.is-not-stacked-on-mobile) > .wp-block-column { flex-basis: 100% !important; }
+}
+
+@media (min-width: 782px) {
+  .wp-block-columns:not(.is-not-stacked-on-mobile) > .wp-block-column { flex-basis: 0px; flex-grow: 1; }
+  .wp-block-columns:not(.is-not-stacked-on-mobile) > .wp-block-column[style*="flex-basis"] { flex-grow: 0; }
+}
+
+.wp-block-columns.is-not-stacked-on-mobile { flex-wrap: nowrap !important; }
+
+.wp-block-columns.is-not-stacked-on-mobile > .wp-block-column { flex-basis: 0px; flex-grow: 1; }
+
+.wp-block-columns.is-not-stacked-on-mobile > .wp-block-column[style*="flex-basis"] { flex-grow: 0; }
+
+:where(.wp-block-columns) { margin-bottom: 1.75em; }
+
+:where(.wp-block-columns.has-background) { padding: 1.25em 2.375em; }
+
+.wp-block-column { flex-grow: 1; min-width: 0px; overflow-wrap: break-word; word-break: break-word; }
+
+.wp-block-column.is-vertically-aligned-top { align-self: flex-start; }
+
+.wp-block-column.is-vertically-aligned-center { align-self: center; }
+
+.wp-block-column.is-vertically-aligned-bottom { align-self: flex-end; }
+
+.wp-block-column.is-vertically-aligned-stretch { align-self: stretch; }
+
+.wp-block-column.is-vertically-aligned-bottom, .wp-block-column.is-vertically-aligned-center, .wp-block-column.is-vertically-aligned-top { width: 100%; }</style><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+.wp-block-group { box-sizing: border-box; }
+
+:where(.wp-block-group.wp-block-group-is-layout-constrained) { position: relative; }</style><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+.wp-block-separator { border-width: 2px medium medium; border-style: solid none none; border-color: currentcolor; border-image: none; }
+
+:root :where(.wp-block-separator.is-style-dots) { height: auto; line-height: 1; text-align: center; }
+
+:root :where(.wp-block-separator.is-style-dots)::before { color: currentcolor; content: "···"; font-family: serif; font-size: 1.5em; letter-spacing: 2em; padding-left: 2em; }
+
+.wp-block-separator.is-style-dots { background: none !important; border-width: medium !important; border-style: none !important; border-color: currentcolor !important; border-image: none !important; }</style><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+.wp-block-social-links { background: none; box-sizing: border-box; margin-left: 0px; padding-left: 0px; padding-right: 0px; text-indent: 0px; }
+
+.wp-block-social-links .wp-social-link a, .wp-block-social-links .wp-social-link a:hover { border-bottom: 0px; box-shadow: none; text-decoration: none; }
+
+.wp-block-social-links .wp-social-link svg { height: 1em; width: 1em; }
+
+.wp-block-social-links .wp-social-link span:not(.screen-reader-text) { font-size: 0.65em; margin-left: 0.5em; margin-right: 0.5em; }
+
+.wp-block-social-links.has-small-icon-size { font-size: 16px; }
+
+.wp-block-social-links, .wp-block-social-links.has-normal-icon-size { font-size: 24px; }
+
+.wp-block-social-links.has-large-icon-size { font-size: 36px; }
+
+.wp-block-social-links.has-huge-icon-size { font-size: 48px; }
+
+.wp-block-social-links.aligncenter { display: flex; justify-content: center; }
+
+.wp-block-social-links.alignright { justify-content: flex-end; }
+
+.wp-block-social-link { border-radius: 9999px; display: block; }
+
+@media not (prefers-reduced-motion) {
+  .wp-block-social-link { transition: transform 0.1s; }
+}
+
+.wp-block-social-link { height: auto; }
+
+.wp-block-social-link a { align-items: center; display: flex; line-height: 0; }
+
+.wp-block-social-link:hover { transform: scale(1.1); }
+
+.wp-block-social-links .wp-block-social-link.wp-social-link { display: inline-block; margin: 0px; padding: 0px; }
+
+.wp-block-social-links .wp-block-social-link.wp-social-link .wp-block-social-link-anchor, .wp-block-social-links .wp-block-social-link.wp-social-link .wp-block-social-link-anchor svg, .wp-block-social-links .wp-block-social-link.wp-social-link .wp-block-social-link-anchor:active, .wp-block-social-links .wp-block-social-link.wp-social-link .wp-block-social-link-anchor:hover, .wp-block-social-links .wp-block-social-link.wp-social-link .wp-block-social-link-anchor:visited { fill: currentcolor; color: currentcolor; }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link { background-color: rgb(240, 240, 240); color: rgb(68, 68, 68); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-amazon { background-color: rgb(255, 153, 0); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-bandcamp { background-color: rgb(30, 160, 195); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-behance { background-color: rgb(7, 87, 254); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-bluesky { background-color: rgb(10, 122, 255); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-codepen { background-color: rgb(30, 31, 38); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-deviantart { background-color: rgb(2, 228, 155); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-discord { background-color: rgb(88, 101, 242); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-dribbble { background-color: rgb(233, 76, 137); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-dropbox { background-color: rgb(66, 128, 255); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-etsy { background-color: rgb(244, 88, 0); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-facebook { background-color: rgb(8, 102, 255); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-fivehundredpx { background-color: rgb(0, 0, 0); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-flickr { background-color: rgb(4, 97, 221); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-foursquare { background-color: rgb(230, 86, 120); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-github { background-color: rgb(36, 41, 45); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-goodreads { background-color: rgb(236, 234, 221); color: rgb(56, 33, 16); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-google { background-color: rgb(234, 68, 52); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-gravatar { background-color: rgb(29, 79, 196); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-instagram { background-color: rgb(240, 0, 117); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-lastfm { background-color: rgb(226, 27, 36); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-linkedin { background-color: rgb(13, 102, 194); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-mastodon { background-color: rgb(50, 136, 212); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-medium { background-color: rgb(0, 0, 0); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-meetup { background-color: rgb(246, 64, 95); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-patreon { background-color: rgb(0, 0, 0); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-pinterest { background-color: rgb(230, 1, 34); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-pocket { background-color: rgb(239, 65, 85); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-reddit { background-color: rgb(255, 69, 0); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-skype { background-color: rgb(4, 120, 215); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-snapchat { stroke: rgb(0, 0, 0); background-color: rgb(254, 252, 0); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-soundcloud { background-color: rgb(255, 86, 0); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-spotify { background-color: rgb(27, 215, 96); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-telegram { background-color: rgb(42, 171, 238); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-threads { background-color: rgb(0, 0, 0); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-tiktok { background-color: rgb(0, 0, 0); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-tumblr { background-color: rgb(1, 24, 53); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-twitch { background-color: rgb(100, 64, 164); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-twitter { background-color: rgb(29, 161, 242); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-vimeo { background-color: rgb(30, 183, 234); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-vk { background-color: rgb(70, 128, 194); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-wordpress { background-color: rgb(52, 153, 205); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-whatsapp { background-color: rgb(37, 211, 102); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-x { background-color: rgb(0, 0, 0); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-yelp { background-color: rgb(211, 36, 34); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links:not(.is-style-logos-only)) .wp-social-link-youtube { background-color: red; color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link { background: none; }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link svg { height: 1.25em; width: 1.25em; }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-amazon { color: rgb(255, 153, 0); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-bandcamp { color: rgb(30, 160, 195); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-behance { color: rgb(7, 87, 254); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-bluesky { color: rgb(10, 122, 255); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-codepen { color: rgb(30, 31, 38); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-deviantart { color: rgb(2, 228, 155); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-discord { color: rgb(88, 101, 242); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-dribbble { color: rgb(233, 76, 137); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-dropbox { color: rgb(66, 128, 255); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-etsy { color: rgb(244, 88, 0); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-facebook { color: rgb(8, 102, 255); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-fivehundredpx { color: rgb(0, 0, 0); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-flickr { color: rgb(4, 97, 221); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-foursquare { color: rgb(230, 86, 120); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-github { color: rgb(36, 41, 45); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-goodreads { color: rgb(56, 33, 16); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-google { color: rgb(234, 68, 52); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-gravatar { color: rgb(29, 79, 196); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-instagram { color: rgb(240, 0, 117); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-lastfm { color: rgb(226, 27, 36); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-linkedin { color: rgb(13, 102, 194); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-mastodon { color: rgb(50, 136, 212); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-medium { color: rgb(0, 0, 0); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-meetup { color: rgb(246, 64, 95); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-patreon { color: rgb(0, 0, 0); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-pinterest { color: rgb(230, 1, 34); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-pocket { color: rgb(239, 65, 85); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-reddit { color: rgb(255, 69, 0); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-skype { color: rgb(4, 120, 215); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-snapchat { stroke: rgb(0, 0, 0); color: rgb(255, 255, 255); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-soundcloud { color: rgb(255, 86, 0); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-spotify { color: rgb(27, 215, 96); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-telegram { color: rgb(42, 171, 238); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-threads { color: rgb(0, 0, 0); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-tiktok { color: rgb(0, 0, 0); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-tumblr { color: rgb(1, 24, 53); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-twitch { color: rgb(100, 64, 164); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-twitter { color: rgb(29, 161, 242); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-vimeo { color: rgb(30, 183, 234); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-vk { color: rgb(70, 128, 194); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-whatsapp { color: rgb(37, 211, 102); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-wordpress { color: rgb(52, 153, 205); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-x { color: rgb(0, 0, 0); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-yelp { color: rgb(211, 36, 34); }
+
+:where(.wp-block-social-links.is-style-logos-only) .wp-social-link-youtube { color: red; }
+
+.wp-block-social-links.is-style-pill-shape .wp-social-link { width: auto; }
+
+:root :where(.wp-block-social-links .wp-social-link a) { padding: 0.25em; }
+
+:root :where(.wp-block-social-links.is-style-logos-only .wp-social-link a) { padding: 0px; }
+
+:root :where(.wp-block-social-links.is-style-pill-shape .wp-social-link a) { padding-left: 0.666667em; padding-right: 0.666667em; }
+
+.wp-block-social-links:not(.has-icon-color):not(.has-icon-background-color) .wp-social-link-snapchat .wp-block-social-link-label { color: rgb(0, 0, 0); }</style><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+:root { --wp--preset--aspect-ratio--square: 1; --wp--preset--aspect-ratio--4-3: 4/3; --wp--preset--aspect-ratio--3-4: 3/4; --wp--preset--aspect-ratio--3-2: 3/2; --wp--preset--aspect-ratio--2-3: 2/3; --wp--preset--aspect-ratio--16-9: 16/9; --wp--preset--aspect-ratio--9-16: 9/16; --wp--preset--color--black: #000000; --wp--preset--color--cyan-bluish-gray: #abb8c3; --wp--preset--color--white: #ffffff; --wp--preset--color--pale-pink: #f78da7; --wp--preset--color--vivid-red: #cf2e2e; --wp--preset--color--luminous-vivid-orange: #ff6900; --wp--preset--color--luminous-vivid-amber: #fcb900; --wp--preset--color--light-green-cyan: #7bdcb5; --wp--preset--color--vivid-green-cyan: #00d084; --wp--preset--color--pale-cyan-blue: #8ed1fc; --wp--preset--color--vivid-cyan-blue: #0693e3; --wp--preset--color--vivid-purple: #9b51e0; --wp--preset--color--electric-pink: #ec008c; --wp--preset--color--royal-purple: #7f3f98; --wp--preset--color--deep-sapphire: #25418c; --wp--preset--color--sky-blue: #2aace2; --wp--preset--color--vibrant-green: #39b54a; --wp--preset--color--sunset-orange: #f37332; --wp--preset--color--soft-linen: #edece6; --wp--preset--color--pale-sand: #faf3e4; --wp--preset--color--rosy-blush: #e56278; --wp--preset--color--midnight-steel: #2e4972; --wp--preset--color--teal-forest: #176866; --wp--preset--color--mint-green: #72b199; --wp--preset--color--ash-grey: #f4f4f4; --wp--preset--color--silver-grey: #737a81; --wp--preset--color--smoke-grey: #434341; --wp--preset--color--pure-black: #000000; --wp--preset--color--pure-white: #ffffff; --wp--preset--color--mulberry-mauve: #67426b; --wp--preset--color--terra-cotta: #a93e33; --wp--preset--color--powder-blue: #9fbbcc; --wp--preset--color--seafoam: #bde1cc; --wp--preset--color--cranberry-wine: #923a55; --wp--preset--color--deep-ocean: #0f3d4c; --wp--preset--color--ruby-red: #cf3339; --wp--preset--color--fiery-coral: #da4727; --wp--preset--color--prussian-blue: #204091; --wp--preset--color--cerulean-blue: #307dbb; --wp--preset--color--aqua-glow: #43c0ef; --wp--preset--gradient--vivid-cyan-blue-to-vivid-purple: linear-gradient(135deg,rgb(6,147,227) 0%,rgb(155,81,224) 100%); --wp--preset--gradient--light-green-cyan-to-vivid-green-cyan: linear-gradient(135deg,rgb(122,220,180) 0%,rgb(0,208,130) 100%); --wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange: linear-gradient(135deg,rgb(252,185,0) 0%,rgb(255,105,0) 100%); --wp--preset--gradient--luminous-vivid-orange-to-vivid-red: linear-gradient(135deg,rgb(255,105,0) 0%,rgb(207,46,46) 100%); --wp--preset--gradient--very-light-gray-to-cyan-bluish-gray: linear-gradient(135deg,rgb(238,238,238) 0%,rgb(169,184,195) 100%); --wp--preset--gradient--cool-to-warm-spectrum: linear-gradient(135deg,rgb(74,234,220) 0%,rgb(151,120,209) 20%,rgb(207,42,186) 40%,rgb(238,44,130) 60%,rgb(251,105,98) 80%,rgb(254,248,76) 100%); --wp--preset--gradient--blush-light-purple: linear-gradient(135deg,rgb(255,206,236) 0%,rgb(152,150,240) 100%); --wp--preset--gradient--blush-bordeaux: linear-gradient(135deg,rgb(254,205,165) 0%,rgb(254,45,45) 50%,rgb(107,0,62) 100%); --wp--preset--gradient--luminous-dusk: linear-gradient(135deg,rgb(255,203,112) 0%,rgb(199,81,192) 50%,rgb(65,88,208) 100%); --wp--preset--gradient--pale-ocean: linear-gradient(135deg,rgb(255,245,203) 0%,rgb(182,227,212) 50%,rgb(51,167,181) 100%); --wp--preset--gradient--electric-grass: linear-gradient(135deg,rgb(202,248,128) 0%,rgb(113,206,126) 100%); --wp--preset--gradient--midnight: linear-gradient(135deg,rgb(2,3,129) 0%,rgb(40,116,252) 100%); --wp--preset--font-size--small: var(--ms-1); --wp--preset--font-size--medium: var(--ms1); --wp--preset--font-size--large: var(--ms3); --wp--preset--font-size--x-large: 42px; --wp--preset--font-size--body: var(--ms0); --wp--preset--font-size--xlarge: var(--ms4); --wp--preset--font-size--xxlarge: var(--ms6); --wp--preset--font-family--default: var(--font-family); --wp--preset--font-family--universcondensed: var(--font-family-condensed); --wp--preset--spacing--20: 0.44rem; --wp--preset--spacing--30: 0.67rem; --wp--preset--spacing--40: 1rem; --wp--preset--spacing--50: 1.5rem; --wp--preset--spacing--60: 2.25rem; --wp--preset--spacing--70: 3.38rem; --wp--preset--spacing--80: 5.06rem; --wp--preset--shadow--natural: 6px 6px 9px rgba(0, 0, 0, 0.2); --wp--preset--shadow--deep: 12px 12px 50px rgba(0, 0, 0, 0.4); --wp--preset--shadow--sharp: 6px 6px 0px rgba(0, 0, 0, 0.2); --wp--preset--shadow--outlined: 6px 6px 0px -3px rgb(255, 255, 255), 6px 6px rgb(0, 0, 0); --wp--preset--shadow--crisp: 6px 6px 0px rgb(0, 0, 0); }
+
+.wp-block-button { --wp--preset--dimension--25: 25%; --wp--preset--dimension--50: 50%; --wp--preset--dimension--75: 75%; --wp--preset--dimension--100: 100%; }
+
+:root { --wp--style--global--content-size: var(--content-width); --wp--style--global--wide-size: var(--content-width); }
+
+:where(body) { margin: 0px; }
+
+.wp-site-blocks > .alignleft { float: left; margin-right: 2em; }
+
+.wp-site-blocks > .alignright { float: right; margin-left: 2em; }
+
+.wp-site-blocks > .aligncenter { justify-content: center; margin-left: auto; margin-right: auto; }
+
+:where(.wp-site-blocks) > * { margin-block-start: var(--spacer); margin-block-end: 0px; }
+
+:where(.wp-site-blocks) > :first-child { margin-block-start: 0px; }
+
+:where(.wp-site-blocks) > :last-child { margin-block-end: 0px; }
+
+:root { --wp--style--block-gap: var(--spacer); }
+
+:root :where(.is-layout-flow) > :first-child { margin-block-start: 0px; }
+
+:root :where(.is-layout-flow) > :last-child { margin-block-end: 0px; }
+
+:root :where(.is-layout-flow) > * { margin-block-start: var(--spacer); margin-block-end: 0px; }
+
+:root :where(.is-layout-constrained) > :first-child { margin-block-start: 0px; }
+
+:root :where(.is-layout-constrained) > :last-child { margin-block-end: 0px; }
+
+:root :where(.is-layout-constrained) > * { margin-block-start: var(--spacer); margin-block-end: 0px; }
+
+:root :where(.is-layout-flex) { gap: var(--spacer); }
+
+:root :where(.is-layout-grid) { gap: var(--spacer); }
+
+.is-layout-flow > .alignleft { float: left; margin-inline: 0px 2em; }
+
+.is-layout-flow > .alignright { float: right; margin-inline: 2em 0px; }
+
+.is-layout-flow > .aligncenter { margin-left: auto !important; margin-right: auto !important; }
+
+.is-layout-constrained > .alignleft { float: left; margin-inline: 0px 2em; }
+
+.is-layout-constrained > .alignright { float: right; margin-inline: 2em 0px; }
+
+.is-layout-constrained > .aligncenter { margin-left: auto !important; margin-right: auto !important; }
+
+.is-layout-constrained > :where(:not(.alignleft):not(.alignright):not(.alignfull)) { max-width: var(--wp--style--global--content-size); margin-left: auto !important; margin-right: auto !important; }
+
+.is-layout-constrained > .alignwide { max-width: var(--wp--style--global--wide-size); }
+
+body .is-layout-flex { display: flex; }
+
+.is-layout-flex { flex-wrap: wrap; align-items: center; }
+
+.is-layout-flex > :is(*, div) { margin: 0px; }
+
+body .is-layout-grid { display: grid; }
+
+.is-layout-grid > :is(*, div) { margin: 0px; }
+
+body { padding: 0px; }
+
+:root :where(.wp-element-button, .wp-block-button__link) { background-color: rgb(50, 55, 60); border-width: 0px; color: rgb(255, 255, 255); font-family: inherit; font-size: inherit; font-style: inherit; font-weight: inherit; letter-spacing: inherit; line-height: inherit; padding: calc(0.667em + 2px) calc(1.333em + 2px); text-decoration: none; text-transform: inherit; }
+
+.has-black-color { color: var(--wp--preset--color--black) !important; }
+
+.has-cyan-bluish-gray-color { color: var(--wp--preset--color--cyan-bluish-gray) !important; }
+
+.has-white-color { color: var(--wp--preset--color--white) !important; }
+
+.has-pale-pink-color { color: var(--wp--preset--color--pale-pink) !important; }
+
+.has-vivid-red-color { color: var(--wp--preset--color--vivid-red) !important; }
+
+.has-luminous-vivid-orange-color { color: var(--wp--preset--color--luminous-vivid-orange) !important; }
+
+.has-luminous-vivid-amber-color { color: var(--wp--preset--color--luminous-vivid-amber) !important; }
+
+.has-light-green-cyan-color { color: var(--wp--preset--color--light-green-cyan) !important; }
+
+.has-vivid-green-cyan-color { color: var(--wp--preset--color--vivid-green-cyan) !important; }
+
+.has-pale-cyan-blue-color { color: var(--wp--preset--color--pale-cyan-blue) !important; }
+
+.has-vivid-cyan-blue-color { color: var(--wp--preset--color--vivid-cyan-blue) !important; }
+
+.has-vivid-purple-color { color: var(--wp--preset--color--vivid-purple) !important; }
+
+.has-electric-pink-color { color: var(--wp--preset--color--electric-pink) !important; }
+
+.has-royal-purple-color { color: var(--wp--preset--color--royal-purple) !important; }
+
+.has-deep-sapphire-color { color: var(--wp--preset--color--deep-sapphire) !important; }
+
+.has-sky-blue-color { color: var(--wp--preset--color--sky-blue) !important; }
+
+.has-vibrant-green-color { color: var(--wp--preset--color--vibrant-green) !important; }
+
+.has-sunset-orange-color { color: var(--wp--preset--color--sunset-orange) !important; }
+
+.has-soft-linen-color { color: var(--wp--preset--color--soft-linen) !important; }
+
+.has-pale-sand-color { color: var(--wp--preset--color--pale-sand) !important; }
+
+.has-rosy-blush-color { color: var(--wp--preset--color--rosy-blush) !important; }
+
+.has-midnight-steel-color { color: var(--wp--preset--color--midnight-steel) !important; }
+
+.has-teal-forest-color { color: var(--wp--preset--color--teal-forest) !important; }
+
+.has-mint-green-color { color: var(--wp--preset--color--mint-green) !important; }
+
+.has-ash-grey-color { color: var(--wp--preset--color--ash-grey) !important; }
+
+.has-silver-grey-color { color: var(--wp--preset--color--silver-grey) !important; }
+
+.has-smoke-grey-color { color: var(--wp--preset--color--smoke-grey) !important; }
+
+.has-pure-black-color { color: var(--wp--preset--color--pure-black) !important; }
+
+.has-pure-white-color { color: var(--wp--preset--color--pure-white) !important; }
+
+.has-mulberry-mauve-color { color: var(--wp--preset--color--mulberry-mauve) !important; }
+
+.has-terra-cotta-color { color: var(--wp--preset--color--terra-cotta) !important; }
+
+.has-powder-blue-color { color: var(--wp--preset--color--powder-blue) !important; }
+
+.has-seafoam-color { color: var(--wp--preset--color--seafoam) !important; }
+
+.has-cranberry-wine-color { color: var(--wp--preset--color--cranberry-wine) !important; }
+
+.has-deep-ocean-color { color: var(--wp--preset--color--deep-ocean) !important; }
+
+.has-ruby-red-color { color: var(--wp--preset--color--ruby-red) !important; }
+
+.has-fiery-coral-color { color: var(--wp--preset--color--fiery-coral) !important; }
+
+.has-prussian-blue-color { color: var(--wp--preset--color--prussian-blue) !important; }
+
+.has-cerulean-blue-color { color: var(--wp--preset--color--cerulean-blue) !important; }
+
+.has-aqua-glow-color { color: var(--wp--preset--color--aqua-glow) !important; }
+
+.has-black-background-color { background-color: var(--wp--preset--color--black) !important; }
+
+.has-cyan-bluish-gray-background-color { background-color: var(--wp--preset--color--cyan-bluish-gray) !important; }
+
+.has-white-background-color { background-color: var(--wp--preset--color--white) !important; }
+
+.has-pale-pink-background-color { background-color: var(--wp--preset--color--pale-pink) !important; }
+
+.has-vivid-red-background-color { background-color: var(--wp--preset--color--vivid-red) !important; }
+
+.has-luminous-vivid-orange-background-color { background-color: var(--wp--preset--color--luminous-vivid-orange) !important; }
+
+.has-luminous-vivid-amber-background-color { background-color: var(--wp--preset--color--luminous-vivid-amber) !important; }
+
+.has-light-green-cyan-background-color { background-color: var(--wp--preset--color--light-green-cyan) !important; }
+
+.has-vivid-green-cyan-background-color { background-color: var(--wp--preset--color--vivid-green-cyan) !important; }
+
+.has-pale-cyan-blue-background-color { background-color: var(--wp--preset--color--pale-cyan-blue) !important; }
+
+.has-vivid-cyan-blue-background-color { background-color: var(--wp--preset--color--vivid-cyan-blue) !important; }
+
+.has-vivid-purple-background-color { background-color: var(--wp--preset--color--vivid-purple) !important; }
+
+.has-electric-pink-background-color { background-color: var(--wp--preset--color--electric-pink) !important; }
+
+.has-royal-purple-background-color { background-color: var(--wp--preset--color--royal-purple) !important; }
+
+.has-deep-sapphire-background-color { background-color: var(--wp--preset--color--deep-sapphire) !important; }
+
+.has-sky-blue-background-color { background-color: var(--wp--preset--color--sky-blue) !important; }
+
+.has-vibrant-green-background-color { background-color: var(--wp--preset--color--vibrant-green) !important; }
+
+.has-sunset-orange-background-color { background-color: var(--wp--preset--color--sunset-orange) !important; }
+
+.has-soft-linen-background-color { background-color: var(--wp--preset--color--soft-linen) !important; }
+
+.has-pale-sand-background-color { background-color: var(--wp--preset--color--pale-sand) !important; }
+
+.has-rosy-blush-background-color { background-color: var(--wp--preset--color--rosy-blush) !important; }
+
+.has-midnight-steel-background-color { background-color: var(--wp--preset--color--midnight-steel) !important; }
+
+.has-teal-forest-background-color { background-color: var(--wp--preset--color--teal-forest) !important; }
+
+.has-mint-green-background-color { background-color: var(--wp--preset--color--mint-green) !important; }
+
+.has-ash-grey-background-color { background-color: var(--wp--preset--color--ash-grey) !important; }
+
+.has-silver-grey-background-color { background-color: var(--wp--preset--color--silver-grey) !important; }
+
+.has-smoke-grey-background-color { background-color: var(--wp--preset--color--smoke-grey) !important; }
+
+.has-pure-black-background-color { background-color: var(--wp--preset--color--pure-black) !important; }
+
+.has-pure-white-background-color { background-color: var(--wp--preset--color--pure-white) !important; }
+
+.has-mulberry-mauve-background-color { background-color: var(--wp--preset--color--mulberry-mauve) !important; }
+
+.has-terra-cotta-background-color { background-color: var(--wp--preset--color--terra-cotta) !important; }
+
+.has-powder-blue-background-color { background-color: var(--wp--preset--color--powder-blue) !important; }
+
+.has-seafoam-background-color { background-color: var(--wp--preset--color--seafoam) !important; }
+
+.has-cranberry-wine-background-color { background-color: var(--wp--preset--color--cranberry-wine) !important; }
+
+.has-deep-ocean-background-color { background-color: var(--wp--preset--color--deep-ocean) !important; }
+
+.has-ruby-red-background-color { background-color: var(--wp--preset--color--ruby-red) !important; }
+
+.has-fiery-coral-background-color { background-color: var(--wp--preset--color--fiery-coral) !important; }
+
+.has-prussian-blue-background-color { background-color: var(--wp--preset--color--prussian-blue) !important; }
+
+.has-cerulean-blue-background-color { background-color: var(--wp--preset--color--cerulean-blue) !important; }
+
+.has-aqua-glow-background-color { background-color: var(--wp--preset--color--aqua-glow) !important; }
+
+.has-black-border-color { border-color: var(--wp--preset--color--black) !important; }
+
+.has-cyan-bluish-gray-border-color { border-color: var(--wp--preset--color--cyan-bluish-gray) !important; }
+
+.has-white-border-color { border-color: var(--wp--preset--color--white) !important; }
+
+.has-pale-pink-border-color { border-color: var(--wp--preset--color--pale-pink) !important; }
+
+.has-vivid-red-border-color { border-color: var(--wp--preset--color--vivid-red) !important; }
+
+.has-luminous-vivid-orange-border-color { border-color: var(--wp--preset--color--luminous-vivid-orange) !important; }
+
+.has-luminous-vivid-amber-border-color { border-color: var(--wp--preset--color--luminous-vivid-amber) !important; }
+
+.has-light-green-cyan-border-color { border-color: var(--wp--preset--color--light-green-cyan) !important; }
+
+.has-vivid-green-cyan-border-color { border-color: var(--wp--preset--color--vivid-green-cyan) !important; }
+
+.has-pale-cyan-blue-border-color { border-color: var(--wp--preset--color--pale-cyan-blue) !important; }
+
+.has-vivid-cyan-blue-border-color { border-color: var(--wp--preset--color--vivid-cyan-blue) !important; }
+
+.has-vivid-purple-border-color { border-color: var(--wp--preset--color--vivid-purple) !important; }
+
+.has-electric-pink-border-color { border-color: var(--wp--preset--color--electric-pink) !important; }
+
+.has-royal-purple-border-color { border-color: var(--wp--preset--color--royal-purple) !important; }
+
+.has-deep-sapphire-border-color { border-color: var(--wp--preset--color--deep-sapphire) !important; }
+
+.has-sky-blue-border-color { border-color: var(--wp--preset--color--sky-blue) !important; }
+
+.has-vibrant-green-border-color { border-color: var(--wp--preset--color--vibrant-green) !important; }
+
+.has-sunset-orange-border-color { border-color: var(--wp--preset--color--sunset-orange) !important; }
+
+.has-soft-linen-border-color { border-color: var(--wp--preset--color--soft-linen) !important; }
+
+.has-pale-sand-border-color { border-color: var(--wp--preset--color--pale-sand) !important; }
+
+.has-rosy-blush-border-color { border-color: var(--wp--preset--color--rosy-blush) !important; }
+
+.has-midnight-steel-border-color { border-color: var(--wp--preset--color--midnight-steel) !important; }
+
+.has-teal-forest-border-color { border-color: var(--wp--preset--color--teal-forest) !important; }
+
+.has-mint-green-border-color { border-color: var(--wp--preset--color--mint-green) !important; }
+
+.has-ash-grey-border-color { border-color: var(--wp--preset--color--ash-grey) !important; }
+
+.has-silver-grey-border-color { border-color: var(--wp--preset--color--silver-grey) !important; }
+
+.has-smoke-grey-border-color { border-color: var(--wp--preset--color--smoke-grey) !important; }
+
+.has-pure-black-border-color { border-color: var(--wp--preset--color--pure-black) !important; }
+
+.has-pure-white-border-color { border-color: var(--wp--preset--color--pure-white) !important; }
+
+.has-mulberry-mauve-border-color { border-color: var(--wp--preset--color--mulberry-mauve) !important; }
+
+.has-terra-cotta-border-color { border-color: var(--wp--preset--color--terra-cotta) !important; }
+
+.has-powder-blue-border-color { border-color: var(--wp--preset--color--powder-blue) !important; }
+
+.has-seafoam-border-color { border-color: var(--wp--preset--color--seafoam) !important; }
+
+.has-cranberry-wine-border-color { border-color: var(--wp--preset--color--cranberry-wine) !important; }
+
+.has-deep-ocean-border-color { border-color: var(--wp--preset--color--deep-ocean) !important; }
+
+.has-ruby-red-border-color { border-color: var(--wp--preset--color--ruby-red) !important; }
+
+.has-fiery-coral-border-color { border-color: var(--wp--preset--color--fiery-coral) !important; }
+
+.has-prussian-blue-border-color { border-color: var(--wp--preset--color--prussian-blue) !important; }
+
+.has-cerulean-blue-border-color { border-color: var(--wp--preset--color--cerulean-blue) !important; }
+
+.has-aqua-glow-border-color { border-color: var(--wp--preset--color--aqua-glow) !important; }
+
+.has-vivid-cyan-blue-to-vivid-purple-gradient-background { background: var(--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple) !important; }
+
+.has-light-green-cyan-to-vivid-green-cyan-gradient-background { background: var(--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan) !important; }
+
+.has-luminous-vivid-amber-to-luminous-vivid-orange-gradient-background { background: var(--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange) !important; }
+
+.has-luminous-vivid-orange-to-vivid-red-gradient-background { background: var(--wp--preset--gradient--luminous-vivid-orange-to-vivid-red) !important; }
+
+.has-very-light-gray-to-cyan-bluish-gray-gradient-background { background: var(--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray) !important; }
+
+.has-cool-to-warm-spectrum-gradient-background { background: var(--wp--preset--gradient--cool-to-warm-spectrum) !important; }
+
+.has-blush-light-purple-gradient-background { background: var(--wp--preset--gradient--blush-light-purple) !important; }
+
+.has-blush-bordeaux-gradient-background { background: var(--wp--preset--gradient--blush-bordeaux) !important; }
+
+.has-luminous-dusk-gradient-background { background: var(--wp--preset--gradient--luminous-dusk) !important; }
+
+.has-pale-ocean-gradient-background { background: var(--wp--preset--gradient--pale-ocean) !important; }
+
+.has-electric-grass-gradient-background { background: var(--wp--preset--gradient--electric-grass) !important; }
+
+.has-midnight-gradient-background { background: var(--wp--preset--gradient--midnight) !important; }
+
+.has-small-font-size { font-size: var(--wp--preset--font-size--small) !important; }
+
+.has-medium-font-size { font-size: var(--wp--preset--font-size--medium) !important; }
+
+.has-large-font-size { font-size: var(--wp--preset--font-size--large) !important; }
+
+.has-x-large-font-size { font-size: var(--wp--preset--font-size--x-large) !important; }
+
+.has-body-font-size { font-size: var(--wp--preset--font-size--body) !important; }
+
+.has-xlarge-font-size { font-size: var(--wp--preset--font-size--xlarge) !important; }
+
+.has-xxlarge-font-size { font-size: var(--wp--preset--font-size--xxlarge) !important; }
+
+.has-default-font-family { font-family: var(--wp--preset--font-family--default) !important; }
+
+.has-universcondensed-font-family { font-family: var(--wp--preset--font-family--universcondensed) !important; }</style><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+</style><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+.wp-elements-1 a:where(:not(.wp-element-button)) { color: var(--wp--preset--color--pure-white); }
+
+.wp-container-core-group-is-layout-80eeedf9 { flex-direction: column; align-items: center; }
+
+.wp-container-core-social-links-is-layout-5d435f06 { flex-wrap: nowrap; gap: var(--spacer) var(--wp--preset--spacing--20); justify-content: center; }
+
+.wp-container-core-columns-is-layout-8f813624 { flex-wrap: nowrap; }</style><meta http-equiv="origin-trial" content="A7vZI3v+Gz7JfuRolKNM4Aff6zaGuT7X0mf3wtoZTnKv6497cVMnhy03KDqX7kBz/q/iidW7srW31oQbBt4VhgoAAACUeyJvcmlnaW4iOiJodHRwczovL3d3dy5nb29nbGUuY29tOjQ0MyIsImZlYXR1cmUiOiJEaXNhYmxlVGhpcmRQYXJ0eVN0b3JhZ2VQYXJ0aXRpb25pbmczIiwiZXhwaXJ5IjoxNzU3OTgwODAwLCJpc1N1YmRvbWFpbiI6dHJ1ZSwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ==">
+	
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="apple-touch-icon" href="https://umfa.utah.edu/wp-content/themes/umfa-2025/assets/favicons/apple-touch-icon.png">
+
+<link rel="icon" type="image/png" href="https://umfa.utah.edu/wp-content/themes/umfa-2025/assets/favicons/favicon-32x32.png" sizes="32x32">
+<link rel="icon" type="image/png" href="https://umfa.utah.edu/wp-content/themes/umfa-2025/assets/favicons/favicon-16x16.png" sizes="16x16">
+<link rel="manifest" href="https://umfa.utah.edu/wp-content/themes/umfa-2025/assets/favicons/site.webmanifest">
+<meta name="application-name" content="Utah Museum of Fine Arts">
+<meta name="msapplication-TileColor" content="#000000">
+<meta name="msapplication-TileImage" content="https://umfa.utah.edu/wp-content/themes/umfa-2025/assets/favicons/favicon-32x32.png">	<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+
+	<!-- This site is optimized with the Yoast SEO plugin v28.6 - https://yoast.com/product/yoast-seo-wordpress/ -->
+	<title>What Is Provenance—and Why Does It Matter? - Utah Museum of Fine Arts</title>
+	<link rel="canonical" href="https://umfa.utah.edu/what-is-provenanceand-why-does-it-matter/">
+	<meta property="og:locale" content="en_US">
+	<meta property="og:type" content="article">
+	<meta property="og:title" content="What Is Provenance—and Why Does It Matter? - Utah Museum of Fine Arts">
+	<meta property="og:description" content="A Story of One Artwork Reunited with Its Rightful Owner By Luke Kelly, UMFA associate curator of collections&nbsp; Editor’s Note: […]">
+	<meta property="og:url" content="https://umfa.utah.edu/what-is-provenanceand-why-does-it-matter/">
+	<meta property="og:site_name" content="Utah Museum of Fine Arts">
+	<meta property="article:published_time" content="2023-01-21T03:06:28+00:00">
+	<meta property="article:modified_time" content="2026-09-30T18:05:31+00:00">
+	<meta property="og:image" content="https://umfa.utah.edu/wp-content/uploads/2025/03/1993.034.008DISPOSED-1.jpg">
+	<meta property="og:image:width" content="473">
+	<meta property="og:image:height" content="357">
+	<meta property="og:image:type" content="image/jpeg">
+	<meta name="author" content="sudo">
+	<meta name="twitter:card" content="summary_large_image">
+	<meta name="twitter:label1" content="Written by">
+	<meta name="twitter:data1" content="sudo">
+	<meta name="twitter:label2" content="Est. reading time">
+	<meta name="twitter:data2" content="6 minutes">
+	<script type="text/javascript" async="" charset="utf-8" src="https://www.gstatic.com/recaptcha/releases/guXhH0v-XMxlzmbTwqkaT4i5/recaptcha__en.js" crossorigin="anonymous" integrity="sha384-hC9D98xBXYbEu4dt1OTOUEfSfKHxW5VSB/KvC5wfm1Dl42E/ppKetKNpzoO9NCxo"></script><script async="" src="https://www.googletagmanager.com/gtm.js?id=GTM-W5L8FHG"></script><script type="application/ld+json" class="yoast-schema-graph">{"@context":"https:\/\/schema.org","@graph":[{"@type":"Article","@id":"https:\/\/umfa.utah.edu\/what-is-provenanceand-why-does-it-matter\/#article","isPartOf":{"@id":"https:\/\/umfa.utah.edu\/what-is-provenanceand-why-does-it-matter\/"},"author":{"name":"sudo","@id":"https:\/\/umfa.utah.edu\/#\/schema\/person\/f10e78d2f3b56317d61fc0a71244634b"},"headline":"What Is Provenance&#x2014;and Why Does It Matter?","datePublished":"2023-01-21T03:06:28+00:00","dateModified":"2026-09-30T18:05:31+00:00","mainEntityOfPage":{"@id":"https:\/\/umfa.utah.edu\/what-is-provenanceand-why-does-it-matter\/"},"wordCount":1189,"image":{"@id":"https:\/\/umfa.utah.edu\/what-is-provenanceand-why-does-it-matter\/#primaryimage"},"thumbnailUrl":"https:\/\/umfa.utah.edu\/wp-content\/uploads\/2025\/03\/1993.034.008DISPOSED-1.jpg","keywords":["Luke Kelly","provenance","research"],"articleSection":["Object Origins","Stories Behind the Art"],"inLanguage":"en-US"},{"@type":"WebPage","@id":"https:\/\/umfa.utah.edu\/what-is-provenanceand-why-does-it-matter\/","url":"https:\/\/umfa.utah.edu\/what-is-provenanceand-why-does-it-matter\/","name":"What Is Provenance&#x2014;and Why Does It Matter? - Utah Museum of Fine Arts","isPartOf":{"@id":"https:\/\/umfa.utah.edu\/#website"},"primaryImageOfPage":{"@id":"https:\/\/umfa.utah.edu\/what-is-provenanceand-why-does-it-matter\/#primaryimage"},"image":{"@id":"https:\/\/umfa.utah.edu\/what-is-provenanceand-why-does-it-matter\/#primaryimage"},"thumbnailUrl":"https:\/\/umfa.utah.edu\/wp-content\/uploads\/2025\/03\/1993.034.008DISPOSED-1.jpg","datePublished":"2023-01-21T03:06:28+00:00","dateModified":"2026-09-30T18:05:31+00:00","author":{"@id":"https:\/\/umfa.utah.edu\/#\/schema\/person\/f10e78d2f3b56317d61fc0a71244634b"},"breadcrumb":{"@id":"https:\/\/umfa.utah.edu\/what-is-provenanceand-why-does-it-matter\/#breadcrumb"},"inLanguage":"en-US","potentialAction":[{"@type":"ReadAction","target":["https:\/\/umfa.utah.edu\/what-is-provenanceand-why-does-it-matter\/"]}]},{"@type":"ImageObject","inLanguage":"en-US","@id":"https:\/\/umfa.utah.edu\/what-is-provenanceand-why-does-it-matter\/#primaryimage","url":"https:\/\/umfa.utah.edu\/wp-content\/uploads\/2025\/03\/1993.034.008DISPOSED-1.jpg","contentUrl":"https:\/\/umfa.utah.edu\/wp-content\/uploads\/2025\/03\/1993.034.008DISPOSED-1.jpg","width":473,"height":357,"caption":"A pastoral painting of a young man and woman sitting together outdoors, surrounded by sheep and trees. The woman holds a hat and looks down, while the man gazes at her, creating a peaceful, romantic scene."},{"@type":"BreadcrumbList","@id":"https:\/\/umfa.utah.edu\/what-is-provenanceand-why-does-it-matter\/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https:\/\/umfa.utah.edu\/"},{"@type":"ListItem","position":2,"name":"At the Heart of It All","item":"https:\/\/umfa.utah.edu\/at-the-heart\/"},{"@type":"ListItem","position":3,"name":"What Is Provenance&#x2014;and Why Does It Matter?"}]},{"@type":"WebSite","@id":"https:\/\/umfa.utah.edu\/#website","url":"https:\/\/umfa.utah.edu\/","name":"Utah Museum of Fine Arts","description":"","potentialAction":[{"@type":"SearchAction","target":{"@type":"EntryPoint","urlTemplate":"https:\/\/umfa.utah.edu\/?s={search_term_string}"},"query-input":{"@type":"PropertyValueSpecification","valueRequired":true,"valueName":"search_term_string"}}],"inLanguage":"en-US"},{"@type":"Person","@id":"https:\/\/umfa.utah.edu\/#\/schema\/person\/f10e78d2f3b56317d61fc0a71244634b","name":"sudo","sameAs":["https:\/\/umfa.utah.local\/admin"],"url":"https:\/\/umfa.utah.edu\/author\/sudo\/"}]}</script>
+	<!-- / Yoast SEO plugin. -->
+
+
+<link rel="dns-prefetch" href="https://www.google.com/">
+<link rel="dns-prefetch" href="https://www.googletagmanager.com/">
+<link rel="alternate" title="oEmbed (JSON)" type="application/json+oembed" href="https://umfa.utah.edu/wp-json/oembed/1.0/embed?url=https%3A%2F%2Fumfa.utah.edu%2Fwhat-is-provenanceand-why-does-it-matter%2F">
+<link rel="alternate" title="oEmbed (XML)" type="text/xml+oembed" href="https://umfa.utah.edu/wp-json/oembed/1.0/embed?url=https%3A%2F%2Fumfa.utah.edu%2Fwhat-is-provenanceand-why-does-it-matter%2F&amp;format=xml">
+
+<link rel="stylesheet" id="tribe-events-pro-mini-calendar-block-styles-css" href="https://umfa.utah.edu/wp-content/plugins/events-calendar-pro/build/css/tribe-events-pro-mini-calendar-block.css?ver=7.8.3" media="all">
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" id="baguettebox-css-css" href="https://umfa.utah.edu/wp-content/plugins/gallery-block-lightbox/dist/baguetteBox.min.css?ver=1.12.0" media="all">
+<link rel="stylesheet" id="swiper-css-css" href="https://umfa.utah.edu/wp-content/themes/umfa-2025/assets/css/swiper-bundle.min.css?ver=9f1cba2a535c39" media="all">
+<link rel="stylesheet" id="theme-style-css" href="https://umfa.utah.edu/wp-content/themes/umfa-2025/assets/css/main.min.css?ver=9f1cba2a535c39" media="all">
+<link rel="stylesheet" id="wp-block-heading-css" href="https://umfa.utah.edu/wp-includes/blocks/heading/style.min.css?ver=7.1.2" media="all">
+<link rel="stylesheet" id="wp-block-paragraph-css" href="https://umfa.utah.edu/wp-includes/blocks/paragraph/style.min.css?ver=7.1.2" media="all">
+<script id="xlink-js-after">
+window.onload = function(){
+	const linkList = document.links;
+	for (let el of linkList) {
+		let isExit = new URL(el.href, location.origin).origin !== location.origin;
+		if( el.target ) continue;
+		if( ! isExit ) continue;
+
+		el.setAttribute('target', '_blank');
+		el.setAttribute('rel', 'noopener noreferrer');
+	}
+}
+//# sourceURL=xlink-js-after
+</script>
+
+<!-- Google tag (gtag.js) snippet added by Site Kit -->
+<!-- Google Analytics snippet added by Site Kit -->
+<script id="google_gtagjs-js" src="https://www.googletagmanager.com/gtag/js?id=G-6HLGM589P0" async=""></script>
+<script id="google_gtagjs-js-after">
+window.dataLayer = window.dataLayer || [];function gtag(){dataLayer.push(arguments);}
+gtag("set","linker",{"domains":["umfa.utah.edu"]});
+gtag("js", new Date());
+gtag("set", "developer_id.dZTNiMT", true);
+gtag("config", "G-6HLGM589P0");
+ window._googlesitekit = window._googlesitekit || {}; window._googlesitekit.throttledEvents = []; window._googlesitekit.gtagEvent = (name, data) => { var key = JSON.stringify( { name, data } ); if ( !! window._googlesitekit.throttledEvents[ key ] ) { return; } window._googlesitekit.throttledEvents[ key ] = true; setTimeout( () => { delete window._googlesitekit.throttledEvents[ key ]; }, 5 ); gtag( "event", name, { ...data, event_source: "site-kit" } ); }; 
+//# sourceURL=google_gtagjs-js-after
+</script>
+<script id="jquery-js" src="https://umfa.utah.edu/wp-content/themes/umfa-2025/assets/js/jquery.min.js"></script>
+<link rel="https://api.w.org/" href="https://umfa.utah.edu/wp-json/"><link rel="alternate" title="JSON" type="application/json" href="https://umfa.utah.edu/wp-json/wp/v2/posts/1010"><meta name="generator" content="Site Kit by Google 1.188.0"><script>
+    // Block presence of other buttons
+    window.__Marker = {};
+    </script><meta name="tec-api-version" content="v1"><meta name="tec-api-origin" content="https://umfa.utah.edu"><link rel="alternate" href="https://umfa.utah.edu/wp-json/tribe/events/v1/">
+<!-- Google Tag Manager snippet added by Site Kit -->
+<script>
+			( function( w, d, s, l, i ) {
+				w[l] = w[l] || [];
+				w[l].push( {'gtm.start': new Date().getTime(), event: 'gtm.js'} );
+				var f = d.getElementsByTagName( s )[0],
+					j = d.createElement( s ), dl = l != 'dataLayer' ? '&l=' + l : '';
+				j.async = true;
+				j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl;
+				f.parentNode.insertBefore( j, f );
+			} )( window, document, 'script', 'dataLayer', 'GTM-W5L8FHG' );
+			
+</script>
+
+<!-- End Google Tag Manager snippet added by Site Kit -->
+
+
+</head>
+
+<body class="wp-singular post-template-default single single-post postid-1010 single-format-standard wp-theme-umfa-2025 tribe-js page-template-umfa-2025">
+			<!-- Google Tag Manager (noscript) snippet added by Site Kit -->
+		<noscript>
+			<iframe src="https://www.googletagmanager.com/ns.html?id=GTM-W5L8FHG" height="0" width="0" style="display:none;visibility:hidden"></iframe>
+		</noscript>
+		<!-- End Google Tag Manager (noscript) snippet added by Site Kit -->
+			<div id="page-wrapper" class="site">
+		
+<header id="masthead" role="banner" class="">
+	<div class="container">
+		<div class="reader-row">
+			<a class="skip-link" href="https://umfa.utah.edu/what-is-provenanceand-why-does-it-matter/#main">Skip to content</a>
+		</div>
+
+		<div class="nav-row">
+			<a id="logo" href="https://umfa.utah.edu/" title="Utah Museum of Fine Arts">
+				<img src="https://umfa.utah.edu/wp-content/themes/umfa-2025/assets/img/logo.svg" alt="Utah Museum of Fine Arts" width="300" height="150">
+			</a>
+
+			<div class="nav-container">
+				<!-- Navigation -->
+					<nav id="main-nav" class="menu main" role="navigation">
+		<div id="super-nav">
+			<ul id="super-menu" class="menu"><li id="menu-item-10552" class="menu-item"><a href="https://umfa.utah.edu/support/">Support the UMFA</a></li>
+<li id="menu-item-10672" class="menu-item current_page_parent"><a href="https://umfa.utah.edu/at-the-heart/">Blog</a></li>
+</ul>			<div id="header-search">
+	<button type="button" id="open-search"><span>Search</span></button>
+
+	<div id="search-container">
+		<form id="searchform" action="https://umfa.utah.edu/" method="get">
+	<input type="text" name="s" placeholder="What can we help you find?" value="">
+	<button id="searchsubmit" class="btn btn-small btn-primary" type="submit" alt="Search">Search</button>
+</form>	</div>
+</div>		</div>
+		<ul id="main-menu" class="menu"><li id="menu-item-11780" class="menu-item"><span>Visit</span>
+<button type="button" class="sub-menu-toggle-btn" aria-expanded="false" aria-haspopup="true" aria-label="Visit sub menu toggle button" aria-owns="id6ac037e377a5d"></button><ul id="id6ac037e377a5d" class="submenu" aria-label="Visit sub menu">
+	<li id="menu-item-467" class="menu-item"><a href="https://umfa.utah.edu/visit/">Plan Your Visit</a></li>
+	<li id="menu-item-2677" class="menu-item"><a href="https://umfa.utah.edu/visit/museum-accessibility/">Accessibility</a></li>
+	<li id="menu-item-3946" class="menu-item"><a href="https://umfa.utah.edu/visit/museum-tours/">Tours</a></li>
+	<li id="menu-item-2676" class="menu-item"><a href="https://umfa.utah.edu/visit/family-visitors/">Family Visitors</a></li>
+	<li id="menu-item-2680" class="menu-item"><a href="https://umfa.utah.edu/visit/museum-store/">Museum Store</a></li>
+	<li id="menu-item-2678" class="menu-item"><a href="https://umfa.utah.edu/visit/museum-cafe/">Museum Café</a></li>
+	<li id="menu-item-2679" class="menu-item"><a href="https://umfa.utah.edu/visit/museum-policies-frequent-questions/">Policies and FAQ</a></li>
+</ul>
+</li>
+<li id="menu-item-11781" class="menu-item"><span>Art</span>
+<button type="button" class="sub-menu-toggle-btn" aria-expanded="false" aria-haspopup="true" aria-label="Art sub menu toggle button" aria-owns="id6ac037e377b53"></button><ul id="id6ac037e377b53" class="submenu" aria-label="Art sub menu">
+	<li id="menu-item-483" class="menu-item"><a href="https://umfa.utah.edu/art/">On View</a></li>
+	<li id="menu-item-2670" class="menu-item"><a href="https://umfa.utah.edu/art/future-exhibitions/">Future Exhibitions</a></li>
+	<li id="menu-item-2669" class="menu-item"><a href="https://umfa.utah.edu/art/past-exhibitions/">Past Exhibitions</a></li>
+	<li id="menu-item-10566" class="menu-item"><a href="https://umfa.utah.edu/collection/">The Collection</a></li>
+	<li id="menu-item-3960" class="menu-item"><a href="https://umfa.utah.edu/art/salt/">salt</a></li>
+	<li id="menu-item-13494" class="menu-item"><a href="https://umfa.utah.edu/art/land-art/">Land Art</a></li>
+</ul>
+</li>
+<li id="menu-item-11782" class="menu-item"><span>Events &amp; Experiences</span>
+<button type="button" class="sub-menu-toggle-btn" aria-expanded="false" aria-haspopup="true" aria-label="Events &amp; Experiences sub menu toggle button" aria-owns="id6ac037e377c23"></button><ul id="id6ac037e377c23" class="submenu" aria-label="Events &amp; Experiences sub menu">
+	<li id="menu-item-26" class="menu-item"><a href="https://umfa.utah.edu/events">Calendar</a></li>
+	<li id="menu-item-16470" class="menu-item"><a href="https://umfa.utah.edu/land-art-week/">Land Art Week</a></li>
+	<li id="menu-item-5907" class="menu-item"><a href="https://umfa.utah.edu/about/private-event-rental/">Private Event Rental</a></li>
+</ul>
+</li>
+<li id="menu-item-11783" class="menu-item"><span>About</span>
+<button type="button" class="sub-menu-toggle-btn" aria-expanded="false" aria-haspopup="true" aria-label="About sub menu toggle button" aria-owns="id6ac037e377c90"></button><ul id="id6ac037e377c90" class="submenu" aria-label="About sub menu">
+	<li id="menu-item-466" class="menu-item"><a href="https://umfa.utah.edu/about/">About</a></li>
+	<li id="menu-item-2673" class="menu-item"><a href="https://umfa.utah.edu/about/strategy-values-philosophy/">Mission and Core Values</a></li>
+	<li id="menu-item-2675" class="menu-item"><a href="https://umfa.utah.edu/about/umfa-staff-board-of-directors/">Staff &amp; Board of Directors</a></li>
+	<li id="menu-item-2674" class="menu-item"><a href="https://umfa.utah.edu/about/employment/">Employment</a></li>
+	<li id="menu-item-2672" class="menu-item"><a href="https://umfa.utah.edu/contact-us/">Contact us</a></li>
+</ul>
+</li>
+<li id="menu-item-11784" class="menu-item"><span>Learning</span>
+<button type="button" class="sub-menu-toggle-btn" aria-expanded="false" aria-haspopup="true" aria-label="Learning sub menu toggle button" aria-owns="id6ac037e377d66"></button><ul id="id6ac037e377d66" class="submenu" aria-label="Learning sub menu">
+	<li id="menu-item-3963" class="menu-item"><a href="https://umfa.utah.edu/k-12-resources/">K-12</a></li>
+	<li id="menu-item-10957" class="menu-item"><a href="https://umfa.utah.edu/university-of-utah-resources/">University of Utah</a></li>
+</ul>
+</li>
+</ul>	</nav>
+			</div>
+
+			<div id="toggle-container">
+				<button id="menu-toggle" class="menu-button" aria-controls="main-nav" aria-expanded="false" aria-label="Main Nav Toggle">
+					<span>Menu</span>
+					<div class="menu-box">
+						<div class="menu-box-icon"></div>
+					</div>
+				</button>
+			</div>
+		</div>
+
+	</div>
+</header>
+		<main>
+			<div id="main" class="container">
+					<div class="wp-block-columns is-layout-flex wp-container-core-columns-is-layout-1 wp-block-columns-is-layout-flex">
+		<div class="wp-block-column has-animation-fromleft in-view">
+			<figure class="wp-block-image size-full">
+				<img width="473" height="357" src="https://umfa.utah.edu/wp-content/uploads/2025/03/1993.034.008DISPOSED-1.jpg" class="attachment-post-thumbnail size-post-thumbnail wp-post-image" alt="A pastoral painting of a young man and woman sitting together outdoors, surrounded by sheep and trees. The woman holds a hat and looks down, while the man gazes at her, creating a peaceful, romantic scene." decoding="async" fetchpriority="high">			</figure>
+
+		</div>
+
+		<div class="wp-block-column">
+			<!-- <h2 class="wp-block-heading has-universcondensed-font-family has-body-font-size has-animation-fade" style="margin-bottom:var(--wp--preset--spacing--50);text-transform:uppercase">Accessibility</h2> -->
+
+			<h1 class="wp-block-heading has-terra-cotta-color has-text-color has-animation-fade in-view">What Is Provenance—and Why Does It Matter?</h1>
+		</div>
+
+	</div>
+
+	<div class="align-narrow">
+		
+<h2 class="wp-block-heading">A Story of One Artwork Reunited with Its Rightful Owner</h2>
+
+
+
+<p class="wp-block-paragraph"><strong>By Luke Kelly, UMFA associate curator of collections&nbsp;</strong></p>
+
+
+
+<hr class="wp-block-separator has-alpha-channel-opacity">
+
+
+
+<p class="wp-block-paragraph"><em><em><strong>Editor’s Note</strong>: “<a type="category" href="https://umfa.utah.edu/category/object-origins/" id="36" aria-label="At the Heart of It All: Object Origins blog page.">At the Heart of It All: Object Origins</a>” is a blog series sharing ongoing research into the origins of artworks in the Utah Museum of Fine Arts (UMFA) permanent collection, a dynamic gathering of objects from around the world and across time. Understanding more about what’s in the collection, and being transparent about it, is important as we lean into our goal of <a type="page" href="https://umfa.utah.edu/about/strategy-values-philosophy/" id="595" aria-label="Decolonizing the UMFA strategy page.">decolonizing the UMFA</a>.&nbsp;</em></em></p>
+
+
+
+<hr class="wp-block-separator has-alpha-channel-opacity">
+
+
+
+<p class="wp-block-paragraph">A word you may see associated with the museum world, but may not be too familiar with, is <em>provenance</em>. Provenance essentially is the recorded journey of an artwork from its origin through one or more owners to the present day. Art historians and curators use this information to provide more context for a work. An object’s story might include a famous collector or a period when it was part of a larger collection. Provenance research can also help attribute or authenticate a work of art—clarifying or confirming who made it.</p>
+
+
+
+<p class="wp-block-paragraph">More importantly, provenance helps museums ensure that the objects they are collecting meet legal and ethical rules. There are three particularly critical categories of provenance museums must pay attention to: the whereabouts of European artworks collected between 1933 and 1945, when the <a type="page" href="https://umfa.utah.edu/nazi-era-provenance-research-project/" id="3254" aria-label="Nazi era provenance blog.">Nazi</a> regime forced sales and looted thousands of artworks from Jewish collections; archaeological artifacts collected before 1970, when the United Nations passed accords to protect the <a href="https://en.unesco.org/fighttrafficking/1970" aria-label="World's cultural heritage, UNESCO fight trafficking page." target="_blank" rel="noopener noreferrer">world’s cultural heritage</a>; and art taken from colonized regions in the nineteenth and early twentieth centuries, when colonial powers looted or illegally removed works from those cultures and locales.</p>
+
+
+
+<p class="wp-block-paragraph">Provenance is an important issue for the Utah Museum of Fine Arts, with our comprehensive collection of more than 20,000 objects from around the globe, most of which were acquired over the past seventy years, through purchases and gifts from donors. Curators have been conducting ongoing research into the collection since the early 2000s and staying up-to-date on best practices around object provenance. But museum-goers may not be aware of this effort because it happens in the background. This and forthcoming posts are meant to bring this important curatorial practice out into the open and share the stories we uncover in the process.</p>
+
+
+
+<p class="wp-block-paragraph">For the first post, we look at Nazi-era provenance research and a discovery about a UMFA painting’s previously unknown journey that put the Museum in the international spotlight. This story demonstrates the collaborative nature of provenance research and how the most unlikely of sources helped reunite the work with its rightful owners.</p>
+
+
+
+<p class="wp-block-paragraph">In 2002, Nancy Yeide, then head of the Department of Curatorial Records at the National Gallery of Art (NGA) in Washington, DC, took to the Internet while researching her book on the art collection of the notorious Nazi leader (and, later, convicted war criminal) Hermann Goering. She began searching names of artworks that the Nazis confiscated from Jewish families and businesses but that were never returned after the war and were presumed lost. One painting was <em>Les Amoureux Jeunes (The Young Lovers)</em> by Francois Boucher (1707–70.) Search results indicated it was at the Utah Museum of Fine Arts. According to the UMFA’s then-existing records, when the painting entered the Museum’s collection as a donation in 1993, it had a brief provenance that took its story back only as far as the gallery where the donor purchased it in 1970. Interestingly, one citation in the gallery’s description of the work was a 1947 French government publication that listed art that the Nazis had looted in France during World War II. The gallery believed the work had been returned to its original owner before the gallery acquired it and later sold it to the donor. Yeide, and later the <a href="https://www.artloss.com/" target="_blank" rel="noopener noreferrer">Art Loss Register</a>, using material from the National Archives, provided crucial information that revealed the true story:</p>
+
+
+
+<figure class="wp-block-image align-center"><img decoding="async" src="https://umfa.utah.edu/wp-content/uploads/2025/03/1993.034.008DISPOSED.jpg" alt="a young couple sit in a forest"><figcaption class="wp-element-caption">Francois&nbsp;Boucher,&nbsp;<em>Les amoureux jeunes [The Young Lovers]</em>, mid-18th century, oil painting, private collection.<br>​​</figcaption></figure>
+
+
+
+<p class="wp-block-paragraph">Before World War II, <em>The Young Lovers</em> was in the inventory of Parisian Jewish art dealer Andre Jean Seligmann (1898–1945). The Seligmann family were well-respected dealers with galleries in Paris and New York. In the summer of 1940, as the Nazi army occupied Paris, Seligmann managed to evacuate his family to America. He was not able to move his painting inventory out of the country, however. So he deposited all of his paintings, including the Boucher, into a bank vault in Paris, perhaps receiving assurances they would be safe.</p>
+
+
+
+<p class="wp-block-paragraph">A series of Nazi records then pick up the trail of the painting’s whereabouts and reveal the Nazis’ terrifyingly efficient looting of Jewish property. First, a report filed in September 1941 lists the contents of the bank vault, including the Boucher, belonging to the “Jew Andre Seligmann.” An elite SS looting unit moved it to the Jeu Du Paume art center in Paris, which the Nazis used as storage for numerous stolen artworks. An art historian named Dr. von Ingram then created an inventory card for <em>The Young Lovers </em>with the number “SEL 552.”</p>
+
+
+
+<figure class="wp-block-image align-center"><img decoding="async" src="https://umfa.utah.edu/wp-content/uploads/2025/03/1339-scaled.jpg" alt="A copy of a paper record in German. It records an inventory record for &quot;The Young Lovers&quot; with the number “SEL 552.”"><figcaption class="wp-element-caption">Record for SEL 552; Einsatzstab Reichsleiter Rosenberg (ERR) Card Files 1945 – 1945 [Electronic Record]; Records of U.S. Occupation Headquarters, World War II 1923 – 1972; Record Group 260; National Archives at College Park, College Park, MD [retrieved from https://catalog.archives.gov/id/72544868 December 1 2022].&nbsp;</figcaption></figure>
+
+
+
+<p class="wp-block-paragraph">The next mention comes in December 1941 in a list of artworks, including the Boucher, moved to the personal collection of Reichsmarshall Hermann Goering. The last update came in early 1945. Now in Germany and cataloged as “no. 489,” the painting was part of a shipment from northern to southern Germany, to keep it out of the allies’ hands. At this point, the Boucher seemingly disappeared from history. After the war, a French investigation using the same documents could not locate <em>The Young Lovers</em> and speculated it was destroyed in transit.</p>
+
+
+
+<p class="wp-block-paragraph">This rediscovered journey of the Boucher contradicted the earlier assumption that the painting had been returned to Seligmann after the war. The UMFA, working with the Art Loss Register, contacted the heirs to start restitution of the work. In <a href="https://www.deseret.com/2004/4/2/19820831/painting-returned-to-rightful-owners" aria-label="a 2004 ceremony reported on by Deseret news." target="_blank" rel="noopener noreferrer">a 2004 ceremony</a> that attracted worldwide attention, the Museum reunited Seligmann’s descendants with the painting after fifty years. In a 2006 documentary, <em><a href="https://www.youtube.com/watch?v=0PN9hNlXkqo" aria-label="The Rape of Europa art video on YouTube" target="_blank" rel="noopener noreferrer">The Rape of Europa</a></em>, David Carroll, then UMFA’s director of collections and exhibitions, spoke for UMFA staff and supporters when he said, “It was a little sad when I began to think about returning the painting—it’s been an important part of our permanent exhibits—but I also saw the larger moral responsibility. We can’t make amends for the millions of lives that were taken, but we can do something simple, return something stolen, and confer a little humanity back on all of us.”</p>
+
+
+
+<p class="wp-block-paragraph">When Yeide initially conducted her research on the Boucher, she had spent countless hours going through thousands of paper files at the National Archives. Since then, many records relating to Nazi seizures of art at the Archives have been digitized and are now searchable online. These materials and newer databases are making it easier for UMFA curators to uncover and share future stories about the collection.</p>
+	</div>
+			</div>
+		</main>
+
+		<button aria-label="Scroll Back to Top" id="back-to-top" class="hide-back-to-top">
+	<span class="_line" aria-hidden="true"></span>
+	<span class="_line" aria-hidden="true"></span>
+</button>
+<footer id="colophon">
+	<div class="container">
+		<section class="block-insert" data="footer_content_area"><div>
+<div class="wp-block-columns are-vertically-aligned-center is-style-expand-psuedo-background has-pure-white-color has-pure-black-background-color has-text-color has-background has-link-color wp-elements-1 is-layout-flex wp-container-core-columns-is-layout-8f813624 wp-block-columns-is-layout-flex" style="margin-top:0;margin-bottom:0;padding-top:var(--wp--preset--spacing--40);padding-right:0;padding-bottom:var(--wp--preset--spacing--40);padding-left:0">
+<div class="wp-block-column is-vertically-aligned-center is-layout-flow wp-block-column-is-layout-flow" style="flex-basis:25%">
+<div class="wp-block-group is-vertical is-content-justification-center is-layout-flex wp-container-core-group-is-layout-80eeedf9 wp-block-group-is-layout-flex">
+<figure class="wp-block-image size-full is-resized" style="margin-top:var(--wp--preset--spacing--30);margin-bottom:var(--wp--preset--spacing--30)"><img loading="lazy" decoding="async" width="400" height="169" src="https://umfa.utah.edu/wp-content/uploads/2025/07/UU-Logo-HRZ_WHITE.png" alt="" class="wp-image-10571" style="width:200px"></figure>
+
+
+
+<figure class="wp-block-image size-full is-resized" style="margin-top:var(--wp--preset--spacing--30);margin-bottom:var(--wp--preset--spacing--30)"><img loading="lazy" decoding="async" width="1476" height="939" src="https://umfa.utah.edu/wp-content/uploads/2025/01/ZAPLogo_SolidWhite.png" alt="Logo for Salt Lake County Zoo, Arts &amp; Parks." class="wp-image-13813" style="width:150px"></figure>
+</div>
+</div>
+
+
+
+<div class="wp-block-column is-vertically-aligned-center is-layout-flow wp-block-column-is-layout-flow" style="flex-basis:25%">
+<p class="has-universcondensed-font-family has-small-font-size wp-block-paragraph"><strong>Location</strong><br>Marcia and John Price Museum Building<br>410 Campus Center Drive<br>Salt Lake City, UT 84112-0350</p>
+
+
+
+<p class="has-universcondensed-font-family has-small-font-size wp-block-paragraph"><strong>Contact</strong><br>801.581.7332<br><a href="https://umfa.utah.edu/contact-us/" data-type="page" data-id="659">Email us</a></p>
+</div>
+
+
+
+<div class="wp-block-column is-vertically-aligned-center is-layout-flow wp-block-column-is-layout-flow" style="flex-basis:25%">
+<p class="has-universcondensed-font-family has-small-font-size wp-block-paragraph"><strong>Hours</strong><br>Tuesday 10 am –&nbsp;5 pm<br>Wednesday 10 am – 8 pm<br>Thursday 10 am – 5 pm<br>Friday&nbsp;10 am – 5 pm<br>Saturday&nbsp;10 am – 5 pm<br>Sunday&nbsp;10 am – 5 pm<br>Closed Monday<br><br><a href="https://privacyportal.utah.edu/privacy-portal/privacy-policies/privacy-statement/" target="_blank" rel="noreferrer noopener nofollow">Privacy Policy</a></p>
+</div>
+
+
+
+<div class="wp-block-column is-vertically-aligned-center is-layout-flow wp-block-column-is-layout-flow" style="flex-basis:25%">
+<ul class="wp-block-social-links has-normal-icon-size has-icon-color has-icon-background-color is-content-justification-center is-nowrap is-layout-flex wp-container-core-social-links-is-layout-5d435f06 wp-block-social-links-is-layout-flex" style="margin-right:0;margin-left:0"><li style="color:#ffffff;background-color:#000000" class="wp-social-link wp-social-link-facebook has-pure_white-color has-pure_black-background-color wp-block-social-link"><a rel="noopener nofollow" target="_blank" href="https://facebook.com/utahmuseumoffinearts" class="wp-block-social-link-anchor"><svg width="24" height="24" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M12 2C6.5 2 2 6.5 2 12c0 5 3.7 9.1 8.4 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.3v7C18.3 21.1 22 17 22 12c0-5.5-4.5-10-10-10z"></path></svg><span class="wp-block-social-link-label screen-reader-text">Facebook</span></a></li>
+
+<li style="color:#ffffff;background-color:#000000" class="wp-social-link wp-social-link-instagram has-pure_white-color has-pure_black-background-color wp-block-social-link"><a rel="noopener nofollow" target="_blank" href="https://instagram.com/utahmuseumoffinearts" class="wp-block-social-link-anchor"><svg width="24" height="24" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M12,4.622c2.403,0,2.688,0.009,3.637,0.052c0.877,0.04,1.354,0.187,1.671,0.31c0.42,0.163,0.72,0.358,1.035,0.673 c0.315,0.315,0.51,0.615,0.673,1.035c0.123,0.317,0.27,0.794,0.31,1.671c0.043,0.949,0.052,1.234,0.052,3.637 s-0.009,2.688-0.052,3.637c-0.04,0.877-0.187,1.354-0.31,1.671c-0.163,0.42-0.358,0.72-0.673,1.035 c-0.315,0.315-0.615,0.51-1.035,0.673c-0.317,0.123-0.794,0.27-1.671,0.31c-0.949,0.043-1.233,0.052-3.637,0.052 s-2.688-0.009-3.637-0.052c-0.877-0.04-1.354-0.187-1.671-0.31c-0.42-0.163-0.72-0.358-1.035-0.673 c-0.315-0.315-0.51-0.615-0.673-1.035c-0.123-0.317-0.27-0.794-0.31-1.671C4.631,14.688,4.622,14.403,4.622,12 s0.009-2.688,0.052-3.637c0.04-0.877,0.187-1.354,0.31-1.671c0.163-0.42,0.358-0.72,0.673-1.035 c0.315-0.315,0.615-0.51,1.035-0.673c0.317-0.123,0.794-0.27,1.671-0.31C9.312,4.631,9.597,4.622,12,4.622 M12,3 C9.556,3,9.249,3.01,8.289,3.054C7.331,3.098,6.677,3.25,6.105,3.472C5.513,3.702,5.011,4.01,4.511,4.511 c-0.5,0.5-0.808,1.002-1.038,1.594C3.25,6.677,3.098,7.331,3.054,8.289C3.01,9.249,3,9.556,3,12c0,2.444,0.01,2.751,0.054,3.711 c0.044,0.958,0.196,1.612,0.418,2.185c0.23,0.592,0.538,1.094,1.038,1.594c0.5,0.5,1.002,0.808,1.594,1.038 c0.572,0.222,1.227,0.375,2.185,0.418C9.249,20.99,9.556,21,12,21s2.751-0.01,3.711-0.054c0.958-0.044,1.612-0.196,2.185-0.418 c0.592-0.23,1.094-0.538,1.594-1.038c0.5-0.5,0.808-1.002,1.038-1.594c0.222-0.572,0.375-1.227,0.418-2.185 C20.99,14.751,21,14.444,21,12s-0.01-2.751-0.054-3.711c-0.044-0.958-0.196-1.612-0.418-2.185c-0.23-0.592-0.538-1.094-1.038-1.594 c-0.5-0.5-1.002-0.808-1.594-1.038c-0.572-0.222-1.227-0.375-2.185-0.418C14.751,3.01,14.444,3,12,3L12,3z M12,7.378 c-2.552,0-4.622,2.069-4.622,4.622S9.448,16.622,12,16.622s4.622-2.069,4.622-4.622S14.552,7.378,12,7.378z M12,15 c-1.657,0-3-1.343-3-3s1.343-3,3-3s3,1.343,3,3S13.657,15,12,15z M16.804,6.116c-0.596,0-1.08,0.484-1.08,1.08 s0.484,1.08,1.08,1.08c0.596,0,1.08-0.484,1.08-1.08S17.401,6.116,16.804,6.116z"></path></svg><span class="wp-block-social-link-label screen-reader-text">Instagram</span></a></li>
+
+<li style="color:#ffffff;background-color:#000000" class="wp-social-link wp-social-link-bluesky has-pure_white-color has-pure_black-background-color wp-block-social-link"><a rel="noopener nofollow" target="_blank" href="https://bsky.app/profile/umfa.bsky.social" class="wp-block-social-link-anchor"><svg width="24" height="24" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M6.3,4.2c2.3,1.7,4.8,5.3,5.7,7.2.9-1.9,3.4-5.4,5.7-7.2,1.7-1.3,4.3-2.2,4.3.9s-.4,5.2-.6,5.9c-.7,2.6-3.3,3.2-5.6,2.8,4,.7,5.1,3,2.9,5.3-5,5.2-6.7-2.8-6.7-2.8,0,0-1.7,8-6.7,2.8-2.2-2.3-1.2-4.6,2.9-5.3-2.3.4-4.9-.3-5.6-2.8-.2-.7-.6-5.3-.6-5.9,0-3.1,2.7-2.1,4.3-.9h0Z"></path></svg><span class="wp-block-social-link-label screen-reader-text">Bluesky</span></a></li>
+
+<li style="color:#ffffff;background-color:#000000" class="wp-social-link wp-social-link-youtube has-pure_white-color has-pure_black-background-color wp-block-social-link"><a rel="noopener nofollow" target="_blank" href="https://www.youtube.com/@UtahMuseumofFineArts-watch" class="wp-block-social-link-anchor"><svg width="24" height="24" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M21.8,8.001c0,0-0.195-1.378-0.795-1.985c-0.76-0.797-1.613-0.801-2.004-0.847c-2.799-0.202-6.997-0.202-6.997-0.202 h-0.009c0,0-4.198,0-6.997,0.202C4.608,5.216,3.756,5.22,2.995,6.016C2.395,6.623,2.2,8.001,2.2,8.001S2,9.62,2,11.238v1.517 c0,1.618,0.2,3.237,0.2,3.237s0.195,1.378,0.795,1.985c0.761,0.797,1.76,0.771,2.205,0.855c1.6,0.153,6.8,0.201,6.8,0.201 s4.203-0.006,7.001-0.209c0.391-0.047,1.243-0.051,2.004-0.847c0.6-0.607,0.795-1.985,0.795-1.985s0.2-1.618,0.2-3.237v-1.517 C22,9.62,21.8,8.001,21.8,8.001z M9.935,14.594l-0.001-5.62l5.404,2.82L9.935,14.594z"></path></svg><span class="wp-block-social-link-label screen-reader-text">YouTube</span></a></li>
+
+<li style="color:#ffffff;background-color:#000000" class="wp-social-link wp-social-link-threads has-pure_white-color has-pure_black-background-color wp-block-social-link"><a rel="noopener nofollow" target="_blank" href="https://www.threads.com/@utahmuseumoffinearts" class="wp-block-social-link-anchor"><svg width="24" height="24" viewBox="0 0 24 24" version="1.1" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M16.3 11.3c-.1 0-.2-.1-.2-.1-.1-2.6-1.5-4-3.9-4-1.4 0-2.6.6-3.3 1.7l1.3.9c.5-.8 1.4-1 2-1 .8 0 1.4.2 1.7.7.3.3.5.8.5 1.3-.7-.1-1.4-.2-2.2-.1-2.2.1-3.7 1.4-3.6 3.2 0 .9.5 1.7 1.3 2.2.7.4 1.5.6 2.4.6 1.2-.1 2.1-.5 2.7-1.3.5-.6.8-1.4.9-2.4.6.3 1 .8 1.2 1.3.4.9.4 2.4-.8 3.6-1.1 1.1-2.3 1.5-4.3 1.5-2.1 0-3.8-.7-4.8-2S5.7 14.3 5.7 12c0-2.3.5-4.1 1.5-5.4 1.1-1.3 2.7-2 4.8-2 2.2 0 3.8.7 4.9 2 .5.7.9 1.5 1.2 2.5l1.5-.4c-.3-1.2-.8-2.2-1.5-3.1-1.3-1.7-3.3-2.6-6-2.6-2.6 0-4.7.9-6 2.6C4.9 7.2 4.3 9.3 4.3 12s.6 4.8 1.9 6.4c1.4 1.7 3.4 2.6 6 2.6 2.3 0 4-.6 5.3-2 1.8-1.8 1.7-4 1.1-5.4-.4-.9-1.2-1.7-2.3-2.3zm-4 3.8c-1 .1-2-.4-2-1.3 0-.7.5-1.5 2.1-1.6h.5c.6 0 1.1.1 1.6.2-.2 2.3-1.3 2.7-2.2 2.7z"></path></svg><span class="wp-block-social-link-label screen-reader-text">Threads</span></a></li></ul>
+
+
+
+<p class="no-decoration has-universcondensed-font-family has-medium-font-size wp-block-paragraph" style="margin-top:0;margin-bottom:0"><strong><a href="https://umfa.utah.edu/newsletter">Sign up for the Newsletter</a></strong></p>
+
+
+
+<p class="no-decoration has-universcondensed-font-family has-medium-font-size wp-block-paragraph" style="margin-top:0;margin-bottom:0"><strong><a href="https://umfa.utah.edu/about/" data-type="page" data-id="454">About UMFA</a></strong></p>
+
+
+
+<p class="no-decoration has-universcondensed-font-family has-medium-font-size wp-block-paragraph" style="margin-top:0;margin-bottom:0"><strong><a href="https://umfa.utah.edu/news/" data-type="link" data-id="https://umfa.utah.edu/news/">News</a></strong></p>
+</div>
+</div>
+
+
+
+<p class="wp-block-paragraph"></p>
+</div></section>	</div>
+</footer>	</div><!-- #page-wrapper -->
+	<script type="speculationrules">
+{"prefetch":[{"source":"document","where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/wp-*.php","/wp-admin/*","/wp-content/uploads/*","/wp-content/*","/wp-content/plugins/*","/wp-content/themes/umfa-2025/*","/*\\?(.+)"]}},{"not":{"selector_matches":"a[rel~=\"nofollow\"]"}},{"not":{"selector_matches":".no-prefetch, .no-prefetch a"}}]},"eagerness":"conservative"}]}
+</script>
+		<script>
+		( function ( body ) {
+			'use strict';
+			body.className = body.className.replace( /\btribe-no-js\b/, 'tribe-js' );
+		} )( document.body );
+		</script>
+		<script>
+	var relevanssi_rt_regex = /(&|\?)_(rt|rt_nonce)=(\w+)/g
+	var newUrl = window.location.search.replace(relevanssi_rt_regex, '')
+	if (newUrl.substr(0, 1) == '&') {
+		newUrl = '?' + newUrl.substr(1)
+	}
+	history.replaceState(null, null, window.location.pathname + newUrl + window.location.hash)
+</script>
+<script> /* <![CDATA[ */var tribe_l10n_datatables = {"aria":{"sort_ascending":": activate to sort column ascending","sort_descending":": activate to sort column descending"},"length_menu":"Show _MENU_ entries","empty_table":"No data available in table","info":"Showing _START_ to _END_ of _TOTAL_ entries","info_empty":"Showing 0 to 0 of 0 entries","info_filtered":"(filtered from _MAX_ total entries)","zero_records":"No matching records found","search":"Search:","all_selected_text":"All items on this page were selected. ","select_all_link":"Select all pages","clear_selection":"Clear Selection.","pagination":{"all":"All","next":"Next","previous":"Previous"},"select":{"rows":{"0":"","_":": Selected %d rows","1":": Selected 1 row"}},"datepicker":{"dayNames":["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],"dayNamesShort":["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],"dayNamesMin":["S","M","T","W","T","F","S"],"monthNames":["January","February","March","April","May","June","July","August","September","October","November","December"],"monthNamesShort":["January","February","March","April","May","June","July","August","September","October","November","December"],"monthNamesMin":["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],"nextText":"Next","prevText":"Prev","currentText":"Today","closeText":"Done","today":"Today","clear":"Clear"}};/* ]]> */ </script><script id="tec-user-agent-js" src="https://umfa.utah.edu/wp-content/plugins/the-events-calendar/common/build/js/user-agent.js?ver=da75d0bdea6dde3898df"></script>
+<script id="baguettebox-js" src="https://umfa.utah.edu/wp-content/plugins/gallery-block-lightbox/dist/baguetteBox.min.js?ver=1.12.0"></script>
+<script id="baguettebox-js-after">
+window.addEventListener('load', function() {baguetteBox.run('.wp-block-gallery,:not(.wp-block-gallery)>.wp-block-image,.wp-block-media-text__media,.gallery,.wp-block-coblocks-gallery-masonry,.wp-block-coblocks-gallery-stacked,.wp-block-coblocks-gallery-collage,.wp-block-coblocks-gallery-offset,.wp-block-coblocks-gallery-stacked,.mgl-gallery,.gb-block-image',{captions:function(t){var e=t.parentElement.classList.contains("wp-block-image")||t.parentElement.classList.contains("wp-block-media-text__media")?t.parentElement.querySelector("figcaption"):t.parentElement.parentElement.querySelector("figcaption,dd");return!!e&&e.innerHTML},filter:/.+\.(gif|jpe?g|png|webp|svg|avif|heif|heic|tif?f|)($|\?)/i,ignoreClass:'no-lightbox',animation:'slideIn'});});
+//# sourceURL=baguettebox-js-after
+</script>
+<script id="gforms_recaptcha_recaptcha-js-extra">
+var gforms_recaptcha_recaptcha_strings = {"nonce":"5168ba52bd","disconnect":"Disconnecting","change_connection_type":"Resetting","spinner":"https://umfa.utah.edu/wp-content/plugins/gravityforms/images/spinner.svg","connection_type":"classic","disable_badge":"","change_connection_type_title":"Change Connection Type","change_connection_type_message":"Changing the connection type will delete your current settings.  Do you want to proceed?","disconnect_title":"Disconnect","disconnect_message":"Disconnecting from reCAPTCHA will delete your current settings.  Do you want to proceed?","site_key":"6LeUpPwrAAAAAD9X3ghPbyKGow2JDXOsrEVIbNCu"};
+//# sourceURL=gforms_recaptcha_recaptcha-js-extra
+</script>
+<script data-wp-strategy="defer" defer="" id="gforms_recaptcha_recaptcha-js" src="https://www.google.com/recaptcha/api.js?render=6LeUpPwrAAAAAD9X3ghPbyKGow2JDXOsrEVIbNCu&amp;ver=2.2.2"></script>
+<script data-wp-strategy="defer" defer="" id="gforms_recaptcha_frontend-js" src="https://umfa.utah.edu/wp-content/plugins/gravityformsrecaptcha/js/frontend.min.js?ver=2.2.2"></script>
+<script id="googlesitekit-events-provider-content-events-js-before">
+window._googlesitekit = window._googlesitekit || {};
+window._googlesitekit.contentEvents = {"postID":1010,"isSinglePost":true,"hasVimeoEmbed":false};
+//# sourceURL=googlesitekit-events-provider-content-events-js-before
+</script>
+<script id="googlesitekit-events-provider-content-events-js" src="https://umfa.utah.edu/wp-content/plugins/google-site-kit/dist/assets/js/googlesitekit-events-provider-content-events-c7172f3fd0e4d5ad62ef.js" defer=""></script>
+<script id="swiper-js-js" src="https://umfa.utah.edu/wp-content/themes/umfa-2025/assets/js/swiper-bundle.min.js?ver=9f1cba2a535c39"></script>
+<script id="theme-script-js" src="https://umfa.utah.edu/wp-content/themes/umfa-2025/assets/js/main.min.js?ver=9f1cba2a535c39"></script>
+
+
+
+<div><div class="grecaptcha-badge" data-style="bottomright" style="width: 256px; height: 60px; display: block; transition: right 0.3s; position: fixed; bottom: 14px; right: -186px; box-shadow: gray 0px 0px 5px; border-radius: 2px; overflow: hidden;"><div class="grecaptcha-logo"><div title="reCAPTCHA" width="256" height="60" role="presentation" name="a-drj8h3wbbft1" frameborder="0" scrolling="no" sandbox="allow-forms allow-popups allow-same-origin allow-scripts allow-top-navigation allow-modals allow-popups-to-escape-sandbox allow-storage-access-by-user-activation" src="https://www.google.com/recaptcha/api2/anchor?ar=1&amp;k=6LeUpPwrAAAAAD9X3ghPbyKGow2JDXOsrEVIbNCu&amp;co=aHR0cHM6Ly91bWZhLnV0YWguZWR1OjQ0Mw..&amp;hl=en&amp;v=guXhH0v-XMxlzmbTwqkaT4i5&amp;size=invisible&amp;anchor-ms=20000&amp;execute-ms=30000&amp;cb=c1zbi3j4200z" data-original-tag="iframe"><!DOCTYPE html><html dir="ltr" lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3GUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+460-52F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3iUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+301, U+400-45F, U+490-491, U+4B0-4B1, U+2116; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3CUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+1F00-1FFF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3-UBHMdazTgWw.woff2") format("woff2"); unicode-range: U+370-377, U+37A-37F, U+384-38A, U+38C, U+38E-3A1, U+3A3-3FF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMawCUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+302-303, U+305, U+307-308, U+310, U+312, U+315, U+31A, U+326-327, U+32C, U+32F-330, U+332-333, U+338, U+33A, U+346, U+34D, U+391-3A1, U+3A3-3A9, U+3B1-3C9, U+3D1, U+3D5-3D6, U+3F0-3F1, U+3F4-3F5, U+2016-2017, U+2034-2038, U+203C, U+2040, U+2043, U+2047, U+2050, U+2057, U+205F, U+2070-2071, U+2074-208E, U+2090-209C, U+20D0-20DC, U+20E1, U+20E5-20EF, U+2100-2112, U+2114-2115, U+2117-2121, U+2123-214F, U+2190, U+2192, U+2194-21AE, U+21B0-21E5, U+21F1-21F2, U+21F4-2211, U+2213-2214, U+2216-22FF, U+2308-230B, U+2310, U+2319, U+231C-2321, U+2336-237A, U+237C, U+2395, U+239B-23B7, U+23D0, U+23DC-23E1, U+2474-2475, U+25AF, U+25B3, U+25B7, U+25BD, U+25C1, U+25CA, U+25CC, U+25FB, U+266D-266F, U+27C0-27FF, U+2900-2AFF, U+2B0E-2B11, U+2B30-2B4C, U+2BFE, U+3030, U+FF5B, U+FF5D, U+1D400-1D7FF, U+1EE00-1EEFF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMaxKUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+1-C, U+E-1F, U+7F-9F, U+20DD-20E0, U+20E2-20E4, U+2150-218F, U+2190, U+2192, U+2194-2199, U+21AF, U+21E6-21F0, U+21F3, U+2218-2219, U+2299, U+22C4-22C6, U+2300-243F, U+2440-244A, U+2460-24FF, U+25A0-27BF, U+2800-28FF, U+2921-2922, U+2981, U+29BF, U+29EB, U+2B00-2BFF, U+4DC0-4DFF, U+FFF9-FFFB, U+10140-1018E, U+10190-1019C, U+101A0, U+101D0-101FD, U+102E0-102FB, U+10E60-10E7E, U+1D2C0-1D2D3, U+1D2E0-1D37F, U+1F000-1F0FF, U+1F100-1F1AD, U+1F1E6-1F1FF, U+1F30D-1F30F, U+1F315, U+1F31C, U+1F31E, U+1F320-1F32C, U+1F336, U+1F378, U+1F37D, U+1F382, U+1F393-1F39F, U+1F3A7-1F3A8, U+1F3AC-1F3AF, U+1F3C2, U+1F3C4-1F3C6, U+1F3CA-1F3CE, U+1F3D4-1F3E0, U+1F3ED, U+1F3F1-1F3F3, U+1F3F5-1F3F7, U+1F408, U+1F415, U+1F41F, U+1F426, U+1F43F, U+1F441-1F442, U+1F444, U+1F446-1F449, U+1F44C-1F44E, U+1F453, U+1F46A, U+1F47D, U+1F4A3, U+1F4B0, U+1F4B3, U+1F4B9, U+1F4BB, U+1F4BF, U+1F4C8-1F4CB, U+1F4D6, U+1F4DA, U+1F4DF, U+1F4E3-1F4E6, U+1F4EA-1F4ED, U+1F4F7, U+1F4F9-1F4FB, U+1F4FD-1F4FE, U+1F503, U+1F507-1F50B, U+1F50D, U+1F512-1F513, U+1F53E-1F54A, U+1F54F-1F5FA, U+1F610, U+1F650-1F67F, U+1F687, U+1F68D, U+1F691, U+1F694, U+1F698, U+1F6AD, U+1F6B2, U+1F6B9-1F6BA, U+1F6BC, U+1F6C6-1F6CF, U+1F6D3-1F6D7, U+1F6E0-1F6EA, U+1F6F0-1F6F3, U+1F6F7-1F6FC, U+1F700-1F7FF, U+1F800-1F80B, U+1F810-1F847, U+1F850-1F859, U+1F860-1F887, U+1F890-1F8AD, U+1F8B0-1F8BB, U+1F8C0-1F8C1, U+1F900-1F90B, U+1F93B, U+1F946, U+1F984, U+1F996, U+1F9E9, U+1FA00-1FA6F, U+1FA70-1FA7C, U+1FA80-1FA89, U+1FA8F-1FAC6, U+1FACE-1FADC, U+1FADF-1FAE9, U+1FAF0-1FAF8, U+1FB00-1FBFF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3OUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+102-103, U+110-111, U+128-129, U+168-169, U+1A0-1A1, U+1AF-1B0, U+300-301, U+303-304, U+308-309, U+323, U+329, U+1EA0-1EF9, U+20AB; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3KUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+100-2BA, U+2BD-2C5, U+2C7-2CC, U+2CE-2D7, U+2DD-2FF, U+304, U+308, U+329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 400; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3yUBHMdazQ.woff2") format("woff2"); unicode-range: U+0-FF, U+131, U+152-153, U+2BB-2BC, U+2C6, U+2DA, U+2DC, U+304, U+308, U+329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 500; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3GUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+460-52F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 500; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3iUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+301, U+400-45F, U+490-491, U+4B0-4B1, U+2116; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 500; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3CUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+1F00-1FFF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 500; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3-UBHMdazTgWw.woff2") format("woff2"); unicode-range: U+370-377, U+37A-37F, U+384-38A, U+38C, U+38E-3A1, U+3A3-3FF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 500; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMawCUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+302-303, U+305, U+307-308, U+310, U+312, U+315, U+31A, U+326-327, U+32C, U+32F-330, U+332-333, U+338, U+33A, U+346, U+34D, U+391-3A1, U+3A3-3A9, U+3B1-3C9, U+3D1, U+3D5-3D6, U+3F0-3F1, U+3F4-3F5, U+2016-2017, U+2034-2038, U+203C, U+2040, U+2043, U+2047, U+2050, U+2057, U+205F, U+2070-2071, U+2074-208E, U+2090-209C, U+20D0-20DC, U+20E1, U+20E5-20EF, U+2100-2112, U+2114-2115, U+2117-2121, U+2123-214F, U+2190, U+2192, U+2194-21AE, U+21B0-21E5, U+21F1-21F2, U+21F4-2211, U+2213-2214, U+2216-22FF, U+2308-230B, U+2310, U+2319, U+231C-2321, U+2336-237A, U+237C, U+2395, U+239B-23B7, U+23D0, U+23DC-23E1, U+2474-2475, U+25AF, U+25B3, U+25B7, U+25BD, U+25C1, U+25CA, U+25CC, U+25FB, U+266D-266F, U+27C0-27FF, U+2900-2AFF, U+2B0E-2B11, U+2B30-2B4C, U+2BFE, U+3030, U+FF5B, U+FF5D, U+1D400-1D7FF, U+1EE00-1EEFF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 500; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMaxKUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+1-C, U+E-1F, U+7F-9F, U+20DD-20E0, U+20E2-20E4, U+2150-218F, U+2190, U+2192, U+2194-2199, U+21AF, U+21E6-21F0, U+21F3, U+2218-2219, U+2299, U+22C4-22C6, U+2300-243F, U+2440-244A, U+2460-24FF, U+25A0-27BF, U+2800-28FF, U+2921-2922, U+2981, U+29BF, U+29EB, U+2B00-2BFF, U+4DC0-4DFF, U+FFF9-FFFB, U+10140-1018E, U+10190-1019C, U+101A0, U+101D0-101FD, U+102E0-102FB, U+10E60-10E7E, U+1D2C0-1D2D3, U+1D2E0-1D37F, U+1F000-1F0FF, U+1F100-1F1AD, U+1F1E6-1F1FF, U+1F30D-1F30F, U+1F315, U+1F31C, U+1F31E, U+1F320-1F32C, U+1F336, U+1F378, U+1F37D, U+1F382, U+1F393-1F39F, U+1F3A7-1F3A8, U+1F3AC-1F3AF, U+1F3C2, U+1F3C4-1F3C6, U+1F3CA-1F3CE, U+1F3D4-1F3E0, U+1F3ED, U+1F3F1-1F3F3, U+1F3F5-1F3F7, U+1F408, U+1F415, U+1F41F, U+1F426, U+1F43F, U+1F441-1F442, U+1F444, U+1F446-1F449, U+1F44C-1F44E, U+1F453, U+1F46A, U+1F47D, U+1F4A3, U+1F4B0, U+1F4B3, U+1F4B9, U+1F4BB, U+1F4BF, U+1F4C8-1F4CB, U+1F4D6, U+1F4DA, U+1F4DF, U+1F4E3-1F4E6, U+1F4EA-1F4ED, U+1F4F7, U+1F4F9-1F4FB, U+1F4FD-1F4FE, U+1F503, U+1F507-1F50B, U+1F50D, U+1F512-1F513, U+1F53E-1F54A, U+1F54F-1F5FA, U+1F610, U+1F650-1F67F, U+1F687, U+1F68D, U+1F691, U+1F694, U+1F698, U+1F6AD, U+1F6B2, U+1F6B9-1F6BA, U+1F6BC, U+1F6C6-1F6CF, U+1F6D3-1F6D7, U+1F6E0-1F6EA, U+1F6F0-1F6F3, U+1F6F7-1F6FC, U+1F700-1F7FF, U+1F800-1F80B, U+1F810-1F847, U+1F850-1F859, U+1F860-1F887, U+1F890-1F8AD, U+1F8B0-1F8BB, U+1F8C0-1F8C1, U+1F900-1F90B, U+1F93B, U+1F946, U+1F984, U+1F996, U+1F9E9, U+1FA00-1FA6F, U+1FA70-1FA7C, U+1FA80-1FA89, U+1FA8F-1FAC6, U+1FACE-1FADC, U+1FADF-1FAE9, U+1FAF0-1FAF8, U+1FB00-1FBFF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 500; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3OUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+102-103, U+110-111, U+128-129, U+168-169, U+1A0-1A1, U+1AF-1B0, U+300-301, U+303-304, U+308-309, U+323, U+329, U+1EA0-1EF9, U+20AB; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 500; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3KUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+100-2BA, U+2BD-2C5, U+2C7-2CC, U+2CE-2D7, U+2DD-2FF, U+304, U+308, U+329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 500; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3yUBHMdazQ.woff2") format("woff2"); unicode-range: U+0-FF, U+131, U+152-153, U+2BB-2BC, U+2C6, U+2DA, U+2DC, U+304, U+308, U+329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 900; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3GUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+460-52F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 900; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3iUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+301, U+400-45F, U+490-491, U+4B0-4B1, U+2116; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 900; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3CUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+1F00-1FFF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 900; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3-UBHMdazTgWw.woff2") format("woff2"); unicode-range: U+370-377, U+37A-37F, U+384-38A, U+38C, U+38E-3A1, U+3A3-3FF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 900; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMawCUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+302-303, U+305, U+307-308, U+310, U+312, U+315, U+31A, U+326-327, U+32C, U+32F-330, U+332-333, U+338, U+33A, U+346, U+34D, U+391-3A1, U+3A3-3A9, U+3B1-3C9, U+3D1, U+3D5-3D6, U+3F0-3F1, U+3F4-3F5, U+2016-2017, U+2034-2038, U+203C, U+2040, U+2043, U+2047, U+2050, U+2057, U+205F, U+2070-2071, U+2074-208E, U+2090-209C, U+20D0-20DC, U+20E1, U+20E5-20EF, U+2100-2112, U+2114-2115, U+2117-2121, U+2123-214F, U+2190, U+2192, U+2194-21AE, U+21B0-21E5, U+21F1-21F2, U+21F4-2211, U+2213-2214, U+2216-22FF, U+2308-230B, U+2310, U+2319, U+231C-2321, U+2336-237A, U+237C, U+2395, U+239B-23B7, U+23D0, U+23DC-23E1, U+2474-2475, U+25AF, U+25B3, U+25B7, U+25BD, U+25C1, U+25CA, U+25CC, U+25FB, U+266D-266F, U+27C0-27FF, U+2900-2AFF, U+2B0E-2B11, U+2B30-2B4C, U+2BFE, U+3030, U+FF5B, U+FF5D, U+1D400-1D7FF, U+1EE00-1EEFF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 900; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMaxKUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+1-C, U+E-1F, U+7F-9F, U+20DD-20E0, U+20E2-20E4, U+2150-218F, U+2190, U+2192, U+2194-2199, U+21AF, U+21E6-21F0, U+21F3, U+2218-2219, U+2299, U+22C4-22C6, U+2300-243F, U+2440-244A, U+2460-24FF, U+25A0-27BF, U+2800-28FF, U+2921-2922, U+2981, U+29BF, U+29EB, U+2B00-2BFF, U+4DC0-4DFF, U+FFF9-FFFB, U+10140-1018E, U+10190-1019C, U+101A0, U+101D0-101FD, U+102E0-102FB, U+10E60-10E7E, U+1D2C0-1D2D3, U+1D2E0-1D37F, U+1F000-1F0FF, U+1F100-1F1AD, U+1F1E6-1F1FF, U+1F30D-1F30F, U+1F315, U+1F31C, U+1F31E, U+1F320-1F32C, U+1F336, U+1F378, U+1F37D, U+1F382, U+1F393-1F39F, U+1F3A7-1F3A8, U+1F3AC-1F3AF, U+1F3C2, U+1F3C4-1F3C6, U+1F3CA-1F3CE, U+1F3D4-1F3E0, U+1F3ED, U+1F3F1-1F3F3, U+1F3F5-1F3F7, U+1F408, U+1F415, U+1F41F, U+1F426, U+1F43F, U+1F441-1F442, U+1F444, U+1F446-1F449, U+1F44C-1F44E, U+1F453, U+1F46A, U+1F47D, U+1F4A3, U+1F4B0, U+1F4B3, U+1F4B9, U+1F4BB, U+1F4BF, U+1F4C8-1F4CB, U+1F4D6, U+1F4DA, U+1F4DF, U+1F4E3-1F4E6, U+1F4EA-1F4ED, U+1F4F7, U+1F4F9-1F4FB, U+1F4FD-1F4FE, U+1F503, U+1F507-1F50B, U+1F50D, U+1F512-1F513, U+1F53E-1F54A, U+1F54F-1F5FA, U+1F610, U+1F650-1F67F, U+1F687, U+1F68D, U+1F691, U+1F694, U+1F698, U+1F6AD, U+1F6B2, U+1F6B9-1F6BA, U+1F6BC, U+1F6C6-1F6CF, U+1F6D3-1F6D7, U+1F6E0-1F6EA, U+1F6F0-1F6F3, U+1F6F7-1F6FC, U+1F700-1F7FF, U+1F800-1F80B, U+1F810-1F847, U+1F850-1F859, U+1F860-1F887, U+1F890-1F8AD, U+1F8B0-1F8BB, U+1F8C0-1F8C1, U+1F900-1F90B, U+1F93B, U+1F946, U+1F984, U+1F996, U+1F9E9, U+1FA00-1FA6F, U+1FA70-1FA7C, U+1FA80-1FA89, U+1FA8F-1FAC6, U+1FACE-1FADC, U+1FADF-1FAE9, U+1FAF0-1FAF8, U+1FB00-1FBFF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 900; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3OUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+102-103, U+110-111, U+128-129, U+168-169, U+1A0-1A1, U+1AF-1B0, U+300-301, U+303-304, U+308-309, U+323, U+329, U+1EA0-1EF9, U+20AB; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 900; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3KUBHMdazTgWw.woff2") format("woff2"); unicode-range: U+100-2BA, U+2BD-2C5, U+2C7-2CC, U+2CE-2D7, U+2DD-2FF, U+304, U+308, U+329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+
+@font-face { font-family: Roboto; font-style: normal; font-weight: 900; font-stretch: 100%; src: url("//fonts.gstatic.com/s/roboto/v48/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3yUBHMdazQ.woff2") format("woff2"); unicode-range: U+0-FF, U+131, U+152-153, U+2BB-2BC, U+2C6, U+2DA, U+2DC, U+304, U+308, U+329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }</style>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>reCAPTCHA</title>
+
+<link rel="stylesheet" type="text/css" href="https://www.gstatic.com/recaptcha/releases/guXhH0v-XMxlzmbTwqkaT4i5/styles__ltr.css">
+<script nonce="" type="text/javascript">window['__recaptcha_api'] = 'https://www.google.com/recaptcha/api2/';</script>
+<script type="text/javascript" src="https://www.gstatic.com/recaptcha/releases/guXhH0v-XMxlzmbTwqkaT4i5/recaptcha__en.js" nonce="">
+      
+    </script></head>
+<body><div id="rc-anchor-alert" class="rc-anchor-alert"></div>
+
+<script type="text/javascript" nonce="">
+      recaptcha.anchor.Main.init("[\x22ainput\x22,[\x22bgdata\x22,null,null,null,\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\\u003d\x22],null,[\x22conf\x22,null,\x226LeUpPwrAAAAAD9X3ghPbyKGow2JDXOsrEVIbNCu\x22,0,null,null,null,1,[21,125,63,73,95,87,41,43,42,83,102,105,109,121],[3420763,578],0,null,null,null,null,0,null,0,null,700,1,null,0,\x22CvQCEg8I8ajhFRgAOgZUOU5CNWISDwjmjuIVGAA6BlFCb29IYxIPCMfm1DgYAToGZHhkTmlkEg8Is4qgOBgBOgZMV0o1a2ISDwiB7OgVGAE6Bkh1dlBqZhIPCK6e6zcYADoGR2JpT1FkEg8I94jmNxgAOgZvaWxlRGQSDwjwzeMVGAE6BmZJVkloYhIPCOLKoDcYAToGZ0xOQ0hjEg8I3r+3NxgBOgZlYXp1NmQSDwi3+904GAE6BmpHVHlSYxIOCLjllDIYAToFUUJPRDASDwio7784GAA6BkdGVU5jZhIPCLWzqzgYAToGb3JZVjZkEg8I0tuVNxgAOgZmZmFXQWUSDwiV2JQyGAE6BlBxNjBuZBIPCKuRyjgYADoGQVo0TmJiEg8IxfOINxgAOgZhWG9pYWMSDwiNyoYyGAE6Bk93TjR0ZhIOCIr9iDcYADoFTWZJSTQaIAgDEhwdHf3NgTUZp4oJGa7gpQIZzJVAGZi5TBmI7RQZ\x22,0,0,null,null,1,null,null,0,null,null,0,1,\x22214279b055f166a080b0c6b3c8893b6b6e01a06386633c36b7343f4cf3ee3e4b\x22],\x22https://umfa.utah.edu:443\x22,null,[3,1,1],null,null,null,1,3600,[\x22https://www.google.com/intl/en/policies/privacy/\x22,\x22https://www.google.com/intl/en/policies/terms/\x22],\x224Qbbo08SKFNn9pzTgT+k7iatojrAFDgmOIRNxyr8R/k\\u003d\x22,1,0,null,1,1791081105580,0,0,[231,80,121],null,[192,190,55,85,183],\x22RC-lLZkfWCBmT4QUA\x22,null,null,null,null,null,\x220dAFcWeA4c6wkkK8GUhMWVa8B5zUYqTi4GuRxupxZveOYhzMM6ad1EQM8zp4-2kcF1P_Lx3aecPrx3pSQOEGrTHDrcCOEW6p5bGg\x22,1791163905235]");
+    </script><div class="rc-anchor rc-anchor-invisible rc-anchor-light  rc-anchor-invisible-hover"><div id="recaptcha-accessible-status" class="rc-anchor-aria-status" aria-hidden="true">Recaptcha requires verification. </div><div class="rc-anchor-error-msg-container" style="display:none"><span class="rc-anchor-error-msg" aria-hidden="true"></span></div><div class="rc-anchor-normal-footer"><div class="rc-anchor-logo-large" role="presentation"><div class="rc-anchor-logo-img rc-anchor-logo-img-large"></div></div><div class="rc-anchor-pt"></div></div><div class="rc-anchor-invisible-text"><span>protected by <strong>reCAPTCHA</strong></span><div class="rc-anchor-pt"></div></div></div><div style="display: none;" data-original-tag="iframe"></div></body></html></div></div><div class="grecaptcha-error"></div><textarea id="g-recaptcha-response-100000" name="g-recaptcha-response" class="g-recaptcha-response" style="width: 250px; height: 40px; border: 1px solid rgb(193, 193, 193); margin: 10px 25px; padding: 0px; resize: none; display: none;"></textarea></div><div style="display: none;" data-original-tag="iframe"></div></div><div role="dialog" id="baguetteBox-overlay"><div id="baguetteBox-slider"></div><button type="button" id="previous-button" aria-label="Previous" class="baguetteBox-button"><svg width="44" height="60"><polyline points="30 10 10 30 30 50" stroke="rgba(255,255,255,0.5)" stroke-width="4" stroke-linecap="butt" fill="none" stroke-linejoin="round"></polyline></svg></button><button type="button" id="next-button" aria-label="Next" class="baguetteBox-button"><svg width="44" height="60"><polyline points="14 10 34 30 14 50" stroke="rgba(255,255,255,0.5)" stroke-width="4" stroke-linecap="butt" fill="none" stroke-linejoin="round"></polyline></svg></button><button type="button" id="close-button" aria-label="Close" class="baguetteBox-button"><svg width="30" height="30"><g stroke="rgb(160,160,160)" stroke-width="4"><line x1="5" y1="5" x2="25" y2="25"></line><line x1="5" y1="25" x2="25" y2="5"></line></g></svg></button></div></body></html>

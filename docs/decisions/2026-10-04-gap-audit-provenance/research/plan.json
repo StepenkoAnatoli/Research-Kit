@@ -1,0 +1,69 @@
+{
+  "topic": "How provenance, attestation and integrity standards record and verify evidence, as a benchmark for Research-Kit's hash-chained ledger",
+  "notes": "Owner pages per unknown, no queries: every owner URL is known (W3C TR for PROV-DM, the in-toto attestation repository for the Statement, the DSSE envelope and the spec README, docs.sigstore.dev for Rekor, rfc-editor.org for RFCs 3161, 6962 and 8785, slsa.dev for the provenance predicate). Budget: 14 scrapes and 3 searches on the metered transport; phase 0 (decompose, 2026-10-04) spent 3 searches and 3 scrapes on secondary context, so this plan holds 10 pages and leaves one scrape spare. Depth deep so maxScrapes is the cap. No --fallback. Run 1 (2026-10-04): 9 collected, 1 failed - https://docs.sigstore.dev/logging/sign-verify/ answered HTTP 404 and was dropped from the plan; the Rekor overview names the inclusion proof and the append-only property but not the signed entry timestamp. Run 2: Rekor's openapi.yaml, the spare scrape. 13 of 14 scrapes and 3 of 3 searches spent in all (3 scrapes and 3 searches by phase 0).",
+  "depth": "deep",
+  "refreshDays": 30,
+  "limit": 5,
+  "perQuery": 1,
+  "maxScrapes": 11,
+  "prefer": [
+    "w3.org",
+    "github.com",
+    "docs.sigstore.dev",
+    "rfc-editor.org",
+    "slsa.dev"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://www.w3.org/TR/prov-dm/",
+      "type": "P",
+      "why": "U-1: W3C PROV-DM, the provenance data model - Entity, Activity, Agent, wasGeneratedBy, wasDerivedFrom, generation time"
+    },
+    {
+      "url": "https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md",
+      "type": "P",
+      "why": "U-2: the in-toto Statement - _type, subject digests, predicateType, predicate"
+    },
+    {
+      "url": "https://github.com/in-toto/attestation/blob/main/spec/v1/envelope.md",
+      "type": "P",
+      "why": "U-2: the in-toto Envelope - the DSSE signing envelope, payloadType and signatures"
+    },
+    {
+      "url": "https://github.com/in-toto/attestation/blob/main/spec/README.md",
+      "type": "P",
+      "why": "U-2: the attestation framework overview - the layers (Envelope, Statement, Predicate, Bundle) and what each binds"
+    },
+    {
+      "url": "https://docs.sigstore.dev/logging/overview/",
+      "type": "P",
+      "why": "U-3: Rekor overview - the transparency log, the signed entry timestamp and the inclusion proof"
+    },
+    {
+      "url": "https://www.rfc-editor.org/rfc/rfc3161",
+      "type": "P",
+      "why": "U-4: RFC 3161 Time-Stamp Protocol - what a time-stamp token proves about when a datum's hash existed"
+    },
+    {
+      "url": "https://www.rfc-editor.org/rfc/rfc6962",
+      "type": "P",
+      "why": "U-5: RFC 6962 Certificate Transparency - the Merkle tree hash, the audit path and the consistency proof"
+    },
+    {
+      "url": "https://www.rfc-editor.org/rfc/rfc8785",
+      "type": "P",
+      "why": "U-6: RFC 8785 JSON Canonicalization Scheme - number serialization, string escaping, property sorting, Unicode"
+    },
+    {
+      "url": "https://slsa.dev/spec/v1.0/provenance",
+      "type": "P",
+      "why": "U-7: SLSA provenance predicate v1.0 - buildDefinition, runDetails, builder, resolvedDependencies"
+    },
+    {
+      "url": "https://github.com/sigstore/rekor/blob/main/openapi.yaml",
+      "type": "P",
+      "why": "U-3: Rekor's OpenAPI definition - the owner of inclusionProof (logIndex, rootHash, treeSize, hashes, checkpoint) and signedEntryTimestamp (signature over logID, logIndex, body and integratedTime); collected in a second run because /logging/sign-verify/ answered HTTP 404"
+    }
+  ]
+}

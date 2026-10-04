@@ -358,6 +358,12 @@ export const SECRET_PATTERNS = Object.freeze([
 ]);
 
 const SECRET_SKIP_DIRS = new Set(['node_modules', '.git', 'research/raw']);
+// A capture is page content, not a committed credential: the root's `research/raw` has
+// always been outside the scan, and a nested decision project (ADR-0030) has the same
+// folder at depth. Until 2026-10-04 only the ROOT's was skipped - the set matched the
+// relative path - so CI scanned the second gap audit's corpora and a Google page's source
+// sibling (ADR-0140) tripped `google-api-key` on Google's own public keys.
+const isRawFolder = (rel) => rel === 'research/raw' || rel.endsWith('/research/raw');
 const SECRET_MAX_BYTES = 512 * 1024;
 
 export function scanForSecrets(root, { maxFiles = 2000 } = {}) {
@@ -384,7 +390,7 @@ export function scanForSecrets(root, { maxFiles = 2000 } = {}) {
     try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
     for (const name of entries) {
       const childRel = rel ? `${rel}/${name.name}` : name.name;
-      if (SECRET_SKIP_DIRS.has(name.name) || SECRET_SKIP_DIRS.has(childRel)) continue;
+      if (SECRET_SKIP_DIRS.has(name.name) || SECRET_SKIP_DIRS.has(childRel) || (name.isDirectory() && isRawFolder(childRel))) continue;
       const abs = path.join(dir, name.name);
       if (name.isDirectory()) {
         if (temp !== null) {
@@ -416,7 +422,7 @@ export function scanForSecrets(root, { maxFiles = 2000 } = {}) {
     scanned,
     skippedLarge,
     skippedBinary,
-    coverage: `${SECRET_PATTERNS.length} credential patterns over ${scanned} text file(s) under ${maxFiles / 1000}k, dotfiles included, ${skippedBinary} binary file(s) skipped, excluding ${[...SECRET_SKIP_DIRS].join(', ')}`,
+    coverage: `${SECRET_PATTERNS.length} credential patterns over ${scanned} text file(s) under ${maxFiles / 1000}k, dotfiles included, ${skippedBinary} binary file(s) skipped, excluding ${[...SECRET_SKIP_DIRS].join(', ')} (at any depth)`,
   };
 }
 

@@ -5,6 +5,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- `doctor`'s committed-key scan skips `research/raw` at any depth, not only the root's: a nested
+  decision project's captures are page content like the root's, and CI had scanned the second gap
+  audit's corpora and reported a Google page's source sibling (ADR-0140), which carries Google's own
+  public Maps keys, as a committed `google-api-key` (found 2026-10-04 by the archive-tree leg).
 - The text a capture was converted from is kept beside it as `<capture>.source.html`:
   Firecrawl's `rawHtml` (asked for beside the Markdown, at no extra credit), the keyless
   transport's decoded HTML, the browser's rendered DOM. The ledger entry names and hashes it

@@ -1,0 +1,824 @@
+<!DOCTYPE html><html lang="en" data-content_root="./" data-readthedocs-tool="sphinx" data-readthedocs-tool-theme="alabaster"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+:root, :host { --fa-font-solid: normal 900 1em/1 'Font Awesome 7 Free'; --fa-font-regular: normal 400 1em/1 'Font Awesome 7 Free'; --fa-font-light: normal 300 1em/1 'Font Awesome 7 Pro'; --fa-font-thin: normal 100 1em/1 'Font Awesome 7 Pro'; --fa-font-duotone: normal 900 1em/1 'Font Awesome 7 Duotone'; --fa-font-duotone-regular: normal 400 1em/1 'Font Awesome 7 Duotone'; --fa-font-duotone-light: normal 300 1em/1 'Font Awesome 7 Duotone'; --fa-font-duotone-thin: normal 100 1em/1 'Font Awesome 7 Duotone'; --fa-font-brands: normal 400 1em/1 'Font Awesome 7 Brands'; --fa-font-sharp-solid: normal 900 1em/1 'Font Awesome 7 Sharp'; --fa-font-sharp-regular: normal 400 1em/1 'Font Awesome 7 Sharp'; --fa-font-sharp-light: normal 300 1em/1 'Font Awesome 7 Sharp'; --fa-font-sharp-thin: normal 100 1em/1 'Font Awesome 7 Sharp'; --fa-font-sharp-duotone-solid: normal 900 1em/1 'Font Awesome 7 Sharp Duotone'; --fa-font-sharp-duotone-regular: normal 400 1em/1 'Font Awesome 7 Sharp Duotone'; --fa-font-sharp-duotone-light: normal 300 1em/1 'Font Awesome 7 Sharp Duotone'; --fa-font-sharp-duotone-thin: normal 100 1em/1 'Font Awesome 7 Sharp Duotone'; --fa-font-slab-regular: normal 400 1em/1 'Font Awesome 7 Slab'; --fa-font-slab-press-regular: normal 400 1em/1 'Font Awesome 7 Slab Press'; --fa-font-slab-duo-regular: normal 400 1em/1 'Font Awesome 7 Slab Duo'; --fa-font-slab-press-duo-regular: normal 400 1em/1 'Font Awesome 7 Slab Press Duo'; --fa-font-pixel-regular: normal 400 1em/1 'Font Awesome 7 Pixel'; --fa-font-mosaic-solid: normal 900 1em/1 'Font Awesome 7 Mosaic'; --fa-font-vellum-solid: normal 900 1em/1 'Font Awesome 7 Vellum'; --fa-font-whiteboard-semibold: normal 600 1em/1 'Font Awesome 7 Whiteboard'; --fa-font-thumbprint-light: normal 300 1em/1 'Font Awesome 7 Thumbprint'; --fa-font-notdog-solid: normal 900 1em/1 'Font Awesome 7 Notdog'; --fa-font-notdog-duo-solid: normal 900 1em/1 'Font Awesome 7 Notdog Duo'; --fa-font-etch-solid: normal 900 1em/1 'Font Awesome 7 Etch'; --fa-font-graphite-thin: normal 100 1em/1 'Font Awesome 7 Graphite'; --fa-font-jelly-regular: normal 400 1em/1 'Font Awesome 7 Jelly'; --fa-font-jelly-fill-regular: normal 400 1em/1 'Font Awesome 7 Jelly Fill'; --fa-font-jelly-duo-regular: normal 400 1em/1 'Font Awesome 7 Jelly Duo'; --fa-font-chisel-regular: normal 400 1em/1 'Font Awesome 7 Chisel'; --fa-font-utility-semibold: normal 600 1em/1 'Font Awesome 7 Utility'; --fa-font-utility-duo-semibold: normal 600 1em/1 'Font Awesome 7 Utility Duo'; --fa-font-utility-fill-semibold: normal 600 1em/1 'Font Awesome 7 Utility Fill'; }
+
+.svg-inline--fa { box-sizing: content-box; display: var(--fa-display, inline-block); height: 1em; overflow: visible; vertical-align: -0.125em; width: var(--fa-width, 1.25em); }
+
+.svg-inline--fa.fa-2xs { vertical-align: 0.1em; }
+
+.svg-inline--fa.fa-xs { vertical-align: 0em; }
+
+.svg-inline--fa.fa-sm { vertical-align: -0.0714286em; }
+
+.svg-inline--fa.fa-lg { vertical-align: -0.2em; }
+
+.svg-inline--fa.fa-xl { vertical-align: -0.25em; }
+
+.svg-inline--fa.fa-2xl { vertical-align: -0.3125em; }
+
+.svg-inline--fa.fa-pull-left, .svg-inline--fa .fa-pull-start { float: inline-start; margin-inline-end: var(--fa-pull-margin, 0.3em); }
+
+.svg-inline--fa.fa-pull-right, .svg-inline--fa .fa-pull-end { float: inline-end; margin-inline-start: var(--fa-pull-margin, 0.3em); }
+
+.svg-inline--fa.fa-li { width: var(--fa-li-width, 2em); inset-inline-start: calc(-1 * var(--fa-li-width, 2em)); inset-block-start: 0.25em; }
+
+.fa-layers-counter, .fa-layers-text { display: inline-block; position: absolute; text-align: center; }
+
+.fa-layers { display: inline-block; height: 1em; position: relative; text-align: center; vertical-align: -0.125em; width: var(--fa-width, 1.25em); }
+
+.fa-layers .svg-inline--fa { inset: 0px; margin: auto; position: absolute; transform-origin: center center; }
+
+.fa-layers-text { left: 50%; top: 50%; transform: translate(-50%, -50%); transform-origin: center center; }
+
+.fa-layers-counter { background-color: var(--fa-counter-background-color, #ff253a); border-radius: var(--fa-counter-border-radius, 1em); box-sizing: border-box; color: var(--fa-inverse, #fff); line-height: var(--fa-counter-line-height, 1); max-width: var(--fa-counter-max-width, 5em); min-width: var(--fa-counter-min-width, 1.5em); overflow: hidden; padding: var(--fa-counter-padding, 0.25em 0.5em); right: var(--fa-right, 0); text-overflow: ellipsis; top: var(--fa-top, 0); transform: scale(var(--fa-counter-scale, 0.25)); transform-origin: right top; }
+
+.fa-layers-bottom-right { bottom: var(--fa-bottom, 0); right: var(--fa-right, 0); top: auto; transform: scale(var(--fa-layers-scale, 0.25)); transform-origin: right bottom; }
+
+.fa-layers-bottom-left { bottom: var(--fa-bottom, 0); left: var(--fa-left, 0); right: auto; top: auto; transform: scale(var(--fa-layers-scale, 0.25)); transform-origin: left bottom; }
+
+.fa-layers-top-right { top: var(--fa-top, 0); right: var(--fa-right, 0); transform: scale(var(--fa-layers-scale, 0.25)); transform-origin: right top; }
+
+.fa-layers-top-left { left: var(--fa-left, 0); right: auto; top: var(--fa-top, 0); transform: scale(var(--fa-layers-scale, 0.25)); transform-origin: left top; }
+
+.fa-1x { font-size: 1em; }
+
+.fa-2x { font-size: 2em; }
+
+.fa-3x { font-size: 3em; }
+
+.fa-4x { font-size: 4em; }
+
+.fa-5x { font-size: 5em; }
+
+.fa-6x { font-size: 6em; }
+
+.fa-7x { font-size: 7em; }
+
+.fa-8x { font-size: 8em; }
+
+.fa-9x { font-size: 9em; }
+
+.fa-10x { font-size: 10em; }
+
+.fa-2xs { font-size: calc(0.625em); line-height: calc(0.1em); vertical-align: calc(0.225em); }
+
+.fa-xs { font-size: calc(0.75em); line-height: calc(0.0833333em); vertical-align: calc(0.125em); }
+
+.fa-sm { font-size: calc(0.875em); line-height: calc(0.0714286em); vertical-align: calc(0.0535714em); }
+
+.fa-lg { font-size: calc(1.25em); line-height: calc(0.05em); vertical-align: calc(-0.075em); }
+
+.fa-xl { font-size: calc(1.5em); line-height: calc(0.0416667em); vertical-align: calc(-0.125em); }
+
+.fa-2xl { font-size: calc(2em); line-height: calc(0.03125em); vertical-align: calc(-0.1875em); }
+
+.fa-width-auto { --fa-width: auto; }
+
+.fa-fw, .fa-width-fixed { --fa-width: 1.25em; }
+
+.fa-canvas-square { padding-block: 0.125em; margin-block-end: -0.125em; }
+
+.fa-canvas-roomy { padding-block: 0.25em; padding-inline: 0.125em; margin-block-end: -0.25em; box-sizing: content-box; }
+
+.fa-ul { list-style-type: none; margin-inline-start: var(--fa-li-margin, 2.5em); padding-inline-start: 0px; }
+
+.fa-ul > li { position: relative; }
+
+.fa-li { inset-inline-start: calc(-1 * var(--fa-li-width, 2em)); position: absolute; text-align: center; width: var(--fa-li-width, 2em); line-height: inherit; }
+
+.fa-border { border-color: var(--fa-border-color, #eee); border-radius: var(--fa-border-radius, 0.1em); border-style: var(--fa-border-style, solid); border-width: var(--fa-border-width, 0.0625em); box-sizing: var(--fa-border-box-sizing, content-box); padding: var(--fa-border-padding, 0.1875em 0.25em); }
+
+.fa-pull-left, .fa-pull-start { float: inline-start; margin-inline-end: var(--fa-pull-margin, 0.3em); }
+
+.fa-pull-right, .fa-pull-end { float: inline-end; margin-inline-start: var(--fa-pull-margin, 0.3em); }
+
+.fa-beat { animation-name: fa-beat; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); }
+
+.fa-bounce { animation-name: fa-bounce; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, cubic-bezier(0.28, 0.84, 0.42, 1)); }
+
+.fa-fade { animation-name: fa-fade; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); }
+
+.fa-beat-fade { animation-name: fa-beat-fade; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); }
+
+.fa-flip { animation-name: fa-flip; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1.5s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); }
+
+.fa-flip-360 { animation-name: fa-flip-360; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); }
+
+.fa-shake { animation-name: fa-shake; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 0.75s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); }
+
+.fa-spin { animation-name: fa-spin; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 2s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, linear); }
+
+.fa-spin-reverse { --fa-animation-direction: reverse; }
+
+.fa-pulse, .fa-spin-pulse { animation-name: fa-spin; animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, steps(8)); }
+
+.fa-spin-snap { animation-name: fa-spin-snap; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 3s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, linear); }
+
+.fa-spin-snap-4 { animation-name: fa-spin-snap-4; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 2.4s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, linear); }
+
+.fa-spin-snap-8 { animation-name: fa-spin-snap-8; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 4s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, linear); }
+
+.fa-buzz { animation-name: fa-buzz; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 0.6s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, linear); }
+
+.fa-wag { animation-name: fa-wag; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 0.9s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-out); transform-origin: center bottom; }
+
+.fa-float { animation-name: fa-float; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 3s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); will-change: transform; }
+
+.fa-swing { animation-name: fa-swing; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1.2s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-out); transform-origin: center top; }
+
+.fa-jello { animation-name: fa-jello; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 0.9s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-out); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fa-beat, .fa-bounce, .fa-fade, .fa-beat-fade, .fa-flip, .fa-flip-360, .fa-pulse, .fa-shake, .fa-spin, .fa-spin-pulse, .fa-buzz, .fa-float, .fa-jello, .fa-spin-snap, .fa-spin-snap-4, .fa-spin-snap-8, .fa-swing, .fa-wag { animation: auto ease 0s 1 normal none running none !important; transition: none !important; }
+}
+
+@keyframes fa-beat { 
+  0% { transform: scale(1); }
+  25% { transform: scale(calc(1.25 * var(--fa-beat-scale, 1.25))); }
+  45% { transform: scale(calc(1.22 * var(--fa-beat-scale, 1.22))); }
+  65% { transform: scale(calc(1.25 * var(--fa-beat-scale, 1.25))); }
+  90% { transform: scale(1); }
+}
+
+@keyframes fa-bounce { 
+  0% { transform: scale(1, 1) translateY(0px); animation-timing-function: var(--fa-animation-timing); }
+  14% { transform: scale(var(--fa-bounce-start-scale-x, 1.06), var(--fa-bounce-start-scale-y, 0.94)) translateY(var(--fa-bounce-anticipation, 3px)); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33); }
+  32% { transform: scale(var(--fa-bounce-jump-scale-x, 0.94), var(--fa-bounce-jump-scale-y, 1.12)) translateY(calc(-1 * var(--fa-bounce-height, 0.5em))); animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1); }
+  52% { transform: scale(1, 1) translateY(calc(-1 * var(--fa-bounce-height, 0.5em) * 1.1)); animation-timing-function: cubic-bezier(0.5, 0, 1, 0.5); }
+  70% { transform: scale(var(--fa-bounce-land-scale-x, 1.06), var(--fa-bounce-land-scale-y, 0.92)) translateY(0); animation-timing-function: cubic-bezier(0.33, 0.33, 0.66, 1); }
+  85% { transform: scale(0.98, 1.04) translateY(calc(-2px * var(--fa-bounce-rebound, 1))); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 1); }
+  100% { transform: scale(1, 1) translateY(0px); }
+}
+
+@keyframes fa-fade { 
+  0% { opacity: 1; transform: scale(1); animation-timing-function: cubic-bezier(0.2, 0, 0.4, 1); }
+  40% { opacity: var(--fa-fade-opacity, 0.4); transform: scale(0.98); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fa-beat-fade { 
+  0% { opacity: var(--fa-beat-fade-opacity, 0.4); transform: scale(1); animation-timing-function: cubic-bezier(0.2, 0, 0.4, 1); }
+  25% { opacity: calc(var(--fa-beat-fade-opacity, 0.4) + 0.4); transform: scale(var(--fa-beat-fade-scale, 1.28)); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  45% { opacity: 1; transform: scale(var(--fa-beat-fade-scale, 1.25)); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  65% { opacity: calc(var(--fa-beat-fade-opacity, 0.4) + 0.4); transform: scale(var(--fa-beat-fade-scale, 1.28)); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  100% { opacity: var(--fa-beat-fade-opacity, 0.4); transform: scale(1); }
+}
+
+@keyframes fa-flip { 
+  0% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), 0deg); animation-timing-function: cubic-bezier(0.2, 0, 0.4, 1); }
+  8% { transform: perspective(2em) scale(var(--fa-flip-anticipation-scale, 0.95)) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), 0deg); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33); }
+  35% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), calc(var(--fa-flip-angle, -360deg) * 0.6)); animation-timing-function: linear; }
+  65% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), calc(var(--fa-flip-angle, -360deg) * 0.5)); animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1); }
+  92% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), calc(var(--fa-flip-angle, -360deg) * var(--fa-flip-overshoot, 1.04))); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 1); }
+  100% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), var(--fa-flip-angle, -360deg)); }
+}
+
+@keyframes fa-flip-360 { 
+  0% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), 0deg); animation-timing-function: cubic-bezier(0.2, 0, 0.4, 1); }
+  8% { transform: perspective(2em) scale(var(--fa-flip-anticipation-scale, 0.95)) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), 0deg); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33); }
+  50% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), calc(var(--fa-flip-angle, -360deg) * 0.6)); animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1); }
+  80% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), calc(var(--fa-flip-angle, -360deg) * var(--fa-flip-overshoot, 1.04))); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 1); }
+  100% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), var(--fa-flip-angle, -360deg)); }
+}
+
+@keyframes fa-shake { 
+  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.2, 0, 0.8, 1); }
+  8% { transform: rotate(35deg) translateX(1px); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+  20% { transform: rotate(-22deg) translateX(-1px); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+  35% { transform: rotate(15deg) translateX(1px); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+  50% { transform: rotate(-9deg); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  65% { transform: rotate(5deg); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  78% { transform: rotate(-3deg); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  90% { transform: rotate(1deg); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes fa-spin { 
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fa-spin-snap { 
+  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  12% { transform: rotate(60deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  16.67% { transform: rotate(60deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  28.67% { transform: rotate(120deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  33.33% { transform: rotate(120deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  45.33% { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  50% { transform: rotate(180deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  62% { transform: rotate(240deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  66.67% { transform: rotate(240deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  78.67% { transform: rotate(300deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  83.33% { transform: rotate(300deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  95.33% { transform: rotate(360deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fa-spin-snap-4 { 
+  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  15% { transform: rotate(90deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  25% { transform: rotate(90deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  40% { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  50% { transform: rotate(180deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  65% { transform: rotate(270deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  75% { transform: rotate(270deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  90% { transform: rotate(360deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fa-spin-snap-8 { 
+  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  9% { transform: rotate(45deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  12.5% { transform: rotate(45deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  21.5% { transform: rotate(90deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  25% { transform: rotate(90deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  34% { transform: rotate(135deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  37.5% { transform: rotate(135deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  46.5% { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  50% { transform: rotate(180deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  59% { transform: rotate(225deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  62.5% { transform: rotate(225deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  71.5% { transform: rotate(270deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  75% { transform: rotate(270deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  84% { transform: rotate(315deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  87.5% { transform: rotate(315deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  96.5% { transform: rotate(360deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fa-buzz { 
+  0% { transform: translateX(0px) rotate(0deg); animation-timing-function: cubic-bezier(0.1, 0, 0.9, 1); }
+  5% { transform: translateX(var(--fa-buzz-distance, 4px)) rotate(0.5deg); }
+  10% { transform: translateX(calc(-1 * var(--fa-buzz-distance, 4px))) rotate(-0.5deg); }
+  15% { transform: translateX(var(--fa-buzz-distance, 4px)) rotate(0.3deg); }
+  20% { transform: translateX(calc(-1 * var(--fa-buzz-distance, 4px))) rotate(-0.3deg); }
+  25% { transform: translateX(calc(var(--fa-buzz-distance, 4px) * 0.7)) rotate(0.2deg); }
+  30% { transform: translateX(calc(-1 * var(--fa-buzz-distance, 4px) * 0.7)) rotate(-0.2deg); }
+  35% { transform: translateX(calc(var(--fa-buzz-distance, 4px) * 0.4)) rotate(0.1deg); }
+  40% { transform: translateX(0px) rotate(0deg); }
+  100% { transform: translateX(0px) rotate(0deg); }
+}
+
+@keyframes fa-wag { 
+  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.2, 0, 0.6, 1); }
+  12% { transform: rotate(var(--fa-wag-angle, 12deg)); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  24% { transform: rotate(2deg); animation-timing-function: cubic-bezier(0.2, 0, 0.6, 1); }
+  36% { transform: rotate(calc(var(--fa-wag-angle, 12deg) * 0.85)); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  48% { transform: rotate(1deg); animation-timing-function: cubic-bezier(0.2, 0, 0.6, 1); }
+  58% { transform: rotate(calc(var(--fa-wag-angle, 12deg) * 0.6)); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  68% { transform: rotate(0deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes fa-float { 
+  0% { transform: translateY(0) translateX(0) rotate(0deg) scale(var(--fa-float-squash-x, 1.02), var(--fa-float-squash-y, 0.98)); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33); }
+  15% { transform: translateY(calc(-0.4 * var(--fa-float-height, 6px))) translateX(var(--fa-float-drift, 1px)) rotate(var(--fa-float-tilt, 1deg)) scale(1, 1); animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1); }
+  35% { transform: translateY(calc(-1 * var(--fa-float-height, 6px))) translateX(0) rotate(0deg) scale(var(--fa-float-stretch-x, 0.98), var(--fa-float-stretch-y, 1.03)); animation-timing-function: cubic-bezier(0.5, 0, 0.5, 0); }
+  50% { transform: translateY(calc(-0.92 * var(--fa-float-height, 6px))) translateX(calc(-0.5 * var(--fa-float-drift, 1px))) rotate(calc(-0.5 * var(--fa-float-tilt, 1deg))) scale(0.995, 1.01); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33); }
+  70% { transform: translateY(calc(-0.3 * var(--fa-float-height, 6px))) translateX(calc(-1 * var(--fa-float-drift, 1px))) rotate(calc(-1 * var(--fa-float-tilt, 1deg))) scale(1, 1); animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1); }
+  90% { transform: translateY(calc(0.05 * var(--fa-float-height, 6px))) translateX(0) rotate(0deg) scale(var(--fa-float-squash-x, 1.02), var(--fa-float-squash-y, 0.98)); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 1); }
+  100% { transform: translateY(0) translateX(0) rotate(0deg) scale(var(--fa-float-squash-x, 1.02), var(--fa-float-squash-y, 0.98)); }
+}
+
+@keyframes fa-swing { 
+  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.2, 0, 0.8, 1); }
+  8% { transform: rotate(var(--fa-swing-angle, 22deg)); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+  18% { transform: rotate(calc(-1 * var(--fa-swing-angle, 22deg) * 0.85)); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+  28% { transform: rotate(calc(var(--fa-swing-angle, 22deg) * 0.65)); animation-timing-function: cubic-bezier(0.35, 0, 0.65, 1); }
+  38% { transform: rotate(calc(-1 * var(--fa-swing-angle, 22deg) * 0.45)); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  48% { transform: rotate(calc(var(--fa-swing-angle, 22deg) * 0.25)); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  56% { transform: rotate(calc(-1 * var(--fa-swing-angle, 22deg) * 0.1)); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  64% { transform: rotate(0deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes fa-jello { 
+  0% { transform: scale(1, 1); animation-timing-function: cubic-bezier(0.2, 0, 0.8, 1); }
+  12% { transform: scale(var(--fa-jello-scale-x, 1.15), calc(2 - var(--fa-jello-scale-x, 1.15))); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+  24% { transform: scale(calc(2 - var(--fa-jello-scale-y, 1.12)), var(--fa-jello-scale-y, 1.12)); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+  36% { transform: scale(calc(1 + (var(--fa-jello-scale-x, 1.15) - 1) * 0.5), calc(2 - (1 + (var(--fa-jello-scale-x, 1.15) - 1) * 0.5))); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  48% { transform: scale(calc(2 - (1 + (var(--fa-jello-scale-y, 1.12) - 1) * 0.3)), calc(1 + (var(--fa-jello-scale-y, 1.12) - 1) * 0.3)); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  58% { transform: scale(1.02, 0.98); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  68% { transform: scale(1, 1); }
+  100% { transform: scale(1, 1); }
+}
+
+.fa-rotate-90 { transform: rotate(90deg); }
+
+.fa-rotate-180 { transform: rotate(180deg); }
+
+.fa-rotate-270 { transform: rotate(270deg); }
+
+.fa-flip-horizontal { transform: scale(-1, 1); }
+
+.fa-flip-vertical { transform: scale(1, -1); }
+
+.fa-flip-both, .fa-flip-horizontal.fa-flip-vertical { transform: scale(-1, -1); }
+
+.fa-rotate-by { transform: rotate(var(--fa-rotate-angle, 0)); }
+
+.svg-inline--fa .fa-primary { fill: var(--fa-primary-color, currentColor); opacity: var(--fa-primary-opacity, 1); }
+
+.svg-inline--fa .fa-secondary { fill: var(--fa-secondary-color, currentColor); opacity: var(--fa-secondary-opacity, 0.4); }
+
+.svg-inline--fa.fa-swap-opacity .fa-primary { opacity: var(--fa-secondary-opacity, 0.4); }
+
+.svg-inline--fa.fa-swap-opacity .fa-secondary { opacity: var(--fa-primary-opacity, 1); }
+
+.svg-inline--fa mask .fa-primary, .svg-inline--fa mask .fa-secondary { fill: black; }
+
+.svg-inline--fa.fa-inverse { fill: var(--fa-inverse, #fff); }
+
+.fa-stack { display: inline-block; height: 2em; line-height: 2em; position: relative; vertical-align: middle; width: 2.5em; }
+
+.fa-inverse { color: var(--fa-inverse, #fff); }
+
+.svg-inline--fa.fa-stack-1x { --fa-width: 1.25em; height: 1em; width: var(--fa-width); }
+
+.svg-inline--fa.fa-stack-2x { --fa-width: 2.5em; height: 2em; width: var(--fa-width); }
+
+.fa-stack-1x, .fa-stack-2x { inset: 0px; margin: auto; position: absolute; z-index: var(--fa-stack-z-index, auto); }</style>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Htmldate: Find the Publication Date of Web Pages — htmldate 1.11.0 documentation</title>
+    <link rel="stylesheet" type="text/css" href="https://htmldate.readthedocs.io/en/latest/_static/pygments.css?v=5ecbeea2">
+    <link rel="stylesheet" type="text/css" href="https://htmldate.readthedocs.io/en/latest/_static/basic.css?v=b08954a9">
+    <link rel="stylesheet" type="text/css" href="https://htmldate.readthedocs.io/en/latest/_static/alabaster.css?v=27fed22d">
+    <script async="" src="https://ssl.google-analytics.com/ga.js"></script><script src="https://htmldate.readthedocs.io/en/latest/_static/documentation_options.js?v=6cf1fb80"></script>
+    <script src="https://htmldate.readthedocs.io/en/latest/_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="https://htmldate.readthedocs.io/en/latest/_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="https://htmldate.readthedocs.io/en/latest/genindex.html">
+    <link rel="search" title="Search" href="https://htmldate.readthedocs.io/en/latest/search.html">
+    <link rel="next" title="Core functions" href="https://htmldate.readthedocs.io/en/latest/corefunctions.html">
+   
+  <link rel="stylesheet" href="https://htmldate.readthedocs.io/en/latest/_static/custom.css" type="text/css">
+  
+
+  
+  
+
+  <script async="" type="text/javascript" src="https://htmldate.readthedocs.io/_/static/javascript/readthedocs-addons.js"></script><meta name="readthedocs-project-slug" content="htmldate"><meta name="readthedocs-version-slug" content="latest"><meta name="readthedocs-resolver-filename" content="/"><meta name="readthedocs-http-status" content="200"><script id="ethicaladsjs" type="text/javascript" async="true" src="https://media.ethicalads.io/media/client/ethicalads.min.js"></script></head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="htmldate-find-the-publication-date-of-web-pages">
+<h1>Htmldate: Find the Publication Date of Web Pages<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#htmldate-find-the-publication-date-of-web-pages" title="Link to this heading">¶</a></h1>
+<a class="reference external image-reference" href="https://pypi.python.org/pypi/htmldate"><img alt="Python package" src="https://img.shields.io/pypi/v/htmldate.svg" width="300" height="150">
+</a>
+<a class="reference external image-reference" href="https://pypi.python.org/pypi/htmldate"><img alt="Python versions" src="https://img.shields.io/pypi/pyversions/htmldate.svg" width="300" height="150">
+</a>
+<a class="reference external image-reference" href="https://codecov.io/gh/adbar/htmldate"><img alt="Code Coverage" src="https://img.shields.io/codecov/c/github/adbar/htmldate.svg" width="300" height="150">
+</a>
+<a class="reference external image-reference" href="https://pepy.tech/project/htmldate"><img alt="Downloads" src="https://static.pepy.tech/badge/htmldate/month">
+</a>
+<a class="reference external image-reference" href="https://doi.org/10.21105/joss.02439"><img alt="JOSS article reference DOI: 10.21105/joss.02439" src="https://img.shields.io/badge/JOSS-10.21105%2Fjoss.02439-brightgreen">
+</a>
+<a class="reference external image-reference" href="https://github.com/astral-sh/ruff"><img alt="Ruff" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json">
+</a>
+<div class="line-block">
+<div class="line"><br></div>
+</div>
+<a class="reference internal image-reference" href="https://htmldate.readthedocs.io/en/latest/_images/htmldate-logo.png"><img alt="Htmldate Logo" class="align-center" src="https://htmldate.readthedocs.io/en/latest/_images/htmldate-logo.png" style="width: 60%;">
+</a>
+<div class="line-block">
+<div class="line"><br></div>
+</div>
+<p>Find <strong>original and updated publication dates</strong> of any web page.
+It is often not possible to do it using just the URL or the server response.</p>
+<p><strong>On the command-line or with Python</strong>, all the steps needed from web page
+download to HTML parsing, scraping, and text analysis are included.</p>
+<p>The package is used in production on millions of documents and integrated into
+<a class="reference external" href="https://github.com/adbar/htmldate/network/dependents">thousands of projects</a>.</p>
+<section id="in-a-nutshell">
+<h2>In a nutshell<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#in-a-nutshell" title="Link to this heading">¶</a></h2>
+<div class="line-block">
+<div class="line"><br></div>
+</div>
+<a class="reference external image-reference" href="https://htmldate.readthedocs.org/"><img alt="Demo as GIF image" class="align-center" src="https://htmldate.readthedocs.io/en/latest/_images/htmldate-demo.gif" style="width: 80%;">
+</a>
+<div class="line-block">
+<div class="line"><br></div>
+</div>
+<p>With Python:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">htmldate</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_date</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">find_date</span><span class="p">(</span><span class="s1">'http://blog.python.org/2016/12/python-360-is-now-available.html'</span><span class="p">)</span>
+<span class="go">'2016-12-23'</span>
+</pre></div>
+</div>
+<p>On the command-line:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>htmldate<span class="w"> </span>-u<span class="w"> </span>http://blog.python.org/2016/12/python-360-is-now-available.html
+<span class="s1">'2016-12-23'</span>
+</pre></div>
+</div>
+</section>
+<section id="features">
+<h2>Features<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#features" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Multilingual, robust and efficient (used in production on millions of documents)</p></li>
+<li><p>URLs, HTML files, or HTML trees are given as input (includes batch processing)</p></li>
+<li><p>Output as string in any date format (defaults to <a class="reference external" href="https://en.wikipedia.org/wiki/ISO_8601">ISO 8601 YMD</a>)</p></li>
+<li><p>Detection of both original and updated dates</p></li>
+<li><p>Compatible with Python 3.10 and later</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">htmldate</span></code> can examine markup and text. It provides the following ways to date an HTML document:</p>
+<ol class="arabic simple">
+<li><p><strong>Markup in header</strong>: Common patterns are used to identify relevant elements (e.g. <code class="docutils literal notranslate"><span class="pre">link</span></code> and <code class="docutils literal notranslate"><span class="pre">meta</span></code> elements) including <a class="reference external" href="http://ogp.me/">Open Graph protocol</a> attributes and a large number of CMS idiosyncrasies</p></li>
+<li><p><strong>HTML code</strong>: The whole document is then searched for structural markers: <code class="docutils literal notranslate"><span class="pre">abbr</span></code> or <code class="docutils literal notranslate"><span class="pre">time</span></code> elements and a series of attributes (e.g. <code class="docutils literal notranslate"><span class="pre">postmetadata</span></code>)</p></li>
+<li><p><strong>Bare HTML content</strong>: Heuristics are run on text and markup:</p></li>
+</ol>
+<blockquote>
+<div><ul class="simple">
+<li><p>in <code class="docutils literal notranslate"><span class="pre">fast</span></code> mode the HTML page is cleaned and precise patterns are targeted</p></li>
+<li><p>in <code class="docutils literal notranslate"><span class="pre">extensive</span></code> mode all potential dates are collected and a disambiguation algorithm determines the most probable one</p></li>
+</ul>
+</div></blockquote>
+<p>The output is thoroughly verified in terms of plausibility and adequateness. If a valid date has been found the library outputs a date string corresponding to either the last update or the original publishing statement (the default), in the desired format.</p>
+<p>Markup-based extraction is multilingual by nature, text-based refinements for better coverage currently support English, French, German, Indonesian and Turkish.</p>
+</section>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#installation" title="Link to this heading">¶</a></h2>
+<section id="main-package">
+<h3>Main package<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#main-package" title="Link to this heading">¶</a></h3>
+<p>This Python package is tested on Linux, macOS and Windows systems; it is compatible with Python 3.10 upwards. It is available on the package repository <a class="reference external" href="https://pypi.org/">PyPI</a> and can notably be installed with <code class="docutils literal notranslate"><span class="pre">pip</span></code> or <code class="docutils literal notranslate"><span class="pre">pipenv</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>htmldate
+$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>htmldate<span class="w"> </span><span class="c1"># to make sure you have the latest version</span>
+$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/adbar/htmldate.git<span class="w"> </span><span class="c1"># latest available code (see build status above)</span>
+</pre></div>
+</div>
+<p>The last version to support Python 3.6 and 3.7 is <code class="docutils literal notranslate"><span class="pre">htmldate==1.8.1</span></code>; for Python 3.8 and 3.9 use the <code class="docutils literal notranslate"><span class="pre">1.9.x</span></code> series.</p>
+</section>
+<section id="optional">
+<h3>Optional<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#optional" title="Link to this heading">¶</a></h3>
+<p>The additional library <code class="docutils literal notranslate"><span class="pre">cchardet</span></code> (or its fork <code class="docutils literal notranslate"><span class="pre">faust-cchardet</span></code>) can be installed for better execution speed. They may not work on all platforms and have thus been singled out although installation is recommended:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>htmldate<span class="o">[</span>speed<span class="o">]</span><span class="w"> </span><span class="c1"># install with additional functionality</span>
+</pre></div>
+</div>
+<p>You can also install or update the packages separately, <em>htmldate</em> will detect which ones are present on your system and opt for the best available combination.</p>
+<p><em>For infos on dependency management of Python packages see</em> <a class="reference external" href="https://stackoverflow.com/questions/41573587/what-is-the-difference-between-venv-pyvenv-pyenv-virtualenv-virtualenvwrappe">this discussion thread</a>.</p>
+</section>
+</section>
+<section id="with-python">
+<h2>With Python<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#with-python" title="Link to this heading">¶</a></h2>
+<section id="find-date">
+<h3><code class="docutils literal notranslate"><span class="pre">find_date</span></code><a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#find-date" title="Link to this heading">¶</a></h3>
+<p>In case the web page features easily readable metadata in the header, the extraction is straightforward. A more advanced analysis of the document structure is sometimes needed:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">htmldate</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_date</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">find_date</span><span class="p">(</span><span class="s1">'http://blog.python.org/2016/12/python-360-is-now-available.html'</span><span class="p">)</span>
+<span class="go"># DEBUG analyzing: &lt;h2 class="date-header"&gt;&lt;span&gt;Friday, December 23, 2016&lt;/span&gt;&lt;/h2&gt;</span>
+<span class="go"># DEBUG result: 2016-12-23</span>
+<span class="go">'2016-12-23'</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">htmldate</span></code> can resort to a guess based on a complete screening of the document (<code class="docutils literal notranslate"><span class="pre">extensive_search</span></code> parameter) which can be deactivated:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">find_date</span><span class="p">(</span><span class="s1">'https://creativecommons.org/about/'</span><span class="p">)</span>
+<span class="go">'2017-08-11' # may change</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">find_date</span><span class="p">(</span><span class="s1">'https://creativecommons.org/about/'</span><span class="p">,</span> <span class="n">extensive_search</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+</pre></div>
+</div>
+<p>Already parsed HTML (that is a LXML tree object):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># simple HTML document as string</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">htmldoc</span> <span class="o">=</span> <span class="s1">'&lt;html&gt;&lt;body&gt;&lt;span class="entry-date"&gt;July 12th, 2016&lt;/span&gt;&lt;/body&gt;&lt;/html&gt;'</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">find_date</span><span class="p">(</span><span class="n">htmldoc</span><span class="p">)</span>
+<span class="s1">'2016-07-12'</span>
+<span class="c1"># parsed LXML tree</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">lxml</span><span class="w"> </span><span class="kn">import</span> <span class="n">html</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">mytree</span> <span class="o">=</span> <span class="n">html</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span><span class="s1">'&lt;html&gt;&lt;body&gt;&lt;span class="entry-date"&gt;July 12th, 2016&lt;/span&gt;&lt;/body&gt;&lt;/html&gt;'</span><span class="p">)</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">find_date</span><span class="p">(</span><span class="n">mytree</span><span class="p">)</span>
+<span class="s1">'2016-07-12'</span>
+</pre></div>
+</div>
+</section>
+<section id="output-format">
+<h3>Output format<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#output-format" title="Link to this heading">¶</a></h3>
+<p>Change the output to a format known to Python’s <code class="docutils literal notranslate"><span class="pre">datetime</span></code> module, the default being <code class="docutils literal notranslate"><span class="pre">%Y-%m-%d</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">find_date</span><span class="p">(</span><span class="s1">'https://www.gnu.org/licenses/gpl-3.0.en.html'</span><span class="p">,</span> <span class="n">outputformat</span><span class="o">=</span><span class="s1">'</span><span class="si">%d</span><span class="s1"> %B %Y'</span><span class="p">)</span>
+<span class="go">'18 November 2016'  # may change</span>
+</pre></div>
+</div>
+</section>
+<section id="original-vs-updated-dates">
+<h3>Original vs. updated dates<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#original-vs-updated-dates" title="Link to this heading">¶</a></h3>
+<p>Although the time delta between original publication and “last modified” info is usually a matter of hours or days, it can be useful to prioritize the <strong>original publication date</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">find_date</span><span class="p">(</span><span class="s1">'https://netzpolitik.org/2016/die-cider-connection-abmahnungen-gegen-nutzer-von-creative-commons-bildern/'</span><span class="p">,</span> <span class="n">original_date</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># modified behavior</span>
+<span class="go">'2016-06-23' # may change</span>
+</pre></div>
+</div>
+<p>For more information see <a class="reference external" href="https://htmldate.readthedocs.io/en/latest/options.html">options page</a>.</p>
+</section>
+</section>
+<section id="on-the-command-line">
+<h2>On the command-line<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#on-the-command-line" title="Link to this heading">¶</a></h2>
+<p>A command-line interface is included:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>htmldate<span class="w"> </span>-u<span class="w"> </span>http://blog.python.org/2016/12/python-360-is-now-available.html
+<span class="s1">'2016-12-23'</span>
+$<span class="w"> </span>wget<span class="w"> </span>-qO-<span class="w"> </span><span class="s2">"http://blog.python.org/2016/12/python-360-is-now-available.html"</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>htmldate
+<span class="s1">'2016-12-23'</span>
+</pre></div>
+</div>
+<p>For usage instructions see <code class="docutils literal notranslate"><span class="pre">htmldate</span> <span class="pre">-h</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>htmldate<span class="w"> </span>--help
+htmldate<span class="w"> </span><span class="o">[</span>-h<span class="o">]</span><span class="w"> </span><span class="o">[</span>-f<span class="o">]</span><span class="w"> </span><span class="o">[</span>-i<span class="w"> </span>INPUTFILE<span class="o">]</span><span class="w"> </span><span class="o">[</span>--original<span class="o">]</span><span class="w"> </span><span class="o">[</span>-min<span class="w"> </span>MINDATE<span class="o">]</span><span class="w"> </span><span class="o">[</span>-max<span class="w"> </span>MAXDATE<span class="o">]</span><span class="w"> </span><span class="o">[</span>-u<span class="w"> </span>URL<span class="o">]</span><span class="w"> </span><span class="o">[</span>-v<span class="o">]</span><span class="w"> </span><span class="o">[</span>--version<span class="o">]</span>
+optional<span class="w"> </span>arguments:
+<span class="w">    </span>-h,<span class="w"> </span>--help<span class="w">            </span>show<span class="w"> </span>this<span class="w"> </span><span class="nb">help</span><span class="w"> </span>message<span class="w"> </span>and<span class="w"> </span><span class="nb">exit</span>
+<span class="w">    </span>-f,<span class="w"> </span>--fast<span class="w">            </span>fast<span class="w"> </span>mode:<span class="w"> </span>disable<span class="w"> </span>extensive<span class="w"> </span>search
+<span class="w">    </span>-i<span class="w"> </span>INPUTFILE,<span class="w"> </span>--inputfile<span class="w"> </span>INPUTFILE
+<span class="w">                          </span>name<span class="w"> </span>of<span class="w"> </span>input<span class="w"> </span>file<span class="w"> </span><span class="k">for</span><span class="w"> </span>batch<span class="w"> </span>processing<span class="w"> </span><span class="o">(</span>similar<span class="w"> </span>to<span class="w"> </span>wget<span class="w"> </span>-i<span class="o">)</span>
+<span class="w">    </span>--original<span class="w">            </span>original<span class="w"> </span>date<span class="w"> </span>prioritized
+<span class="w">    </span>-min<span class="w"> </span>MINDATE,<span class="w"> </span>--mindate<span class="w"> </span>MINDATE
+<span class="w">                          </span>earliest<span class="w"> </span>acceptable<span class="w"> </span>date<span class="w"> </span><span class="o">(</span>ISO<span class="w"> </span><span class="m">8601</span><span class="w"> </span>YMD<span class="o">)</span>
+<span class="w">    </span>-max<span class="w"> </span>MAXDATE,<span class="w"> </span>--maxdate<span class="w"> </span>MAXDATE
+<span class="w">                          </span>latest<span class="w"> </span>acceptable<span class="w"> </span>date<span class="w"> </span><span class="o">(</span>ISO<span class="w"> </span><span class="m">8601</span><span class="w"> </span>YMD<span class="o">)</span>
+<span class="w">    </span>-u<span class="w"> </span>URL,<span class="w"> </span>--URL<span class="w"> </span>URL<span class="w">     </span>custom<span class="w"> </span>URL<span class="w"> </span>download
+<span class="w">    </span>-v,<span class="w"> </span>--verbose<span class="w">         </span>increase<span class="w"> </span>output<span class="w"> </span>verbosity
+<span class="w">    </span>--version<span class="w">             </span>show<span class="w"> </span>version<span class="w"> </span>information<span class="w"> </span>and<span class="w"> </span><span class="nb">exit</span>
+</pre></div>
+</div>
+<p>The batch mode <code class="docutils literal notranslate"><span class="pre">-i</span></code> takes one URL per line as input and returns one result per line in tab-separated format:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>htmldate<span class="w"> </span>--fast<span class="w"> </span>-i<span class="w"> </span>list-of-urls.txt
+</pre></div>
+</div>
+</section>
+<section id="license">
+<h2>License<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#license" title="Link to this heading">¶</a></h2>
+<p>This package is distributed under the <a class="reference external" href="https://www.apache.org/licenses/LICENSE-2.0.html">Apache 2.0 license</a>.</p>
+<p>Versions prior to v1.8.0 are under GPLv3+ license.</p>
+</section>
+<section id="context-and-contributions">
+<h2>Context and contributions<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#context-and-contributions" title="Link to this heading">¶</a></h2>
+<p>Initially launched to create text databases for research purposes
+at the Berlin-Brandenburg Academy of Sciences (DWDS and ZDL units),
+this project continues to be maintained but its future development
+depends on community support.</p>
+<p><strong>If you value this software or depend on it for your product, consider
+sponsoring it and contributing to its codebase</strong>. Your support
+<a class="reference external" href="https://github.com/sponsors/adbar">on GitHub</a> or <a class="reference external" href="https://ko-fi.com/adbarbaresi">ko-fi.com</a>
+will help maintain and enhance this package.
+Visit the <a class="reference external" href="https://github.com/adbar/htmldate/blob/master/CONTRIBUTING.md">Contributing page</a>
+for more information.</p>
+<p>Reach out via the software repository or the <a class="reference external" href="https://adrien.barbaresi.eu/">contact page</a> for inquiries, collaborations, or feedback.</p>
+<a class="reference external image-reference" href="https://doi.org/10.21105/joss.02439"><img alt="JOSS article reference DOI: 10.21105/joss.02439" src="https://img.shields.io/badge/JOSS-10.21105%2Fjoss.02439-brightgreen">
+</a>
+<a class="reference external image-reference" href="https://doi.org/10.5281/zenodo.3459599"><img alt="Zenodo archive DOI: 10.5281/zenodo.3459599" src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.3459599-blue">
+</a>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>@article<span class="o">{</span>barbaresi-2020-htmldate,
+<span class="w">  </span><span class="nv">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{{</span>htmldate:<span class="w"> </span>A<span class="w"> </span>Python<span class="w"> </span>package<span class="w"> </span>to<span class="w"> </span>extract<span class="w"> </span>publication<span class="w"> </span>dates<span class="w"> </span>from<span class="w"> </span>web<span class="w"> </span>pages<span class="o">}}</span>,
+<span class="w">  </span><span class="nv">author</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Barbaresi, Adrien"</span>,
+<span class="w">  </span><span class="nv">journal</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">"Journal of Open Source Software"</span>,
+<span class="w">  </span><span class="nv">volume</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">5</span>,
+<span class="w">  </span><span class="nv">number</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">51</span>,
+<span class="w">  </span><span class="nv">pages</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">2439</span>,
+<span class="w">  </span><span class="nv">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>https://doi.org/10.21105/joss.02439<span class="o">}</span>,
+<span class="w">  </span><span class="nv">publisher</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">{</span>The<span class="w"> </span>Open<span class="w"> </span>Journal<span class="o">}</span>,
+<span class="w">  </span><span class="nv">year</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="m">2020</span>,
+<span class="o">}</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p>Barbaresi, A. “<a class="reference external" href="https://doi.org/10.21105/joss.02439">htmldate: A Python package to extract publication dates from web pages</a>”, Journal of Open Source Software, 5(51), 2439, 2020. DOI: 10.21105/joss.02439</p></li>
+<li><p>Barbaresi, A. “<a class="reference external" href="https://hal.archives-ouvertes.fr/hal-02447264/document">Generic Web Content Extraction with Open-Source Software</a>”, Proceedings of KONVENS 2019, Kaleidoscope Abstracts, 2019.</p></li>
+<li><p>Barbaresi, A. “<a class="reference external" href="https://hal.archives-ouvertes.fr/hal-01371704v2/document">Efficient construction of metadata-enhanced web corpora</a>”, Proceedings of the <a class="reference external" href="https://www.sigwac.org.uk/wiki/WAC-X">10th Web as Corpus Workshop (WAC-X)</a>, 2016.</p></li>
+</ul>
+</section>
+<section id="going-further">
+<h2>Going further<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#going-further" title="Link to this heading">¶</a></h2>
+<section id="known-caveats">
+<h3>Known caveats<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#known-caveats" title="Link to this heading">¶</a></h3>
+<p>The granularity may not always match the desired output format. If only information about the year could be found and the chosen date format requires to output a month and a day, the result is ‘padded’ to be located at the middle of the year, in that case the 1st of January.</p>
+<p>Besides, there are pages for which no date can be found, ever:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">r</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'https://example.com'</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">htmldate</span><span class="o">.</span><span class="n">find_date</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">text</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt;</span>
+</pre></div>
+</div>
+<p>If the date is nowhere to be found, it might be worth considering <a class="reference external" href="https://github.com/oduwsdl/CarbonDate">carbon dating</a> the web page, however this is computationally expensive. In addition, <a class="reference external" href="https://github.com/akoumjian/datefinder">datefinder</a> features pattern-based date extraction for texts written in English.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/corefunctions.html">Core functions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/corefunctions.html#handling-date-extraction">Handling date extraction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/corefunctions.html#useful-internal-functions">Useful internal functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/corefunctions.html#helpers">Helpers</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/evaluation.html">Evaluation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/evaluation.html#alternatives">Alternatives</a></li>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/evaluation.html#description">Description</a></li>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/evaluation.html#results">Results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/evaluation.html#older-results">Older Results</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/options.html">Options</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/options.html#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/options.html#settings">Settings</a></li>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/options.html#tests">Tests</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/used-by.html">Uses &amp; citations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/used-by.html#notable-projects-using-this-software">Notable projects using this software</a></li>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/used-by.html#citations-in-papers">Citations in papers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/used-by.html#publications-citing-htmldate">Publications citing Htmldate</a></li>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/used-by.html#ports">Ports</a></li>
+<li class="toctree-l2"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/used-by.html#software-ecosystem">Software ecosystem</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+</section>
+</section>
+<section id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="https://htmldate.readthedocs.io/en/latest/#indices-and-tables" title="Link to this heading">¶</a></h1>
+<ul class="simple">
+<li><p><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
+<li><p><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/search.html"><span class="std std-ref">Search Page</span></a></p></li>
+</ul>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="https://htmldate.readthedocs.io/en/latest/#">htmldate</a></h1>
+
+
+
+
+
+
+<p>
+<div src="https://ghbtns.com/github-btn.html?user=adbar&amp;repo=htmldate&amp;type=star&amp;count=True&amp;size=large&amp;v=2" allowtransparency="true" frameborder="0" scrolling="0" width="200px" height="35px" data-original-tag="iframe"><!DOCTYPE html><html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+body { padding: 0px; margin: 0px; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif; font-size: 11px; font-weight: 700; line-height: 14px; }
+
+.github-btn { height: 20px; overflow: hidden; }
+
+.gh-btn, .gh-count, .gh-ico { float: left; }
+
+.gh-btn, .gh-count { padding: 2px 5px 2px 4px; color: rgb(51, 51, 51); text-decoration: none; white-space: nowrap; cursor: pointer; border-radius: 3px; }
+
+.gh-btn { background-color: rgb(238, 238, 238); background-image: linear-gradient(rgb(252, 252, 252) 0px, rgb(238, 238, 238) 100%); background-repeat: no-repeat; border: 1px solid rgb(213, 213, 213); }
+
+.gh-btn:focus, .gh-btn:hover { text-decoration: none; background-color: rgb(221, 221, 221); background-image: linear-gradient(rgb(238, 238, 238) 0px, rgb(221, 221, 221) 100%); border-color: rgb(204, 204, 204); }
+
+.gh-btn:active { background-color: rgb(220, 220, 220); background-image: none; border-color: rgb(181, 181, 181); box-shadow: rgba(0, 0, 0, 0.15) 0px 2px 4px inset; }
+
+.gh-ico { width: 14px; height: 14px; margin-right: 4px; background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='12 12 40 40'%3e%3cpath fill='%23333' d='M32 13.4c-10.5 0-19 8.5-19 19 0 8.4 5.5 15.5 13 18 1 .2 1.3-.4 1.3-.9v-3.2c-5.3 1.1-6.4-2.6-6.4-2.6-.9-2.1-2.1-2.7-2.1-2.7-1.7-1.2.1-1.1.1-1.1 1.9.1 2.9 2 2.9 2 1.7 2.9 4.5 2.1 5.5 1.6.2-1.2.7-2.1 1.2-2.6-4.2-.5-8.7-2.1-8.7-9.4 0-2.1.7-3.7 2-5.1-.2-.5-.8-2.4.2-5 0 0 1.6-.5 5.2 2 1.5-.4 3.1-.7 4.8-.7 1.6 0 3.3.2 4.7.7 3.6-2.4 5.2-2 5.2-2 1 2.6.4 4.6.2 5 1.2 1.3 2 3 2 5.1 0 7.3-4.5 8.9-8.7 9.4.7.6 1.3 1.7 1.3 3.5v5.2c0 .5.4 1.1 1.3.9 7.5-2.6 13-9.7 13-18.1 0-10.5-8.5-19-19-19z'/%3e%3c/svg%3e") 0px 0px / 100% 100% no-repeat; }
+
+.gh-count { position: relative; display: none; margin-left: 4px; background-color: rgb(250, 250, 250); border: 1px solid rgb(212, 212, 212); }
+
+.gh-count:focus, .gh-count:hover { color: rgb(3, 102, 214); }
+
+.gh-count::after, .gh-count::before { position: absolute; display: inline-block; width: 0px; height: 0px; content: ""; border-color: transparent; border-style: solid; }
+
+.gh-count::before { top: 50%; left: -3px; margin-top: -4px; border-width: 4px 4px 4px 0px; border-right-color: rgb(250, 250, 250); }
+
+.gh-count::after { top: 50%; left: -4px; z-index: -1; margin-top: -5px; border-width: 5px 5px 5px 0px; border-right-color: rgb(212, 212, 212); }
+
+.github-btn-large { height: 30px; }
+
+.github-btn-large .gh-btn, .github-btn-large .gh-count { padding: 3px 10px 3px 8px; font-size: 16px; line-height: 22px; border-radius: 4px; }
+
+.github-btn-large .gh-ico { width: 20px; height: 20px; }
+
+.github-btn-large .gh-count { margin-left: 6px; }
+
+.github-btn-large .gh-count::before { left: -5px; margin-top: -6px; border-width: 6px 6px 6px 0px; }
+
+.github-btn-large .gh-count::after { left: -6px; margin-top: -7px; border-width: 7px 7px 7px 0px; }
+
+.no-text .gh-ico { margin-right: 0px; }</style><title>Star adbar/htmldate on GitHub</title></head><body><span class="github-btn github-stargazers github-btn-large"><a class="gh-btn" href="https://github.com/adbar/htmldate" rel="noopener noreferrer" target="_blank" aria-label="Star adbar/htmldate on GitHub"><span class="gh-ico" aria-hidden="true"></span> <span class="gh-text">Star</span> </a><a class="gh-count" href="https://github.com/adbar/htmldate/stargazers" rel="noopener noreferrer" target="_blank" aria-hidden="true"></a></span><script>!function(){"use strict";const t=new Set(["user","repo","type","count","size","text","v"]);function e(t){return String(t).replace(/(\d)(?=(\d{3})+$)/g,"$1,")}const a=function(){const e=window.location.href.slice(window.location.href.indexOf("?")+1).split("&"),a=new Map;for(const s of e){const[e,r]=s.split("=");t.has(e)&&a.set(e,r)}return a}(),s=a.get("user"),r=a.get("repo"),o=a.get("type"),n=a.get("count"),c=a.get("size"),i=a.get("text"),l=a.get("v"),u=document.querySelector(".gh-btn"),d=document.querySelector(".github-btn"),b=document.querySelector(".gh-text"),$=document.querySelector(".gh-count"),h="on GitHub",f="https://github.com/",g="https://api.github.com/",x=`${f+s}/${r}`,w=`${s}/${r}`;let C;switch(window.callback=function(t){if("Not Found"!==t.data.message){switch(o){case"watch":"2"===l?($.textContent=t.data.subscribers_count&&e(t.data.subscribers_count),$.setAttribute("aria-label",`${$.textContent} watchers ${h}`)):($.textContent=t.data.stargazers_count&&e(t.data.stargazers_count),$.setAttribute("aria-label",`${$.textContent} stargazers ${h}`));break;case"star":$.textContent=t.data.stargazers_count&&e(t.data.stargazers_count),$.setAttribute("aria-label",`${$.textContent} stargazers ${h}`);break;case"fork":$.textContent=t.data.network_count&&e(t.data.network_count),$.setAttribute("aria-label",`${$.textContent} forks ${h}`);break;case"follow":$.textContent=t.data.followers&&e(t.data.followers),$.setAttribute("aria-label",`${$.textContent} followers ${h}`)}"true"===n&&""!==$.textContent&&($.style.display="block",$.removeAttribute("aria-hidden"))}},u.href=x,o){case"watch":"2"===l?(d.classList.add("github-watchers"),b.textContent="Watch",$.href=`${x}/watchers`):(d.classList.add("github-stargazers"),b.textContent="Star",$.href=`${x}/stargazers`),C=`${b.textContent} ${w}`;break;case"star":d.classList.add("github-stargazers"),b.textContent="Star",$.href=`${x}/stargazers`,C=`${b.textContent} ${w}`;break;case"fork":d.classList.add("github-forks"),b.textContent="Fork",u.href=`${x}/fork`,$.href=`${x}/network`,C=`${b.textContent} ${w}`;break;case"follow":d.classList.add("github-me"),b.textContent=`Follow @${s}`,u.href=f+s,$.href=`${f+s}?tab=followers`,C=b.textContent;break;case"sponsor":d.classList.add("github-me"),b.textContent=`Sponsor @${s}`,u.href=`${f}sponsors/${s}`,C=b.textContent}"false"===i&&(u.classList.add("no-text"),b.setAttribute("aria-hidden",!0),b.style.display="none",b.textContent=""),u.setAttribute("aria-label",`${C} ${h}`),document.title=`${C} ${h}`,"large"===c&&d.classList.add("github-btn-large"),"true"===n&&"sponsor"!==o&&"false"!==i&&function(t){const e=document.createElement("script");e.src=`${t}?callback=callback`,document.head.insertBefore(e,document.head.firstChild)}("follow"===o?`${g}users/${s}`:`${g}repos/${s}/${r}`)}()</script></body></html></div>
+</p>
+
+
+
+
+
+
+<search id="searchbox" style="display: block;" role="search">
+    <div class="searchformwrapper">
+    <form class="search" action="https://htmldate.readthedocs.io/en/latest/search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Search">
+      <input type="submit" value="Go">
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script><h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/corefunctions.html">Core functions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/evaluation.html">Evaluation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/options.html">Options</a></li>
+<li class="toctree-l1"><a class="reference internal" href="https://htmldate.readthedocs.io/en/latest/used-by.html">Uses &amp; citations</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="https://htmldate.readthedocs.io/en/latest/#">Documentation overview</a><ul>
+      <li>Next: <a href="https://htmldate.readthedocs.io/en/latest/corefunctions.html" title="next chapter">Core functions</a></li>
+  </ul></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      ©2017-2026, <a href="https://adrien.barbaresi.eu/">Adrien Barbaresi</a>.
+      
+      |
+      <a href="https://htmldate.readthedocs.io/en/latest/_sources/index.rst.txt" rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+    <script>
+
+      var _gaq = _gaq || [];
+      _gaq.push(['_setAccount', 'G-5BS735G6BB']);
+      _gaq.push(['_setDomainName', 'none']);
+      _gaq.push(['_setAllowLinker', true]);
+      _gaq.push(['_trackPageview']);
+
+      (function() {
+        var ga = document.createElement('script'); ga.async = true;
+        ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'https://www') + '.google-analytics.com/ga.js';
+        var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+      })();
+
+    </script>
+    
+  
+<readthedocs-flyout><!---->
+      <div class=" floating container bottom-right ">
+        <!--?lit$517265781$-->
+      <header>
+        <img class="logo" alt="Read the Docs" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+Cjxzdmc6c3ZnCiAgIHZlcnNpb249IjEuMSIKICAgaWQ9InN2ZyIKICAgeD0iMHB4IgogICB5PSIwcHgiCiAgIHZpZXdCb3g9IjY5NCAxOTcgMzQ2LjY5ODU1IDM5OS45ODQ3NyIKICAgc29kaXBvZGk6ZG9jbmFtZT0ibG9nby1saWdodC5zdmciCiAgIHdpZHRoPSIzNDYuNjk4NTUiCiAgIGhlaWdodD0iMzk5Ljk4NDc3IgogICBpbmtzY2FwZTp2ZXJzaW9uPSIxLjMuMiAoMDkxZTIwZWYwZiwgMjAyMy0xMS0yNSwgY3VzdG9tKSIKICAgeG1sbnM6aW5rc2NhcGU9Imh0dHA6Ly93d3cuaW5rc2NhcGUub3JnL25hbWVzcGFjZXMvaW5rc2NhcGUiCiAgIHhtbG5zOnNvZGlwb2RpPSJodHRwOi8vc29kaXBvZGkuc291cmNlZm9yZ2UubmV0L0RURC9zb2RpcG9kaS0wLmR0ZCIKICAgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPHN2ZzpkZWZzCiAgICAgaWQ9ImRlZnMxMiIgLz4KICA8c29kaXBvZGk6bmFtZWR2aWV3CiAgICAgaWQ9Im5hbWVkdmlldzEyIgogICAgIHBhZ2Vjb2xvcj0iI2ZmZmZmZiIKICAgICBib3JkZXJjb2xvcj0iIzAwMDAwMCIKICAgICBib3JkZXJvcGFjaXR5PSIwLjI1IgogICAgIGlua3NjYXBlOnNob3dwYWdlc2hhZG93PSIyIgogICAgIGlua3NjYXBlOnBhZ2VvcGFjaXR5PSIwLjAiCiAgICAgaW5rc2NhcGU6cGFnZWNoZWNrZXJib2FyZD0iMCIKICAgICBpbmtzY2FwZTpkZXNrY29sb3I9IiNkMWQxZDEiCiAgICAgaW5rc2NhcGU6em9vbT0iMS4yNTIiCiAgICAgaW5rc2NhcGU6Y3g9Ijk5OC40MDI1NiIKICAgICBpbmtzY2FwZTpjeT0iMTk5LjY4MDUxIgogICAgIGlua3NjYXBlOndpbmRvdy13aWR0aD0iMzQ0MCIKICAgICBpbmtzY2FwZTp3aW5kb3ctaGVpZ2h0PSIxMzg5IgogICAgIGlua3NjYXBlOndpbmRvdy14PSIwIgogICAgIGlua3NjYXBlOndpbmRvdy15PSIyNyIKICAgICBpbmtzY2FwZTp3aW5kb3ctbWF4aW1pemVkPSIxIgogICAgIGlua3NjYXBlOmN1cnJlbnQtbGF5ZXI9InN2ZyIgLz4KICA8c3ZnOmcKICAgICBpZD0ibG9nbyIKICAgICB0cmFuc2Zvcm09Im1hdHJpeCgwLjU1NzUzNjQ0LDAsMCwwLjU1NzUzNjQ0LDY2LjUzMTgxMiwxMDUwLjEyNjIpIj4KICAgIDxzdmc6cGF0aAogICAgICAgc3R5bGU9ImZpbGw6I2ZjZmNmYyIKICAgICAgIGQ9Im0gMTQwOC4xLC0xMTgxLjcgYyAtNy41LDEgLTEyLjcsNy44IC0xMS43LDE1LjMgMC43LDUuNCA0LjYsOS45IDkuOSwxMS4zIDAsMCAzMy4yLDExIDg5LjcsMTUuNiA0NS40LDMuNyA5Ni45LC0zLjIgOTYuOSwtMy4yIDcuNSwtMC4yIDEzLjUsLTYuNSAxMy4yLC0xNCAtMC4zLC03LjUgLTYuNSwtMTMuNSAtMTQsLTEzLjIgLTAuOSwwIC0xLjgsMC4xIC0yLjYsMC4zIDAsMCAtNTAuNCw2LjIgLTkxLjMsMi45IC01NCwtNC40IC04My40LC0xNC4zIC04My40LC0xNC4zIC0yLjIsLTAuNyAtNC41LC0xIC02LjcsLTAuNyB6IG0gMCwtNjcuNiBjIC03LjUsMSAtMTIuNyw3LjggLTExLjcsMTUuMyAwLjcsNS40IDQuNiw5LjkgOS45LDExLjMgMCwwIDMzLjIsMTEgODkuNywxNS42IDQ1LjQsMy43IDk2LjksLTMuMiA5Ni45LC0zLjIgNy41LC0wLjIgMTMuNSwtNi41IDEzLjIsLTE0IC0wLjMsLTcuNSAtNi41LC0xMy41IC0xNCwtMTMuMiAtMC45LDAgLTEuOCwwLjEgLTIuNiwwLjMgMCwwIC01MC40LDYuMiAtOTEuMywyLjkgLTU0LC00LjQgLTgzLjQsLTE0LjMgLTgzLjQsLTE0LjMgLTIuMiwtMC43IC00LjUsLTEgLTYuNywtMC43IHogbSAwLC02Ny42IGMgLTcuNSwxIC0xMi43LDcuOCAtMTEuNywxNS4zIDAuNyw1LjQgNC42LDkuOSA5LjksMTEuMyAwLDAgMzMuMiwxMSA4OS43LDE1LjYgNDUuNCwzLjcgOTYuOSwtMy4yIDk2LjksLTMuMiA3LjUsLTAuMiAxMy41LC02LjUgMTMuMiwtMTQgLTAuMywtNy41IC02LjUsLTEzLjUgLTE0LC0xMy4yIC0wLjksMCAtMS44LDAuMSAtMi42LDAuMyAwLDAgLTUwLjQsNi4yIC05MS4zLDIuOSAtNTQsLTQuNCAtODMuNCwtMTQuMyAtODMuNCwtMTQuMyAtMi4yLC0wLjcgLTQuNSwtMSAtNi43LC0wLjcgeiBtIDAsLTY3LjUgYyAtNy41LDEgLTEyLjcsNy44IC0xMS43LDE1LjMgMC43LDUuNCA0LjYsOS45IDkuOSwxMS4zIDAsMCAzMy4yLDExIDg5LjcsMTUuNiA0NS40LDMuNyA5Ni45LC0zLjIgOTYuOSwtMy4yIDcuNSwtMC4yIDEzLjUsLTYuNSAxMy4yLC0xNCAtMC4zLC03LjUgLTYuNSwtMTMuNSAtMTQsLTEzLjIgLTAuOSwwIC0xLjgsMC4xIC0yLjYsMC4zIDAsMCAtNTAuNCw2LjIgLTkxLjMsMi45IC01NCwtNC40IC04My40LC0xNC4zIC04My40LC0xNC4zIC0yLjIsLTAuOCAtNC41LC0xIC02LjcsLTAuNyB6IG0gLTk0LjcsLTcxLjMgYyAtNzEsMC41IC05Ny41LDIyLjMgLTk3LjUsMjIuMyB2IDUzMC4zIGMgMCwwIDI1LjgsLTIyLjMgMTA5LC0xOC45IDgzLjIsMy40IDEwMC4zLDMyLjYgMjAyLjUsMzQuNiAxMDIuMiwyLjEgMTI3LjksLTE1LjcgMTI3LjksLTE1LjcgbCAxLjUsLTU0MC42IGMgMCwwIC00NiwxMyAtMTM1LjUsMTMuNyAtODkuNSwwLjcgLTExMSwtMjIuOCAtMTkzLjIsLTI1LjUgLTUuMSwtMC4xIC0xMCwtMC4yIC0xNC43LC0wLjIgeiBtIDU5LjQsMzQuNiBjIDAsMCA0MywxNC4yIDEyMi41LDE4LjIgNjcuMiwzLjMgMTM0LjUsLTYuNiAxMzQuNSwtNi42IFYgLTkyOSBjIDAsMCAtMzQuMSwxNy45IC0xMTkuMywxMS44IC02NiwtNC43IC0xMzguNywtMjkuNyAtMTM4LjcsLTI5LjcgeiBtIC00MS41LDEyLjUgYyA3LjYsMCAxMy43LDYuMiAxMy43LDEzLjcgMCw3LjUgLTYuMiwxMy43IC0xMy43LDEzLjcgMCwwIC0yMi4zLDAuMSAtMzUuOCwxLjUgLTIyLjgsMi4zIC0zOC4zLDEwLjYgLTM4LjMsMTAuNiAtNi43LDMuNSAtMTUsMSAtMTguNSwtNS43IC0zLjUsLTYuNyAtMSwtMTUgNS43LC0xOC41IDAsMCAwLDAgMCwwIDAsMCAyMC4yLC0xMC43IDQ4LjQsLTEzLjUgMTYuMywtMS43IDM4LjUsLTEuOCAzOC41LC0xLjggeiBtIC0xMy4yLDY3LjggYyA3LjYsLTAuMiAxMy4zLDAgMTMuMywwIDcuNSwwLjkgMTIuOSw3LjggMTIsMTUuMyAtMC44LDYuMyAtNS43LDExLjIgLTEyLDEyIDAsMCAtMjIuMywwLjEgLTM1LjgsMS41IC0yMi44LDIuMyAtMzguMywxMC42IC0zOC4zLDEwLjYgLTYuNywzLjUgLTE1LDAuOSAtMTguNSwtNS44IC0zLjUsLTYuNyAtMC45LC0xNSA1LjgsLTE4LjUgMCwwIDIwLjIsLTEwLjcgNDguNCwtMTMuNSA3LjksLTAuOSAxNy41LC0xLjQgMjUuMSwtMS42IHogbSAxMy4yLDY3LjUgYyA3LjYsMCAxMy43LDYuMiAxMy43LDEzLjcgMCw3LjYgLTYuMiwxMy43IC0xMy43LDEzLjcgMCwwIC0yMi4zLC0wLjEgLTM1LjgsMS4yIC0yMi44LDIuMyAtMzguMywxMC42IC0zOC4zLDEwLjYgLTYuNywzLjUgLTE1LDAuOSAtMTguNSwtNS44IC0zLjUsLTYuNyAtMC45LC0xNSA1LjgsLTE4LjUgMCwwIDIwLjIsLTEwLjcgNDguNCwtMTMuNSAxNi4yLC0xLjUgMzguNCwtMS40IDM4LjQsLTEuNCB6IgogICAgICAgaWQ9InBhdGgxIiAvPgogIDwvc3ZnOmc+CiAgPGRpdgogICAgIGlkPSJzYWthLWd1aS1yb290Ij4KICAgIDxkaXY+CiAgICAgIDxkaXY+CiAgICAgICAgPHN0eWxlIC8+CiAgICAgIDwvZGl2PgogICAgPC9kaXY+CiAgPC9kaXY+Cjwvc3ZnOnN2Zz4K">
+        <!--?lit$517265781$--> <!--?lit$517265781$--><span class="version">
+        <!--?lit$517265781$--><svg data-prefix="fas" data-icon="code-branch" class="svg-inline--fa fa-code-branch icon" role="img" viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M80 104a24 24 0 1 0 0-48 24 24 0 1 0 0 48zm80-24c0 32.8-19.7 61-48 73.3l0 70.7 176 0c26.5 0 48-21.5 48-48l0-22.7c-28.3-12.3-48-40.5-48-73.3 0-44.2 35.8-80 80-80s80 35.8 80 80c0 32.8-19.7 61-48 73.3l0 22.7c0 61.9-50.1 112-112 112l-176 0 0 70.7c28.3 12.3 48 40.5 48 73.3 0 44.2-35.8 80-80 80S0 476.2 0 432c0-32.8 19.7-61 48-73.3l0-205.3C19.7 141 0 112.8 0 80 0 35.8 35.8 0 80 0s80 35.8 80 80zm232 0a24 24 0 1 0 -48 0 24 24 0 1 0 48 0zM80 456a24 24 0 1 0 0-48 24 24 0 1 0 0 48z"></path></svg> <!--?lit$517265781$-->latest
+      </span> 
+        <span class="caret"><!--?lit$517265781$--><svg data-prefix="fas" data-icon="caret-down" class="svg-inline--fa fa-caret-down icon" role="img" viewBox="0 0 320 512" aria-hidden="true"><path fill="currentColor" d="M140.3 376.8c12.6 10.2 31.1 9.5 42.8-2.2l128-128c9.2-9.2 11.9-22.9 6.9-34.9S301.4 192 288.5 192l-256 0c-12.9 0-24.6 7.8-29.6 19.8S.7 237.5 9.9 246.6l128 128 2.4 2.2z"></path></svg></span>
+      </header>
+    
+        <main class=" closed ">
+          <!--?lit$517265781$--> <!--?lit$517265781$-->
+      <dl class="versions">
+        <dt>Versions</dt>
+        <!--?lit$517265781$--><!----><dd><!--?lit$517265781$--><strong><!--?lit$517265781$--><a href="https://htmldate.readthedocs.io/en/latest/"><!--?lit$517265781$-->latest</a></strong></dd><!----><!----><dd><!--?lit$517265781$--><a href="https://htmldate.readthedocs.io/en/stable/"><!--?lit$517265781$-->stable</a></dd><!---->
+      </dl>
+    
+          <!--?lit$517265781$--> <!--?lit$517265781$-->
+      <dl>
+        <dt>On Read the Docs</dt>
+        <dd>
+          <a href="https://app.readthedocs.org/projects/htmldate/?utm_source=htmldate&amp;utm_content=flyout">Project Home</a>
+        </dd>
+        <dd>
+          <a href="https://app.readthedocs.org/projects/htmldate/builds/?utm_source=htmldate&amp;utm_content=flyout">Builds</a>
+        </dd>
+      </dl>
+    
+          <!--?lit$517265781$--> <!--?lit$517265781$-->
+        <dl>
+          <dt>Search</dt>
+          <dd>
+            <form id="flyout-search-form">
+              <input type="text" name="q" aria-label="Search docs" placeholder="Search docs">
+            </form>
+          </dd>
+        </dl>
+      
+          <hr>
+          <!--?lit$517265781$-->
+      <small>
+        <span>
+          <a href="https://docs.readthedocs.io/page/addons.html?utm_source=htmldate&amp;utm_content=flyout">Addons documentation</a></span>
+        <span> ― </span>
+        <span>Hosted by
+          <a href="https://about.readthedocs.com/?utm_source=htmldate&amp;utm_content=flyout">Read the Docs</a></span>
+      </small>
+    
+        </main>
+      </div>
+    </readthedocs-flyout><readthedocs-notification class="raised toast"><!----></readthedocs-notification><div class="raised adaptive-css" data-ea-type="text" data-ea-style="fixedfooter" data-ea-manual="true" data-ea-publisher="readthedocs" data-ea-keywords="date-parser|datetime|entity-extraction|html-extraction|html-parsing|metadata-extraction|python|readthedocs-project-481775|readthedocs-project-htmldate|web-scraping" data-ea-campaign-types="community|house" id="readthedocs-ea-text-fixedfooter-sphinx"></div><readthedocs-search class="raised floating"><!---->
+      
+    </readthedocs-search><readthedocs-hotkeys><!----></readthedocs-hotkeys></body></html>

@@ -1,0 +1,33 @@
+{
+  "topic": "How citation-integrity and text-identity standards decide that a claim is supported and that two texts or URLs are the same, as a benchmark for Research-Kit's evidence rows, corroboration and URL identity",
+  "notes": "Owner pages per unknown (U-1 Wikipedia V, RS and NOR; U-2 Crossref REST API docs and one live work record; U-3 UAX #15; U-4 UTS #46 and the WHATWG URL Standard; U-5 datasketch MinHash; U-6 Elicit and Perplexity help centres). No queries: the lead's budget of 3 searches was spent by decompose (3 compound-topic parts, ADR-0085), so the plan is urls only. Depth deep so maxScrapes is the cap: 11 pages, which with decompose's 3 is the lead's 14. The SimHash half of U-5 is not in the plan - no scrape is left for it after the 11 owner pages - and the brief records it as a known unknown with its day-one step.",
+  "depth": "deep",
+  "refreshDays": 30,
+  "limit": 5,
+  "perQuery": 1,
+  "maxScrapes": 11,
+  "prefer": [
+    "en.wikipedia.org",
+    "crossref.org",
+    "api.crossref.org",
+    "unicode.org",
+    "url.spec.whatwg.org",
+    "ekzhu.com",
+    "support.elicit.com",
+    "perplexity.ai"
+  ],
+  "queries": [],
+  "urls": [
+    { "url": "https://en.wikipedia.org/wiki/Wikipedia:Verifiability", "type": "P", "why": "U-1: Verifiability policy - the source must directly support the material; burden of evidence" },
+    { "url": "https://en.wikipedia.org/wiki/Wikipedia:Reliable_sources", "type": "P", "why": "U-1: Reliable sources guideline - primary, secondary and tertiary sources and when each may be used" },
+    { "url": "https://en.wikipedia.org/wiki/Wikipedia:No_original_research", "type": "P", "why": "U-1: No original research policy - the primary/secondary/tertiary definitions and the rule against synthesis" },
+    { "url": "https://www.crossref.org/documentation/retrieve-metadata/rest-api/", "type": "P", "why": "U-2: Crossref REST API documentation - base URL, the /works/{doi} endpoint and what a record is" },
+    { "url": "https://api.crossref.org/works/10.1128/mbio.01735-25", "type": "P", "why": "U-2: a live Crossref work record, the DOI Crossref's own quick start uses - DOI, URL, resource.primary.URL, published, is-referenced-by-count" },
+    { "url": "https://www.unicode.org/reports/tr15/", "type": "P", "why": "U-3: UAX #15 Unicode Normalization Forms - canonical and compatibility equivalence, NFC/NFKC, the recommendation for identifiers" },
+    { "url": "https://www.unicode.org/reports/tr46/", "type": "P", "why": "U-4: UTS #46 IDNA Compatibility Processing - how a Unicode host is mapped (case folding, mapping, ToASCII)" },
+    { "url": "https://url.spec.whatwg.org/#url-equivalence", "type": "P", "why": "U-4: WHATWG URL Standard - host parsing, the URL serializer and the URL equivalence section (case, default port, empty path, percent-encoding)" },
+    { "url": "https://ekzhu.com/datasketch/minhash.html", "type": "P", "why": "U-5: datasketch MinHash - what it estimates (Jaccard over sets), how a document is turned into a set, the number of permutations and error" },
+    { "url": "https://support.elicit.com/en/articles/14759154-systematic-reviews-in-elicit", "type": "P", "why": "U-6: Elicit help centre - whether screening decisions and extracted cells show the supporting quote from the paper" },
+    { "url": "https://www.perplexity.ai/help-center/en/articles/20260806-understanding-source-labels", "type": "P", "why": "U-6: Perplexity help centre - source labels are given to the whole website, not the page; what a citation shows" }
+  ]
+}
