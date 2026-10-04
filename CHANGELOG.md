@@ -5,6 +5,9 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- `createTempFolder` in the test harness records a folder as the run's only when its own mkdir created
+  it: recording from the existence check before the mkdir let a folder another process created in
+  between be removed at exit (found 2026-10-04 by an external review of the F3 fix).
 - `handoff` gives a capture changed after its fetch its own remedy: restore it from the committed copy
   when the change is local to the checkout, else the collector restores or re-collects it. It got the
   push remedy ("something did not travel"), which sends the same bytes again when the change was

@@ -247,6 +247,24 @@ console.log(path.dirname(dir));
   assert.equal(fs.readFileSync(path.join(asked, 'somebody-elses.txt'), 'utf8'), 'kept', 'a folder holding somebody else\'s file was removed');
 });
 
+// Found 2026-10-04 by an external review of the fix above: the folders were recorded as
+// created BEFORE the mkdir, from an existence check, so a process that created the same
+// missing chain in between was never seen - this run made nothing, recorded everything, and
+// removed the other process's empty folder at exit. A non-recursive rmdir protects contents,
+// not ownership. Ownership is the mkdir that succeeded, so that is what gets recorded.
+test('a folder another process created between the check and the mkdir is not this run\'s to remove', () => {
+  const outside = tempDir('rk-raced-base-');
+  const asked = path.join(outside, 'missing', 'deeper');
+  const child = runChild(`
+import { createTempFolder, fs } from ${JSON.stringify(HARNESS)};
+// The other process wins the race: the folder exists by the time this run's mkdir runs.
+createTempFolder(${JSON.stringify(asked)}, { mkdir: (p) => { fs.mkdirSync(p); fs.mkdirSync(p); } });
+console.log('made');
+`);
+  assert.equal(child.status, 0, `the probe child failed:\n${child.stderr}`);
+  assert.ok(fs.existsSync(asked), 'the run removed a folder another process created');
+});
+
 // Found 2026-09-28 (Arena break test 7): findPython took the first of `python`, `python3`
 // that answered --version, and never read the version. On the most common Linux and older
 // macOS layout - `python` an alias for 2.7 or 3.8, `python3` the real one - every
