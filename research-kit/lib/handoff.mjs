@@ -94,31 +94,42 @@ export function alteredRemedy(files = [], { isRepo = true } = {}) {
     return [
       ...head,
       'BUT this directory has no git metadata, so nothing here holds the fetched bytes and no',
-      'command is safe to print: re-copy this corpus from the machine that has the repository,',
-      'or re-collect the capture on the collector machine. Do not edit the capture to match.',
+      'command is safe to print: re-copy this corpus from the machine that has the repository.',
+      'Do not edit the capture to match, and do not re-collect it - a new fetch writes a new',
+      'capture beside this one, and the ledger still names this one.',
     ].join('\n');
   }
 
+  // Judged by running it (2026-10-04, external review): a dirty `git status` says this
+  // checkout changed the file after the commit, NOT that the commit holds the fetched bytes -
+  // a capture committed altered and then edited again is dirty too, and restoring HEAD leaves
+  // it failing. So the checkout is followed by handoff again, and the committed case is one
+  // step further, never a claim. Re-collecting is not offered: a new fetch writes a new
+  // capture (`.r2.md`) beside this one, or refuses to overwrite a differing source sibling,
+  // and verifyLedger still checks the entry that names this file.
   return [
     ...head,
-    'First, whether the change is local to this checkout - this prints the file when it',
-    'differs from the committed copy:',
+    'First, whether this checkout changed the file after the commit - this prints the file',
+    'when it differs from the committed copy:',
     '',
     ...named.map((file) => `    git status --porcelain -- ${pathspec(file)}`),
     '',
-    'If it prints the file, the committed copy is the fetched one. Restore it from the',
-    'commit, which spends nothing and touches no other file:',
+    'If it prints the file, restore the committed copy, which spends nothing and touches no',
+    'other file, then run handoff again:',
     '',
     ...named.map((file) => `    git checkout HEAD -- ${pathspec(file)}`),
     ...(files.length > named.length ? ['', 'and the remaining files handoff names above the same way, each by name.'] : []),
     '',
-    'If it prints nothing, the altered bytes were committed and this checkout is faithful to',
-    'them. Then the remedy lives on the COLLECTOR machine: restore the capture from the commit',
-    'before the change (git log names it) or re-collect it, which spends credits:',
+    'If handoff still fails on it, or the status printed nothing, the altered bytes were',
+    'committed. Find the last commit that held the fetched bytes - the one before the change:',
     '',
-    `    ${kitCommand('research.mjs', '--plan research/plan.json --force')}`,
+    ...named.map((file) => `    git log --oneline -- ${pathspec(file)}`),
     '',
-    'Pushing from the collector sends the same bytes and fixes nothing here.',
+    'and restore the file from it with `git checkout <that commit> -- <file>`, here or on the',
+    'collector, where the ledger was written. If no commit holds them, the capture is unproven',
+    'and stays so: the ledger is never edited to agree with it, and re-collecting does not',
+    'clear it - a new fetch writes a new capture beside this one, and the ledger still names',
+    'this one. Pushing from the collector sends the same bytes.',
   ].join('\n');
 }
 

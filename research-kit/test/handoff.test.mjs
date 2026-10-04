@@ -184,7 +184,14 @@ test('a capture changed after its fetch gets the ALTERED remedy, and no push rem
   const inRepo = alteredRemedy([capture.file], { isRepo: true });
   assert.match(inRepo, new RegExp(`^ {4}git status --porcelain -- ${escaped}$`, 'm'), 'first, whether the change is local');
   assert.match(inRepo, new RegExp(`^ {4}git checkout HEAD -- ${escaped}$`, 'm'), 'the committed copy restores a local change for nothing');
-  assert.match(inRepo, /research\.mjs.*--force/, 'a committed alteration is the collector\'s to restore or re-collect');
+  // Found 2026-10-04 by an external review: a dirty status does not prove HEAD holds the
+  // fetched bytes, and `--force` re-collects into a NEW capture while the ledger still names
+  // this one - so neither is claimed or offered.
+  assert.doesNotMatch(inRepo, /committed copy is the fetched one/, 'a dirty status proves only that this checkout changed the file');
+  assert.match(inRepo, /then run handoff again/);
+  assert.match(inRepo, new RegExp(`^ {4}git log --oneline -- ${escaped}$`, 'm'), 'the committed case looks for the commit that held the fetched bytes');
+  assert.doesNotMatch(inRepo, /--force|research\.mjs/, 're-collecting writes a new capture; the ledger still names this one');
+  assert.doesNotMatch(alteredRemedy([capture.file], { isRepo: false }), /re-collect the capture/);
   assert.doesNotMatch(inRepo, /git checkout HEAD -- research\/raw\/$/m, 'a folder-wide checkout discards uncommitted work');
   for (const line of inRepo.split('\n').filter((l) => /^ {4}\S/.test(l)).map((l) => l.trim())) {
     assert.match(line, /^(git|node) /, `not a command: ${line}`);
@@ -234,6 +241,36 @@ test('a capture path holding whitespace is one pathspec in every printed command
       assert.match(line, /-- "research\/raw\/topic copy\.md"$/, `two pathspecs: ${line}`);
     }
   }
+});
+
+test('a capture committed altered and edited again: the printed checkout is followed by handoff again, which still fails and says what is next', () => {
+  requireGit('the altered-capture remedy');
+  const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const dir = makePassingProject();
+  for (const args of [fixtureInitArgs(), ['config', 'user.email', 't@t'], ['config', 'user.name', 't'],
+    ['add', '-A'], fixtureCommitArgs('corpus')]) {
+    assert.equal(git(dir, ...args).status, 0, `git ${args.join(' ')}`);
+  }
+  const capture = readCorpus(dir).captures.entries[0];
+  // The alteration was committed (past the gate, --no-verify), then the file was edited again.
+  corrupt(dir, capture.file, (text) => `${text}\ncommitted alteration\n`);
+  for (const args of [['add', '-A'], fixtureCommitArgs('altered')]) assert.equal(git(dir, ...args).status, 0);
+  corrupt(dir, capture.file, (text) => `${text}\nlocal edit\n`);
+
+  const before = verifyHandoff(dir);
+  assert.equal(before.altered.length, 1);
+  const remedy = handoffRemedy(before);
+  assert.match(git(dir, 'status', '--porcelain', '--', capture.file).stdout, /\S/, 'the status is dirty, as the remedy expects');
+  for (const line of remedy.split('\n').map((l) => l.trim())) {
+    if (line.startsWith('git checkout HEAD')) assert.equal(git(dir, ...line.split(/\s+/).slice(1)).status, 0, line);
+  }
+  const after = verifyHandoff(dir);
+  assert.equal(after.ok, false, 'HEAD holds the altered bytes; restoring it cannot pass');
+  assert.deepEqual(after.altered.map((e) => e.file), [capture.file]);
+  // The remedy already said so, and where to look next.
+  assert.match(remedy, /If handoff still fails on it/);
+  assert.match(remedy, /git log --oneline -- /);
+  assert.doesNotMatch(remedy, /committed copy is the fetched one/);
 });
 
 test('a report holding both causes prints both remedies', () => {
