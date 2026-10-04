@@ -1,0 +1,1770 @@
+<!DOCTYPE html><html lang="en" data-content_root="./" data-mode="auto" data-theme="light" data-readthedocs-tool="sphinx" data-readthedocs-tool-theme="pydata" class="fontawesome-i2svg-active fontawesome-i2svg-complete"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+:root, :host { --fa-font-solid: normal 900 1em/1 'Font Awesome 7 Free'; --fa-font-regular: normal 400 1em/1 'Font Awesome 7 Free'; --fa-font-light: normal 300 1em/1 'Font Awesome 7 Pro'; --fa-font-thin: normal 100 1em/1 'Font Awesome 7 Pro'; --fa-font-duotone: normal 900 1em/1 'Font Awesome 7 Duotone'; --fa-font-duotone-regular: normal 400 1em/1 'Font Awesome 7 Duotone'; --fa-font-duotone-light: normal 300 1em/1 'Font Awesome 7 Duotone'; --fa-font-duotone-thin: normal 100 1em/1 'Font Awesome 7 Duotone'; --fa-font-brands: normal 400 1em/1 'Font Awesome 7 Brands'; --fa-font-sharp-solid: normal 900 1em/1 'Font Awesome 7 Sharp'; --fa-font-sharp-regular: normal 400 1em/1 'Font Awesome 7 Sharp'; --fa-font-sharp-light: normal 300 1em/1 'Font Awesome 7 Sharp'; --fa-font-sharp-thin: normal 100 1em/1 'Font Awesome 7 Sharp'; --fa-font-sharp-duotone-solid: normal 900 1em/1 'Font Awesome 7 Sharp Duotone'; --fa-font-sharp-duotone-regular: normal 400 1em/1 'Font Awesome 7 Sharp Duotone'; --fa-font-sharp-duotone-light: normal 300 1em/1 'Font Awesome 7 Sharp Duotone'; --fa-font-sharp-duotone-thin: normal 100 1em/1 'Font Awesome 7 Sharp Duotone'; --fa-font-slab-regular: normal 400 1em/1 'Font Awesome 7 Slab'; --fa-font-slab-press-regular: normal 400 1em/1 'Font Awesome 7 Slab Press'; --fa-font-slab-duo-regular: normal 400 1em/1 'Font Awesome 7 Slab Duo'; --fa-font-slab-press-duo-regular: normal 400 1em/1 'Font Awesome 7 Slab Press Duo'; --fa-font-pixel-regular: normal 400 1em/1 'Font Awesome 7 Pixel'; --fa-font-mosaic-solid: normal 900 1em/1 'Font Awesome 7 Mosaic'; --fa-font-vellum-solid: normal 900 1em/1 'Font Awesome 7 Vellum'; --fa-font-whiteboard-semibold: normal 600 1em/1 'Font Awesome 7 Whiteboard'; --fa-font-thumbprint-light: normal 300 1em/1 'Font Awesome 7 Thumbprint'; --fa-font-notdog-solid: normal 900 1em/1 'Font Awesome 7 Notdog'; --fa-font-notdog-duo-solid: normal 900 1em/1 'Font Awesome 7 Notdog Duo'; --fa-font-etch-solid: normal 900 1em/1 'Font Awesome 7 Etch'; --fa-font-graphite-thin: normal 100 1em/1 'Font Awesome 7 Graphite'; --fa-font-jelly-regular: normal 400 1em/1 'Font Awesome 7 Jelly'; --fa-font-jelly-fill-regular: normal 400 1em/1 'Font Awesome 7 Jelly Fill'; --fa-font-jelly-duo-regular: normal 400 1em/1 'Font Awesome 7 Jelly Duo'; --fa-font-chisel-regular: normal 400 1em/1 'Font Awesome 7 Chisel'; --fa-font-utility-semibold: normal 600 1em/1 'Font Awesome 7 Utility'; --fa-font-utility-duo-semibold: normal 600 1em/1 'Font Awesome 7 Utility Duo'; --fa-font-utility-fill-semibold: normal 600 1em/1 'Font Awesome 7 Utility Fill'; }
+
+.svg-inline--fa { box-sizing: content-box; display: var(--fa-display, inline-block); height: 1em; overflow: visible; vertical-align: -0.125em; width: var(--fa-width, 1.25em); }
+
+.svg-inline--fa.fa-2xs { vertical-align: 0.1em; }
+
+.svg-inline--fa.fa-xs { vertical-align: 0em; }
+
+.svg-inline--fa.fa-sm { vertical-align: -0.0714286em; }
+
+.svg-inline--fa.fa-lg { vertical-align: -0.2em; }
+
+.svg-inline--fa.fa-xl { vertical-align: -0.25em; }
+
+.svg-inline--fa.fa-2xl { vertical-align: -0.3125em; }
+
+.svg-inline--fa.fa-pull-left, .svg-inline--fa .fa-pull-start { float: inline-start; margin-inline-end: var(--fa-pull-margin, 0.3em); }
+
+.svg-inline--fa.fa-pull-right, .svg-inline--fa .fa-pull-end { float: inline-end; margin-inline-start: var(--fa-pull-margin, 0.3em); }
+
+.svg-inline--fa.fa-li { width: var(--fa-li-width, 2em); inset-inline-start: calc(-1 * var(--fa-li-width, 2em)); inset-block-start: 0.25em; }
+
+.fa-layers-counter, .fa-layers-text { display: inline-block; position: absolute; text-align: center; }
+
+.fa-layers { display: inline-block; height: 1em; position: relative; text-align: center; vertical-align: -0.125em; width: var(--fa-width, 1.25em); }
+
+.fa-layers .svg-inline--fa { inset: 0px; margin: auto; position: absolute; transform-origin: center center; }
+
+.fa-layers-text { left: 50%; top: 50%; transform: translate(-50%, -50%); transform-origin: center center; }
+
+.fa-layers-counter { background-color: var(--fa-counter-background-color, #ff253a); border-radius: var(--fa-counter-border-radius, 1em); box-sizing: border-box; color: var(--fa-inverse, #fff); line-height: var(--fa-counter-line-height, 1); max-width: var(--fa-counter-max-width, 5em); min-width: var(--fa-counter-min-width, 1.5em); overflow: hidden; padding: var(--fa-counter-padding, 0.25em 0.5em); right: var(--fa-right, 0); text-overflow: ellipsis; top: var(--fa-top, 0); transform: scale(var(--fa-counter-scale, 0.25)); transform-origin: right top; }
+
+.fa-layers-bottom-right { bottom: var(--fa-bottom, 0); right: var(--fa-right, 0); top: auto; transform: scale(var(--fa-layers-scale, 0.25)); transform-origin: right bottom; }
+
+.fa-layers-bottom-left { bottom: var(--fa-bottom, 0); left: var(--fa-left, 0); right: auto; top: auto; transform: scale(var(--fa-layers-scale, 0.25)); transform-origin: left bottom; }
+
+.fa-layers-top-right { top: var(--fa-top, 0); right: var(--fa-right, 0); transform: scale(var(--fa-layers-scale, 0.25)); transform-origin: right top; }
+
+.fa-layers-top-left { left: var(--fa-left, 0); right: auto; top: var(--fa-top, 0); transform: scale(var(--fa-layers-scale, 0.25)); transform-origin: left top; }
+
+.fa-1x { font-size: 1em; }
+
+.fa-2x { font-size: 2em; }
+
+.fa-3x { font-size: 3em; }
+
+.fa-4x { font-size: 4em; }
+
+.fa-5x { font-size: 5em; }
+
+.fa-6x { font-size: 6em; }
+
+.fa-7x { font-size: 7em; }
+
+.fa-8x { font-size: 8em; }
+
+.fa-9x { font-size: 9em; }
+
+.fa-10x { font-size: 10em; }
+
+.fa-2xs { font-size: calc(0.625em); line-height: calc(0.1em); vertical-align: calc(0.225em); }
+
+.fa-xs { font-size: calc(0.75em); line-height: calc(0.0833333em); vertical-align: calc(0.125em); }
+
+.fa-sm { font-size: calc(0.875em); line-height: calc(0.0714286em); vertical-align: calc(0.0535714em); }
+
+.fa-lg { font-size: calc(1.25em); line-height: calc(0.05em); vertical-align: calc(-0.075em); }
+
+.fa-xl { font-size: calc(1.5em); line-height: calc(0.0416667em); vertical-align: calc(-0.125em); }
+
+.fa-2xl { font-size: calc(2em); line-height: calc(0.03125em); vertical-align: calc(-0.1875em); }
+
+.fa-width-auto { --fa-width: auto; }
+
+.fa-fw, .fa-width-fixed { --fa-width: 1.25em; }
+
+.fa-canvas-square { padding-block: 0.125em; margin-block-end: -0.125em; }
+
+.fa-canvas-roomy { padding-block: 0.25em; padding-inline: 0.125em; margin-block-end: -0.25em; box-sizing: content-box; }
+
+.fa-ul { list-style-type: none; margin-inline-start: var(--fa-li-margin, 2.5em); padding-inline-start: 0px; }
+
+.fa-ul > li { position: relative; }
+
+.fa-li { inset-inline-start: calc(-1 * var(--fa-li-width, 2em)); position: absolute; text-align: center; width: var(--fa-li-width, 2em); line-height: inherit; }
+
+.fa-border { border-color: var(--fa-border-color, #eee); border-radius: var(--fa-border-radius, 0.1em); border-style: var(--fa-border-style, solid); border-width: var(--fa-border-width, 0.0625em); box-sizing: var(--fa-border-box-sizing, content-box); padding: var(--fa-border-padding, 0.1875em 0.25em); }
+
+.fa-pull-left, .fa-pull-start { float: inline-start; margin-inline-end: var(--fa-pull-margin, 0.3em); }
+
+.fa-pull-right, .fa-pull-end { float: inline-end; margin-inline-start: var(--fa-pull-margin, 0.3em); }
+
+.fa-beat { animation-name: fa-beat; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); }
+
+.fa-bounce { animation-name: fa-bounce; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, cubic-bezier(0.28, 0.84, 0.42, 1)); }
+
+.fa-fade { animation-name: fa-fade; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); }
+
+.fa-beat-fade { animation-name: fa-beat-fade; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); }
+
+.fa-flip { animation-name: fa-flip; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1.5s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); }
+
+.fa-flip-360 { animation-name: fa-flip-360; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); }
+
+.fa-shake { animation-name: fa-shake; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 0.75s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); }
+
+.fa-spin { animation-name: fa-spin; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 2s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, linear); }
+
+.fa-spin-reverse { --fa-animation-direction: reverse; }
+
+.fa-pulse, .fa-spin-pulse { animation-name: fa-spin; animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, steps(8)); }
+
+.fa-spin-snap { animation-name: fa-spin-snap; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 3s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, linear); }
+
+.fa-spin-snap-4 { animation-name: fa-spin-snap-4; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 2.4s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, linear); }
+
+.fa-spin-snap-8 { animation-name: fa-spin-snap-8; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 4s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, linear); }
+
+.fa-buzz { animation-name: fa-buzz; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 0.6s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, linear); }
+
+.fa-wag { animation-name: fa-wag; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 0.9s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-out); transform-origin: center bottom; }
+
+.fa-float { animation-name: fa-float; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 3s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); will-change: transform; }
+
+.fa-swing { animation-name: fa-swing; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1.2s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-out); transform-origin: center top; }
+
+.fa-jello { animation-name: fa-jello; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 0.9s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-out); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fa-beat, .fa-bounce, .fa-fade, .fa-beat-fade, .fa-flip, .fa-flip-360, .fa-pulse, .fa-shake, .fa-spin, .fa-spin-pulse, .fa-buzz, .fa-float, .fa-jello, .fa-spin-snap, .fa-spin-snap-4, .fa-spin-snap-8, .fa-swing, .fa-wag { animation: auto ease 0s 1 normal none running none !important; transition: none !important; }
+}
+
+@keyframes fa-beat { 
+  0% { transform: scale(1); }
+  25% { transform: scale(calc(1.25 * var(--fa-beat-scale, 1.25))); }
+  45% { transform: scale(calc(1.22 * var(--fa-beat-scale, 1.22))); }
+  65% { transform: scale(calc(1.25 * var(--fa-beat-scale, 1.25))); }
+  90% { transform: scale(1); }
+}
+
+@keyframes fa-bounce { 
+  0% { transform: scale(1, 1) translateY(0px); animation-timing-function: var(--fa-animation-timing); }
+  14% { transform: scale(var(--fa-bounce-start-scale-x, 1.06), var(--fa-bounce-start-scale-y, 0.94)) translateY(var(--fa-bounce-anticipation, 3px)); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33); }
+  32% { transform: scale(var(--fa-bounce-jump-scale-x, 0.94), var(--fa-bounce-jump-scale-y, 1.12)) translateY(calc(-1 * var(--fa-bounce-height, 0.5em))); animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1); }
+  52% { transform: scale(1, 1) translateY(calc(-1 * var(--fa-bounce-height, 0.5em) * 1.1)); animation-timing-function: cubic-bezier(0.5, 0, 1, 0.5); }
+  70% { transform: scale(var(--fa-bounce-land-scale-x, 1.06), var(--fa-bounce-land-scale-y, 0.92)) translateY(0); animation-timing-function: cubic-bezier(0.33, 0.33, 0.66, 1); }
+  85% { transform: scale(0.98, 1.04) translateY(calc(-2px * var(--fa-bounce-rebound, 1))); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 1); }
+  100% { transform: scale(1, 1) translateY(0px); }
+}
+
+@keyframes fa-fade { 
+  0% { opacity: 1; transform: scale(1); animation-timing-function: cubic-bezier(0.2, 0, 0.4, 1); }
+  40% { opacity: var(--fa-fade-opacity, 0.4); transform: scale(0.98); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fa-beat-fade { 
+  0% { opacity: var(--fa-beat-fade-opacity, 0.4); transform: scale(1); animation-timing-function: cubic-bezier(0.2, 0, 0.4, 1); }
+  25% { opacity: calc(var(--fa-beat-fade-opacity, 0.4) + 0.4); transform: scale(var(--fa-beat-fade-scale, 1.28)); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  45% { opacity: 1; transform: scale(var(--fa-beat-fade-scale, 1.25)); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  65% { opacity: calc(var(--fa-beat-fade-opacity, 0.4) + 0.4); transform: scale(var(--fa-beat-fade-scale, 1.28)); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  100% { opacity: var(--fa-beat-fade-opacity, 0.4); transform: scale(1); }
+}
+
+@keyframes fa-flip { 
+  0% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), 0deg); animation-timing-function: cubic-bezier(0.2, 0, 0.4, 1); }
+  8% { transform: perspective(2em) scale(var(--fa-flip-anticipation-scale, 0.95)) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), 0deg); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33); }
+  35% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), calc(var(--fa-flip-angle, -360deg) * 0.6)); animation-timing-function: linear; }
+  65% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), calc(var(--fa-flip-angle, -360deg) * 0.5)); animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1); }
+  92% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), calc(var(--fa-flip-angle, -360deg) * var(--fa-flip-overshoot, 1.04))); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 1); }
+  100% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), var(--fa-flip-angle, -360deg)); }
+}
+
+@keyframes fa-flip-360 { 
+  0% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), 0deg); animation-timing-function: cubic-bezier(0.2, 0, 0.4, 1); }
+  8% { transform: perspective(2em) scale(var(--fa-flip-anticipation-scale, 0.95)) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), 0deg); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33); }
+  50% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), calc(var(--fa-flip-angle, -360deg) * 0.6)); animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1); }
+  80% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), calc(var(--fa-flip-angle, -360deg) * var(--fa-flip-overshoot, 1.04))); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 1); }
+  100% { transform: perspective(2em) scale(1) rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), var(--fa-flip-angle, -360deg)); }
+}
+
+@keyframes fa-shake { 
+  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.2, 0, 0.8, 1); }
+  8% { transform: rotate(35deg) translateX(1px); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+  20% { transform: rotate(-22deg) translateX(-1px); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+  35% { transform: rotate(15deg) translateX(1px); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+  50% { transform: rotate(-9deg); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  65% { transform: rotate(5deg); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  78% { transform: rotate(-3deg); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  90% { transform: rotate(1deg); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes fa-spin { 
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fa-spin-snap { 
+  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  12% { transform: rotate(60deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  16.67% { transform: rotate(60deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  28.67% { transform: rotate(120deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  33.33% { transform: rotate(120deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  45.33% { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  50% { transform: rotate(180deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  62% { transform: rotate(240deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  66.67% { transform: rotate(240deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  78.67% { transform: rotate(300deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  83.33% { transform: rotate(300deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  95.33% { transform: rotate(360deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fa-spin-snap-4 { 
+  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  15% { transform: rotate(90deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  25% { transform: rotate(90deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  40% { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  50% { transform: rotate(180deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  65% { transform: rotate(270deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  75% { transform: rotate(270deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  90% { transform: rotate(360deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fa-spin-snap-8 { 
+  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  9% { transform: rotate(45deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  12.5% { transform: rotate(45deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  21.5% { transform: rotate(90deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  25% { transform: rotate(90deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  34% { transform: rotate(135deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  37.5% { transform: rotate(135deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  46.5% { transform: rotate(180deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  50% { transform: rotate(180deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  59% { transform: rotate(225deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  62.5% { transform: rotate(225deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  71.5% { transform: rotate(270deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  75% { transform: rotate(270deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  84% { transform: rotate(315deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  87.5% { transform: rotate(315deg); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  96.5% { transform: rotate(360deg); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fa-buzz { 
+  0% { transform: translateX(0px) rotate(0deg); animation-timing-function: cubic-bezier(0.1, 0, 0.9, 1); }
+  5% { transform: translateX(var(--fa-buzz-distance, 4px)) rotate(0.5deg); }
+  10% { transform: translateX(calc(-1 * var(--fa-buzz-distance, 4px))) rotate(-0.5deg); }
+  15% { transform: translateX(var(--fa-buzz-distance, 4px)) rotate(0.3deg); }
+  20% { transform: translateX(calc(-1 * var(--fa-buzz-distance, 4px))) rotate(-0.3deg); }
+  25% { transform: translateX(calc(var(--fa-buzz-distance, 4px) * 0.7)) rotate(0.2deg); }
+  30% { transform: translateX(calc(-1 * var(--fa-buzz-distance, 4px) * 0.7)) rotate(-0.2deg); }
+  35% { transform: translateX(calc(var(--fa-buzz-distance, 4px) * 0.4)) rotate(0.1deg); }
+  40% { transform: translateX(0px) rotate(0deg); }
+  100% { transform: translateX(0px) rotate(0deg); }
+}
+
+@keyframes fa-wag { 
+  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.2, 0, 0.6, 1); }
+  12% { transform: rotate(var(--fa-wag-angle, 12deg)); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  24% { transform: rotate(2deg); animation-timing-function: cubic-bezier(0.2, 0, 0.6, 1); }
+  36% { transform: rotate(calc(var(--fa-wag-angle, 12deg) * 0.85)); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  48% { transform: rotate(1deg); animation-timing-function: cubic-bezier(0.2, 0, 0.6, 1); }
+  58% { transform: rotate(calc(var(--fa-wag-angle, 12deg) * 0.6)); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  68% { transform: rotate(0deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes fa-float { 
+  0% { transform: translateY(0) translateX(0) rotate(0deg) scale(var(--fa-float-squash-x, 1.02), var(--fa-float-squash-y, 0.98)); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33); }
+  15% { transform: translateY(calc(-0.4 * var(--fa-float-height, 6px))) translateX(var(--fa-float-drift, 1px)) rotate(var(--fa-float-tilt, 1deg)) scale(1, 1); animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1); }
+  35% { transform: translateY(calc(-1 * var(--fa-float-height, 6px))) translateX(0) rotate(0deg) scale(var(--fa-float-stretch-x, 0.98), var(--fa-float-stretch-y, 1.03)); animation-timing-function: cubic-bezier(0.5, 0, 0.5, 0); }
+  50% { transform: translateY(calc(-0.92 * var(--fa-float-height, 6px))) translateX(calc(-0.5 * var(--fa-float-drift, 1px))) rotate(calc(-0.5 * var(--fa-float-tilt, 1deg))) scale(0.995, 1.01); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 0.33); }
+  70% { transform: translateY(calc(-0.3 * var(--fa-float-height, 6px))) translateX(calc(-1 * var(--fa-float-drift, 1px))) rotate(calc(-1 * var(--fa-float-tilt, 1deg))) scale(1, 1); animation-timing-function: cubic-bezier(0.33, 0.66, 0.66, 1); }
+  90% { transform: translateY(calc(0.05 * var(--fa-float-height, 6px))) translateX(0) rotate(0deg) scale(var(--fa-float-squash-x, 1.02), var(--fa-float-squash-y, 0.98)); animation-timing-function: cubic-bezier(0.33, 0, 0.66, 1); }
+  100% { transform: translateY(0) translateX(0) rotate(0deg) scale(var(--fa-float-squash-x, 1.02), var(--fa-float-squash-y, 0.98)); }
+}
+
+@keyframes fa-swing { 
+  0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.2, 0, 0.8, 1); }
+  8% { transform: rotate(var(--fa-swing-angle, 22deg)); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+  18% { transform: rotate(calc(-1 * var(--fa-swing-angle, 22deg) * 0.85)); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+  28% { transform: rotate(calc(var(--fa-swing-angle, 22deg) * 0.65)); animation-timing-function: cubic-bezier(0.35, 0, 0.65, 1); }
+  38% { transform: rotate(calc(-1 * var(--fa-swing-angle, 22deg) * 0.45)); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  48% { transform: rotate(calc(var(--fa-swing-angle, 22deg) * 0.25)); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  56% { transform: rotate(calc(-1 * var(--fa-swing-angle, 22deg) * 0.1)); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  64% { transform: rotate(0deg); }
+  100% { transform: rotate(0deg); }
+}
+
+@keyframes fa-jello { 
+  0% { transform: scale(1, 1); animation-timing-function: cubic-bezier(0.2, 0, 0.8, 1); }
+  12% { transform: scale(var(--fa-jello-scale-x, 1.15), calc(2 - var(--fa-jello-scale-x, 1.15))); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+  24% { transform: scale(calc(2 - var(--fa-jello-scale-y, 1.12)), var(--fa-jello-scale-y, 1.12)); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 1); }
+  36% { transform: scale(calc(1 + (var(--fa-jello-scale-x, 1.15) - 1) * 0.5), calc(2 - (1 + (var(--fa-jello-scale-x, 1.15) - 1) * 0.5))); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  48% { transform: scale(calc(2 - (1 + (var(--fa-jello-scale-y, 1.12) - 1) * 0.3)), calc(1 + (var(--fa-jello-scale-y, 1.12) - 1) * 0.3)); animation-timing-function: cubic-bezier(0.4, 0, 0.6, 1); }
+  58% { transform: scale(1.02, 0.98); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+  68% { transform: scale(1, 1); }
+  100% { transform: scale(1, 1); }
+}
+
+.fa-rotate-90 { transform: rotate(90deg); }
+
+.fa-rotate-180 { transform: rotate(180deg); }
+
+.fa-rotate-270 { transform: rotate(270deg); }
+
+.fa-flip-horizontal { transform: scale(-1, 1); }
+
+.fa-flip-vertical { transform: scale(1, -1); }
+
+.fa-flip-both, .fa-flip-horizontal.fa-flip-vertical { transform: scale(-1, -1); }
+
+.fa-rotate-by { transform: rotate(var(--fa-rotate-angle, 0)); }
+
+.svg-inline--fa .fa-primary { fill: var(--fa-primary-color, currentColor); opacity: var(--fa-primary-opacity, 1); }
+
+.svg-inline--fa .fa-secondary { fill: var(--fa-secondary-color, currentColor); opacity: var(--fa-secondary-opacity, 0.4); }
+
+.svg-inline--fa.fa-swap-opacity .fa-primary { opacity: var(--fa-secondary-opacity, 0.4); }
+
+.svg-inline--fa.fa-swap-opacity .fa-secondary { opacity: var(--fa-primary-opacity, 1); }
+
+.svg-inline--fa mask .fa-primary, .svg-inline--fa mask .fa-secondary { fill: black; }
+
+.svg-inline--fa.fa-inverse { fill: var(--fa-inverse, #fff); }
+
+.fa-stack { display: inline-block; height: 2em; line-height: 2em; position: relative; vertical-align: middle; width: 2.5em; }
+
+.fa-inverse { color: var(--fa-inverse, #fff); }
+
+.svg-inline--fa.fa-stack-1x { --fa-width: 1.25em; height: 1em; width: var(--fa-width); }
+
+.svg-inline--fa.fa-stack-2x { --fa-width: 2.5em; height: 2em; width: var(--fa-width); }
+
+.fa-stack-1x, .fa-stack-2x { inset: 0px; margin: auto; position: absolute; z-index: var(--fa-stack-z-index, auto); }</style><style rel="stylesheet" type="text/css">@charset "utf-8";
+
+:root, :host { --fa-font-solid: normal 900 1em/1 'Font Awesome 7 Free'; --fa-font-regular: normal 400 1em/1 'Font Awesome 7 Free'; --fa-font-light: normal 300 1em/1 'Font Awesome 7 Pro'; --fa-font-thin: normal 100 1em/1 'Font Awesome 7 Pro'; --fa-font-duotone: normal 900 1em/1 'Font Awesome 7 Duotone'; --fa-font-duotone-regular: normal 400 1em/1 'Font Awesome 7 Duotone'; --fa-font-duotone-light: normal 300 1em/1 'Font Awesome 7 Duotone'; --fa-font-duotone-thin: normal 100 1em/1 'Font Awesome 7 Duotone'; --fa-font-brands: normal 400 1em/1 'Font Awesome 7 Brands'; --fa-font-sharp-solid: normal 900 1em/1 'Font Awesome 7 Sharp'; --fa-font-sharp-regular: normal 400 1em/1 'Font Awesome 7 Sharp'; --fa-font-sharp-light: normal 300 1em/1 'Font Awesome 7 Sharp'; --fa-font-sharp-thin: normal 100 1em/1 'Font Awesome 7 Sharp'; --fa-font-sharp-duotone-solid: normal 900 1em/1 'Font Awesome 7 Sharp Duotone'; --fa-font-sharp-duotone-regular: normal 400 1em/1 'Font Awesome 7 Sharp Duotone'; --fa-font-sharp-duotone-light: normal 300 1em/1 'Font Awesome 7 Sharp Duotone'; --fa-font-sharp-duotone-thin: normal 100 1em/1 'Font Awesome 7 Sharp Duotone'; --fa-font-slab-regular: normal 400 1em/1 'Font Awesome 7 Slab'; --fa-font-slab-press-regular: normal 400 1em/1 'Font Awesome 7 Slab Press'; --fa-font-whiteboard-semibold: normal 600 1em/1 'Font Awesome 7 Whiteboard'; --fa-font-thumbprint-light: normal 300 1em/1 'Font Awesome 7 Thumbprint'; --fa-font-notdog-solid: normal 900 1em/1 'Font Awesome 7 Notdog'; --fa-font-notdog-duo-solid: normal 900 1em/1 'Font Awesome 7 Notdog Duo'; --fa-font-etch-solid: normal 900 1em/1 'Font Awesome 7 Etch'; --fa-font-graphite-thin: normal 100 1em/1 'Font Awesome 7 Graphite'; --fa-font-jelly-regular: normal 400 1em/1 'Font Awesome 7 Jelly'; --fa-font-jelly-fill-regular: normal 400 1em/1 'Font Awesome 7 Jelly Fill'; --fa-font-jelly-duo-regular: normal 400 1em/1 'Font Awesome 7 Jelly Duo'; --fa-font-chisel-regular: normal 400 1em/1 'Font Awesome 7 Chisel'; --fa-font-utility-semibold: normal 600 1em/1 'Font Awesome 7 Utility'; --fa-font-utility-duo-semibold: normal 600 1em/1 'Font Awesome 7 Utility Duo'; --fa-font-utility-fill-semibold: normal 600 1em/1 'Font Awesome 7 Utility Fill'; }
+
+.svg-inline--fa { box-sizing: content-box; display: var(--fa-display, inline-block); height: 1em; overflow: visible; vertical-align: -0.125em; width: var(--fa-width, 1.25em); }
+
+.svg-inline--fa.fa-2xs { vertical-align: 0.1em; }
+
+.svg-inline--fa.fa-xs { vertical-align: 0em; }
+
+.svg-inline--fa.fa-sm { vertical-align: -0.0714286em; }
+
+.svg-inline--fa.fa-lg { vertical-align: -0.2em; }
+
+.svg-inline--fa.fa-xl { vertical-align: -0.25em; }
+
+.svg-inline--fa.fa-2xl { vertical-align: -0.3125em; }
+
+.svg-inline--fa.fa-pull-left, .svg-inline--fa .fa-pull-start { float: inline-start; margin-inline-end: var(--fa-pull-margin, 0.3em); }
+
+.svg-inline--fa.fa-pull-right, .svg-inline--fa .fa-pull-end { float: inline-end; margin-inline-start: var(--fa-pull-margin, 0.3em); }
+
+.svg-inline--fa.fa-li { width: var(--fa-li-width, 2em); inset-inline-start: calc(-1 * var(--fa-li-width, 2em)); inset-block-start: 0.25em; }
+
+.fa-layers-counter, .fa-layers-text { display: inline-block; position: absolute; text-align: center; }
+
+.fa-layers { display: inline-block; height: 1em; position: relative; text-align: center; vertical-align: -0.125em; width: var(--fa-width, 1.25em); }
+
+.fa-layers .svg-inline--fa { inset: 0px; margin: auto; position: absolute; transform-origin: center center; }
+
+.fa-layers-text { left: 50%; top: 50%; transform: translate(-50%, -50%); transform-origin: center center; }
+
+.fa-layers-counter { background-color: var(--fa-counter-background-color, #ff253a); border-radius: var(--fa-counter-border-radius, 1em); box-sizing: border-box; color: var(--fa-inverse, #fff); line-height: var(--fa-counter-line-height, 1); max-width: var(--fa-counter-max-width, 5em); min-width: var(--fa-counter-min-width, 1.5em); overflow: hidden; padding: var(--fa-counter-padding, 0.25em 0.5em); right: var(--fa-right, 0); text-overflow: ellipsis; top: var(--fa-top, 0); transform: scale(var(--fa-counter-scale, 0.25)); transform-origin: right top; }
+
+.fa-layers-bottom-right { bottom: var(--fa-bottom, 0); right: var(--fa-right, 0); top: auto; transform: scale(var(--fa-layers-scale, 0.25)); transform-origin: right bottom; }
+
+.fa-layers-bottom-left { bottom: var(--fa-bottom, 0); left: var(--fa-left, 0); right: auto; top: auto; transform: scale(var(--fa-layers-scale, 0.25)); transform-origin: left bottom; }
+
+.fa-layers-top-right { top: var(--fa-top, 0); right: var(--fa-right, 0); transform: scale(var(--fa-layers-scale, 0.25)); transform-origin: right top; }
+
+.fa-layers-top-left { left: var(--fa-left, 0); right: auto; top: var(--fa-top, 0); transform: scale(var(--fa-layers-scale, 0.25)); transform-origin: left top; }
+
+.fa-1x { font-size: 1em; }
+
+.fa-2x { font-size: 2em; }
+
+.fa-3x { font-size: 3em; }
+
+.fa-4x { font-size: 4em; }
+
+.fa-5x { font-size: 5em; }
+
+.fa-6x { font-size: 6em; }
+
+.fa-7x { font-size: 7em; }
+
+.fa-8x { font-size: 8em; }
+
+.fa-9x { font-size: 9em; }
+
+.fa-10x { font-size: 10em; }
+
+.fa-2xs { font-size: calc(0.625em); line-height: calc(0.1em); vertical-align: calc(0.225em); }
+
+.fa-xs { font-size: calc(0.75em); line-height: calc(0.0833333em); vertical-align: calc(0.125em); }
+
+.fa-sm { font-size: calc(0.875em); line-height: calc(0.0714286em); vertical-align: calc(0.0535714em); }
+
+.fa-lg { font-size: calc(1.25em); line-height: calc(0.05em); vertical-align: calc(-0.075em); }
+
+.fa-xl { font-size: calc(1.5em); line-height: calc(0.0416667em); vertical-align: calc(-0.125em); }
+
+.fa-2xl { font-size: calc(2em); line-height: calc(0.03125em); vertical-align: calc(-0.1875em); }
+
+.fa-width-auto { --fa-width: auto; }
+
+.fa-fw, .fa-width-fixed { --fa-width: 1.25em; }
+
+.fa-ul { list-style-type: none; margin-inline-start: var(--fa-li-margin, 2.5em); padding-inline-start: 0px; }
+
+.fa-ul > li { position: relative; }
+
+.fa-li { inset-inline-start: calc(-1 * var(--fa-li-width, 2em)); position: absolute; text-align: center; width: var(--fa-li-width, 2em); line-height: inherit; }
+
+.fa-border { border-color: var(--fa-border-color, #eee); border-radius: var(--fa-border-radius, 0.1em); border-style: var(--fa-border-style, solid); border-width: var(--fa-border-width, 0.0625em); box-sizing: var(--fa-border-box-sizing, content-box); padding: var(--fa-border-padding, 0.1875em 0.25em); }
+
+.fa-pull-left, .fa-pull-start { float: inline-start; margin-inline-end: var(--fa-pull-margin, 0.3em); }
+
+.fa-pull-right, .fa-pull-end { float: inline-end; margin-inline-start: var(--fa-pull-margin, 0.3em); }
+
+.fa-beat { animation-name: fa-beat; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); }
+
+.fa-bounce { animation-name: fa-bounce; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, cubic-bezier(0.28, 0.84, 0.42, 1)); }
+
+.fa-fade { animation-name: fa-fade; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, cubic-bezier(0.4, 0, 0.6, 1)); }
+
+.fa-beat-fade { animation-name: fa-beat-fade; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, cubic-bezier(0.4, 0, 0.6, 1)); }
+
+.fa-flip { animation-name: fa-flip; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, ease-in-out); }
+
+.fa-shake { animation-name: fa-shake; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, linear); }
+
+.fa-spin { animation-name: fa-spin; animation-delay: var(--fa-animation-delay, 0s); animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 2s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, linear); }
+
+.fa-spin-reverse { --fa-animation-direction: reverse; }
+
+.fa-pulse, .fa-spin-pulse { animation-name: fa-spin; animation-direction: var(--fa-animation-direction, normal); animation-duration: var(--fa-animation-duration, 1s); animation-iteration-count: var(--fa-animation-iteration-count, infinite); animation-timing-function: var(--fa-animation-timing, steps(8)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fa-beat, .fa-bounce, .fa-fade, .fa-beat-fade, .fa-flip, .fa-pulse, .fa-shake, .fa-spin, .fa-spin-pulse { animation: auto ease 0s 1 normal none running none !important; transition: none !important; }
+}
+
+@keyframes fa-beat { 
+  0%, 90% { transform: scale(1); }
+  45% { transform: scale(var(--fa-beat-scale, 1.25)); }
+}
+
+@keyframes fa-bounce { 
+  0% { transform: scale(1, 1) translateY(0px); }
+  10% { transform: scale(var(--fa-bounce-start-scale-x, 1.1), var(--fa-bounce-start-scale-y, 0.9)) translateY(0); }
+  30% { transform: scale(var(--fa-bounce-jump-scale-x, 0.9), var(--fa-bounce-jump-scale-y, 1.1)) translateY(var(--fa-bounce-height, -0.5em)); }
+  50% { transform: scale(var(--fa-bounce-land-scale-x, 1.05), var(--fa-bounce-land-scale-y, 0.95)) translateY(0); }
+  57% { transform: scale(1, 1) translateY(var(--fa-bounce-rebound, -0.125em)); }
+  64% { transform: scale(1, 1) translateY(0px); }
+  100% { transform: scale(1, 1) translateY(0px); }
+}
+
+@keyframes fa-fade { 
+  50% { opacity: var(--fa-fade-opacity, 0.4); }
+}
+
+@keyframes fa-beat-fade { 
+  0%, 100% { opacity: var(--fa-beat-fade-opacity, 0.4); transform: scale(1); }
+  50% { opacity: 1; transform: scale(var(--fa-beat-fade-scale, 1.125)); }
+}
+
+@keyframes fa-flip { 
+  50% { transform: rotate3d(var(--fa-flip-x, 0), var(--fa-flip-y, 1), var(--fa-flip-z, 0), var(--fa-flip-angle, -180deg)); }
+}
+
+@keyframes fa-shake { 
+  0% { transform: rotate(-15deg); }
+  4% { transform: rotate(15deg); }
+  8%, 24% { transform: rotate(-18deg); }
+  12%, 28% { transform: rotate(18deg); }
+  16% { transform: rotate(-22deg); }
+  20% { transform: rotate(22deg); }
+  32% { transform: rotate(-12deg); }
+  36% { transform: rotate(12deg); }
+  40%, 100% { transform: rotate(0deg); }
+}
+
+@keyframes fa-spin { 
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.fa-rotate-90 { transform: rotate(90deg); }
+
+.fa-rotate-180 { transform: rotate(180deg); }
+
+.fa-rotate-270 { transform: rotate(270deg); }
+
+.fa-flip-horizontal { transform: scale(-1, 1); }
+
+.fa-flip-vertical { transform: scale(1, -1); }
+
+.fa-flip-both, .fa-flip-horizontal.fa-flip-vertical { transform: scale(-1, -1); }
+
+.fa-rotate-by { transform: rotate(var(--fa-rotate-angle, 0)); }
+
+.svg-inline--fa .fa-primary { fill: var(--fa-primary-color, currentColor); opacity: var(--fa-primary-opacity, 1); }
+
+.svg-inline--fa .fa-secondary { fill: var(--fa-secondary-color, currentColor); opacity: var(--fa-secondary-opacity, 0.4); }
+
+.svg-inline--fa.fa-swap-opacity .fa-primary { opacity: var(--fa-secondary-opacity, 0.4); }
+
+.svg-inline--fa.fa-swap-opacity .fa-secondary { opacity: var(--fa-primary-opacity, 1); }
+
+.svg-inline--fa mask .fa-primary, .svg-inline--fa mask .fa-secondary { fill: black; }
+
+.svg-inline--fa.fa-inverse { fill: var(--fa-inverse, #fff); }
+
+.fa-stack { display: inline-block; height: 2em; line-height: 2em; position: relative; vertical-align: middle; width: 2.5em; }
+
+.fa-inverse { color: var(--fa-inverse, #fff); }
+
+.svg-inline--fa.fa-stack-1x { --fa-width: 1.25em; height: 1em; width: var(--fa-width); }
+
+.svg-inline--fa.fa-stack-2x { --fa-width: 2.5em; height: 2em; width: var(--fa-width); }
+
+.fa-stack-1x, .fa-stack-2x { inset: 0px; margin: auto; position: absolute; z-index: var(--fa-stack-z-index, auto); }</style>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta content="This tutorial focuses on text extraction from web pages with Python code snippets. Data mining with this library encompasses HTML parsing and language identification." lang="en" name="description" xml:lang="en">
+<meta property="og:title" content="Python usage">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://trafilatura.readthedocs.io/usage-python.html">
+<meta property="og:site_name" content="Trafilatura">
+<meta property="og:description" content="The Python programming language: Python can be easy to pick up whether you’re a first time programmer or you’re experienced with other languages: Official Python Tutorial, The Hitchhiker’s Guide to...">
+<meta property="og:image" content="https://raw.githubusercontent.com/adbar/trafilatura/master/docs/trafilatura-logo.png">
+<meta property="og:image:alt" content="Trafilatura">
+
+    <title>Python usage — Trafilatura 2.3.0 documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="https://trafilatura.readthedocs.io/en/latest/_static/styles/theme.css?digest=64cc4de3f052d77215f0" rel="stylesheet">
+<link href="https://trafilatura.readthedocs.io/en/latest/_static/styles/pydata-sphinx-theme.css?digest=64cc4de3f052d77215f0" rel="stylesheet">
+
+    <link rel="stylesheet" type="text/css" href="https://trafilatura.readthedocs.io/en/latest/_static/pygments.css?v=8f2a1f02">
+  
+  <!-- So that users can add custom icons -->
+  <script defer="" src="https://trafilatura.readthedocs.io/en/latest/_static/scripts/fontawesome.js?digest=64cc4de3f052d77215f0"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="https://trafilatura.readthedocs.io/en/latest/_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0">
+<link rel="preload" as="script" href="https://trafilatura.readthedocs.io/en/latest/_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0">
+
+    <script src="https://trafilatura.readthedocs.io/en/latest/_static/documentation_options.js?v=c3c8ae58"></script>
+    <script src="https://trafilatura.readthedocs.io/en/latest/_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="https://trafilatura.readthedocs.io/en/latest/_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script>
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){ dataLayer.push(arguments); }
+                gtag('consent', 'default', {
+                    'ad_storage': 'denied',
+                    'ad_user_data': 'denied',
+                    'ad_personalization': 'denied',
+                    'analytics_storage': 'denied'
+                });
+            </script>
+    <script async="async" src="https://www.googletagmanager.com/gtag/js?id=G-K3R5QCVDF1"></script>
+    <script>
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', 'G-K3R5QCVDF1');
+            </script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'usage-python';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="canonical" href="https://trafilatura.readthedocs.io/usage-python.html">
+    <link rel="index" title="Index" href="https://trafilatura.readthedocs.io/en/latest/genindex.html">
+    <link rel="search" title="Search" href="https://trafilatura.readthedocs.io/en/latest/search.html">
+    <link rel="next" title="Command-line usage" href="https://trafilatura.readthedocs.io/en/latest/usage-cli.html">
+    <link rel="prev" title="Usage" href="https://trafilatura.readthedocs.io/en/latest/usage.html">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docsearch:language" content="en">
+  <meta name="docsearch:version" content="2.3.0">
+  
+    
+    <script src="https://trafilatura.readthedocs.io/en/latest/_static/searchtools.js"></script>
+    <script src="https://trafilatura.readthedocs.io/en/latest/_static/language_data.js"></script>
+    <script src="https://trafilatura.readthedocs.io/en/latest/searchindex.js"></script>
+  
+  <script async="" type="text/javascript" src="https://trafilatura.readthedocs.io/_/static/javascript/readthedocs-addons.js"></script><meta name="readthedocs-project-slug" content="trafilatura"><meta name="readthedocs-version-slug" content="latest"><meta name="readthedocs-resolver-filename" content="/usage-python.html"><meta name="readthedocs-http-status" content="200"><script id="ethicaladsjs" type="text/javascript" async="true" src="https://media.ethicalads.io/media/client/ethicalads.min.js"></script></head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <svg class="svg-inline--fa fa-arrow-up" data-prefix="fas" data-icon="arrow-up" role="img" viewBox="0 0 384 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M214.6 9.4c-12.5-12.5-32.8-12.5-45.3 0l-160 160c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L160 109.3 160 480c0 17.7 14.3 32 32 32s32-14.3 32-32l0-370.7 105.4 105.4c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3l-160-160z"></path></svg><!-- <i class="fa-solid fa-arrow-up"></i> Font Awesome fontawesome.com -->Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center" action="https://trafilatura.readthedocs.io/en/latest/search.html" method="get">
+  <svg class="svg-inline--fa fa-magnifying-glass" data-prefix="fas" data-icon="magnifying-glass" role="img" viewBox="0 0 512 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376C296.3 401.1 253.9 416 208 416 93.1 416 0 322.9 0 208S93.1 0 208 0 416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"></path></svg><!-- <i class="fa-solid fa-magnifying-glass"></i> Font Awesome fontawesome.com -->
+  <input type="search" class="form-control" name="q" placeholder="Search the docs ..." aria-label="Search the docs ..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer" style="height: auto;">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button type="button" class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <svg class="svg-inline--fa fa-bars" data-prefix="fas" data-icon="bars" role="img" viewBox="0 0 448 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M0 96C0 78.3 14.3 64 32 64l384 0c17.7 0 32 14.3 32 32s-14.3 32-32 32L32 128C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32l384 0c17.7 0 32 14.3 32 32s-14.3 32-32 32L32 288c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32L32 448c-17.7 0-32-14.3-32-32s14.3-32 32-32l384 0c17.7 0 32 14.3 32 32z"></path></svg><!-- <span class="fa-solid fa-bars"></span> Font Awesome fontawesome.com -->
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="https://trafilatura.readthedocs.io/en/latest/index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="https://trafilatura.readthedocs.io/en/latest/_static/trafilatura-logo.png" class="logo__image only-light" alt="Trafilatura 2.3.0 documentation - Home">
+    <img src="https://trafilatura.readthedocs.io/en/latest/_static/trafilatura-logo.png" class="logo__image only-dark pst-js-only" alt="Trafilatura 2.3.0 documentation - Home">
+  
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/installation.html">
+    Installation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/quickstart.html">
+    Quickstart
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/usage.html">
+    Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/faq.html">
+    FAQ
+  </a>
+</li>
+
+            <li class="nav-item dropdown">
+                <button class="btn dropdown-toggle nav-item" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-controls="pst-nav-more-links">
+                    More
+                </button>
+                <ul id="pst-nav-more-links" class="dropdown-menu">
+                    
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="https://trafilatura.readthedocs.io/en/latest/troubleshooting.html">
+    Troubleshooting
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="https://trafilatura.readthedocs.io/en/latest/extraction-overview.html">
+    How extraction works
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="https://trafilatura.readthedocs.io/en/latest/evaluation.html">
+    Benchmarks and evaluation
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="https://trafilatura.readthedocs.io/en/latest/corefunctions.html">
+    Core functions
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="https://trafilatura.readthedocs.io/en/latest/settings.html">
+    Settings and customization
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="https://trafilatura.readthedocs.io/en/latest/deprecations.html">
+    Deprecations and migration
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="https://trafilatura.readthedocs.io/en/latest/used-by.html">
+    Uses &amp; citations
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="https://trafilatura.readthedocs.io/en/latest/tests.html">
+    Running the tests
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-internal" href="https://trafilatura.readthedocs.io/en/latest/background.html">
+    Background
+  </a>
+</li>
+
+
+<li class=" ">
+  <a class="nav-link dropdown-item nav-external" href="https://adrien.barbaresi.eu/blog/tag/trafilatura.html">
+    Blog
+  </a>
+</li>
+
+                </ul>
+            </li>
+            
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button type="button" class="btn search-button-field search-button__button pst-js-only" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip" data-bs-original-title="Search">
+ <svg class="svg-inline--fa fa-magnifying-glass" data-prefix="fas" data-icon="magnifying-glass" role="img" viewBox="0 0 512 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376C296.3 401.1 253.9 416 208 416 93.1 416 0 322.9 0 208S93.1 0 208 0 416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"></path></svg><!-- <i class="fa-solid fa-magnifying-glass"></i> Font Awesome fontawesome.com -->
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-original-title="Color mode">
+  <button type="button" class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <svg class="svg-inline--fa fa-sun fa-fw fa-lg theme-switch" data-mode="light" title="Light" data-prefix="fas" data-icon="sun" role="img" viewBox="0 0 576 512" data-fa-i2svg=""><path fill="currentColor" d="M288-32c8.4 0 16.3 4.4 20.6 11.7L364.1 72.3 468.9 46c8.2-2 16.9 .4 22.8 6.3S500 67 498 75.1l-26.3 104.7 92.7 55.5c7.2 4.3 11.7 12.2 11.7 20.6s-4.4 16.3-11.7 20.6L471.7 332.1 498 436.8c2 8.2-.4 16.9-6.3 22.8S477 468 468.9 466l-104.7-26.3-55.5 92.7c-4.3 7.2-12.2 11.7-20.6 11.7s-16.3-4.4-20.6-11.7L211.9 439.7 107.2 466c-8.2 2-16.8-.4-22.8-6.3S76 445 78 436.8l26.2-104.7-92.6-55.5C4.4 272.2 0 264.4 0 256s4.4-16.3 11.7-20.6L104.3 179.9 78 75.1c-2-8.2 .3-16.8 6.3-22.8S99 44 107.2 46l104.7 26.2 55.5-92.6 1.8-2.6c4.5-5.7 11.4-9.1 18.8-9.1zm0 144a144 144 0 1 0 0 288 144 144 0 1 0 0-288zm0 240a96 96 0 1 1 0-192 96 96 0 1 1 0 192z"></path></svg><!-- <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i> Font Awesome fontawesome.com -->
+    <svg class="svg-inline--fa fa-moon fa-fw fa-lg theme-switch" data-mode="dark" title="Dark" data-prefix="fas" data-icon="moon" role="img" viewBox="0 0 512 512" data-fa-i2svg=""><path fill="currentColor" d="M256 0C114.6 0 0 114.6 0 256S114.6 512 256 512c68.8 0 131.3-27.2 177.3-71.4 7.3-7 9.4-17.9 5.3-27.1s-13.7-14.9-23.8-14.1c-4.9 .4-9.8 .6-14.8 .6-101.6 0-184-82.4-184-184 0-72.1 41.5-134.6 102.1-164.8 9.1-4.5 14.3-14.3 13.1-24.4S322.6 8.5 312.7 6.3C294.4 2.2 275.4 0 256 0z"></path></svg><!-- <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i> Font Awesome fontawesome.com -->
+    <svg class="svg-inline--fa fa-circle-half-stroke fa-fw fa-lg theme-switch" data-mode="auto" title="System Settings" data-prefix="fas" data-icon="circle-half-stroke" role="img" viewBox="0 0 512 512" data-fa-i2svg=""><path fill="currentColor" d="M448 256c0-106-86-192-192-192l0 384c106 0 192-86 192-192zM0 256a256 256 0 1 1 512 0 256 256 0 1 1 -512 0z"></path></svg><!-- <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i> Font Awesome fontawesome.com -->
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><svg class="svg-inline--fa fa-circle-half-stroke fa-fw fa-lg me-1" data-prefix="fas" data-icon="circle-half-stroke" role="img" viewBox="0 0 512 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M448 256c0-106-86-192-192-192l0 384c106 0 192-86 192-192zM0 256a256 256 0 1 1 512 0 256 256 0 1 1 -512 0z"></path></svg><!-- <i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i> Font Awesome fontawesome.com -->System Settings</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><svg class="svg-inline--fa fa-sun fa-fw fa-lg me-1" data-prefix="fas" data-icon="sun" role="img" viewBox="0 0 576 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M288-32c8.4 0 16.3 4.4 20.6 11.7L364.1 72.3 468.9 46c8.2-2 16.9 .4 22.8 6.3S500 67 498 75.1l-26.3 104.7 92.7 55.5c7.2 4.3 11.7 12.2 11.7 20.6s-4.4 16.3-11.7 20.6L471.7 332.1 498 436.8c2 8.2-.4 16.9-6.3 22.8S477 468 468.9 466l-104.7-26.3-55.5 92.7c-4.3 7.2-12.2 11.7-20.6 11.7s-16.3-4.4-20.6-11.7L211.9 439.7 107.2 466c-8.2 2-16.8-.4-22.8-6.3S76 445 78 436.8l26.2-104.7-92.6-55.5C4.4 272.2 0 264.4 0 256s4.4-16.3 11.7-20.6L104.3 179.9 78 75.1c-2-8.2 .3-16.8 6.3-22.8S99 44 107.2 46l104.7 26.2 55.5-92.6 1.8-2.6c4.5-5.7 11.4-9.1 18.8-9.1zm0 144a144 144 0 1 0 0 288 144 144 0 1 0 0-288zm0 240a96 96 0 1 1 0-192 96 96 0 1 1 0 192z"></path></svg><!-- <i class="fa-solid fa-sun fa-lg fa-fw me-1"></i> Font Awesome fontawesome.com -->Light</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><svg class="svg-inline--fa fa-moon fa-fw fa-lg me-1" data-prefix="fas" data-icon="moon" role="img" viewBox="0 0 512 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M256 0C114.6 0 0 114.6 0 256S114.6 512 256 512c68.8 0 131.3-27.2 177.3-71.4 7.3-7 9.4-17.9 5.3-27.1s-13.7-14.9-23.8-14.1c-4.9 .4-9.8 .6-14.8 .6-101.6 0-184-82.4-184-184 0-72.1 41.5-134.6 102.1-164.8 9.1-4.5 14.3-14.3 13.1-24.4S322.6 8.5 312.7 6.3C294.4 2.2 275.4 0 256 0z"></path></svg><!-- <i class="fa-solid fa-moon fa-lg fa-fw me-1"></i> Font Awesome fontawesome.com -->Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links" aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/adbar/trafilatura" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-original-title="GitHub"><svg class="svg-inline--fa fa-square-github fa-lg" aria-hidden="true" data-prefix="fab" data-icon="square-github" role="img" viewBox="0 0 448 512" data-fa-i2svg=""><path fill="currentColor" d="M448 96c0-35.3-28.7-64-64-64L64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-320zM265.8 407.7c0-1.8 0-6 .1-11.6 .1-11.4 .1-28.8 .1-43.7 0-15.6-5.2-25.5-11.3-30.7 37-4.1 76-9.2 76-73.1 0-18.2-6.5-27.3-17.1-39 1.7-4.3 7.4-22-1.7-45-13.9-4.3-45.7 17.9-45.7 17.9-26.6-7.5-56.6-7.5-83.2 0 0 0-31.8-22.2-45.7-17.9-9.1 22.9-3.5 40.6-1.7 45-10.6 11.7-15.6 20.8-15.6 39 0 63.6 37.3 69 74.3 73.1-4.8 4.3-9.1 11.7-10.6 22.3-9.5 4.3-33.8 11.7-48.3-13.9-9.1-15.8-25.5-17.1-25.5-17.1-16.2-.2-1.1 10.2-1.1 10.2 10.8 5 18.4 24.2 18.4 24.2 9.7 29.7 56.1 19.7 56.1 19.7 0 9 .1 21.7 .1 30.6 0 4.8 .1 8.6 .1 10 0 4.3-3 9.5-11.5 8-66-22.1-112.2-84.9-112.2-158.3 0-91.8 70.2-161.5 162-161.5S388 165.6 388 257.4c.1 73.4-44.7 136.3-110.7 158.3-8.4 1.5-11.5-3.7-11.5-8zm-90.5-54.8c-.2-1.5 1.1-2.8 3-3.2 1.9-.2 3.7 .6 3.9 1.9 .3 1.3-1 2.6-3 3-1.9 .4-3.7-.4-3.9-1.7zm-9.1 3.2c-2.2 .2-3.7-.9-3.7-2.4 0-1.3 1.5-2.4 3.5-2.4 1.9-.2 3.7 .9 3.7 2.4 0 1.3-1.5 2.4-3.5 2.4zm-14.3-2.2c-1.9-.4-3.2-1.9-2.8-3.2s2.4-1.9 4.1-1.5c2 .6 3.3 2.1 2.8 3.4-.4 1.3-2.4 1.9-4.1 1.3zm-12.5-7.3c-1.5-1.3-1.9-3.2-.9-4.1 .9-1.1 2.8-.9 4.3 .6 1.3 1.3 1.8 3.3 .9 4.1-.9 1.1-2.8 .9-4.3-.6zm-8.5-10c-1.1-1.5-1.1-3.2 0-3.9 1.1-.9 2.8-.2 3.7 1.3 1.1 1.5 1.1 3.3 0 4.1-.9 .6-2.6 0-3.7-1.5zm-6.3-8.8c-1.1-1.3-1.3-2.8-.4-3.5 .9-.9 2.4-.4 3.5 .6 1.1 1.3 1.3 2.8 .4 3.5-.9 .9-2.4 .4-3.5-.6zm-6-6.4c-1.3-.6-1.9-1.7-1.5-2.6 .4-.6 1.5-.9 2.8-.4 1.3 .7 1.9 1.8 1.5 2.6-.4 .9-1.7 1.1-2.8 .4z"></path></svg><!-- <i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i> Font Awesome fontawesome.com --><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button type="button" class="btn search-button-field search-button__button pst-js-only" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip" data-bs-original-title="Search">
+ <svg class="svg-inline--fa fa-magnifying-glass" data-prefix="fas" data-icon="magnifying-glass" role="img" viewBox="0 0 512 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376C296.3 401.1 253.9 416 208 416 93.1 416 0 322.9 0 208S93.1 0 208 0 416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"></path></svg><!-- <i class="fa-solid fa-magnifying-glass"></i> Font Awesome fontawesome.com -->
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button type="button" class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <svg class="svg-inline--fa fa-outdent" data-prefix="fas" data-icon="outdent" role="img" viewBox="0 0 448 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M.4 64c0-17.7 14.3-32 32-32l384 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-384 0C14.8 96 .4 81.7 .4 64zm192 128c0-17.7 14.3-32 32-32l192 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-192 0c-17.7 0-32-14.3-32-32zm32 96l192 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-192 0c-17.7 0-32-14.3-32-32s14.3-32 32-32zM.4 448c0-17.7 14.3-32 32-32l384 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-384 0c-17.7 0-32-14.3-32-32zM.7 268.6c-8.2-6.4-8.2-18.9 0-25.3l101.9-79.3c10.5-8.2 25.8-.7 25.8 12.6l0 158.6c0 13.3-15.3 20.8-25.8 12.6L.7 268.6z"></path></svg><!-- <span class="fa-solid fa-outdent"></span> Font Awesome fontawesome.com -->
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/installation.html">
+    Installation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/quickstart.html">
+    Quickstart
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/usage.html">
+    Usage
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/tutorials.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/faq.html">
+    FAQ
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/troubleshooting.html">
+    Troubleshooting
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/extraction-overview.html">
+    How extraction works
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/evaluation.html">
+    Benchmarks and evaluation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/corefunctions.html">
+    Core functions
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/settings.html">
+    Settings and customization
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/deprecations.html">
+    Deprecations and migration
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/used-by.html">
+    Uses &amp; citations
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/tests.html">
+    Running the tests
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="https://trafilatura.readthedocs.io/en/latest/background.html">
+    Background
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-external" href="https://adrien.barbaresi.eu/blog/tag/trafilatura.html">
+    Blog
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-original-title="Color mode">
+  <button type="button" class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <svg class="svg-inline--fa fa-sun fa-fw fa-lg theme-switch" data-mode="light" title="Light" data-prefix="fas" data-icon="sun" role="img" viewBox="0 0 576 512" data-fa-i2svg=""><path fill="currentColor" d="M288-32c8.4 0 16.3 4.4 20.6 11.7L364.1 72.3 468.9 46c8.2-2 16.9 .4 22.8 6.3S500 67 498 75.1l-26.3 104.7 92.7 55.5c7.2 4.3 11.7 12.2 11.7 20.6s-4.4 16.3-11.7 20.6L471.7 332.1 498 436.8c2 8.2-.4 16.9-6.3 22.8S477 468 468.9 466l-104.7-26.3-55.5 92.7c-4.3 7.2-12.2 11.7-20.6 11.7s-16.3-4.4-20.6-11.7L211.9 439.7 107.2 466c-8.2 2-16.8-.4-22.8-6.3S76 445 78 436.8l26.2-104.7-92.6-55.5C4.4 272.2 0 264.4 0 256s4.4-16.3 11.7-20.6L104.3 179.9 78 75.1c-2-8.2 .3-16.8 6.3-22.8S99 44 107.2 46l104.7 26.2 55.5-92.6 1.8-2.6c4.5-5.7 11.4-9.1 18.8-9.1zm0 144a144 144 0 1 0 0 288 144 144 0 1 0 0-288zm0 240a96 96 0 1 1 0-192 96 96 0 1 1 0 192z"></path></svg><!-- <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i> Font Awesome fontawesome.com -->
+    <svg class="svg-inline--fa fa-moon fa-fw fa-lg theme-switch" data-mode="dark" title="Dark" data-prefix="fas" data-icon="moon" role="img" viewBox="0 0 512 512" data-fa-i2svg=""><path fill="currentColor" d="M256 0C114.6 0 0 114.6 0 256S114.6 512 256 512c68.8 0 131.3-27.2 177.3-71.4 7.3-7 9.4-17.9 5.3-27.1s-13.7-14.9-23.8-14.1c-4.9 .4-9.8 .6-14.8 .6-101.6 0-184-82.4-184-184 0-72.1 41.5-134.6 102.1-164.8 9.1-4.5 14.3-14.3 13.1-24.4S322.6 8.5 312.7 6.3C294.4 2.2 275.4 0 256 0z"></path></svg><!-- <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i> Font Awesome fontawesome.com -->
+    <svg class="svg-inline--fa fa-circle-half-stroke fa-fw fa-lg theme-switch" data-mode="auto" title="System Settings" data-prefix="fas" data-icon="circle-half-stroke" role="img" viewBox="0 0 512 512" data-fa-i2svg=""><path fill="currentColor" d="M448 256c0-106-86-192-192-192l0 384c106 0 192-86 192-192zM0 256a256 256 0 1 1 512 0 256 256 0 1 1 -512 0z"></path></svg><!-- <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i> Font Awesome fontawesome.com -->
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><svg class="svg-inline--fa fa-circle-half-stroke fa-fw fa-lg me-1" data-prefix="fas" data-icon="circle-half-stroke" role="img" viewBox="0 0 512 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M448 256c0-106-86-192-192-192l0 384c106 0 192-86 192-192zM0 256a256 256 0 1 1 512 0 256 256 0 1 1 -512 0z"></path></svg><!-- <i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i> Font Awesome fontawesome.com -->System Settings</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><svg class="svg-inline--fa fa-sun fa-fw fa-lg me-1" data-prefix="fas" data-icon="sun" role="img" viewBox="0 0 576 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M288-32c8.4 0 16.3 4.4 20.6 11.7L364.1 72.3 468.9 46c8.2-2 16.9 .4 22.8 6.3S500 67 498 75.1l-26.3 104.7 92.7 55.5c7.2 4.3 11.7 12.2 11.7 20.6s-4.4 16.3-11.7 20.6L471.7 332.1 498 436.8c2 8.2-.4 16.9-6.3 22.8S477 468 468.9 466l-104.7-26.3-55.5 92.7c-4.3 7.2-12.2 11.7-20.6 11.7s-16.3-4.4-20.6-11.7L211.9 439.7 107.2 466c-8.2 2-16.8-.4-22.8-6.3S76 445 78 436.8l26.2-104.7-92.6-55.5C4.4 272.2 0 264.4 0 256s4.4-16.3 11.7-20.6L104.3 179.9 78 75.1c-2-8.2 .3-16.8 6.3-22.8S99 44 107.2 46l104.7 26.2 55.5-92.6 1.8-2.6c4.5-5.7 11.4-9.1 18.8-9.1zm0 144a144 144 0 1 0 0 288 144 144 0 1 0 0-288zm0 240a96 96 0 1 1 0-192 96 96 0 1 1 0 192z"></path></svg><!-- <i class="fa-solid fa-sun fa-lg fa-fw me-1"></i> Font Awesome fontawesome.com -->Light</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><svg class="svg-inline--fa fa-moon fa-fw fa-lg me-1" data-prefix="fas" data-icon="moon" role="img" viewBox="0 0 512 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M256 0C114.6 0 0 114.6 0 256S114.6 512 256 512c68.8 0 131.3-27.2 177.3-71.4 7.3-7 9.4-17.9 5.3-27.1s-13.7-14.9-23.8-14.1c-4.9 .4-9.8 .6-14.8 .6-101.6 0-184-82.4-184-184 0-72.1 41.5-134.6 102.1-164.8 9.1-4.5 14.3-14.3 13.1-24.4S322.6 8.5 312.7 6.3C294.4 2.2 275.4 0 256 0z"></path></svg><!-- <i class="fa-solid fa-moon fa-lg fa-fw me-1"></i> Font Awesome fontawesome.com -->Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links" aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/adbar/trafilatura" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-original-title="GitHub"><svg class="svg-inline--fa fa-square-github fa-lg" aria-hidden="true" data-prefix="fab" data-icon="square-github" role="img" viewBox="0 0 448 512" data-fa-i2svg=""><path fill="currentColor" d="M448 96c0-35.3-28.7-64-64-64L64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-320zM265.8 407.7c0-1.8 0-6 .1-11.6 .1-11.4 .1-28.8 .1-43.7 0-15.6-5.2-25.5-11.3-30.7 37-4.1 76-9.2 76-73.1 0-18.2-6.5-27.3-17.1-39 1.7-4.3 7.4-22-1.7-45-13.9-4.3-45.7 17.9-45.7 17.9-26.6-7.5-56.6-7.5-83.2 0 0 0-31.8-22.2-45.7-17.9-9.1 22.9-3.5 40.6-1.7 45-10.6 11.7-15.6 20.8-15.6 39 0 63.6 37.3 69 74.3 73.1-4.8 4.3-9.1 11.7-10.6 22.3-9.5 4.3-33.8 11.7-48.3-13.9-9.1-15.8-25.5-17.1-25.5-17.1-16.2-.2-1.1 10.2-1.1 10.2 10.8 5 18.4 24.2 18.4 24.2 9.7 29.7 56.1 19.7 56.1 19.7 0 9 .1 21.7 .1 30.6 0 4.8 .1 8.6 .1 10 0 4.3-3 9.5-11.5 8-66-22.1-112.2-84.9-112.2-158.3 0-91.8 70.2-161.5 162-161.5S388 165.6 388 257.4c.1 73.4-44.7 136.3-110.7 158.3-8.4 1.5-11.5-3.7-11.5-8zm-90.5-54.8c-.2-1.5 1.1-2.8 3-3.2 1.9-.2 3.7 .6 3.9 1.9 .3 1.3-1 2.6-3 3-1.9 .4-3.7-.4-3.9-1.7zm-9.1 3.2c-2.2 .2-3.7-.9-3.7-2.4 0-1.3 1.5-2.4 3.5-2.4 1.9-.2 3.7 .9 3.7 2.4 0 1.3-1.5 2.4-3.5 2.4zm-14.3-2.2c-1.9-.4-3.2-1.9-2.8-3.2s2.4-1.9 4.1-1.5c2 .6 3.3 2.1 2.8 3.4-.4 1.3-2.4 1.9-4.1 1.3zm-12.5-7.3c-1.5-1.3-1.9-3.2-.9-4.1 .9-1.1 2.8-.9 4.3 .6 1.3 1.3 1.8 3.3 .9 4.1-.9 1.1-2.8 .9-4.3-.6zm-8.5-10c-1.1-1.5-1.1-3.2 0-3.9 1.1-.9 2.8-.2 3.7 1.3 1.1 1.5 1.1 3.3 0 4.1-.9 .6-2.6 0-3.7-1.5zm-6.3-8.8c-1.1-1.3-1.3-2.8-.4-3.5 .9-.9 2.4-.4 3.5 .6 1.1 1.3 1.3 2.8 .4 3.5-.9 .9-2.4 .4-3.5-.6zm-6-6.4c-1.3-.6-1.9-1.7-1.5-2.6 .4-.6 1.5-.9 2.8-.4 1.3 .7 1.9 1.8 1.5 2.6-.4 .9-1.7 1.1-2.8 .4z"></path></svg><!-- <i class="fa-brands fa-square-github fa-lg" aria-hidden="true"></i> Font Awesome fontawesome.com --><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button type="button" id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"></path>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links" aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="https://trafilatura.readthedocs.io/en/latest/quickstart.html">Quickstart</a></li>
+<li class="toctree-l1 current active"><a aria-current="page" class="current reference internal" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#">Python usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="https://trafilatura.readthedocs.io/en/latest/usage-cli.html">Command-line usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="https://trafilatura.readthedocs.io/en/latest/usage-gui.html">Graphical user interface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="https://trafilatura.readthedocs.io/en/latest/usage-r.html">Usage with R</a></li>
+<li class="toctree-l1"><a class="reference internal" href="https://trafilatura.readthedocs.io/en/latest/usage-api.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="https://trafilatura.readthedocs.io/en/latest/downloads.html">Download web pages</a></li>
+<li class="toctree-l1"><a class="reference internal" href="https://trafilatura.readthedocs.io/en/latest/crawls.html">Web crawling</a></li>
+<li class="toctree-l1"><a class="reference internal" href="https://trafilatura.readthedocs.io/en/latest/deduplication.html">Deduplication</a></li>
+<li class="toctree-l1"><a class="reference internal" href="https://trafilatura.readthedocs.io/en/latest/url-management.html">URL management</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement" class="flat adaptive-css" data-ea-publisher="readthedocs" data-ea-type="readthedocs-sidebar" data-ea-manual="true" data-ea-keywords="html2text|nlp|only words|readthedocs-project-534694|readthedocs-project-trafilatura|scraper|tei-xml|text-extraction|web-scraping|webscraping" data-ea-campaign-types="community|house">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="https://trafilatura.readthedocs.io/en/latest/index.html" class="nav-link" aria-label="Home">
+        <svg class="svg-inline--fa fa-house" data-prefix="fas" data-icon="house" role="img" viewBox="0 0 512 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M277.8 8.6c-12.3-11.4-31.3-11.4-43.5 0l-224 208c-9.6 9-12.8 22.9-8 35.1S18.8 272 32 272l16 0 0 176c0 35.3 28.7 64 64 64l288 0c35.3 0 64-28.7 64-64l0-176 16 0c13.2 0 25-8.1 29.8-20.3s1.6-26.2-8-35.1l-224-208zM240 320l32 0c26.5 0 48 21.5 48 48l0 96-128 0 0-96c0-26.5 21.5-48 48-48z"></path></svg><!-- <i class="fa-solid fa-home"></i> Font Awesome fontawesome.com -->
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="https://trafilatura.readthedocs.io/en/latest/usage.html" class="nav-link">Usage</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Python usage</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="python-usage">
+<h1>Python usage<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#python-usage" title="Link to this heading">#</a></h1>
+<section id="the-python-programming-language">
+<h2>The Python programming language<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#the-python-programming-language" title="Link to this heading">#</a></h2>
+<p>Python can be easy to pick up whether you’re a first time programmer or you’re experienced with other languages:</p>
+<ul class="simple">
+<li><p>Official <a class="reference external" href="https://docs.python.org/3/tutorial/">Python Tutorial</a></p></li>
+<li><p><a class="reference external" href="https://docs.python-guide.org/">The Hitchhiker’s Guide to Python</a></p></li>
+<li><p><a class="reference external" href="https://www.freecodecamp.org/news/best-python-tutorial/">The Best Python Tutorials (freeCodeCamp)</a></p></li>
+</ul>
+</section>
+<section id="step-by-step">
+<h2>Step-by-step<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#step-by-step" title="Link to this heading">#</a></h2>
+<section id="quickstart">
+<h3>Quickstart<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#quickstart" title="Link to this heading">#</a></h3>
+<p>For the basics see <a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/quickstart.html">quickstart documentation page</a>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For a hands-on tutorial see also the Python Notebook <a class="reference external" href="https://github.com/adbar/trafilatura/blob/master/docs/Trafilatura_Overview.ipynb">Trafilatura Overview</a>.</p>
+</div>
+</section>
+<section id="extraction-functions">
+<h3>Extraction functions<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#extraction-functions" title="Link to this heading">#</a></h3>
+<p>The functions can be imported using <code class="docutils literal notranslate"><span class="pre">from</span> <span class="pre">trafilatura</span> <span class="pre">import</span> <span class="pre">...</span></code> and used on raw documents (strings) or parsed HTML (LXML elements).</p>
+<p>Main text extraction, good balance between precision and recall:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">extract</span></code>: Main extraction function — runs Trafilatura’s own rule-based extractor, then falls back to readability and jusText if the result is too short (see <a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/extraction-overview.html">how extraction works</a>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">bare_extraction</span></code>: Same cascade as <code class="docutils literal notranslate"><span class="pre">extract()</span></code>, but returns a <code class="docutils literal notranslate"><span class="pre">Document</span></code> object with structured access to text, comments, and metadata</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">extract_with_metadata</span></code>: Shorthand for <code class="docutils literal notranslate"><span class="pre">extract()</span></code> with <code class="docutils literal notranslate"><span class="pre">with_metadata=True</span></code></p></li>
+</ul>
+<p>Simpler alternatives (no cascade, faster):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">baseline</span></code>: Targets text paragraphs and/or JSON metadata only</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">html2txt</span></code>: Extracts all text in the document, including navigation and footers</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For article lists or category pages, discover URLs with
+<a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/url-management.html#extracting-links-from-a-page">Courlan’s link extraction</a>
+or Trafilatura’s <a class="reference internal" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#feeds">feeds</a>, <a class="reference internal" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#sitemaps">sitemaps</a> and
+<a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/crawls.html">web crawler</a>, then extract each article separately.
+<code class="docutils literal notranslate"><span class="pre">include_links=True</span></code> only keeps links in the extracted content; it is not
+a link discovery function.</p>
+</div>
+</section>
+<section id="output">
+<h3>Output<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#output" title="Link to this heading">#</a></h3>
+<p>By default, the output is in plain text (TXT) format without metadata. The following additional formats are available:</p>
+<ul class="simple">
+<li><p>CSV</p></li>
+<li><p>HTML</p></li>
+<li><p>JSON</p></li>
+<li><p>Markdown</p></li>
+<li><p>XML and XML-TEI (following the guidelines of the Text Encoding Initiative)</p></li>
+</ul>
+<p>To specify the output format, use one of the following strings: <code class="docutils literal notranslate"><span class="pre">"csv",</span> <span class="pre">"json",</span> <span class="pre">"html",</span> <span class="pre">"markdown",</span> <span class="pre">"txt",</span> <span class="pre">"xml",</span> <span class="pre">"xmltei"</span></code>.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">bare_extraction</span></code> function uses the <code class="docutils literal notranslate"><span class="pre">python</span></code> format by default and returns a <code class="docutils literal notranslate"><span class="pre">Document</span></code> object for direct use in Python.</p>
+<p>To extract and include metadata in the output, use the <code class="docutils literal notranslate"><span class="pre">with_metadata=True</span></code> argument.</p>
+<section id="examples">
+<h4>Examples<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#examples" title="Link to this heading">#</a></h4>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="c1"># some formatting preserved in basic XML structure</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">extract</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">output_format</span><span class="o">=</span><span class="s2">"xml"</span><span class="p">)</span>
+
+<span class="c1"># output in JSON format with metadata extracted</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">extract</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">output_format</span><span class="o">=</span><span class="s2">"json"</span><span class="p">,</span> <span class="n">with_metadata</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Note that combining TXT and CSV formats with certain structural elements (e.g. formatting or links) triggers output in Markdown format (plain text with additional elements). <code class="docutils literal notranslate"><span class="pre">include_formatting</span></code> has no effect on JSON output.</p>
+</section>
+</section>
+<section id="choice-of-html-elements">
+<h3>Choice of HTML elements<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#choice-of-html-elements" title="Link to this heading">#</a></h3>
+<p>Customize the extraction process by including or excluding specific HTML elements:</p>
+<ul class="simple">
+<li><dl class="simple">
+<dt>Text elements:</dt><dd><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">include_comments=True</span></code></dt><dd><p>Include comment sections at the bottom of articles.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">include_tables=True</span></code></dt><dd><p>Extract text from HTML <code class="docutils literal notranslate"><span class="pre">&lt;table&gt;</span></code> elements.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>Structural elements:</dt><dd><dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">include_formatting=True</span></code></dt><dd><p>Keep structural elements related to formatting (<code class="docutils literal notranslate"><span class="pre">&lt;b&gt;</span></code>/<code class="docutils literal notranslate"><span class="pre">&lt;strong&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;i&gt;</span></code>/<code class="docutils literal notranslate"><span class="pre">&lt;emph&gt;</span></code> etc.)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">include_links=True</span></code></dt><dd><p>Keep link targets (in <code class="docutils literal notranslate"><span class="pre">href="..."</span></code>)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">include_images=True</span></code></dt><dd><p>Keep track of images along with their targets (<code class="docutils literal notranslate"><span class="pre">&lt;img&gt;</span></code> attributes: alt, src, title)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</li>
+</ul>
+<p>To operate on these elements, pass the corresponding parameters to the <code class="docutils literal notranslate"><span class="pre">extract()</span></code> function:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="c1"># exclude comments from the output</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">result</span> <span class="o">=</span> <span class="n">extract</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">include_comments</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+<span class="c1"># skip tables and include links in the output</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">result</span> <span class="o">=</span> <span class="n">extract</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">include_tables</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">include_links</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="c1"># convert relative links to absolute links where possible</span>
+<span class="c1"># (pass the same URL used to fetch "downloaded")</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">extract</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">output_format</span><span class="o">=</span><span class="s1">'xml'</span><span class="p">,</span> <span class="n">include_links</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">url</span><span class="o">=</span><span class="s2">"https://www.example.org"</span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="important-notes">
+<h4>Important notes<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#important-notes" title="Link to this heading">#</a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">include_comments</span></code> and <code class="docutils literal notranslate"><span class="pre">include_tables</span></code> are activated by default.</p></li>
+<li><p>Including extra elements works best with conversion to XML formats or using <code class="docutils literal notranslate"><span class="pre">bare_extraction()</span></code>. This allows for direct display and manipulation of the elements.</p></li>
+<li><p>Certain elements may not be visible in the output if the chosen format does not allow it.</p></li>
+<li><p>Selecting Markdown automatically includes text formatting.</p></li>
+</ul>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>The heuristics used by the main algorithm change according to the presence of certain elements in the HTML. If the output seems odd, try removing a constraint (e.g. formatting) to improve the result.</p>
+</div>
+</section>
+</section>
+<section id="the-precision-and-recall-presets">
+<h3>The precision and recall presets<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#the-precision-and-recall-presets" title="Link to this heading">#</a></h3>
+<p>The main extraction functions offer two presets to adjust the focus of the extraction process:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="c1"># less noise, possibly less text</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">result</span> <span class="o">=</span> <span class="n">extract</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">favor_precision</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="c1"># more text, possibly more noise</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">result</span> <span class="o">=</span> <span class="n">extract</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">favor_recall</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="precision">
+<h4>Precision<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#precision" title="Link to this heading">#</a></h4>
+<ul class="simple">
+<li><p>Use when your results contain too much boilerplate or irrelevant content.</p></li>
+<li><p>Comments are pruned more aggressively, link-heavy sections are discarded, and fallback stages are skipped.</p></li>
+<li><p>Additionally, you can use the <code class="docutils literal notranslate"><span class="pre">prune_xpath</span></code> parameter to target specific HTML elements using a list of XPath expressions:</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="c1"># remove elements matching a custom XPath before extraction</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">extract</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">prune_xpath</span><span class="o">=</span><span class="s1">'//div[@class="ad"]'</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="recall">
+<h4>Recall<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#recall" title="Link to this heading">#</a></h4>
+<ul class="simple">
+<li><p>Use when parts of your documents are missing.</p></li>
+<li><p>Lists inside discarded sections are kept, text tails are preserved, and link density thresholds are relaxed.</p></li>
+<li><p>If content is still missing, try <code class="docutils literal notranslate"><span class="pre">html2txt()</span></code> or refer to the <a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/troubleshooting.html">troubleshooting guide</a>.</p></li>
+</ul>
+<p>For a detailed comparison of what each mode changes, see <a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/extraction-overview.html#extraction-modes">how extraction works</a>.</p>
+</section>
+</section>
+<section id="additional-functions-for-text-extraction">
+<h3>Additional functions for text extraction<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#additional-functions-for-text-extraction" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">html2txt</span></code> and <code class="docutils literal notranslate"><span class="pre">baseline</span></code> functions offer simpler approaches to extracting text from HTML content, prioritizing performance over precision.</p>
+<section id="html2txt">
+<h4>html2txt()<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#html2txt" title="Link to this heading">#</a></h4>
+<p>The <code class="docutils literal notranslate"><span class="pre">html2txt</span></code> function serves as a last resort for extracting text from HTML content. It emulates the behavior of similar functions in other packages and can be used to output all possible text from a given HTML source, maximizing recall. However, it may not always produce accurate or meaningful results, as it does not consider the context of the extracted sections.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">trafilatura</span><span class="w"> </span><span class="kn">import</span> <span class="n">html2txt</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">html2txt</span><span class="p">(</span><span class="n">downloaded</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="baseline">
+<h4>baseline()<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#baseline" title="Link to this heading">#</a></h4>
+<p>For a better balance between precision and recall, as well as improved performance, consider using the <code class="docutils literal notranslate"><span class="pre">baseline</span></code> function instead. This function returns a tuple containing an LXML element with the body, the extracted text as a string, and the length of the text.  It uses a set of heuristics to extract text from the HTML content, which generally produces more accurate results than <code class="docutils literal notranslate"><span class="pre">html2txt</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">trafilatura</span><span class="w"> </span><span class="kn">import</span> <span class="n">baseline</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">postbody</span><span class="p">,</span> <span class="n">text</span><span class="p">,</span> <span class="n">len_text</span> <span class="o">=</span> <span class="n">baseline</span><span class="p">(</span><span class="n">downloaded</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>For more advanced use cases, consider using other functions in the package that provide more control and customization over the text extraction process.</p>
+</section>
+</section>
+<section id="guessing-if-text-can-be-found">
+<h3>Guessing if text can be found<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#guessing-if-text-can-be-found" title="Link to this heading">#</a></h3>
+<p>The function <code class="docutils literal notranslate"><span class="pre">is_probably_readerable()</span></code> (ported from Mozilla’s Readability.js) provides a way to guess if a page probably has a main text to extract.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">trafilatura.readability_lxml</span><span class="w"> </span><span class="kn">import</span> <span class="n">is_probably_readerable</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">is_probably_readerable</span><span class="p">(</span><span class="n">downloaded</span><span class="p">)</span>  <span class="c1"># HTML string or already parsed tree</span>
+</pre></div>
+</div>
+</section>
+<section id="language-identification">
+<h3>Language identification<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#language-identification" title="Link to this heading">#</a></h3>
+<p>The target language can also be set using 2-letter codes (ISO 639-1), there will be no output if the detected language of the result does not match and no such filtering if the identification component has not been installed (see above <a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/installation.html">installation instructions</a>) or if the target language is not available.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This feature requires additional components: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">trafilatura[all]</span></code>.
+It currently uses the <a class="reference external" href="https://github.com/adbar/py3langid">py3langid package</a> and is dependent on language availability and performance of the original model.</p>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">result</span> <span class="o">=</span> <span class="n">extract</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">target_language</span><span class="o">=</span><span class="s2">"de"</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="optimizing-for-speed">
+<h3>Optimizing for speed<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#optimizing-for-speed" title="Link to this heading">#</a></h3>
+<p>Execution speed not only depends on the platform and on supplementary packages (<code class="docutils literal notranslate"><span class="pre">trafilatura[all]</span></code>, <code class="docutils literal notranslate"><span class="pre">htmldate[speed]</span></code>), but also on the extraction strategy.</p>
+<p>By default, <code class="docutils literal notranslate"><span class="pre">extract()</span></code> runs a cascade: its own rule-based extractor first, then readability and jusText as fallbacks if the initial result is too short. These fallbacks improve accuracy but are slower. In <em>fast</em> mode they are skipped entirely, making extraction about twice as fast:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="c1"># skip algorithms used as fallback</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">result</span> <span class="o">=</span> <span class="n">extract</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">fast</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The following combination usually leads to shorter processing times:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">result</span> <span class="o">=</span> <span class="n">extract</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">include_comments</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">include_tables</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">fast</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="extraction-settings">
+<h2>Extraction settings<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#extraction-settings" title="Link to this heading">#</a></h2>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>See also <a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/settings.html">settings page</a>.</p>
+</div>
+<section id="function-parameters">
+<h3>Function parameters<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#function-parameters" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">Extractor</span></code> class provides a convenient way to define and manage extraction parameters. It is useful when reusing the same settings across multiple extractions or when configuring options not exposed as <code class="docutils literal notranslate"><span class="pre">extract()</span></code> parameters.</p>
+<p>Here is how to use the class:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="c1"># import the Extractor class from the settings module</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">trafilatura.settings</span><span class="w"> </span><span class="kn">import</span> <span class="n">Extractor</span>
+
+<span class="c1"># set multiple options at once</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">options</span> <span class="o">=</span> <span class="n">Extractor</span><span class="p">(</span><span class="n">output_format</span><span class="o">=</span><span class="s2">"json"</span><span class="p">,</span> <span class="n">with_metadata</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="c1"># add or adjust settings as needed</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">options</span><span class="o">.</span><span class="n">formatting</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># same as include_formatting</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">options</span><span class="o">.</span><span class="n">source</span> <span class="o">=</span> <span class="s2">"My Source"</span>  <span class="c1"># useful for debugging</span>
+
+<span class="c1"># use the options in an extraction function</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">extract</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">options</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>See the <code class="docutils literal notranslate"><span class="pre">settings.py</span></code> file for a full example.</p>
+</section>
+<section id="metadata-extraction">
+<h3>Metadata extraction<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#metadata-extraction" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">with_metadata=True</span></code>: extract metadata fields and include them in the output</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">only_with_metadata=True</span></code>: only output documents featuring all essential metadata (date, title, url)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">record_id</span></code>: attach a custom ID to the <code class="docutils literal notranslate"><span class="pre">id</span></code> metadata field, useful for tracking documents through a corpus-building pipeline (see <a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/tutorial-datasets.html">building a training corpus</a>)</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">extract</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">record_id</span><span class="o">=</span><span class="s2">"doc-042"</span><span class="p">,</span> <span class="n">output_format</span><span class="o">=</span><span class="s2">"json"</span><span class="p">,</span> <span class="n">with_metadata</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="date">
+<h4>Date<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#date" title="Link to this heading">#</a></h4>
+<p>Among metadata extraction, dates are handled by an external module: <a class="reference external" href="https://github.com/adbar/htmldate">htmldate</a>. By default, focus is on original dates and the extraction replicates the <em>fast</em> option.</p>
+<p><a class="reference external" href="https://htmldate.readthedocs.io/en/latest/corefunctions.html#handling-date-extraction">Custom parameters</a> can be passed through the extraction function or through the <code class="docutils literal notranslate"><span class="pre">extract_metadata</span></code> function in <code class="docutils literal notranslate"><span class="pre">trafilatura.metadata</span></code>, most notably:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">extensive_search</span></code> (boolean), to activate further heuristics (higher recall, lower precision)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">original_date</span></code> (boolean) to look for the original publication date,</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">outputformat</span></code> (string), to provide a custom datetime format,</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">max_date</span></code> (string), to set the latest acceptable date manually (YYYY-MM-DD format).</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="c1"># import the extract() function, use a previously downloaded document</span>
+<span class="c1"># pass the new parameters as dict</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">extract</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">output_format</span><span class="o">=</span><span class="s2">"xml"</span><span class="p">,</span> <span class="n">date_extraction_params</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">"extensive_search"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s2">"max_date"</span><span class="p">:</span> <span class="s2">"2018-07-01"</span>
+    <span class="p">})</span>
+</pre></div>
+</div>
+</section>
+<section id="url">
+<h4>URL<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#url" title="Link to this heading">#</a></h4>
+<p>Even if the page to process has already been downloaded it can still be useful to pass the URL as an argument. See this <a class="reference external" href="https://github.com/adbar/trafilatura/issues/75">previous bug</a> for an example:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="c1"># define a URL and download the example</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">url</span> <span class="o">=</span> <span class="s2">"https://web.archive.org/web/20210613232513/https://www.thecanary.co/feature/2021/05/19/another-by-election-headache-is-incoming-for-keir-starmer/"</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">downloaded</span> <span class="o">=</span> <span class="n">fetch_url</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+
+<span class="c1"># content discarded since necessary metadata couldn't be extracted</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">bare_extraction</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">only_with_metadata</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="o">&gt;&gt;&gt;</span>
+
+<span class="c1"># date found in URL, extraction successful</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">bare_extraction</span><span class="p">(</span><span class="n">downloaded</span><span class="p">,</span> <span class="n">only_with_metadata</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">url</span><span class="o">=</span><span class="n">url</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="memory-use">
+<h3>Memory use<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#memory-use" title="Link to this heading">#</a></h3>
+<p>Trafilatura uses caches to speed up extraction and cleaning processes. This may lead to memory leaks in some cases, particularly in large-scale applications. If that happens you can reset all cached information in order to release RAM:</p>
+<div class="highlight-pycon notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="go"># import the function</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">trafilatura.meta</span><span class="w"> </span><span class="kn">import</span> <span class="n">reset_caches</span>
+
+<span class="go"># use it at any given point</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">reset_caches</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="input-output-types">
+<h2>Input/Output types<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#input-output-types" title="Link to this heading">#</a></h2>
+<section id="python-objects-as-output">
+<h3>Python objects as output<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#python-objects-as-output" title="Link to this heading">#</a></h3>
+<p>The extraction can be customized using a series of parameters, for more see the <a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/corefunctions.html">core functions</a> page.</p>
+<p>The function <code class="docutils literal notranslate"><span class="pre">bare_extraction</span></code> can be used to bypass output conversion. It returns a <code class="docutils literal notranslate"><span class="pre">Document</span></code> object with metadata as string attributes (<code class="docutils literal notranslate"><span class="pre">.title</span></code>, <code class="docutils literal notranslate"><span class="pre">.author</span></code>, <code class="docutils literal notranslate"><span class="pre">.text</span></code>, <code class="docutils literal notranslate"><span class="pre">.comments</span></code>, etc.) and the extracted content as LXML elements (<code class="docutils literal notranslate"><span class="pre">.body</span></code>, <code class="docutils literal notranslate"><span class="pre">.commentsbody</span></code>). Call <code class="docutils literal notranslate"><span class="pre">.as_dict()</span></code> on the result to get a plain dictionary.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">trafilatura</span><span class="w"> </span><span class="kn">import</span> <span class="n">bare_extraction</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">bare_extraction</span><span class="p">(</span><span class="n">downloaded</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="raw-http-response-objects">
+<h3>Raw HTTP response objects<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#raw-http-response-objects" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">fetch_response()</span></code> function can pass a response object straight to the extraction.</p>
+<p>This can be useful to get the final redirection URL with <code class="docutils literal notranslate"><span class="pre">response.url</span></code> and then pass it directly as a URL argument to the extraction function:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="c1"># necessary components</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">trafilatura</span><span class="w"> </span><span class="kn">import</span> <span class="n">fetch_response</span><span class="p">,</span> <span class="n">bare_extraction</span>
+
+<span class="c1"># load an example</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">response</span> <span class="o">=</span> <span class="n">fetch_response</span><span class="p">(</span><span class="s2">"https://www.example.org"</span><span class="p">)</span>
+
+<span class="c1"># perform extract() or bare_extraction() on Trafilatura's response object</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">bare_extraction</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">url</span><span class="o">=</span><span class="n">response</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>  <span class="c1"># here is the redirection URL</span>
+</pre></div>
+</div>
+</section>
+<section id="lxml-objects">
+<h3>LXML objects<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#lxml-objects" title="Link to this heading">#</a></h3>
+<p>The input can consist of a previously parsed tree (i.e. a <em>lxml.html</em> object), which is then handled seamlessly:</p>
+<div class="highlight-pycon notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="go"># define document and load it with LXML</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">trafilatura</span><span class="w"> </span><span class="kn">import</span> <span class="n">extract</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">lxml</span><span class="w"> </span><span class="kn">import</span> <span class="n">html</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">my_doc</span> <span class="o">=</span> <span class="s2">"""&lt;html&gt;&lt;body&gt;&lt;article&gt;&lt;p&gt;</span>
+<span class="gp">... </span><span class="s2">                Here is the main text.</span>
+<span class="gp">... </span><span class="s2">                &lt;/p&gt;&lt;/article&gt;&lt;/body&gt;&lt;/html&gt;"""</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">mytree</span> <span class="o">=</span> <span class="n">html</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span><span class="n">my_doc</span><span class="p">)</span>
+
+<span class="go"># extract from the already loaded LXML tree</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">extract</span><span class="p">(</span><span class="n">mytree</span><span class="p">)</span>
+<span class="go">'Here is the main text.'</span>
+</pre></div>
+</div>
+</section>
+<section id="interaction-with-beautifulsoup">
+<h3>Interaction with BeautifulSoup<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#interaction-with-beautifulsoup" title="Link to this heading">#</a></h3>
+<p>Trafilatura works with LXML trees, not BeautifulSoup objects. If you already have a BS4 parse tree, convert it first:</p>
+<div class="highlight-pycon notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">bs4</span><span class="w"> </span><span class="kn">import</span> <span class="n">BeautifulSoup</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">lxml.html.soupparser</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_tree</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">lxml</span><span class="w"> </span><span class="kn">import</span> <span class="n">etree</span><span class="p">,</span> <span class="n">html</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">trafilatura</span><span class="w"> </span><span class="kn">import</span> <span class="n">extract</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="n">soup</span> <span class="o">=</span> <span class="n">BeautifulSoup</span><span class="p">(</span><span class="s2">"&lt;html&gt;&lt;body&gt;&lt;article&gt;&lt;p&gt;The date is Feb 2, 2024.&lt;/p&gt;&lt;/article&gt;&lt;/body&gt;&lt;/html&gt;"</span><span class="p">,</span> <span class="s2">"lxml"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">lxml_tree</span> <span class="o">=</span> <span class="n">convert_tree</span><span class="p">(</span><span class="n">soup</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+</pre></div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><code class="docutils literal notranslate"><span class="pre">convert_tree()</span></code> returns a tree rooted at <code class="docutils literal notranslate"><span class="pre">&lt;body&gt;</span></code>, not <code class="docutils literal notranslate"><span class="pre">&lt;html&gt;</span></code>. Passing it to <code class="docutils literal notranslate"><span class="pre">extract()</span></code> as-is returns <code class="docutils literal notranslate"><span class="pre">None</span></code> regardless of content, since the extractor expects a document rooted at <code class="docutils literal notranslate"><span class="pre">&lt;html&gt;</span></code>. Re-wrap it first:</p>
+</div>
+<div class="highlight-pycon notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">wrapped</span> <span class="o">=</span> <span class="n">html</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span><span class="s2">"&lt;html&gt;"</span> <span class="o">+</span> <span class="n">etree</span><span class="o">.</span><span class="n">tostring</span><span class="p">(</span><span class="n">lxml_tree</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span> <span class="o">+</span> <span class="s2">"&lt;/html&gt;"</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">extract</span><span class="p">(</span><span class="n">wrapped</span><span class="p">)</span>
+<span class="go">'The date is Feb 2, 2024.'</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="navigation">
+<h2>Navigation<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#navigation" title="Link to this heading">#</a></h2>
+<p>Trafilatura can discover URLs to extract from via three strategies:</p>
+<ul class="simple">
+<li><p><strong>Feeds</strong> (Atom/RSS): mostly for fresh content</p></li>
+<li><p><strong>Sitemaps</strong>: for exhaustivity — all potential pages as listed by the site owners</p></li>
+<li><p><strong>Web crawling</strong>: follow internal links to discover pages</p></li>
+</ul>
+<section id="feeds">
+<h3>Feeds<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#feeds" title="Link to this heading">#</a></h3>
+<p>The function <code class="docutils literal notranslate"><span class="pre">find_feed_urls</span></code> is a all-in-one utility that attempts to discover the feeds from a webpage if required and/or downloads and parses feeds. It returns the extracted links as list, more precisely as a sorted list of unique links.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="c1"># import the feeds module</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">trafilatura</span><span class="w"> </span><span class="kn">import</span> <span class="n">feeds</span>
+
+<span class="c1"># use the homepage to automatically retrieve feeds</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">mylist</span> <span class="o">=</span> <span class="n">feeds</span><span class="o">.</span><span class="n">find_feed_urls</span><span class="p">(</span><span class="s1">'https://www.theguardian.com/'</span><span class="p">)</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">mylist</span>
+<span class="p">[</span><span class="s1">'https://www.theguardian.com/international/rss'</span><span class="p">,</span> <span class="s1">'...'</span><span class="p">]</span> <span class="c1"># and so on</span>
+
+<span class="c1"># use a predetermined feed URL directly</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">mylist</span> <span class="o">=</span> <span class="n">feeds</span><span class="o">.</span><span class="n">find_feed_urls</span><span class="p">(</span><span class="s1">'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml'</span><span class="p">)</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="nb">bool</span><span class="p">(</span><span class="n">mylist</span><span class="p">)</span>
+<span class="kc">True</span> <span class="c1"># it's not empty</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The links are seamlessly filtered for patterns given by the user, e.g. using <code class="docutils literal notranslate"><span class="pre">https://www.un.org/en/</span></code> as argument implies taking all URLs corresponding to this category.</p>
+</div>
+<p>An optional argument <code class="docutils literal notranslate"><span class="pre">target_lang</span></code> makes it possible to filter links according to their expected target language. A series of heuristics are applied on the link path and parameters to try to discard unwanted URLs, thus saving processing time and download bandwidth.</p>
+<p>An optional <code class="docutils literal notranslate"><span class="pre">external</span></code> argument controls whether URLs from other domains are included. By default, only URLs matching the input domain are returned (<code class="docutils literal notranslate"><span class="pre">external=False</span></code>).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="c1"># the feeds module has to be imported</span>
+<span class="c1"># search for feeds in English</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">mylist</span> <span class="o">=</span> <span class="n">feeds</span><span class="o">.</span><span class="n">find_feed_urls</span><span class="p">(</span><span class="s1">'https://www.un.org/en/rss.xml'</span><span class="p">,</span> <span class="n">target_lang</span><span class="o">=</span><span class="s1">'en'</span><span class="p">)</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="nb">bool</span><span class="p">(</span><span class="n">mylist</span><span class="p">)</span>
+<span class="kc">True</span> <span class="c1"># links found as expected</span>
+
+<span class="c1"># target_lang set to Japanese, the English links are discarded</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">mylist</span> <span class="o">=</span> <span class="n">feeds</span><span class="o">.</span><span class="n">find_feed_urls</span><span class="p">(</span><span class="s1">'https://www.un.org/en/rss.xml'</span><span class="p">,</span> <span class="n">target_lang</span><span class="o">=</span><span class="s1">'ja'</span><span class="p">)</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">mylist</span>
+<span class="p">[]</span>
+</pre></div>
+</div>
+<p>For more information about feeds and web crawling see:</p>
+<ul class="simple">
+<li><p>This blog post: <a class="reference external" href="https://adrien.barbaresi.eu/blog/using-feeds-text-extraction-python.html">Using RSS and Atom feeds to collect web pages with Python</a></p></li>
+<li><p>This Youtube tutorial: <a class="reference external" href="https://www.youtube.com/watch?v=NW2ISdOx08M&amp;list=PL-pKWbySIRGMgxXQOtGIz1-nbfYLvqrci&amp;index=2&amp;t=136s">Extracting links from ATOM and RSS feeds</a></p></li>
+</ul>
+</section>
+<section id="sitemaps">
+<h3>Sitemaps<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#sitemaps" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Youtube tutorial: <a class="reference external" href="https://www.youtube.com/watch?v=uWUyhxciTOs">Learn how to process XML sitemaps to extract all texts present on a website</a></p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre tabindex="-1"><span></span><span class="c1"># load sitemaps module</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="kn">from</span><span class="w"> </span><span class="nn">trafilatura</span><span class="w"> </span><span class="kn">import</span> <span class="n">sitemaps</span>
+
+<span class="c1"># automatically find sitemaps by providing the homepage</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">mylinks</span> <span class="o">=</span> <span class="n">sitemaps</span><span class="o">.</span><span class="n">sitemap_search</span><span class="p">(</span><span class="s1">'https://developer.mozilla.org/'</span><span class="p">)</span>
+
+<span class="c1"># the target_lang argument works as explained above</span>
+<span class="o">&gt;&gt;&gt;</span> <span class="n">mylinks</span> <span class="o">=</span> <span class="n">sitemaps</span><span class="o">.</span><span class="n">sitemap_search</span><span class="p">(</span><span class="s1">'https://developer.mozilla.org/'</span><span class="p">,</span> <span class="n">target_lang</span><span class="o">=</span><span class="s1">'en'</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The links are also seamlessly filtered for patterns given by the user, e.g. using <code class="docutils literal notranslate"><span class="pre">https://developer.mozilla.org/en-US/docs/Web/CSS</span></code> as argument implies taking all URLs corresponding to the CSS documentation category.</p>
+<p>An optional <code class="docutils literal notranslate"><span class="pre">external</span></code> argument controls whether URLs from other domains are included. By default, only URLs matching the input domain are returned (<code class="docutils literal notranslate"><span class="pre">external=False</span></code>).</p>
+</section>
+<section id="web-crawling">
+<h3>Web crawling<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#web-crawling" title="Link to this heading">#</a></h3>
+<p>See the <a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/crawls.html">documentation page on web crawling</a> for more information.</p>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>For more information on how to refine and filter a URL collection, see the underlying <a class="reference external" href="https://github.com/adbar/courlan">courlan</a> library.</p>
+</div>
+</section>
+</section>
+<section id="deprecations">
+<h2>Deprecations<a class="headerlink" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#deprecations" title="Link to this heading">#</a></h2>
+<p>See the <a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/deprecations.html">deprecations and migration</a> page for a full list of deprecated functions, arguments, and migration instructions.</p>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p><a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/settings.html">Settings and customization</a>, <a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/usage-cli.html">Command-line usage</a>, <a class="reference external" href="https://trafilatura.readthedocs.io/en/latest/corefunctions.html">Core functions</a></p>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev" href="https://trafilatura.readthedocs.io/en/latest/usage.html" title="previous page">
+      <svg class="svg-inline--fa fa-angle-left" data-prefix="fas" data-icon="angle-left" role="img" viewBox="0 0 256 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M9.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L77.3 256 214.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"></path></svg><!-- <i class="fa-solid fa-angle-left"></i> Font Awesome fontawesome.com -->
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Usage</p>
+      </div>
+    </a>
+    <a class="right-next" href="https://trafilatura.readthedocs.io/en/latest/usage-cli.html" title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Command-line usage</p>
+      </div>
+      <svg class="svg-inline--fa fa-angle-right" data-prefix="fas" data-icon="angle-right" role="img" viewBox="0 0 256 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M247.1 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L179.2 256 41.9 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"></path></svg><!-- <i class="fa-solid fa-angle-right"></i> Font Awesome fontawesome.com -->
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div id="pst-page-navigation-heading-2" class="page-toc tocsection onthispage">
+    <svg class="svg-inline--fa fa-list" data-prefix="fas" data-icon="list" role="img" viewBox="0 0 512 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M40 48C26.7 48 16 58.7 16 72l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24L40 48zM192 64c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L192 64zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l288 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-288 0zM16 232l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24l-48 0c-13.3 0-24 10.7-24 24zM40 368c-13.3 0-24 10.7-24 24l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24l-48 0z"></path></svg><!-- <i class="fa-solid fa-list"></i> Font Awesome fontawesome.com --> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#the-python-programming-language">The Python programming language</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#step-by-step">Step-by-step</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#quickstart">Quickstart</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#extraction-functions">Extraction functions</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#output">Output</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#examples">Examples</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#choice-of-html-elements">Choice of HTML elements</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#important-notes">Important notes</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#the-precision-and-recall-presets">The precision and recall presets</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#precision">Precision</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#recall">Recall</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#additional-functions-for-text-extraction">Additional functions for text extraction</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#html2txt">html2txt()</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#baseline">baseline()</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#guessing-if-text-can-be-found">Guessing if text can be found</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#language-identification">Language identification</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#optimizing-for-speed">Optimizing for speed</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#extraction-settings">Extraction settings</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#function-parameters">Function parameters</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#metadata-extraction">Metadata extraction</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#date">Date</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#url">URL</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#memory-use">Memory use</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#input-output-types">Input/Output types</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#python-objects-as-output">Python objects as output</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#raw-http-response-objects">Raw HTTP response objects</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#lxml-objects">LXML objects</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#interaction-with-beautifulsoup">Interaction with BeautifulSoup</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#navigation">Navigation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#feeds">Feeds</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#sitemaps">Sitemaps</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#web-crawling">Web crawling</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="https://trafilatura.readthedocs.io/en/latest/usage-python.html#deprecations">Deprecations</a></li>
+</ul>
+  </nav></div>
+
+  <div class="sidebar-secondary-item">
+
+  <div class="tocsection sourcelink">
+    <a href="https://trafilatura.readthedocs.io/en/latest/_sources/usage-python.rst.txt">
+      <svg class="svg-inline--fa fa-file-lines" data-prefix="fas" data-icon="file-lines" role="img" viewBox="0 0 384 512" aria-hidden="true" data-fa-i2svg=""><path fill="currentColor" d="M0 64C0 28.7 28.7 0 64 0L213.5 0c17 0 33.3 6.7 45.3 18.7L365.3 125.3c12 12 18.7 28.3 18.7 45.3L384 448c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zm208-5.5l0 93.5c0 13.3 10.7 24 24 24L325.5 176 208 58.5zM120 256c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0zm0 96c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0z"></path></svg><!-- <i class="fa-solid fa-file-lines"></i> Font Awesome fontawesome.com --> Show Source
+    </a>
+  </div>
+</div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer="" src="https://trafilatura.readthedocs.io/en/latest/_static/scripts/bootstrap.js?digest=64cc4de3f052d77215f0"></script>
+<script defer="" src="https://trafilatura.readthedocs.io/en/latest/_static/scripts/pydata-sphinx-theme.js?digest=64cc4de3f052d77215f0"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2025, Adrien Barbaresi.
+      <br>
+    
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.22.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  
+<readthedocs-flyout><!---->
+      <div class=" floating container bottom-right ">
+        <!--?lit$100943058$-->
+      <header>
+        <img class="logo" alt="Read the Docs" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+Cjxzdmc6c3ZnCiAgIHZlcnNpb249IjEuMSIKICAgaWQ9InN2ZyIKICAgeD0iMHB4IgogICB5PSIwcHgiCiAgIHZpZXdCb3g9IjY5NCAxOTcgMzQ2LjY5ODU1IDM5OS45ODQ3NyIKICAgc29kaXBvZGk6ZG9jbmFtZT0ibG9nby1saWdodC5zdmciCiAgIHdpZHRoPSIzNDYuNjk4NTUiCiAgIGhlaWdodD0iMzk5Ljk4NDc3IgogICBpbmtzY2FwZTp2ZXJzaW9uPSIxLjMuMiAoMDkxZTIwZWYwZiwgMjAyMy0xMS0yNSwgY3VzdG9tKSIKICAgeG1sbnM6aW5rc2NhcGU9Imh0dHA6Ly93d3cuaW5rc2NhcGUub3JnL25hbWVzcGFjZXMvaW5rc2NhcGUiCiAgIHhtbG5zOnNvZGlwb2RpPSJodHRwOi8vc29kaXBvZGkuc291cmNlZm9yZ2UubmV0L0RURC9zb2RpcG9kaS0wLmR0ZCIKICAgeG1sbnM6c3ZnPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPHN2ZzpkZWZzCiAgICAgaWQ9ImRlZnMxMiIgLz4KICA8c29kaXBvZGk6bmFtZWR2aWV3CiAgICAgaWQ9Im5hbWVkdmlldzEyIgogICAgIHBhZ2Vjb2xvcj0iI2ZmZmZmZiIKICAgICBib3JkZXJjb2xvcj0iIzAwMDAwMCIKICAgICBib3JkZXJvcGFjaXR5PSIwLjI1IgogICAgIGlua3NjYXBlOnNob3dwYWdlc2hhZG93PSIyIgogICAgIGlua3NjYXBlOnBhZ2VvcGFjaXR5PSIwLjAiCiAgICAgaW5rc2NhcGU6cGFnZWNoZWNrZXJib2FyZD0iMCIKICAgICBpbmtzY2FwZTpkZXNrY29sb3I9IiNkMWQxZDEiCiAgICAgaW5rc2NhcGU6em9vbT0iMS4yNTIiCiAgICAgaW5rc2NhcGU6Y3g9Ijk5OC40MDI1NiIKICAgICBpbmtzY2FwZTpjeT0iMTk5LjY4MDUxIgogICAgIGlua3NjYXBlOndpbmRvdy13aWR0aD0iMzQ0MCIKICAgICBpbmtzY2FwZTp3aW5kb3ctaGVpZ2h0PSIxMzg5IgogICAgIGlua3NjYXBlOndpbmRvdy14PSIwIgogICAgIGlua3NjYXBlOndpbmRvdy15PSIyNyIKICAgICBpbmtzY2FwZTp3aW5kb3ctbWF4aW1pemVkPSIxIgogICAgIGlua3NjYXBlOmN1cnJlbnQtbGF5ZXI9InN2ZyIgLz4KICA8c3ZnOmcKICAgICBpZD0ibG9nbyIKICAgICB0cmFuc2Zvcm09Im1hdHJpeCgwLjU1NzUzNjQ0LDAsMCwwLjU1NzUzNjQ0LDY2LjUzMTgxMiwxMDUwLjEyNjIpIj4KICAgIDxzdmc6cGF0aAogICAgICAgc3R5bGU9ImZpbGw6I2ZjZmNmYyIKICAgICAgIGQ9Im0gMTQwOC4xLC0xMTgxLjcgYyAtNy41LDEgLTEyLjcsNy44IC0xMS43LDE1LjMgMC43LDUuNCA0LjYsOS45IDkuOSwxMS4zIDAsMCAzMy4yLDExIDg5LjcsMTUuNiA0NS40LDMuNyA5Ni45LC0zLjIgOTYuOSwtMy4yIDcuNSwtMC4yIDEzLjUsLTYuNSAxMy4yLC0xNCAtMC4zLC03LjUgLTYuNSwtMTMuNSAtMTQsLTEzLjIgLTAuOSwwIC0xLjgsMC4xIC0yLjYsMC4zIDAsMCAtNTAuNCw2LjIgLTkxLjMsMi45IC01NCwtNC40IC04My40LC0xNC4zIC04My40LC0xNC4zIC0yLjIsLTAuNyAtNC41LC0xIC02LjcsLTAuNyB6IG0gMCwtNjcuNiBjIC03LjUsMSAtMTIuNyw3LjggLTExLjcsMTUuMyAwLjcsNS40IDQuNiw5LjkgOS45LDExLjMgMCwwIDMzLjIsMTEgODkuNywxNS42IDQ1LjQsMy43IDk2LjksLTMuMiA5Ni45LC0zLjIgNy41LC0wLjIgMTMuNSwtNi41IDEzLjIsLTE0IC0wLjMsLTcuNSAtNi41LC0xMy41IC0xNCwtMTMuMiAtMC45LDAgLTEuOCwwLjEgLTIuNiwwLjMgMCwwIC01MC40LDYuMiAtOTEuMywyLjkgLTU0LC00LjQgLTgzLjQsLTE0LjMgLTgzLjQsLTE0LjMgLTIuMiwtMC43IC00LjUsLTEgLTYuNywtMC43IHogbSAwLC02Ny42IGMgLTcuNSwxIC0xMi43LDcuOCAtMTEuNywxNS4zIDAuNyw1LjQgNC42LDkuOSA5LjksMTEuMyAwLDAgMzMuMiwxMSA4OS43LDE1LjYgNDUuNCwzLjcgOTYuOSwtMy4yIDk2LjksLTMuMiA3LjUsLTAuMiAxMy41LC02LjUgMTMuMiwtMTQgLTAuMywtNy41IC02LjUsLTEzLjUgLTE0LC0xMy4yIC0wLjksMCAtMS44LDAuMSAtMi42LDAuMyAwLDAgLTUwLjQsNi4yIC05MS4zLDIuOSAtNTQsLTQuNCAtODMuNCwtMTQuMyAtODMuNCwtMTQuMyAtMi4yLC0wLjcgLTQuNSwtMSAtNi43LC0wLjcgeiBtIDAsLTY3LjUgYyAtNy41LDEgLTEyLjcsNy44IC0xMS43LDE1LjMgMC43LDUuNCA0LjYsOS45IDkuOSwxMS4zIDAsMCAzMy4yLDExIDg5LjcsMTUuNiA0NS40LDMuNyA5Ni45LC0zLjIgOTYuOSwtMy4yIDcuNSwtMC4yIDEzLjUsLTYuNSAxMy4yLC0xNCAtMC4zLC03LjUgLTYuNSwtMTMuNSAtMTQsLTEzLjIgLTAuOSwwIC0xLjgsMC4xIC0yLjYsMC4zIDAsMCAtNTAuNCw2LjIgLTkxLjMsMi45IC01NCwtNC40IC04My40LC0xNC4zIC04My40LC0xNC4zIC0yLjIsLTAuOCAtNC41LC0xIC02LjcsLTAuNyB6IG0gLTk0LjcsLTcxLjMgYyAtNzEsMC41IC05Ny41LDIyLjMgLTk3LjUsMjIuMyB2IDUzMC4zIGMgMCwwIDI1LjgsLTIyLjMgMTA5LC0xOC45IDgzLjIsMy40IDEwMC4zLDMyLjYgMjAyLjUsMzQuNiAxMDIuMiwyLjEgMTI3LjksLTE1LjcgMTI3LjksLTE1LjcgbCAxLjUsLTU0MC42IGMgMCwwIC00NiwxMyAtMTM1LjUsMTMuNyAtODkuNSwwLjcgLTExMSwtMjIuOCAtMTkzLjIsLTI1LjUgLTUuMSwtMC4xIC0xMCwtMC4yIC0xNC43LC0wLjIgeiBtIDU5LjQsMzQuNiBjIDAsMCA0MywxNC4yIDEyMi41LDE4LjIgNjcuMiwzLjMgMTM0LjUsLTYuNiAxMzQuNSwtNi42IFYgLTkyOSBjIDAsMCAtMzQuMSwxNy45IC0xMTkuMywxMS44IC02NiwtNC43IC0xMzguNywtMjkuNyAtMTM4LjcsLTI5LjcgeiBtIC00MS41LDEyLjUgYyA3LjYsMCAxMy43LDYuMiAxMy43LDEzLjcgMCw3LjUgLTYuMiwxMy43IC0xMy43LDEzLjcgMCwwIC0yMi4zLDAuMSAtMzUuOCwxLjUgLTIyLjgsMi4zIC0zOC4zLDEwLjYgLTM4LjMsMTAuNiAtNi43LDMuNSAtMTUsMSAtMTguNSwtNS43IC0zLjUsLTYuNyAtMSwtMTUgNS43LC0xOC41IDAsMCAwLDAgMCwwIDAsMCAyMC4yLC0xMC43IDQ4LjQsLTEzLjUgMTYuMywtMS43IDM4LjUsLTEuOCAzOC41LC0xLjggeiBtIC0xMy4yLDY3LjggYyA3LjYsLTAuMiAxMy4zLDAgMTMuMywwIDcuNSwwLjkgMTIuOSw3LjggMTIsMTUuMyAtMC44LDYuMyAtNS43LDExLjIgLTEyLDEyIDAsMCAtMjIuMywwLjEgLTM1LjgsMS41IC0yMi44LDIuMyAtMzguMywxMC42IC0zOC4zLDEwLjYgLTYuNywzLjUgLTE1LDAuOSAtMTguNSwtNS44IC0zLjUsLTYuNyAtMC45LC0xNSA1LjgsLTE4LjUgMCwwIDIwLjIsLTEwLjcgNDguNCwtMTMuNSA3LjksLTAuOSAxNy41LC0xLjQgMjUuMSwtMS42IHogbSAxMy4yLDY3LjUgYyA3LjYsMCAxMy43LDYuMiAxMy43LDEzLjcgMCw3LjYgLTYuMiwxMy43IC0xMy43LDEzLjcgMCwwIC0yMi4zLC0wLjEgLTM1LjgsMS4yIC0yMi44LDIuMyAtMzguMywxMC42IC0zOC4zLDEwLjYgLTYuNywzLjUgLTE1LDAuOSAtMTguNSwtNS44IC0zLjUsLTYuNyAtMC45LC0xNSA1LjgsLTE4LjUgMCwwIDIwLjIsLTEwLjcgNDguNCwtMTMuNSAxNi4yLC0xLjUgMzguNCwtMS40IDM4LjQsLTEuNCB6IgogICAgICAgaWQ9InBhdGgxIiAvPgogIDwvc3ZnOmc+CiAgPGRpdgogICAgIGlkPSJzYWthLWd1aS1yb290Ij4KICAgIDxkaXY+CiAgICAgIDxkaXY+CiAgICAgICAgPHN0eWxlIC8+CiAgICAgIDwvZGl2PgogICAgPC9kaXY+CiAgPC9kaXY+Cjwvc3ZnOnN2Zz4K">
+        <!--?lit$100943058$--> <!--?lit$100943058$--><span class="version">
+        <!--?lit$100943058$--><svg data-prefix="fas" data-icon="code-branch" class="svg-inline--fa fa-code-branch icon" role="img" viewBox="0 0 448 512" aria-hidden="true"><path fill="currentColor" d="M80 104a24 24 0 1 0 0-48 24 24 0 1 0 0 48zm80-24c0 32.8-19.7 61-48 73.3l0 70.7 176 0c26.5 0 48-21.5 48-48l0-22.7c-28.3-12.3-48-40.5-48-73.3 0-44.2 35.8-80 80-80s80 35.8 80 80c0 32.8-19.7 61-48 73.3l0 22.7c0 61.9-50.1 112-112 112l-176 0 0 70.7c28.3 12.3 48 40.5 48 73.3 0 44.2-35.8 80-80 80S0 476.2 0 432c0-32.8 19.7-61 48-73.3l0-205.3C19.7 141 0 112.8 0 80 0 35.8 35.8 0 80 0s80 35.8 80 80zm232 0a24 24 0 1 0 -48 0 24 24 0 1 0 48 0zM80 456a24 24 0 1 0 0-48 24 24 0 1 0 0 48z"></path></svg> <!--?lit$100943058$-->latest
+      </span> 
+        <span class="caret"><!--?lit$100943058$--><svg data-prefix="fas" data-icon="caret-down" class="svg-inline--fa fa-caret-down icon" role="img" viewBox="0 0 320 512" aria-hidden="true"><path fill="currentColor" d="M140.3 376.8c12.6 10.2 31.1 9.5 42.8-2.2l128-128c9.2-9.2 11.9-22.9 6.9-34.9S301.4 192 288.5 192l-256 0c-12.9 0-24.6 7.8-29.6 19.8S.7 237.5 9.9 246.6l128 128 2.4 2.2z"></path></svg></span>
+      </header>
+    
+        <main class=" closed ">
+          <!--?lit$100943058$--> <!--?lit$100943058$-->
+      <dl class="versions">
+        <dt>Versions</dt>
+        <!--?lit$100943058$--><!----><dd><!--?lit$100943058$--><strong><!--?lit$100943058$--><a href="https://trafilatura.readthedocs.io/en/latest/usage-python.html"><!--?lit$100943058$-->latest</a></strong></dd><!----><!----><dd><!--?lit$100943058$--><a href="https://trafilatura.readthedocs.io/en/stable/usage-python.html"><!--?lit$100943058$-->stable</a></dd><!---->
+      </dl>
+    
+          <!--?lit$100943058$-->
+      <dl class="downloads">
+        <dt>Downloads</dt>
+        <!--?lit$100943058$--><!----><dd>
+              <a href="https://trafilatura.readthedocs.io/_/downloads/en/latest/pdf/"><!--?lit$100943058$-->PDF</a>
+            </dd><!---->
+      </dl>
+     <!--?lit$100943058$-->
+      <dl>
+        <dt>On Read the Docs</dt>
+        <dd>
+          <a href="https://app.readthedocs.org/projects/trafilatura/?utm_source=trafilatura&amp;utm_content=flyout">Project Home</a>
+        </dd>
+        <dd>
+          <a href="https://app.readthedocs.org/projects/trafilatura/builds/?utm_source=trafilatura&amp;utm_content=flyout">Builds</a>
+        </dd>
+      </dl>
+    
+          <!--?lit$100943058$--> <!--?lit$100943058$-->
+        <dl>
+          <dt>Search</dt>
+          <dd>
+            <form id="flyout-search-form">
+              <input type="text" name="q" aria-label="Search docs" placeholder="Search docs">
+            </form>
+          </dd>
+        </dl>
+      
+          <hr>
+          <!--?lit$100943058$-->
+      <small>
+        <span>
+          <a href="https://docs.readthedocs.io/page/addons.html?utm_source=trafilatura&amp;utm_content=flyout">Addons documentation</a></span>
+        <span> ― </span>
+        <span>Hosted by
+          <a href="https://about.readthedocs.com/?utm_source=trafilatura&amp;utm_content=flyout">Read the Docs</a></span>
+      </small>
+    
+        </main>
+      </div>
+    </readthedocs-flyout><readthedocs-notification class="raised toast"><!----></readthedocs-notification><readthedocs-search class="raised floating"><!---->
+      
+    </readthedocs-search><readthedocs-hotkeys><!----></readthedocs-hotkeys></body></html>
