@@ -128,7 +128,8 @@ That file is `~/.agents/research-kit.config.json`. The other keys it takes are u
 | git `core.hooksPath` | the commit gate, machine-wide, every agent and every human |
 
 **Update.** Pull and deploy again. `doctor` reports when the deployed copy no longer
-matches the checkout.
+matches the checkout, and its last line names the version this machine runs (`kit 0.9.5`).
+Each release is tagged `v<version>` and has its entry in [`CHANGELOG.md`](CHANGELOG.md).
 
 ```bash
 git pull origin main
@@ -656,8 +657,9 @@ BUNDLE_INDEX.md, RESEARCH_REPORT.md      the archive this repository was receive
   rejected.
 - [`docs/decisions/`](docs/decisions/README.md): the research behind each decision about
   the kit itself, one nested project per question, each with its own passing gate.
-- [`docs/review-2026-10-03-gap-audit.md`](docs/review-2026-10-03-gap-audit.md): the latest
-  audit of the kit against comparable tools, and what it changed.
+- [`docs/review-2026-10-04-gap-audit.md`](docs/review-2026-10-04-gap-audit.md): the latest
+  audit of the kit against comparable tools, and what it changed; the earlier one is
+  [`docs/review-2026-10-03-gap-audit.md`](docs/review-2026-10-03-gap-audit.md).
 - [`CHANGELOG.md`](CHANGELOG.md): release notes. The kit is feature-frozen since 0.9.0;
   it takes bug fixes, documentation, tests and vendor updates.
 
