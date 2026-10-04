@@ -5,6 +5,9 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The `uncited-capture` warning says "was collected" only of a file the ledger records a fetch of; a
+  file under `research/raw` that no fetch produced is named as such (break-test pass 4, F5a,
+  2026-10-04).
 - The suite's `requirePython` names the interpreter it rejected (`python3 3.8.10; the conformance
   runners need 3.11+`) instead of "no python or python3 on this host" whatever was found
   (break-test pass 4, F2, 2026-10-04).

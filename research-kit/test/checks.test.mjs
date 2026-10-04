@@ -218,6 +218,22 @@ test('hygiene: a capture nobody cites is a warning, never a failure', () => {
   assert.ok(findings.some((f) => f.rule === 'uncited-capture'));
 });
 
+// Break-test pass 4, F5a (2026-10-04): the warning said "was collected" of a file no fetch
+// produced - a planted twin, a stray copy - which is the one thing the reader needs to know
+// about it. The ledger says whether a fetch wrote it; the wording follows the ledger.
+test('hygiene: an uncited capture no fetch produced is named as such, a collected one as collected', () => {
+  const dir = makePassingProject();
+  const planted = `${PATHS.raw}/2026-01-01-planted-example-00000000.md`;
+  writeText(resolve(dir, planted), '---\nurl: https://example.invalid/planted\nretrieved: 2026-01-01\n---\n\nbody\n');
+  const fetched = writeRaw(dir, { url: 'https://example.invalid/fetched', markdown: 'body of a page nobody cited\n', statusCode: 200 }, { date: '2026-01-01' });
+  appendFetch(dir, { url: 'https://example.invalid/fetched', type: 'P', raw: fetched.file, bodySha256: sha256File(resolve(dir, fetched.file)), transport: 'stub', completeness: 'full', omitted: '', cmd: 'stub' });
+  const findings = runCheck('hygiene', snapshot(dir)).filter((f) => f.rule === 'uncited-capture');
+  const byFile = Object.fromEntries(findings.map((f) => [f.file, f.detail]));
+  assert.match(byFile[planted] ?? '', /no ledger entry records a fetch of it/, JSON.stringify(byFile));
+  assert.doesNotMatch(byFile[planted] ?? '', /was collected/);
+  assert.match(byFile[fetched.file] ?? '', /was collected but no evidence row cites it/, JSON.stringify(byFile));
+});
+
 test('corpus-shape: a row whose arity does not match its header is reported, not absorbed', () => {
   const dir = makePassingProject();
   corrupt(dir, PATHS.evidence, (text) => `${text}| E-02 | 2026-01-01 |\n`);
