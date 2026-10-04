@@ -5,6 +5,9 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The installer's tree walks skip `__pycache__`: the conformance runners' Python bytecode cache was
+  deployed with the kit and `doctor` then reported the deployed kit as stale on every machine that
+  had run the suite first (break-test pass 4, F1, 2026-10-04).
 - `doctor`'s committed-key scan skips `research/raw` at any depth, not only the root's: a nested
   decision project's captures are page content like the root's, and CI had scanned the second gap
   audit's corpora and reported a Google page's source sibling (ADR-0140), which carries Google's own
