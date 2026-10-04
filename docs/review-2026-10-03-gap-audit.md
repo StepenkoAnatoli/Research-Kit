@@ -118,3 +118,16 @@ Every external claim above rests on a ledgered capture in one of the two nested 
 | 3 | Every transport returns the text it converted as `source`; the collector keeps it LF-folded as `<capture>.source.html`, the ledger names and hashes it, `verifyLedger` checks it like the capture, `readCaptures` never indexes it (ADR-0140, lifts the freeze for that file and two ledger fields). Firecrawl's `rawHtml` verified live at no extra credit. | bed6bc0 |
 
 Ranks 4 to 15 remain as recorded above, not implemented.
+
+### Review of the three commits (breaker and mutation auditor, 2026-10-04)
+
+| # | Finding (severity) | Disposition | Commit |
+|---|---|---|---|
+| B1 | A row inside a fenced code block or an HTML comment after a table failed the gate as `table-split` (S2). | fixed: fences and comments are skipped | b997749 |
+| B2 | A `###` note or `#tag` prose stopped the split scan, so a stray row below it was still dropped in silence (S2). | fixed: the scan runs to the end of the table's section | b997749 |
+| B3 | A link planted at the sibling's name made `writeSource` throw after the capture was written: an orphan capture, no ledger entry, a false cache hit next run (S2). | fixed: the write is inside the try; the fetch is ledgered with `sourceOmitted` | b997749 |
+| B4 | A planted `*.source.html` no entry names was invisible to every check (S3). | fixed: `source-unnamed` corpus problem | b997749 |
+| B5 | An oversized source vanished without a trace (S3). | fixed: `sourceOmitted` names the reason | b997749 |
+| B6 | `--max-age` is not in the pinned 1.25.3 fixture's option table (S3). | rejected: verified against the 1.25.3 CLI's own `--help` and a live scrape | - |
+| B7 | A second table with a malformed separator was reported as three splits of the first (S3). | fixed: named once, as a malformed separator | b997749 |
+| M1, M27, M25 | Mutation survivors: a later section's heading ending the scan, a lone separator, the capture's own path as sibling name. | fixed: three tests pin them; 24 of 27 mutations were already caught | b997749 |
