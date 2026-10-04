@@ -373,6 +373,27 @@ test('F26: several credential shapes are recognised, and the coverage is stated'
   assert.match(scan.coverage, /credential patterns over \d+ text file/);
 });
 
+// Found 2026-10-04 by CI on the second gap audit's corpora: the scan skipped `research/raw`
+// at the ROOT only (`SECRET_SKIP_DIRS` matched the relative path `research/raw`), so a
+// nested decision project's captures were scanned - and a Google page's source sibling
+// (ADR-0140 keeps the HTML the markdown was converted from) carries Google's own public
+// Maps keys, which match `google-api-key`. A capture is page content, not a committed
+// credential, which is why the root's raw folder was excluded; the exclusion is a rule
+// about the folder, and the folder exists at every depth a nested project does (ADR-0030).
+test('F26: a nested project\'s research/raw is page content, excluded from the scan like the root\'s', () => {
+  const dir = makeProject();
+  const nestedRaw = resolve(dir, 'docs/decisions/2026-10-04-example/research/raw');
+  fs.mkdirSync(nestedRaw, { recursive: true });
+  const google = fixtureKey('AIza', 'SyA0123456789abcdefghijklmnopqrstuvw');
+  writeText(path.join(nestedRaw, '2026-10-04-page-example-00000000.source.html'), `<script>key:"${google}"</script>\n`);
+  writeText(path.join(nestedRaw, '2026-10-04-page-example-00000000.md'), `---\nurl: https://example.invalid/\n---\n\n${google}\n`);
+  // The same string OUTSIDE a raw folder of the nested project is still a committed key.
+  writeText(resolve(dir, 'docs/decisions/2026-10-04-example/research/notes.md'), `${google}\n`);
+  const scan = scanForSecrets(dir);
+  assert.deepEqual(scan.hits.map((h) => [h.file, h.pattern]), [['docs/decisions/2026-10-04-example/research/notes.md', 'google-api-key']],
+    `the nested captures were scanned as if they were the project's own files: ${JSON.stringify(scan.hits)}`);
+});
+
 // Found 2026-10-02, running `doctor` on a Windows home folder: fourteen critical "secret"
 // findings, every one inside an ssh executable or a libssh2 DLL under a tool's cache.
 // Those binaries carry the `BEGIN RSA PRIVATE KEY` PEM marker as a string they PARSE, and
