@@ -10,7 +10,7 @@
 
 import http from 'node:http';
 import net from 'node:net';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { test, describe, assert, tempDir, fs, path, requireCapability } from './harness.mjs';
 import { startGuard, judge, parseUpstream, renderThroughGuard, REFUSAL_MARKER, DROP_MARKER, isBrowserService } from '../lib/browser-guard.mjs';
 import browser, { findBrowser, renderGuarded, browserArgs } from '../lib/browser-transport.mjs';
@@ -273,8 +273,16 @@ test('the transport\'s half passes the child\'s net log and its own internal-add
 // the guard; the launch is allowed as long again, and no more (ADR-0119).
 test('the render timeout starts at the browser\'s first request, and the launch is allowed as long again', async () => {
   const pages = await site({ '/slow': () => '<html><body>slow but whole</body></html>' });
-  // The page answers after 1 s; the browser takes 1.2 s to start. Together past a 2 s timeout, apart inside it.
-  const slowSite = http.createServer((req, res) => setTimeout(() => { res.writeHead(200, { 'content-type': 'text/html' }); res.end('<html><body>slow but whole</body></html>'); }, 1000));
+  // The browser takes 60% of the budget to start and the page 50% of it to answer: together
+  // past the timeout, apart inside it. The budget itself scales with this host's Node boot,
+  // measured once, so Node gets at least 40% of it - twice its measure. A fixed 2 s budget left
+  // Node 800 ms to boot, and on the operator's PC that failed 2 runs in 10 (2026-10-04, GPT's
+  // review); a Node made to boot 900 ms slower reproduced it here (break-test pass 6).
+  const bootStart = Date.now();
+  spawnSync(process.execPath, ['-e', '0'], { windowsHide: true });
+  const boot = Date.now() - bootStart;
+  const budget = Math.max(2_000, 5 * boot);
+  const slowSite = http.createServer((req, res) => setTimeout(() => { res.writeHead(200, { 'content-type': 'text/html' }); res.end('<html><body>slow but whole</body></html>'); }, Math.round(budget * 0.5)));
   await new Promise((resolve) => slowSite.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${slowSite.address().port}/slow`;
   const sleepy = path.join(tempDir('rk-sleepy-browser-'), 'browser.mjs');
@@ -282,16 +290,16 @@ test('the render timeout starts at the browser\'s first request, and the launch 
 import http from 'node:http';
 const args = process.argv.slice(2);
 const proxy = Number(args.find((a) => a.startsWith('--proxy-server=')).split(':').pop());
-await new Promise((r) => setTimeout(r, 1200));
+await new Promise((r) => setTimeout(r, ${Math.round(budget * 0.6)}));
 const url = args.at(-1);
 http.request({ host: '127.0.0.1', port: proxy, path: url, headers: { host: new URL(url).host } }, (res) => { let b = ''; res.on('data', (d) => { b += d; }); res.on('end', () => { process.stdout.write(b); }); }).end();
 `);
   try {
-    const r = await renderThroughGuard({ binary: process.execPath, args: [sleepy, '--dump-dom', url], url, allowInternal: true, timeout: 2_000 });
-    assert.equal(r.errorCode, null, `the launch ate the render budget: ${r.errorMessage}`);
+    const r = await renderThroughGuard({ binary: process.execPath, args: [sleepy, '--dump-dom', url], url, allowInternal: true, timeout: budget });
+    assert.equal(r.errorCode, null, `the launch ate the render budget: ${r.errorMessage} (startupMs ${r.startupMs}, elapsedMs ${r.elapsedMs}, node boot ${boot} ms, budget ${budget} ms)`);
     assert.match(r.stdout, /slow but whole/);
-    assert.ok(r.startupMs >= 1100 && r.startupMs < 2000, `startupMs ${r.startupMs}`);
-    assert.ok(r.elapsedMs > 2000, `elapsed ${r.elapsedMs}: the page cannot have arrived inside 2 s`);
+    assert.ok(r.startupMs >= budget * 0.55 && r.startupMs < budget, `startupMs ${r.startupMs} against a ${budget} ms budget (node boot ${boot} ms)`);
+    assert.ok(r.elapsedMs > budget, `elapsed ${r.elapsedMs}: the page cannot have arrived inside ${budget} ms`);
     // A browser that never makes a request has only its launch allowance - one timeout - then the kill.
     const mute = path.join(tempDir('rk-mute-browser-'), 'browser.mjs');
     fs.writeFileSync(mute, 'await new Promise((r) => setTimeout(r, 60_000));');
@@ -421,7 +429,7 @@ test('LIVE: a real Chromium cannot be led into this machine\'s network by a scri
     // Chromium prints its histograms at a normal exit; a killed one never gets there, so the
     // tail of a hang is its last live lines, and the histogram lines are dropped either way.
     const kept = () => String(last?.stderr ?? '').split('\n').filter((l) => l && !/^Histogram: |^\d+\s+[-.O ]+\(|^\d+\s+\.\.\. $/.test(l)).join('\n    ');
-    const timed = (route, run) => { const t0 = Date.now(); const r = run(); const ms = Date.now() - t0; if (ms > 20_000) process.stderr.write(`browser-guard LIVE ${route} took ${ms} ms (browser ${last?.elapsedMs ?? '?'} ms, launched ${last?.startedAt ?? '?'}): ${r.error ?? r.omitted ?? 'no note'} | timeline: ${timeline()}\n  chromium log (head and tail):\n    ${kept()}\n`); return r; };
+    const timed = (route, run) => { const t0 = Date.now(); const r = run(); const ms = Date.now() - t0; if (ms > 20_000) process.stderr.write(`browser-guard LIVE ${route} took ${ms} ms (browser ${last?.elapsedMs ?? '?'} ms, first request after ${last?.startupMs ?? '?'} ms, launched ${last?.startedAt ?? '?'}): ${r.error ?? r.omitted ?? 'no note'} | timeline: ${timeline()}\n  chromium log (head and tail):\n    ${kept()}\n`); return r; };
     for (const route of ['/jump', '/meta']) {
       const r = timed(route, () => browser.scrape(`${pages.outer}${route}`, { render, browserPath: chromium, env, allowInternalRedirects: false, timeout: 45_000 }));
       assert.equal(r.ok, false, `${route}: the browser reached the page it was sent to: ${JSON.stringify(r).slice(0, 300)}`);

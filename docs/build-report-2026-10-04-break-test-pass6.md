@@ -65,10 +65,11 @@ run in three. Procedure: the break-test skill, pinned-branch setup.
 > does not make Chromium take 30 s to its first request; what does on that PC is not known
 > (Defender real-time protection was on with no exclusion for the checkout; the cause is a
 > guess, not a finding).
-> Action: not fixed. Raising the budgets would hide the question; scaling them by a
-> measured host factor is a test-infrastructure change this pass could not verify on the
-> only host that fails. F1 removes the lost-report consequence; the next PC run will show
-> `startupMs` for every slow launch, which is the datum a fix needs.
+> Action: the LIVE budgets are not raised; raising them would hide the question. F1 removes
+> the lost-report consequence. After GPT's review of this report (below), the one synthetic
+> test among the four - the 2 s launch-allowance test - scales its budget with the host's
+> measured Node boot (commit 36f06e4), and the guard LIVE helper prints the first-request
+> time for a render over 20 s, as the transport's /stalled helper does for one over 25 s.
 > Recommended: run the suite on the PC once with the checkout excluded from real-time
 > scanning (the operator's decision, a machine setting) and once without, and compare the
 > `browser-guard LIVE ... took N ms (... first request after M ms ...)` stderr lines the
@@ -140,6 +141,25 @@ archive tree, the autocrlf clone, the Node floor and two levels of CPU starvatio
 defect found is real and now fixed: the parent's hard timeout did not honour ADR-0119's
 launch allowance, so a slow launch plus a normal render was killed with its diagnostics,
 which is exactly what the PC saw. What remains open is why Chromium takes 30 s to its first
-request on that PC; the next run there, with F1 in place, will record the launch time of
-every slow render, and that number decides what, if anything, to change next. Review:
-`git show ba8c775`.
+request on that PC; the next run there, with F1 in place, records the first-request time of
+every LIVE render over the helpers' thresholds, and that number decides what, if anything, to
+change next. Review: `git show ba8c775 a271057 36f06e4`.
+
+## After the report: GPT's review of 2026-10-04 on the PC
+
+- The full suite at `d9e5f9c`: 1596 passed, 0 failed, 9 UNSUP, 718 s. Ten runs of each
+  browser group: transport 0 failures; **guard 2 of 10**, both the ADR-0119 launch-allowance
+  test, `the launch ate the render budget: the browser did not finish within 2000ms` - a
+  synthetic Node fake browser, not Chromium. Cause: the fixed 2 s budget left Node 800 ms to
+  boot before the fake's 1.2 s sleep. Reproduced here by making every Node boot 900 ms slower
+  (`NODE_OPTIONS=--import=<busy-wait>`): 1 failed with the PC's message. Fixed in `36f06e4`:
+  the budget is `max(2 s, 5 × measured boot)`, the shape of the test unchanged; 16 passed
+  under the handicap and without it.
+- `gaveUp` was a regex on the parent-timeout message; it is a flag on the result now
+  (`a271057`), with the assertion red when the flag is removed.
+- Two timing lines were printed on the PC, both the transport's /stalled render: first request
+  after 2437 ms and 2540 ms, the browser then held to its 20 s deadline by the stalled resource
+  as designed. No LIVE failure in the review's twenty runs.
+- GPT's note stands and is not fixed: `2 × timeout + 10 s` bounds the browser, not the child's
+  DNS lookup before it or its net-log read and guard shutdown after; none of those was observed
+  to take long, and no bound is placed on them here.

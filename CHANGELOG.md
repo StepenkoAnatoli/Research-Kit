@@ -5,6 +5,14 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The ADR-0119 launch-allowance test scales its budget with the host's Node boot, measured
+  once (`max(2 s, 5 × boot)`), so Node always has twice its measure to start: on the operator's
+  Windows PC the fixed 2 s budget left it 800 ms and the test failed 2 runs in 10 (GPT's review,
+  2026-10-04); a Node made to boot 900 ms slower reproduced it here. The shape the test pins -
+  launch and page together past the timeout, apart inside it - is unchanged, and its failure
+  message now carries `startupMs`, `elapsedMs`, the boot measure and the budget. The guard LIVE
+  test's over-20 s line names the browser's first-request time, as the transport's /stalled
+  line already did (break-test pass 6 follow-up).
 - The browser transport's parent waits for the guard child as long as ADR-0119 allows the
   browser - the launch allowance plus the render budget, `2 × timeout`, and 10 s to report -
   instead of `timeout + 10 s`. A Chromium that took most of its launch allowance to make its
@@ -12,7 +20,9 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   child's record of where the time went was lost, and the verdict read "the browser never made
   a request in 0 s" (the operator's Windows PC, 1 run in 3; reproduced here with a fake browser
   that launches in 13 s and renders in 13.5 s under a 15 s timeout). A child the parent gave up
-  on is now said to be that, with the time it was given (break-test pass 6, F1, 2026-10-04).
+  on is now said to be that, with the time it was given (break-test pass 6, F1, 2026-10-04);
+  the transport reads a `gaveUp` flag on that result, not the message's wording (GPT's review
+  of the fix, the same day).
 
 ## 0.9.5 — 2026-10-04
 
@@ -266,7 +276,8 @@ Fifteen entries from the fourteen pull requests after 0.9.3 (#212 to #225): bug 
 freeze (ADR-0117), the licence (ADR-0130), four decisions (ADR-0127 to ADR-0129, ADR-0131), the
 README rewrite and `QUICKSTART.md`. Tagged `v0.9.4` on GitHub on 2026-10-03 at `f5d581a`, with
 release notes generated there. At that commit `KIT_VERSION` still read 0.9.3 and this changelog
-had no entry for 0.9.4, so for one day the tag and the constant disagreed, against ADR-0116.
+had no entry for 0.9.4, so from that release (published on GitHub on 2026-10-03) until 0.9.5
+the tag and the constant disagreed, against ADR-0116.
 This entry records the release after the fact; the tag stays where it was made, and 0.9.5 is
 the first release cut by the rule again.
 
