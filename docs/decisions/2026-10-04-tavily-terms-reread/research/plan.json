@@ -1,0 +1,42 @@
+{
+  "topic": "Has Tavily's C-6 trigger been met: a no-training tier in Tavily's Platform Terms, privacy policy, FAQ or pricing, re-read 2026-10-04",
+  "notes": "Owning pages named directly; the terms, privacy policy and FAQ were last read 2026-09-28 (docs/decisions/2026-09-28-fetch-fallback), the pricing page never. This project re-checks the C-6 trigger (docs/requirements-2026-09-19-search-fetch-seam.md:55) only: does a no-training tier exist now. No searches: the pages are known.",
+  "depth": "quick",
+  "refreshDays": 30,
+  "limit": 5,
+  "perQuery": 1,
+  "maxScrapes": 5,
+  "prefer": [
+    "tavily.com",
+    "www.tavily.com",
+    "docs.tavily.com"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://www.tavily.com/terms",
+      "type": "P",
+      "why": "U-01: Platform Terms \u00a76.5 and \u00a76.7 - training on Customer Input, confidentiality of providers; any no-training clause"
+    },
+    {
+      "url": "https://www.tavily.com/privacy",
+      "type": "P",
+      "why": "U-02: privacy policy - use of query data, sharing with search index providers, any opt-out of training"
+    },
+    {
+      "url": "https://www.tavily.com/pricing",
+      "type": "P",
+      "why": "U-03: pricing page - any tier (enterprise, zero data retention) promising no training on inputs"
+    },
+    {
+      "url": "https://docs.tavily.com/faq/faq",
+      "type": "P",
+      "why": "U-03: FAQ - data retention and training answers"
+    },
+    {
+      "url": "https://www.tavily.com/enterprise",
+      "type": "P",
+      "why": "U-03: the Enterprise tier's 'enterprise-grade security and privacy' - is a no-training or zero-retention promise made there"
+    }
+  ]
+}
