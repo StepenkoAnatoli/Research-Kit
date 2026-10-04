@@ -1112,6 +1112,9 @@ test('the suite runs from any cwd, and a relative result file lands in the calle
   assert.match(r.out, /\d+ passed, 0 failed/);
   const result = JSON.parse(fs.readFileSync(path.join(root, 'result.json'), 'utf8'));
   assert.equal(result.exit, 0);
+  // The machine-readable result names the failing tests, so two runs compare as sets, not
+  // counts (break-test pass 5, 2026-10-04): here none.
+  assert.deepEqual(result.failed, []);
 });
 
 // Found 2026-09-28 (break-test): in a DEPLOYED kit (`install.mjs` into a scratch HOME) the

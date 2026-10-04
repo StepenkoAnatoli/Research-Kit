@@ -147,7 +147,7 @@ for (const { file, error } of await importTestFiles(dir, files)) {
   });
 }
 
-const { failures, passed, unsupported, blocking: allBlocking, errorCodes } = await runPending();
+const { failures, failed, passed, unsupported, blocking: allBlocking, errorCodes } = await runPending();
 
 // RESEARCH_KIT_ALLOW_UNSUP=1 (ADR-0108): a contributor without Python can get a green LOCAL
 // run - unsupported tests are still listed, and the last line says the run was not a full
@@ -175,7 +175,7 @@ function writeResultFile(code) {
   if (!target) return;
   try {
     fs.writeFileSync(target, `${JSON.stringify({
-      passed, failures, unsupported: unsupported.length, unsupportedWaived: waiveUnsupported, blocking, exit: code,
+      passed, failures, failed, unsupported: unsupported.length, unsupportedWaived: waiveUnsupported, blocking, exit: code,
       seconds: Number(((Date.now() - started) / 1000).toFixed(1)),
       files: files.length, node: process.versions.node, platform: process.platform,
     }, null, 2)}

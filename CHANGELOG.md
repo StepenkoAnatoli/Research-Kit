@@ -5,6 +5,9 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The suite's machine-readable result (`RESEARCH_KIT_RESULT_FILE`) names the failing tests beside their
+  count, so two runs compare as sets: a count alone cannot show one test starting to fail while another
+  starts to pass (break-test pass 5, 2026-10-04).
 - When git refuses to read a repository that is there (`fatal: detected dubious ownership`), the
   handoff remedies say so and to fix that first, instead of "no git metadata, re-copy the corpus from the
   machine that has the repository" (found 2026-10-04 by the third external review).
