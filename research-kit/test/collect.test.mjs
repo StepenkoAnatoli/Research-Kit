@@ -1368,26 +1368,60 @@ test('ADR-0140: no source is kept for a verbatim answer, an absent one, an overs
 // Breaker review of bed6bc0 (2026-10-04): a link planted at the sibling's name made `writeSource`
 // throw AFTER the capture was written, leaving an orphan capture with no ledger entry that the
 // next run took for a cache hit; and an oversized source vanished without a trace.
-test('ADR-0140: a sibling that cannot be written leaves the fetch ledgered without a source, and an omitted source is named', () => {
-  const dir = makeProject();
+// Breaker finding (2026-10-04): a link planted at the sibling's name. Two links, because
+// they test two different guards: a DANGLING link is caught only by the path check (a
+// write through it would create a file outside the project), while a link to an existing
+// file is also caught by the "sibling already differs" rule. The targets live in the
+// test's own scratch, never at a fixed host path - Windows stores a POSIX absolute target
+// resolved against the current drive (`/etc/hostname` read back as `D:\etc\hostname`, CI
+// 2026-10-04) - so the assertions compare real paths, and the links are made through
+// requireSymlink: a host that refuses file symlinks reports UNSUP, not red.
+test('ADR-0140: a sibling that cannot be written leaves the fetch ledgered without a source', () => {
   const markdown = `# Limits\n\n${'The free plan allows 10 requests per minute. '.repeat(40)}`;
   const base = (u, extra) => ({ ok: true, url: u, title: 'Limits', markdown, statusCode: 200, transport: 'stub-transport', completeness: 'full', omitted: '', cmd: `stub scrape ${u}`, ...extra });
-  const url = 'https://x.invalid/linked';
-  const expected = captureName(url, { date: today(), title: 'Limits' }).replace(/\.md$/, '.source.html');
-  fs.symlinkSync('/etc/hostname', resolve(dir, `${PATHS.raw}/${expected}`));
-  const outcome = collectOne(dir, url, { runScrape: (u) => base(u, { source: '<html>x</html>' }), corpus: readCorpus(dir), transportName: 'stub-transport' });
-  assert.equal(outcome.status, 'collected', outcome.reason);
-  const entry = readCorpus(dir).ledger.entries.at(-1);
-  assert.equal(entry.raw, outcome.entry.file, 'the fetch is in the ledger');
-  assert.equal('source' in entry, false, 'a sibling that could not be written is not named');
-  assert.match(entry.sourceOmitted, /outside|link|not kept/i, entry.sourceOmitted);
-  assert.equal(fs.readlinkSync(resolve(dir, `${PATHS.raw}/${expected}`)), '/etc/hostname', 'the link was not followed or replaced');
+  const elsewhere = tempDir('rk-source-outside-');
+  const collect = (dir, url) => {
+    const outcome = collectOne(dir, url, { runScrape: (u) => base(u, { source: '<html>x</html>' }), corpus: readCorpus(dir), transportName: 'stub-transport' });
+    assert.equal(outcome.status, 'collected', outcome.reason);
+    const entry = readCorpus(dir).ledger.entries.at(-1);
+    assert.equal(entry.raw, outcome.entry.file, 'the fetch is in the ledger');
+    assert.equal('source' in entry, false, 'a sibling that could not be written is not named');
+    assert.match(entry.sourceOmitted, /outside|link|not kept/i, entry.sourceOmitted);
+    assert.equal(verifyLedger(dir, { corpus: readCorpus(dir) }).ok, true);
+    return entry;
+  };
+  const siblingName = (url) => captureName(url, { date: today(), title: 'Limits' }).replace(/\.md$/, '.source.html');
 
-  const big = collectOne(dir, 'https://x.invalid/big', { runScrape: (u) => base(u, { source: `<p>${'x'.repeat(CAPTURE_MAX_BYTES + 10)}</p>` }), corpus: readCorpus(dir), transportName: 'stub-transport' });
-  assert.equal(big.status, 'collected');
+  const dangling = makeProject();
+  const url = 'https://x.invalid/dangling';
+  const danglingLink = resolve(dangling, `${PATHS.raw}/${siblingName(url)}`);
+  requireSymlink(path.join(elsewhere, 'created.html'), danglingLink, 'a source name that is a link out of the project');
+  const entry = collect(dangling, url);
+  assert.match(entry.sourceOmitted, /could not be written/, 'a dangling link is refused by the path guard, not by content');
+  assert.equal(fs.existsSync(path.join(elsewhere, 'created.html')), false, 'the source was written through the link, outside the project');
+  assert.equal(fs.lstatSync(danglingLink).isSymbolicLink(), true, 'the link was replaced');
+
+  const pointing = makeProject();
+  const victim = path.join(elsewhere, 'victim.txt');
+  fs.writeFileSync(victim, 'DO NOT TOUCH\n');
+  const url2 = 'https://x.invalid/pointing';
+  const link = resolve(pointing, `${PATHS.raw}/${siblingName(url2)}`);
+  requireSymlink(victim, link, 'a source name that is a link out of the project');
+  collect(pointing, url2);
+  assert.equal(fs.lstatSync(link).isSymbolicLink(), true, 'the link was replaced');
+  assert.equal(fs.realpathSync(link), fs.realpathSync(victim), 'the link was redirected');
+  assert.equal(fs.readFileSync(victim, 'utf8'), 'DO NOT TOUCH\n', 'the link was followed');
+});
+
+test('ADR-0140: an oversized source is not kept, and the omission names the limit', () => {
+  const dir = makeProject();
+  const markdown = `# Limits\n\n${'The free plan allows 10 requests per minute. '.repeat(40)}`;
+  const big = collectOne(dir, 'https://x.invalid/big', { runScrape: (u) => ({ ok: true, url: u, title: 'Limits', markdown, statusCode: 200, transport: 'stub-transport', completeness: 'full', omitted: '', cmd: `stub scrape ${u}`, source: `<p>${'x'.repeat(CAPTURE_MAX_BYTES + 10)}</p>` }), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.equal(big.status, 'collected', big.reason);
   const bigEntry = readCorpus(dir).ledger.entries.at(-1);
   assert.equal('source' in bigEntry, false);
   assert.match(bigEntry.sourceOmitted, /CAPTURE_MAX_BYTES|MB/, bigEntry.sourceOmitted);
+  assert.deepEqual(fs.readdirSync(resolve(dir, PATHS.raw)).filter((f) => f.endsWith('.source.html')), [], 'an oversized source was written');
   assert.equal(verifyLedger(dir, { corpus: readCorpus(dir) }).ok, true);
 });
 
