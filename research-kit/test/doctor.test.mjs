@@ -1025,6 +1025,71 @@ test('install-hooks records the hooks folder it replaced where the hooks can rea
     'a machine with no hooks folder before the kit got a record of one');
 });
 
+// Found 2026-10-04 on the operator's machine: doctor's remedy for a hand-on to another copy of
+// the kit's gate (ADR-0134) is `git config --global --unset research-kit.previousHooksPath`, and
+// it lasted one session. The installer kept the folder in the install state as well, and the
+// next `install-hooks` run - every kit update runs one - wrote it back into git config, so the
+// previous implementation's githooks/ decided on every commit again, on its outdated checks.
+// The installer judges what it records with doctor's own classifier now (ADR-0141): a folder
+// holding this kit's gate is never a hand-on, on a first install or a re-install, and the state
+// file agrees with git config once the install has run.
+test('install-hooks does not record, or resurrect, a hand-on to another copy of the kit\'s gate', async () => {
+  requireGit('the recorded previous hooks folder');
+  const { writeInstallState } = await import('../lib/machine.mjs');
+  const kitHeader = '#!/bin/sh\n# research-kit commit gate - POSIX sh wrapper around bin/gate.mjs.\nexit 0\n';
+  const paths = (dir) => ({ env: { ...process.env, GIT_CONFIG_GLOBAL: path.join(dir, 'gitconfig'), GIT_CONFIG_NOSYSTEM: '1' } });
+  const get = (gitPaths, key) => spawnSync('git', ['config', '--global', '--get', key], { env: gitPaths.env, encoding: 'utf8' }).stdout.trim();
+  const set = (gitPaths, key, value) => spawnSync('git', ['config', '--global', key, value], { env: gitPaths.env });
+
+  // The operator's machine: an older installer recorded the old kit's folder in both places,
+  // and the operator applied doctor's remedy to git config.
+  {
+    const { dir, env } = machine();
+    const gitPaths = paths(dir);
+    const old = path.join(dir, 'old-kit-githooks');
+    writeText(path.join(old, 'pre-commit'), kitHeader);
+    set(gitPaths, 'core.hooksPath', path.join(KIT_ROOT, 'githooks'));
+    set(gitPaths, 'research-kit.previousHooksPath', old);
+    writeInstallState({ kitHome: KIT_ROOT, hooksPath: path.join(KIT_ROOT, 'githooks'), previousHooksPath: old }, env);
+    spawnSync('git', ['config', '--global', '--unset', 'research-kit.previousHooksPath'], { env: gitPaths.env });
+
+    assert.equal(installCommitGate({ kitHome: KIT_ROOT, env, gitPaths, cwd: dir }).ok, true);
+    assert.equal(get(gitPaths, 'research-kit.previousHooksPath'), '', 'the next install wrote the old kit\'s folder back into git config');
+    assert.equal(readJson(env.RESEARCH_KIT_INSTALL_STATE).previousHooksPath, null, 'the install state still names the old kit\'s folder, to resurrect it next time');
+  }
+
+  // A first install over the old kit's gate: not recorded in the first place.
+  {
+    const { dir, env } = machine();
+    const gitPaths = paths(dir);
+    const old = path.join(dir, 'old-kit-githooks');
+    writeText(path.join(old, 'pre-commit'), kitHeader);
+    set(gitPaths, 'core.hooksPath', old);
+    const result = installCommitGate({ kitHome: KIT_ROOT, env, gitPaths, cwd: dir });
+    assert.equal(result.ok, true);
+    assert.equal(result.previous, old, 'the result still says what core.hooksPath was');
+    assert.equal(get(gitPaths, 'research-kit.previousHooksPath'), '', 'a first install recorded the old kit\'s gate as the hand-on');
+    assert.equal(readJson(env.RESEARCH_KIT_INSTALL_STATE).previousHooksPath, null);
+  }
+
+  // Somebody else's hooks are still the designed case (ADR-0112): recorded, kept across a
+  // re-install, and written into git config from a state file that predates the key.
+  {
+    const { dir, env } = machine();
+    const gitPaths = paths(dir);
+    const husky = path.join(dir, 'husky-hooks');
+    writeText(path.join(husky, 'pre-commit'), '#!/bin/sh\n# husky\n');
+    set(gitPaths, 'core.hooksPath', husky);
+    assert.equal(installCommitGate({ kitHome: KIT_ROOT, env, gitPaths, cwd: dir }).ok, true);
+    assert.equal(get(gitPaths, 'research-kit.previousHooksPath'), husky);
+    assert.equal(installCommitGate({ kitHome: KIT_ROOT, env, gitPaths, cwd: dir }).ok, true);
+    assert.equal(get(gitPaths, 'research-kit.previousHooksPath'), husky, 'a re-install dropped a hand-on to somebody else\'s hooks');
+    spawnSync('git', ['config', '--global', '--unset', 'research-kit.previousHooksPath'], { env: gitPaths.env });
+    assert.equal(installCommitGate({ kitHome: KIT_ROOT, env, gitPaths, cwd: dir }).ok, true);
+    assert.equal(get(gitPaths, 'research-kit.previousHooksPath'), husky, 'the record of a replaced husky folder no longer reaches git config');
+  }
+});
+
 // Found 2026-10-02 (outside review, three rounds): a repository-local `core.hooksPath` - what
 // husky, lefthook, simple-git-hooks and pre-commit set - displaces the machine-wide gate in
 // that repository, silently, and the installer never looked: it read and wrote the global

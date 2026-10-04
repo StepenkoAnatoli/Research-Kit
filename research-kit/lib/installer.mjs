@@ -14,7 +14,7 @@ import {
 import {
   KIT_HOME, EDIT_GATE_HOOK, RETIRED_EDIT_GATE_HOOKS, RETIRED_KIT_FILES,
   hooksPath, setHooksPath, setPreviousHooksPath, localHooksPathOverride, runtimePaths, skillLocations, readInstallState, writeInstallState,
-  saveConfig, loadConfig, ROLES, namesHook,
+  saveConfig, loadConfig, ROLES, namesHook, repoTopLevel,
 } from './machine.mjs';
 import { KIT_ROOT, HOOK_MODE, hookExecutability } from './scaffold.mjs';
 
@@ -56,12 +56,55 @@ export function installCommitGate({ kitHome = KIT_HOME, env = process.env, dryRu
 
   setHooksPath(dir, { scope: 'global', ...gitPaths });
   const state = readInstallState(env) ?? {};
-  // Never the kit's own folder: an install over an install would record itself, and the hooks
-  // would hand on to themselves.
-  const replaced = [state.previousHooksPath, previous].find((p) => p && path.resolve(p) !== path.resolve(dir)) ?? null;
+  const base = repoTopLevel({ ...gitPaths, cwd }) ?? cwd;
+  const replaced = [state.previousHooksPath, previous].find((p) => handsOnTo(p, { own: dir, base })) ?? null;
   setPreviousHooksPath(replaced, gitPaths);
   writeInstallState({ ...state, kitHome, hooksPath: dir, previousHooksPath: replaced }, env);
   return { ok: true, hooksPath: dir, previous, executable: hookExecutability(hook), displaced };
+}
+
+/**
+ * Is this a folder the install records as the hand-on (ADR-0112)? Never the kit's own folder:
+ * an install over an install would record itself, and the hooks would hand on to themselves.
+ * And never another copy of this kit's gate (ADR-0141): doctor tells the operator to unset
+ * exactly that record (ADR-0134), and the installer kept it in the install state too, so the
+ * next `install-hooks` run - every kit update runs one - wrote it back into git config and the
+ * previous implementation's gate blocked commits again, on its outdated checks (the operator's
+ * machine, 2026-10-04). The install state and git config now agree once an install has run. A
+ * folder that is gone stays recorded: the hooks hand on to nothing there and the uninstall
+ * restores it, and an absence at install time may be a drive that is back by the next commit -
+ * the installer refuses what it can positively identify, not what it merely fails to find.
+ */
+function handsOnTo(folder, { own, base }) {
+  if (!folder) return false;
+  if (path.resolve(folder) === path.resolve(own)) return false;
+  return handOnState({ previous: folder, base }).state !== 'kit';
+}
+
+/**
+ * WHAT the kit's hooks hand on to (ADR-0112): `none` / `missing` / `kit` / `other`.
+ *
+ * The install records the `core.hooksPath` it replaced, and every hook in githooks/ runs
+ * that folder's hook after its own. On the maintainer's machine that folder was the previous
+ * implementation's own githooks/ - two gates on every commit, the older one deciding on its
+ * own rules, and on 2026-10-03 crashing ("number 0 is not iterable") and failing open after
+ * the current gate had allowed. Recognised by the header every version of this kit's
+ * pre-commit has carried; a folder with no pre-commit hands nothing on and is nobody's
+ * business. Pure, like doctor's `commitGateState`, for the same reason (ADR-0004). It lives
+ * here, beside the install that writes the record, because the installer judges with it too
+ * (ADR-0141); doctor re-exports it.
+ */
+export function handOnState({ previous: recorded, base = process.cwd() } = {}) {
+  if (!recorded) return { state: 'none' };
+  // A relative folder is git's to resolve, from the repository's top level, where it runs its
+  // hooks: doctor resolved `.custom-hooks` against its own working directory and from a
+  // subdirectory called a working hand-on missing (outside audit, 2026-10-03).
+  const previous = path.isAbsolute(recorded) ? recorded : path.resolve(base, recorded);
+  if (!isDirectory(previous)) return { state: 'missing', previous };
+  const hook = path.join(previous, 'pre-commit');
+  const head = (readText(hook, '') ?? '').split('\n').slice(0, 3).join('\n');
+  if (/research-kit commit gate/.test(head)) return { state: 'kit', previous, hook };
+  return { state: 'other', previous, hook: exists(hook) ? hook : null };
 }
 
 export function removeCommitGate({ env = process.env, gitPaths = {}, dryRun = false } = {}) {

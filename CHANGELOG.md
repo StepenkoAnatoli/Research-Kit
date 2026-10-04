@@ -5,6 +5,15 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The installer records no hand-on to another copy of the kit's gate, on a first install or a
+  re-install (ADR-0141): doctor's remedy for that hand-on, `git config --global --unset
+  research-kit.previousHooksPath` (ADR-0134), lasted one session on the operator's machine
+  (2026-10-04), because `installCommitGate` kept the folder in the install state as well and the
+  next `install-hooks` run - every kit update runs one - wrote it back into git config, so the
+  previous implementation's gate blocked commits again on its outdated checks. `handOnState`
+  moves from `doctor.mjs` to `installer.mjs` (doctor re-exports it) so the install judges what
+  it records by the rule doctor judges it by; the state file and git config agree once an
+  install has run. A folder that is gone stays recorded, for the uninstall restore.
 - The ADR-0119 launch-allowance test scales its budget with the host's Node boot, measured
   once (`max(2 s, 5 × boot)`), so Node always has twice its measure to start: on the operator's
   Windows PC the fixed 2 s budget left it 800 ms and the test failed 2 runs in 10 (GPT's review,
