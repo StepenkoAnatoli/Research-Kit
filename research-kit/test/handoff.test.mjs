@@ -5,7 +5,7 @@ import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path,
 import { evaluate } from '../lib/gate.mjs';
 import { TEMPLATE_DIR } from '../lib/scaffold.mjs';
 import { PATHS, resolve, writeText } from '../lib/core.mjs';
-import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, alteredRemedy, safePathspec, insideRepository, PIN_LINES } from '../lib/handoff.mjs';
+import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, alteredRemedy, safePathspec, insideRepository, repositoryState, NAMES_FILE, PIN_LINES } from '../lib/handoff.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
 
@@ -259,7 +259,11 @@ test('a capture path a shell or git would read is named but never printed as a c
       const commands = remedy.split('\n').filter((l) => /^ {4}\S/.test(l));
       assert.ok(commands.every((l) => !l.includes('topic')), `printed as a command:\n${remedy}`);
       assert.ok(remedy.includes(bad), 'the file is still named');
-      assert.match(remedy, /:\(literal\)/, 'the operator is told how to type it');
+      // "Quote it for your shell" was not enough: cmd expands %NAME% inside quotes (third
+      // review). The names go in a file git reads itself, with pattern syntax switched off.
+      assert.doesNotMatch(remedy, /quoted for YOUR shell/);
+      assert.match(remedy, new RegExp(`--pathspec-from-file=${NAMES_FILE}`));
+      assert.match(remedy, /^ {4}git --literal-pathspecs (checkout|rm) /m, 'the printed command types no name');
     }
   }
   // A safe name beside an unsafe one: the safe one still prints, the unsafe one is noted.
@@ -364,6 +368,114 @@ test('without git on PATH the answer falls back to a .git entry above, stopping 
   assert.equal(insideRepository(nested, { run: noGit }), true, 'a .git folder above counts');
   assert.equal(outsideAnyRepository(outer, () => insideRepository(nested, { run: noGit })), true, 'the ceiling is above the .git, so it still counts');
   assert.equal(outsideAnyRepository(path.join(outer, 'docs'), () => insideRepository(nested, { run: noGit })), false, 'a ceiling below the .git stops the walk');
+});
+
+// Found 2026-10-04 by the third external review: the fallback walked the LEXICAL parents of a
+// junction, so a project reached through a link into a repository read as outside it, and one
+// linked out of a repository read as inside; and it turned relative ceiling entries, which git
+// ignores, into ceilings.
+test('without git the fallback walks the physical path, and ignores a relative ceiling as git does', () => {
+  const noGit = () => ({ error: Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' }) });
+  const repo = tempDir('rk-phys-repo-');
+  fs.mkdirSync(path.join(repo, '.git'));
+  const inside = path.join(repo, 'docs', 'project');
+  fs.mkdirSync(inside, { recursive: true });
+  const elsewhere = tempDir('rk-phys-elsewhere-');
+  const outsideTarget = path.join(elsewhere, 'project');
+  fs.mkdirSync(outsideTarget);
+
+  // A link OUTSIDE the repository pointing INTO it: physically inside, so a repository.
+  const linkIn = path.join(elsewhere, 'link-in');
+  fs.symlinkSync(inside, linkIn, 'junction');   // a junction on Windows, a symlink elsewhere; no privilege needed
+  assert.equal(insideRepository(linkIn, { run: noGit }), true, 'the physical ancestry holds the .git');
+  // A link INSIDE the repository pointing OUT of it: physically outside, so not one.
+  const linkOut = path.join(repo, 'link-out');
+  fs.symlinkSync(outsideTarget, linkOut, 'junction');
+  assert.equal(outsideAnyRepository(elsewhere, () => insideRepository(linkOut, { run: noGit })), false, 'the lexical parent is not where git looks');
+
+  // A relative ceiling entry is ignored, as git ignores it: the .git above still counts.
+  const saved = process.env.GIT_CEILING_DIRECTORIES;
+  process.env.GIT_CEILING_DIRECTORIES = 'docs';
+  try { assert.equal(insideRepository(inside, { run: noGit }), true); } finally {
+    if (saved === undefined) delete process.env.GIT_CEILING_DIRECTORIES; else process.env.GIT_CEILING_DIRECTORIES = saved;
+  }
+});
+
+// Found 2026-10-04 by the third external review: the safety check ran over the five names the
+// text lists, so an unsafe SIXTH file got no note and "handle the remaining files the same
+// way, each by name" - an instruction to type the glob that restores a neighbour.
+test('an unsafe name beyond the fifth is still noted, and only safe names are "the same way"', () => {
+  const safe = ['a', 'b', 'c', 'd', 'e'].map((n) => `research/raw/${n}.md`);
+  const sixth = alteredRemedy([...safe, 'research/raw/topic[12].md'], { isRepo: true });
+  assert.match(sixth, /Not printed as a command.*research\/raw\/topic\[12\]\.md/, 'the sixth, unsafe name is noted');
+  assert.doesNotMatch(sixth, /the same way/, 'nothing safe is left over to do "the same way"');
+  const seven = alteredRemedy([...safe, 'research/raw/f.md', 'research/raw/g.md'], { isRepo: true });
+  assert.match(seven, /remaining 2 .*the same way/, 'the safe names past the fifth are the ones done the same way');
+  assert.doesNotMatch(seven, /Not printed as a command/);
+  // The line-ending remedy's past-five block is the folder-wide checkout behind its status
+  // precondition (ADR-0062), which types no name; the unsafe sixth is still noted.
+  assert.match(lineEndingRemedy([...safe, 'research/raw/topic[12].md'], { isRepo: true }), /Not printed as a command.*topic\[12\]/);
+  assert.doesNotMatch(lineEndingRemedy([...safe, 'research/raw/f.md'], { isRepo: true }), /Not printed as a command/);
+});
+
+// Judged by running it: the names-file commands restore exactly the unsafe-named capture and
+// leave a neighbour that the name, read as a pattern or by a shell, would have matched.
+test('the names-file commands, run as printed, restore only the file named in the file', () => {
+  requireGit('the names-file commands');
+  const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const dir = tempDir('rk-names-file-');
+  fs.mkdirSync(path.join(dir, 'research', 'raw'), { recursive: true });
+  const capture = 'research/raw/topic $copy[1].md';     // a glob, and a PowerShell variable
+  const neighbour = 'research/raw/topic $copy1.md';     // what the glob matches
+  fs.writeFileSync(path.join(dir, capture), 'fetched\n');
+  fs.writeFileSync(path.join(dir, neighbour), 'neighbour\n');
+  // core.autocrlf=false: a project pins LF through .gitattributes; this bare fixture has none,
+  // and the Windows runner's default autocrlf=true rewrote the restored bytes to CRLF (CI,
+  // 2026-10-04). The question here is WHICH file the checkout touched, not its line endings.
+  for (const args of [fixtureInitArgs(), ['config', 'user.email', 't@t'], ['config', 'user.name', 't'], ['config', 'core.autocrlf', 'false'], ['add', '-A'], fixtureCommitArgs('corpus')]) {
+    assert.equal(git(dir, ...args).status, 0, `git ${args.join(' ')}`);
+  }
+  fs.writeFileSync(path.join(dir, capture), 'fetched\naltered\n');
+  fs.writeFileSync(path.join(dir, neighbour), 'neighbour\nuncommitted work\n');
+
+  const remedy = alteredRemedy([capture], { isRepo: true });
+  fs.writeFileSync(path.join(dir, NAMES_FILE), `${capture}\n`);
+  // The restore commands are the ones that read the names file; the committed-case paragraph
+  // also prints a folder-wide `git log`, which types no name either.
+  const commands = remedy.split('\n').filter((l) => /^ {4}git /.test(l)).map((l) => l.trim());
+  assert.ok(commands.every((l) => !l.includes('$copy')), `a command types the name:\n${remedy}`);
+  const restores = commands.filter((l) => l.includes('--pathspec-from-file'));
+  assert.deepEqual(restores, [`git --literal-pathspecs checkout HEAD --pathspec-from-file=${NAMES_FILE}`]);
+  for (const line of restores) {
+    const r = git(dir, ...line.split(/\s+/).slice(1));
+    assert.equal(r.status, 0, `${line}\n${r.stderr}`);
+  }
+  assert.equal(fs.readFileSync(path.join(dir, capture), 'utf8'), 'fetched\n', 'the named capture was restored');
+  assert.equal(fs.readFileSync(path.join(dir, neighbour), 'utf8'), 'neighbour\nuncommitted work\n', 'the neighbour the glob matches kept its work');
+});
+
+// Found 2026-10-04 by the third external review: git refusing to READ a repository that is
+// there (`fatal: detected dubious ownership`) was explained as "no git metadata", and the
+// operator sent to copy the corpus from another machine - which fixes nothing here.
+test('a git refusal is explained as a refusal, not as absent metadata', () => {
+  const refusing = () => ({ status: 128, stdout: '', stderr: "fatal: detected dubious ownership in repository at 'C:/corpus'\nTo add an exception run: git config --global --add safe.directory C:/corpus\n" });
+  const state = repositoryState('/any/where', { run: refusing });
+  assert.equal(state.inside, false);
+  assert.match(state.refused, /dubious ownership/);
+  for (const remedy of [alteredRemedy(['research/raw/a.md'], { isRepo: false, refused: state.refused }), lineEndingRemedy(['research/raw/a.md'], { isRepo: false, refused: state.refused })]) {
+    assert.match(remedy, /git refused to read this folder's repository: fatal: detected dubious ownership/);
+    assert.doesNotMatch(remedy, /no git metadata/);
+    assert.doesNotMatch(remedy, /re-copy this corpus|re-fetch or re-copy/);
+    assert.doesNotMatch(remedy, /^ {4}git /m, 'no command is printed');
+  }
+  // Not a repository at all is still that, in git's words or in a clean exit.
+  const notARepo = () => ({ status: 128, stdout: '', stderr: 'fatal: not a git repository (or any of the parent directories): .git\n' });
+  assert.deepEqual(repositoryState('/any/where', { run: notARepo }), { inside: false, refused: null });
+  const bare = () => ({ status: 128, stdout: '', stderr: 'fatal: this operation must be run in a work tree\n' });
+  assert.deepEqual(repositoryState('/any/where', { run: bare }), { inside: false, refused: null });
+  // A spawn that failed for a reason other than "no git" is a refusal with that reason.
+  const eacces = () => ({ error: Object.assign(new Error('spawn git EACCES'), { code: 'EACCES' }), status: null, stdout: '', stderr: '' });
+  assert.match(repositoryState('/any/where', { run: eacces }).refused, /EACCES/);
 });
 
 test('a report holding both causes prints both remedies', () => {

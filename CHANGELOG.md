@@ -5,6 +5,20 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- When git refuses to read a repository that is there (`fatal: detected dubious ownership`), the
+  handoff remedies say so and to fix that first, instead of "no git metadata, re-copy the corpus from the
+  machine that has the repository" (found 2026-10-04 by the third external review).
+- Without git on PATH, handoff's fallback walks the project's physical path for a `.git` entry (a
+  junction's lexical parents are not where git looks) and reads `GIT_CEILING_DIRECTORIES` as git does:
+  absolute entries only, resolved until an empty entry (found 2026-10-04 by the third external review).
+- For a capture name a shell or git would read, the handoff remedies no longer say "quote it for your
+  shell and prefix `:(literal)`" - cmd expands `%NAME%` inside double quotes - but have the operator list
+  the names in `handoff-names.txt` and run `git --literal-pathspecs checkout HEAD
+  --pathspec-from-file=handoff-names.txt`, which types no name (found 2026-10-04 by the third external
+  review).
+- The handoff remedies classify every affected capture name, not only the five the text lists: an
+  unsafe sixth name got no note and the instruction to handle it "the same way" (found 2026-10-04 by
+  the third external review).
 - `handoff` asks git whether the project is inside a work tree before printing the runnable remedies:
   the walk up for a `.git` entry walked past a bare repository the project sat inside and printed a
   checkout git refused. Without git on PATH the walk remains, stopping at a `GIT_CEILING_DIRECTORIES`

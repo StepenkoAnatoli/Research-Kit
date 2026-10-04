@@ -80,11 +80,12 @@ export function ledgerLostRemedy() {
  * because `git status` prints the altered files by definition, and a checkout of the whole
  * folder would discard uncommitted work beside them.
  */
-export function alteredRemedy(files = [], { isRepo = true } = {}) {
+export function alteredRemedy(files = [], { isRepo = true, refused = null } = {}) {
   const named = files.slice(0, 5);
   const more = files.length > named.length ? `, +${files.length - named.length} more` : '';
-  const safe = named.filter(safePathspec);
-  const unsafe = named.filter((file) => !safePathspec(file));
+  // Classified over EVERY affected file, never over the five the text names: an unsafe sixth
+  // file got no note and "handle the remaining files the same way" (third review, 2026-10-04).
+  const { safe, shown, rest, unsafe } = classify(files);
   const head = [
     'Everything travelled, and a capture was changed AFTER its fetch: its bytes no longer',
     'match the hash the ledger recorded, and not by line endings. An edited capture is not',
@@ -97,8 +98,14 @@ export function alteredRemedy(files = [], { isRepo = true } = {}) {
   if (!isRepo) {
     return [
       ...head,
-      'BUT this directory has no git metadata, so nothing here holds the fetched bytes and no',
-      'command is safe to print: re-copy this corpus from the machine that has the repository.',
+      ...(refused ? [
+        `BUT git refused to read this folder's repository: ${refused}`,
+        'No command below would run until that is fixed - git\'s own message says how - so none is',
+        'printed; fix it, then run handoff again.',
+      ] : [
+        'BUT this directory has no git metadata, so nothing here holds the fetched bytes and no',
+        'command is safe to print: re-copy this corpus from the machine that has the repository.',
+      ]),
       'Do not edit the capture to match, and do not re-collect it - a new fetch writes a new',
       'capture beside this one, and the ledger still names this one.',
     ].join('\n');
@@ -111,24 +118,28 @@ export function alteredRemedy(files = [], { isRepo = true } = {}) {
   // step further, never a claim. Re-collecting is not offered: a new fetch writes a new
   // capture (`.r2.md`) beside this one, or refuses to overwrite a differing source sibling,
   // and verifyLedger still checks the entry that names this file.
+  // The paragraphs that print one command per file are left out when no name is printable:
+  // a heading over an empty block reads as a command that went missing.
   return [
     ...head,
-    'First, whether this checkout changed the file after the commit - this prints the file',
-    'when it differs from the committed copy:',
-    '',
-    ...safe.map((file) => `    git status --porcelain -- ${file}`),
-    '',
-    'If it prints the file, restore the committed copy, which spends nothing and touches no',
-    'other file, then run handoff again:',
-    '',
-    ...safe.map((file) => `    git checkout HEAD -- ${file}`),
-    ...(files.length > named.length ? ['', 'and the remaining files handoff names above the same way, each by name.'] : []),
-    ...unsafeNote(unsafe),
+    ...(shown.length ? [
+      'First, whether this checkout changed the file after the commit - this prints the file',
+      'when it differs from the committed copy:',
+      '',
+      ...shown.map((file) => `    git status --porcelain -- ${file}`),
+      '',
+      'If it prints the file, restore the committed copy, which spends nothing and touches no',
+      'other file, then run handoff again:',
+      '',
+      ...shown.map((file) => `    git checkout HEAD -- ${file}`),
+      ...(rest ? ['', `and the remaining ${rest} safe-named files handoff lists above the same way, each by name.`] : []),
+    ] : []),
+    ...unsafeNote(unsafe, [`git --literal-pathspecs checkout HEAD --pathspec-from-file=${NAMES_FILE}`]),
     '',
     'If handoff still fails on it, or the status printed nothing, the altered bytes were',
     'committed. Find the last commit that held the fetched bytes - the one before the change:',
     '',
-    ...safe.map((file) => `    git log --oneline -- ${file}`),
+    ...(shown.length ? shown.map((file) => `    git log --oneline -- ${file}`) : ['    git log --oneline -- research/raw/']),
     '',
     'and restore the file from it with `git checkout <that commit> -- <file>`, here or on the',
     'collector, where the ledger was written. If no commit holds them, the capture is unproven',
@@ -146,21 +157,51 @@ export function alteredRemedy(files = [], { isRepo = true } = {}) {
  * splits an unquoted name into two pathspecs; inside double quotes PowerShell still expands
  * `$copy` to nothing; and `[12]` is a git glob whatever the shell did, so `git checkout HEAD
  * -- "research/raw/topic[12] copy.md"` restored a neighbour too and discarded its uncommitted
- * work (found 2026-10-04, first and second external review, both verified by running). The
- * ledger names such a file only when rewritten by hand; the remedy then names it and tells
- * the operator how to type the command, with `:(literal)` so git takes the name as written.
+ * work (found 2026-10-04, first and second external review, both verified by running). Such
+ * a name reaches the ledger rarely but not only by hand: `captureName` embeds the URL's host
+ * as it is, so an IPv6 literal (`[::1]`) or an adapter-supplied host outside DNS's alphabet
+ * (`a;b.example`, from a stub) produces one (third review, verified with an offline adapter).
+ * The remedy then names it and has git read it from a file (unsafeNote).
  */
 export function safePathspec(file) {
   return /^[A-Za-z0-9._/-]+$/.test(file);
 }
 
-/** The sentence for the files that are named but not printed as commands. */
-function unsafeNote(files) {
+/**
+ * The affected files split for printing: `safe` (printable as commands), `shown` (the first
+ * five of them, one command each), `rest` (how many safe ones are left for "the same way"),
+ * `unsafe` (every file that is only named). All of `files`, never the five the text names.
+ */
+function classify(files) {
+  const safe = files.filter(safePathspec);
+  return { safe, shown: safe.slice(0, 5), rest: Math.max(0, safe.length - 5), unsafe: files.filter((file) => !safePathspec(file)) };
+}
+
+/** The file an operator lists unsafe names in, for `--pathspec-from-file` (NAMES_FILE). */
+export const NAMES_FILE = 'handoff-names.txt';
+
+/**
+ * The note for the files that are named but not printed as commands, with the commands that
+ * take the names from a FILE instead of the command line. "Quote it for your shell and prefix
+ * :(literal)" was not enough: cmd expands `%NAME%` inside double quotes and PowerShell `$name`,
+ * so a typed name can still change before git sees it (third external review, 2026-10-04,
+ * verified by running in cmd). `--pathspec-from-file` hands git the bytes of the file, no shell
+ * in between, and `--literal-pathspecs` makes git take each line as written, not as a pattern.
+ * Both are git 2.25+ (January 2020).
+ */
+function unsafeNote(files, commands) {
   return files.length ? [
     '',
     `Not printed as a command, because a shell or git would read part of the name: ${files.join(', ')}.`,
-    'Type the same commands yourself with the name quoted for YOUR shell and prefixed',
-    ':(literal), so git takes it as written and not as a pattern.',
+    'No quoting is safe for these in every shell (cmd expands %NAME% even inside quotes,',
+    'PowerShell expands $name), so let git read the names from a file instead: put each one',
+    `on a line of its own, exactly as listed, in a file named ${NAMES_FILE} at the project`,
+    'root (any editor), then run',
+    '',
+    ...commands.map((command) => `    ${command}`),
+    '',
+    `delete ${NAMES_FILE}, and run handoff again. --literal-pathspecs makes git take each line`,
+    'as written, not as a pattern.',
   ] : [];
 }
 
@@ -182,11 +223,10 @@ export const PIN_LINES = Object.freeze(['research/raw/* text eol=lf', '*.jsonl t
  * file stays on disk) and checked out from HEAD through the pin, which writes LF bytes.
  * The pin is printed only when `.gitattributes` does not already carry it.
  */
-export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } = {}) {
+export function lineEndingRemedy(files = [], { isRepo = true, pinned = false, refused = null } = {}) {
   const named = files.slice(0, 5);
   const more = files.length > named.length ? `, +${files.length - named.length} more` : '';
-  const safe = named.filter(safePathspec);
-  const unsafe = named.filter((file) => !safePathspec(file));
+  const { shown, rest, unsafe } = classify(files);
 
   if (!isRepo) {
     return [
@@ -196,9 +236,15 @@ export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } =
       '',
       `Affected: ${named.join(', ')}${more}`,
       '',
-      'BUT this directory has no git metadata, so there is nothing here to restore the LF',
-      'bytes from, and no command below is safe to run: re-fetch or re-copy this corpus',
-      'from the machine that has the repository. Do not delete anything first.',
+      ...(refused ? [
+        `BUT git refused to read this folder's repository: ${refused}`,
+        'No command below would run until that is fixed - git\'s own message says how - so none is',
+        'printed; fix it, then run handoff again. Do not delete anything first.',
+      ] : [
+        'BUT this directory has no git metadata, so there is nothing here to restore the LF',
+        'bytes from, and no command below is safe to run: re-fetch or re-copy this corpus',
+        'from the machine that has the repository. Do not delete anything first.',
+      ]),
     ].join('\n');
   }
 
@@ -229,14 +275,19 @@ export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } =
       '    git add .gitattributes',
     ]),
     '',
-    'Rewrite ONLY the affected files through the pin. `git rm --cached` removes the index',
-    'entry only - the file stays on disk - so the checkout has to write it again, as LF:',
-    '',
-    ...safe.flatMap((file) => [
-      `    git rm --cached --quiet -- ${file}`,
-      `    git checkout HEAD -- ${file}`,
+    ...(shown.length ? [
+      'Rewrite ONLY the affected files through the pin. `git rm --cached` removes the index',
+      'entry only - the file stays on disk - so the checkout has to write it again, as LF:',
+      '',
+      ...shown.flatMap((file) => [
+        `    git rm --cached --quiet -- ${file}`,
+        `    git checkout HEAD -- ${file}`,
+      ]),
+    ] : []),
+    ...unsafeNote(unsafe, [
+      `git --literal-pathspecs rm --cached --quiet --pathspec-from-file=${NAMES_FILE}`,
+      `git --literal-pathspecs checkout HEAD --pathspec-from-file=${NAMES_FILE}`,
     ]),
-    ...unsafeNote(unsafe),
     ...(files.length > named.length ? [
       '',
       'and the rest of the captures the same way:',
@@ -387,21 +438,50 @@ export function verifyHandoff(root, { corpus = null } = {}) {
  * bare repositories, worktree files and all. Without git on PATH the walk is the best answer
  * left, and it stops at a GIT_CEILING_DIRECTORIES entry as git would.
  */
-export function insideRepository(root, { run = spawnSync } = {}) {
-  const dir = path.resolve(root);
-  const answer = run('git', ['-C', dir, 'rev-parse', '--is-inside-work-tree'], { encoding: 'utf8', windowsHide: true });
-  if (answer?.error?.code === 'ENOENT') return gitEntryAbove(dir);
-  return answer?.status === 0 && String(answer.stdout ?? '').trim() === 'true';
+export function insideRepository(root, options) {
+  return repositoryState(root, options).inside;
 }
 
+/**
+ * `{ inside, refused }`: whether git says `root` is in a work tree, and, when git answered
+ * with something other than yes or "not a git repository", the first line of what it said -
+ * `fatal: detected dubious ownership in repository at ...` is a refusal to READ metadata that
+ * is there, and the remedy that then said "no git metadata, copy the corpus from the machine
+ * that has the repository" sent the operator to fix the wrong thing (third external review,
+ * 2026-10-04). No command is printed either way; the explanation differs.
+ */
+export function repositoryState(root, { run = spawnSync } = {}) {
+  const dir = path.resolve(root);
+  const answer = run('git', ['-C', dir, 'rev-parse', '--is-inside-work-tree'], { encoding: 'utf8', windowsHide: true });
+  if (answer?.error?.code === 'ENOENT') return { inside: gitEntryAbove(dir), refused: null };
+  const inside = answer?.status === 0 && String(answer.stdout ?? '').trim() === 'true';
+  if (inside) return { inside, refused: null };
+  const said = String(answer?.stderr ?? '').split(/\r?\n/).map((l) => l.trim()).find(Boolean) ?? '';
+  const notARepo = /not a git repository|must be run in a work tree/i.test(said) || (answer?.status === 0 && !said);
+  return { inside: false, refused: notARepo ? null : (said || `git exited ${answer?.status ?? 'without a status'}${answer?.error ? ` (${answer.error.code ?? answer.error.message})` : ''}`) };
+}
+
+/**
+ * The fallback without git: a `.git` entry in the PHYSICAL ancestry of `dir` - realpath first,
+ * because a junction or symlink's lexical parents are not where git looks (a project reached
+ * through a junction into a repository was told "no git metadata", and one linked out of it
+ * was given the repository's commands; third external review, 2026-10-04). Ceilings as git
+ * reads GIT_CEILING_DIRECTORIES: absolute entries only (relative ones are ignored), each
+ * resolved through realpath until an EMPTY entry, after which the rest are taken as written.
+ */
 function gitEntryAbove(dir) {
-  const ceilings = new Set(String(process.env.GIT_CEILING_DIRECTORIES ?? '').split(path.delimiter)
-    .filter(Boolean).map((c) => { try { return fs.realpathSync(c.replace(/^:/, '')); } catch { return path.resolve(c.replace(/^:/, '')); } }));
   const real = (p) => { try { return fs.realpathSync(p); } catch { return p; } };
-  for (let p = dir; ; p = path.dirname(p)) {
+  const ceilings = new Set();
+  let resolve = true;
+  for (const entry of String(process.env.GIT_CEILING_DIRECTORIES ?? '').split(path.delimiter)) {
+    if (entry === '') { resolve = false; continue; }
+    if (!path.isAbsolute(entry)) continue;
+    ceilings.add(resolve ? real(entry) : entry);
+  }
+  for (let p = real(dir); ; p = path.dirname(p)) {
     if (exists(path.join(p, '.git'))) return true;
     const parent = path.dirname(p);
-    if (parent === p || ceilings.has(real(parent))) return false;
+    if (parent === p || ceilings.has(parent)) return false;
   }
 }
 
@@ -411,12 +491,12 @@ export function handoffRemedy(report) {
   if (report.didNotTravel) parts.push(HANDOFF_REMEDY);
   if (report.ledgerLost) parts.push(ledgerLostRemedy());
   // Whether this is inside a repository at all decides which remedies are even runnable.
-  const isRepo = insideRepository(report.root ?? '.');
-  if (report.altered?.length) parts.push(alteredRemedy(report.altered.map((e) => e.file), { isRepo }));
+  const { inside: isRepo, refused } = repositoryState(report.root ?? '.');
+  if (report.altered?.length) parts.push(alteredRemedy(report.altered.map((e) => e.file), { isRepo, refused }));
   if (report.lineEndings?.length) {
     const attributes = readText(path.join(report.root ?? '.', '.gitattributes')) ?? '';
     const pinned = /^research\/raw\/\*\s+text\s+eol=lf\s*$/m.test(attributes);
-    parts.push(lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo, pinned }));
+    parts.push(lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo, pinned, refused }));
   }
   return parts.join('\n\n');
 }
