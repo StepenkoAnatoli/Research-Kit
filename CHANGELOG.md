@@ -5,6 +5,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The handoff remedies recognise the enclosing repository: a nested decision project under
+  `docs/decisions/` has no `.git` of its own and was told it had "no git metadata" and given no
+  checkout command, although the repository above it restores its captures like any other tracked
+  file (found 2026-10-04 by an external review).
 - The altered-capture remedy no longer claims a dirty `git status` proves the committed copy is the
   fetched one (a capture committed altered and edited again is dirty too): the checkout is followed
   by handoff again, and the committed case points at `git log` for the commit that held the fetched

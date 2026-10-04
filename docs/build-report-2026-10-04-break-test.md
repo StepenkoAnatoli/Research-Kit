@@ -140,6 +140,20 @@ captures as `altered` instead of "did not travel". **Tests:** `handoff > a captu
 fetch gets the ALTERED remedy, and no push remedy`; `handoff > the altered-capture remedy, run as
 printed, restores a capture changed in this checkout`.
 
+## External review of the F3 and F5b fixes (2026-10-04)
+
+A second reader reviewed PR #241 on the PC checkout and reported five defects, each with a
+reproduction; all five were verified here against the code before anything changed, and each
+was fixed in its own commit, red-first, through the commit gate.
+
+| # | Finding | Fix |
+|---|---|---|
+| 1 | An unquoted capture path holding a space is two pathspecs in cmd, PowerShell and sh: `git checkout HEAD --` restored two unrelated files and discarded their uncommitted work. Needs a ledger rewritten by hand; the collector's own names hold no whitespace. | `pathspec(file)` quotes such a path in every printed git command of both remedies (c93a15d). |
+| 2 | `createTempFolder` recorded the missing folders from an existence check before a recursive mkdir, so a folder another process created in between was removed at exit. | One non-recursive mkdir per ancestor; only a mkdir that succeeded is recorded (c3eee95). |
+| 3 | A dirty `git status` was read as "the committed copy is the fetched one"; a capture committed altered and edited again is dirty too, and restoring HEAD left it failing. | The checkout is followed by handoff again; the committed case points at `git log` for the commit that held the fetched bytes (2793021). |
+| 4 | Re-collecting with `--force` was offered as a repair; a new fetch writes a new capture beside this one and the ledger still names this one. | The line is gone from both branches; the text says why (2793021). |
+| 5 | A nested decision project has no `.git` of its own and was told it had no git metadata. | `insideRepository` looks above the project (the commit that adds it). |
+
 ## Remaining risks
 
 - Findings 3 and 5(b), fixed after the report at the operator's request.

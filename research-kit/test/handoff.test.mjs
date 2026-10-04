@@ -145,10 +145,13 @@ test('a line-ending rewrite gets the LOCAL remedy, and no push remedy', () => {
   const remedy = handoffRemedy(report);
   assert.doesNotMatch(remedy, /git add -f research\/raw\//,
     'sending an operator to the collector for a corpus already on disk is the defect this fixes');
-  // The fixture has no git metadata, so the remedy refuses to print a command that
-  // cannot work here rather than one that would destroy what it cannot restore.
-  assert.match(remedy, /no git metadata/);
   assert.doesNotMatch(remedy, /git add/);
+  // Outside a repository the remedy refuses to print a command that cannot work there rather
+  // than one that would destroy what it cannot restore - the branch asked directly, because
+  // insideRepository also looks above the fixture's scratch folder (2026-10-04).
+  const outside = lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo: false });
+  assert.match(outside, /no git metadata/);
+  assert.doesNotMatch(outside, /git add/);
 
   // In a real repository the same cause gets the runnable, non-destructive remedy.
   const inRepo = lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo: true });
@@ -176,9 +179,12 @@ test('a capture changed after its fetch gets the ALTERED remedy, and no push rem
   assert.doesNotMatch(remedy, /Something did not travel/, 'the push remedy sends the same bytes again');
   assert.doesNotMatch(remedy, /git add/);
   assert.match(remedy, /changed AFTER its fetch/);
-  // The fixture has no git metadata, so no command that cannot work here is printed.
-  assert.match(remedy, /no git metadata/);
-  assert.doesNotMatch(remedy, /git checkout/);
+  // Outside a repository no command that cannot work is printed. Asked of the branch directly:
+  // the fixture's scratch folder has no .git of its own, but insideRepository looks above it
+  // too, and a developer's temp folder may sit under a repository (a dotfiles home).
+  const outside = alteredRemedy([capture.file], { isRepo: false });
+  assert.match(outside, /no git metadata/);
+  assert.doesNotMatch(outside, /git checkout/);
 
   const escaped = capture.file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const inRepo = alteredRemedy([capture.file], { isRepo: true });
@@ -271,6 +277,34 @@ test('a capture committed altered and edited again: the printed checkout is foll
   assert.match(remedy, /If handoff still fails on it/);
   assert.match(remedy, /git log --oneline -- /);
   assert.doesNotMatch(remedy, /committed copy is the fetched one/);
+});
+
+// Found 2026-10-04 by an external review: a nested decision project (ADR-0030) has no .git of
+// its own, and the remedy read `root/.git` alone - so it printed "no git metadata" and no
+// checkout for a capture the enclosing repository restores like any other tracked file.
+test('a nested decision project inside the repository gets the runnable remedy, which restores the capture', () => {
+  requireGit('the altered-capture remedy in a nested project');
+  const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const outer = tempDir('rk-outer-repo-');
+  const nested = path.join(outer, 'docs', 'decisions', '2026-10-04-nested');
+  makePassingProject(nested);
+  for (const args of [fixtureInitArgs(), ['config', 'user.email', 't@t'], ['config', 'user.name', 't'],
+    ['add', '-A'], fixtureCommitArgs('outer repository with a nested corpus')]) {
+    assert.equal(git(outer, ...args).status, 0, `git ${args.join(' ')}`);
+  }
+  const capture = readCorpus(nested).captures.entries[0];
+  corrupt(nested, capture.file, (text) => `${text}\nrewritten by hand\n`);
+
+  const before = verifyHandoff(nested);
+  assert.equal(before.altered.length, 1);
+  const remedy = handoffRemedy(before);
+  assert.doesNotMatch(remedy, /no git metadata/, 'the enclosing repository is git metadata');
+  assert.match(remedy, /git checkout HEAD -- /);
+  // Run from the project folder, as an operator would: pathspecs are relative to the cwd.
+  for (const line of remedy.split('\n').map((l) => l.trim())) {
+    if (line.startsWith('git checkout HEAD')) assert.equal(git(nested, ...line.split(/\s+/).slice(1)).status, 0, line);
+  }
+  assert.equal(verifyHandoff(nested).ok, true, 'the committed copy restored the nested capture');
 });
 
 test('a report holding both causes prints both remedies', () => {

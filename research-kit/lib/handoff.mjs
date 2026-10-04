@@ -355,13 +355,28 @@ export function verifyHandoff(root, { corpus = null } = {}) {
   return report;
 }
 
+/**
+ * Whether `root` is inside a git repository: a `.git` entry (a folder, or the file a worktree
+ * carries) in `root` or any folder above it. It was `root/.git` alone, so a nested decision
+ * project (ADR-0030, `docs/decisions/<name>/`), which has none of its own, was told it had
+ * "no git metadata" and given no checkout command, although the enclosing repository restores
+ * its tracked captures as it does any other (found 2026-10-04 by an external review). Git's
+ * pathspecs are relative to the cwd, so the printed commands run unchanged from the project.
+ */
+export function insideRepository(root) {
+  for (let p = path.resolve(root); ; p = path.dirname(p)) {
+    if (exists(path.join(p, '.git'))) return true;
+    if (path.dirname(p) === p) return false;
+  }
+}
+
 /** The remedy is picked from the CAUSE, never printed as a constant. */
 export function handoffRemedy(report) {
   const parts = [];
   if (report.didNotTravel) parts.push(HANDOFF_REMEDY);
   if (report.ledgerLost) parts.push(ledgerLostRemedy());
-  // Whether this is a repository at all decides which remedies are even runnable.
-  const isRepo = exists(path.join(report.root ?? '.', '.git'));
+  // Whether this is inside a repository at all decides which remedies are even runnable.
+  const isRepo = insideRepository(report.root ?? '.');
   if (report.altered?.length) parts.push(alteredRemedy(report.altered.map((e) => e.file), { isRepo }));
   if (report.lineEndings?.length) {
     const attributes = readText(path.join(report.root ?? '.', '.gitattributes')) ?? '';
