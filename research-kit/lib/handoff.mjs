@@ -94,32 +94,56 @@ export function alteredRemedy(files = [], { isRepo = true } = {}) {
     return [
       ...head,
       'BUT this directory has no git metadata, so nothing here holds the fetched bytes and no',
-      'command is safe to print: re-copy this corpus from the machine that has the repository,',
-      'or re-collect the capture on the collector machine. Do not edit the capture to match.',
+      'command is safe to print: re-copy this corpus from the machine that has the repository.',
+      'Do not edit the capture to match, and do not re-collect it - a new fetch writes a new',
+      'capture beside this one, and the ledger still names this one.',
     ].join('\n');
   }
 
+  // Judged by running it (2026-10-04, external review): a dirty `git status` says this
+  // checkout changed the file after the commit, NOT that the commit holds the fetched bytes -
+  // a capture committed altered and then edited again is dirty too, and restoring HEAD leaves
+  // it failing. So the checkout is followed by handoff again, and the committed case is one
+  // step further, never a claim. Re-collecting is not offered: a new fetch writes a new
+  // capture (`.r2.md`) beside this one, or refuses to overwrite a differing source sibling,
+  // and verifyLedger still checks the entry that names this file.
   return [
     ...head,
-    'First, whether the change is local to this checkout - this prints the file when it',
-    'differs from the committed copy:',
+    'First, whether this checkout changed the file after the commit - this prints the file',
+    'when it differs from the committed copy:',
     '',
-    ...named.map((file) => `    git status --porcelain -- ${file}`),
+    ...named.map((file) => `    git status --porcelain -- ${pathspec(file)}`),
     '',
-    'If it prints the file, the committed copy is the fetched one. Restore it from the',
-    'commit, which spends nothing and touches no other file:',
+    'If it prints the file, restore the committed copy, which spends nothing and touches no',
+    'other file, then run handoff again:',
     '',
-    ...named.map((file) => `    git checkout HEAD -- ${file}`),
+    ...named.map((file) => `    git checkout HEAD -- ${pathspec(file)}`),
     ...(files.length > named.length ? ['', 'and the remaining files handoff names above the same way, each by name.'] : []),
     '',
-    'If it prints nothing, the altered bytes were committed and this checkout is faithful to',
-    'them. Then the remedy lives on the COLLECTOR machine: restore the capture from the commit',
-    'before the change (git log names it) or re-collect it, which spends credits:',
+    'If handoff still fails on it, or the status printed nothing, the altered bytes were',
+    'committed. Find the last commit that held the fetched bytes - the one before the change:',
     '',
-    `    ${kitCommand('research.mjs', '--plan research/plan.json --force')}`,
+    ...named.map((file) => `    git log --oneline -- ${pathspec(file)}`),
     '',
-    'Pushing from the collector sends the same bytes and fixes nothing here.',
+    'and restore the file from it with `git checkout <that commit> -- <file>`, here or on the',
+    'collector, where the ledger was written. If no commit holds them, the capture is unproven',
+    'and stays so: the ledger is never edited to agree with it, and re-collecting does not',
+    'clear it - a new fetch writes a new capture beside this one, and the ledger still names',
+    'this one. Pushing from the collector sends the same bytes.',
   ].join('\n');
+}
+
+/**
+ * A capture path as a git pathspec: double-quoted when it holds whitespace, as `spellCommand`
+ * quotes a kit path (ADR-0050), and as it is otherwise. The collector's own capture names come
+ * from `makeSlug` and hold none, but the path printed here is whatever the LEDGER names, and
+ * a ledger rewritten by hand can name `research/raw/topic copy.md`: unquoted, cmd, PowerShell
+ * and sh all hand git two pathspecs, and `git checkout HEAD --` then restores two unrelated
+ * files - discarding their uncommitted work - and leaves the capture alone (found 2026-10-04
+ * by an external review). Double quotes are read the same way by all three shells (ADR-0070).
+ */
+export function pathspec(file) {
+  return /\s/.test(file) ? `"${file}"` : file;
 }
 
 /** The .gitattributes lines that pin the corpus to LF (ADR-0020). */
@@ -189,8 +213,8 @@ export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } =
     'entry only - the file stays on disk - so the checkout has to write it again, as LF:',
     '',
     ...named.flatMap((file) => [
-      `    git rm --cached --quiet -- ${file}`,
-      `    git checkout HEAD -- ${file}`,
+      `    git rm --cached --quiet -- ${pathspec(file)}`,
+      `    git checkout HEAD -- ${pathspec(file)}`,
     ]),
     ...(files.length > named.length ? [
       '',
@@ -331,13 +355,28 @@ export function verifyHandoff(root, { corpus = null } = {}) {
   return report;
 }
 
+/**
+ * Whether `root` is inside a git repository: a `.git` entry (a folder, or the file a worktree
+ * carries) in `root` or any folder above it. It was `root/.git` alone, so a nested decision
+ * project (ADR-0030, `docs/decisions/<name>/`), which has none of its own, was told it had
+ * "no git metadata" and given no checkout command, although the enclosing repository restores
+ * its tracked captures as it does any other (found 2026-10-04 by an external review). Git's
+ * pathspecs are relative to the cwd, so the printed commands run unchanged from the project.
+ */
+export function insideRepository(root) {
+  for (let p = path.resolve(root); ; p = path.dirname(p)) {
+    if (exists(path.join(p, '.git'))) return true;
+    if (path.dirname(p) === p) return false;
+  }
+}
+
 /** The remedy is picked from the CAUSE, never printed as a constant. */
 export function handoffRemedy(report) {
   const parts = [];
   if (report.didNotTravel) parts.push(HANDOFF_REMEDY);
   if (report.ledgerLost) parts.push(ledgerLostRemedy());
-  // Whether this is a repository at all decides which remedies are even runnable.
-  const isRepo = exists(path.join(report.root ?? '.', '.git'));
+  // Whether this is inside a repository at all decides which remedies are even runnable.
+  const isRepo = insideRepository(report.root ?? '.');
   if (report.altered?.length) parts.push(alteredRemedy(report.altered.map((e) => e.file), { isRepo }));
   if (report.lineEndings?.length) {
     const attributes = readText(path.join(report.root ?? '.', '.gitattributes')) ?? '';

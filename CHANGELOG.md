@@ -5,6 +5,23 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The handoff remedies recognise the enclosing repository: a nested decision project under
+  `docs/decisions/` has no `.git` of its own and was told it had "no git metadata" and given no
+  checkout command, although the repository above it restores its captures like any other tracked
+  file (found 2026-10-04 by an external review).
+- The altered-capture remedy no longer claims a dirty `git status` proves the committed copy is the
+  fetched one (a capture committed altered and edited again is dirty too): the checkout is followed
+  by handoff again, and the committed case points at `git log` for the commit that held the fetched
+  bytes. Re-collecting with `--force` is no longer offered as a repair: a new fetch writes a new
+  capture beside this one and the ledger still names this one (found 2026-10-04 by an external
+  review).
+- The handoff remedies quote a capture path that holds whitespace in every printed git command:
+  unquoted, `git checkout HEAD -- research/raw/topic copy.md` is two pathspecs and restores two
+  unrelated files, discarding their uncommitted work. The collector's own names hold none; a ledger
+  rewritten by hand can (found 2026-10-04 by an external review).
+- `createTempFolder` in the test harness records a folder as the run's only when its own mkdir created
+  it: recording from the existence check before the mkdir let a folder another process created in
+  between be removed at exit (found 2026-10-04 by an external review of the F3 fix).
 - `handoff` gives a capture changed after its fetch its own remedy: restore it from the committed copy
   when the change is local to the checkout, else the collector restores or re-collects it. It got the
   push remedy ("something did not travel"), which sends the same bytes again when the change was

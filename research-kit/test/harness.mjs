@@ -426,14 +426,28 @@ const scratchDirs = [];
  * (break-test pass 4, F3). The runner's temp probe creates its folder through here too.
  */
 const createdDirs = [];
-export function createTempFolder(dir) {
+export function createTempFolder(dir, { mkdir = (p) => fs.mkdirSync(p) } = {}) {
   const missing = [];
   for (let p = path.resolve(dir); !fs.existsSync(p); p = path.dirname(p)) {
     missing.push(p);
     if (path.dirname(p) === p) break;
   }
-  fs.mkdirSync(dir, { recursive: true });
-  createdDirs.push(...missing);
+  // Shallowest first, one non-recursive mkdir each, and ONLY a mkdir that succeeded is
+  // recorded: ownership is the creation, not the existence check before it. Recording from
+  // the check left a window in which another process created the same chain and this run,
+  // having made nothing, removed that process's empty folder at exit (found 2026-10-04 by
+  // an external review of the fix). EEXIST is that other process; anything else is the
+  // caller's to hear about, as before.
+  for (const p of missing.reverse()) {
+    try {
+      mkdir(p);
+      createdDirs.push(p);
+    } catch (err) {
+      if (err?.code !== 'EEXIST') throw err;
+    }
+  }
+  // Deepest first for the rmdir at exit.
+  createdDirs.sort((a, b) => b.length - a.length);
 }
 
 function removeScratch() {
