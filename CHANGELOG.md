@@ -5,6 +5,16 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+## 0.9.5 — 2026-10-04
+
+Forty-one entries under the freeze (ADR-0117), nothing new added: bug fixes from the fourth
+and fifth break-tests, from the architecture pass, the output-reliability audit, the gap audit
+and the outside audit's rounds of 2026-10-03, and from three external reviews of the handoff
+remedies, with the decisions they produced recorded as ADR-0133 to ADR-0140; one vendor update
+(the tested Firecrawl CLI is 1.25.3); two internal reorganisations (the search session,
+ADR-0135, and the run's exhaustion policy in `lib/credits.mjs`). The suite is 1603 tests,
+offline.
+
 - The suite's machine-readable result (`RESEARCH_KIT_RESULT_FILE`) names the failing tests beside their
   count, so two runs compare as sets: a count alone cannot show one test starting to fail while another
   starts to pass (break-test pass 5, 2026-10-04).
@@ -240,6 +250,17 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   draft stamp; the last two now fold a lone CR as well as CRLF, so a brief holding a lone CR
   reads as hand-edited once until re-stamped (ADR-0133, from the architecture pass of
   2026-10-03).
+
+## 0.9.4 — 2026-10-03
+
+Fifteen entries from the fourteen pull requests after 0.9.3 (#212 to #225): bug fixes under the
+freeze (ADR-0117), the licence (ADR-0130), four decisions (ADR-0127 to ADR-0129, ADR-0131), the
+README rewrite and `QUICKSTART.md`. Tagged `v0.9.4` on GitHub on 2026-10-03 at `f5d581a`, with
+release notes generated there. At that commit `KIT_VERSION` still read 0.9.3 and this changelog
+had no entry for 0.9.4, so for one day the tag and the constant disagreed, against ADR-0116.
+This entry records the release after the fact; the tag stays where it was made, and 0.9.5 is
+the first release cut by the rule again.
+
 - Reopening a corpus keeps the LAST same-day capture of a URL current. The index broke a
   tie on the retrieval date by filename order, so twelve same-day revisions reopened with
   `.r9.md` current (it sorts after `.r12.md`) and a page re-titled "API v10" reopened under

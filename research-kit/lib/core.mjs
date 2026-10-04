@@ -32,7 +32,7 @@ const TEMP_ENV_NAMES = Object.freeze(['TMPDIR', 'TEMP', 'TMP']);
  * The kit's version - the one place it is stated (ADR-0116). The MCP server announces it, doctor
  * reports it, the changelog has an entry for it, and a release is tagged `v<KIT_VERSION>`.
  */
-export const KIT_VERSION = '0.9.3';
+export const KIT_VERSION = '0.9.5';
 
 /**
  * The one order for identifiers - slugs, file names, ids, ISO dates: by UTF-16 code unit
