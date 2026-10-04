@@ -57,12 +57,17 @@ test('the CURRENT runner awaits it, reports FAIL, and returns a non-zero count',
   const child = runChild(`
 import { test, runPending } from ${JSON.stringify(HARNESS)};
 test('an async test that fails', async () => { throw new Error('boom'); });
-const { failures } = await runPending({ log: (l) => console.log(l) });
+const { failures, failed } = await runPending({ log: (l) => console.log(l) });
 console.log('failures=' + failures);
+console.log('failed=' + JSON.stringify(failed));
 process.exit(failures ? 1 : 0);
 `);
   assert.match(child.stdout, /FAIL {2}an async test that fails/);
   assert.match(child.stdout, /failures=1/);
+  // The NAMES, not only the count (break-test pass 5, 2026-10-04): a count cannot show one
+  // test starting to fail while another starts to pass, and the result file CI publishes
+  // carried only the count.
+  assert.match(child.stdout, /failed=\["an async test that fails"\]/);
   assert.equal(child.status, 1, 'a red suite must exit non-zero');
 });
 

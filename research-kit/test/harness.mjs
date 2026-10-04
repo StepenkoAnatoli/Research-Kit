@@ -273,10 +273,15 @@ export function dominantFailureCause({ failures = 0, errorCodes = [] } = {}) {
   return { code: top.code, count: top.count, share };
 }
 
-/** Runs every queued test, awaiting each. Returns the failure count. */
+/**
+ * Runs every queued test, awaiting each. Returns the failure count and, since 2026-10-04
+ * (break-test pass 5), the failing tests' labels: a count cannot show one test starting to
+ * fail while another starts to pass, and the result file CI publishes carried only the count.
+ */
 export async function runPending({ log = (line) => process.stdout.write(`${line}\n`) } = {}) {
   let failures = 0;
   let passed = 0;
+  const failed = [];
   const unsupported = [];
   const codes = new Map();
   for (const entry of pending.splice(0)) {
@@ -298,13 +303,14 @@ export async function runPending({ log = (line) => process.stdout.write(`${line}
         continue;
       }
       failures += 1;
+      failed.push(label);
       const code = errorCodeOf(err);
       if (code) codes.set(code, (codes.get(code) ?? 0) + 1);
       log(`FAIL  ${label}\n        ${String(err.message).split('\n').join('\n        ')}`);
     }
   }
   return {
-    failures, passed, unsupported, blocking: failures + unsupported.length,
+    failures, failed, passed, unsupported, blocking: failures + unsupported.length,
     errorCodes: [...codes].map(([code, count]) => ({ code, count })).sort((a, b) => b.count - a.count),
   };
 }
