@@ -12,7 +12,9 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   child's record of where the time went was lost, and the verdict read "the browser never made
   a request in 0 s" (the operator's Windows PC, 1 run in 3; reproduced here with a fake browser
   that launches in 13 s and renders in 13.5 s under a 15 s timeout). A child the parent gave up
-  on is now said to be that, with the time it was given (break-test pass 6, F1, 2026-10-04).
+  on is now said to be that, with the time it was given (break-test pass 6, F1, 2026-10-04);
+  the transport reads a `gaveUp` flag on that result, not the message's wording (GPT's review
+  of the fix, the same day).
 
 ## 0.9.5 — 2026-10-04
 

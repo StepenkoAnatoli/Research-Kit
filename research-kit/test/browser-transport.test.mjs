@@ -591,6 +591,7 @@ test('a guard child the parent gave up on is said to be that, not a browser that
   const r = renderGuarded('/opt/chrome', [], { url: 'https://x.invalid/a', env: {}, spawn: gaveUp, nodePath: '/opt/node', timeout: 15_000 });
   assert.equal(r.error.code, 'ETIMEDOUT');
   assert.match(r.error.message, /the guard child did not finish within 40 s/, r.error.message);
+  assert.equal(r.gaveUp, true, 'the parent-timeout result carries the flag the transport reads, not a message to match');
   const page = browser.scrape('https://x.invalid/a', { render: () => r, browserPath: '/opt/chrome', env: {}, timeout: 15_000 });
   assert.equal(page.ok, false);
   assert.match(page.error, /did not finish rendering https:\/\/x\.invalid\/a within 15s: the guard child did not finish within 40 s/, page.error);

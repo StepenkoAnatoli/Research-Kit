@@ -106,7 +106,7 @@ export function renderGuarded(binary, args, { url, env = process.env, timeout = 
     input: JSON.stringify(job), encoding: 'utf8', timeout: guardChildTimeout(timeout), windowsHide: true, maxBuffer: CHILD_OUTPUT_LIMIT, env,
   });
   const failed = (code, message) => ({ status: null, signal: null, stdout: '', stderr: '', error: Object.assign(new Error(message), { code }), refused: [] });
-  if (result.error?.code === 'ETIMEDOUT') return failed('ETIMEDOUT', `the guard child did not finish within ${Math.round(guardChildTimeout(timeout) / 1000)} s - the launch allowance, the render budget and 10 s to report (ADR-0119) - so its record of where the time went was lost`);
+  if (result.error?.code === 'ETIMEDOUT') return { ...failed('ETIMEDOUT', `the guard child did not finish within ${Math.round(guardChildTimeout(timeout) / 1000)} s - the launch allowance, the render budget and 10 s to report (ADR-0119) - so its record of where the time went was lost`), gaveUp: true };
   const overflow = outputOverflow(result, 'the browser');
   if (overflow) return failed('ENOBUFS', overflow);
   if (result.error) return failed(result.error.code ?? 'SPAWN', result.error.message);
@@ -305,7 +305,9 @@ export function scrape(url, { render = renderGuarded, browserPath = null, env = 
     // Where the time went: a browser that never asked for anything is a launch that did not
     // finish, which is not the page's doing (ADR-0119).
     // A child the parent gave up on left no record: say that, not "never made a request in 0 s".
-    const gaveUp = /^the guard child did not finish/.test(result.error?.message ?? '');
+    // The flag is the anchor, not the message's wording (GPT's review, 2026-10-04): a child's own
+    // ETIMEDOUT carries a report, the parent's carries `gaveUp`.
+    const gaveUp = result.gaveUp === true;
     const startup = gaveUp ? `: ${result.error.message}`
       : Number.isFinite(result.startupMs) && result.startupMs !== null
         ? `: the browser took ${Math.round(result.startupMs / 1000)} s to make its first request`
