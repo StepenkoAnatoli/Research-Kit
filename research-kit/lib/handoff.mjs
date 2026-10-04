@@ -80,7 +80,7 @@ export function ledgerLostRemedy() {
  * because `git status` prints the altered files by definition, and a checkout of the whole
  * folder would discard uncommitted work beside them.
  */
-export function alteredRemedy(files = [], { isRepo = true } = {}) {
+export function alteredRemedy(files = [], { isRepo = true, refused = null } = {}) {
   const named = files.slice(0, 5);
   const more = files.length > named.length ? `, +${files.length - named.length} more` : '';
   // Classified over EVERY affected file, never over the five the text names: an unsafe sixth
@@ -98,8 +98,14 @@ export function alteredRemedy(files = [], { isRepo = true } = {}) {
   if (!isRepo) {
     return [
       ...head,
-      'BUT this directory has no git metadata, so nothing here holds the fetched bytes and no',
-      'command is safe to print: re-copy this corpus from the machine that has the repository.',
+      ...(refused ? [
+        `BUT git refused to read this folder's repository: ${refused}`,
+        'No command below would run until that is fixed - git\'s own message says how - so none is',
+        'printed; fix it, then run handoff again.',
+      ] : [
+        'BUT this directory has no git metadata, so nothing here holds the fetched bytes and no',
+        'command is safe to print: re-copy this corpus from the machine that has the repository.',
+      ]),
       'Do not edit the capture to match, and do not re-collect it - a new fetch writes a new',
       'capture beside this one, and the ledger still names this one.',
     ].join('\n');
@@ -215,7 +221,7 @@ export const PIN_LINES = Object.freeze(['research/raw/* text eol=lf', '*.jsonl t
  * file stays on disk) and checked out from HEAD through the pin, which writes LF bytes.
  * The pin is printed only when `.gitattributes` does not already carry it.
  */
-export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } = {}) {
+export function lineEndingRemedy(files = [], { isRepo = true, pinned = false, refused = null } = {}) {
   const named = files.slice(0, 5);
   const more = files.length > named.length ? `, +${files.length - named.length} more` : '';
   const { shown, rest, unsafe } = classify(files);
@@ -228,9 +234,15 @@ export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } =
       '',
       `Affected: ${named.join(', ')}${more}`,
       '',
-      'BUT this directory has no git metadata, so there is nothing here to restore the LF',
-      'bytes from, and no command below is safe to run: re-fetch or re-copy this corpus',
-      'from the machine that has the repository. Do not delete anything first.',
+      ...(refused ? [
+        `BUT git refused to read this folder's repository: ${refused}`,
+        'No command below would run until that is fixed - git\'s own message says how - so none is',
+        'printed; fix it, then run handoff again. Do not delete anything first.',
+      ] : [
+        'BUT this directory has no git metadata, so there is nothing here to restore the LF',
+        'bytes from, and no command below is safe to run: re-fetch or re-copy this corpus',
+        'from the machine that has the repository. Do not delete anything first.',
+      ]),
     ].join('\n');
   }
 
@@ -424,11 +436,27 @@ export function verifyHandoff(root, { corpus = null } = {}) {
  * bare repositories, worktree files and all. Without git on PATH the walk is the best answer
  * left, and it stops at a GIT_CEILING_DIRECTORIES entry as git would.
  */
-export function insideRepository(root, { run = spawnSync } = {}) {
+export function insideRepository(root, options) {
+  return repositoryState(root, options).inside;
+}
+
+/**
+ * `{ inside, refused }`: whether git says `root` is in a work tree, and, when git answered
+ * with something other than yes or "not a git repository", the first line of what it said -
+ * `fatal: detected dubious ownership in repository at ...` is a refusal to READ metadata that
+ * is there, and the remedy that then said "no git metadata, copy the corpus from the machine
+ * that has the repository" sent the operator to fix the wrong thing (third external review,
+ * 2026-10-04). No command is printed either way; the explanation differs.
+ */
+export function repositoryState(root, { run = spawnSync } = {}) {
   const dir = path.resolve(root);
   const answer = run('git', ['-C', dir, 'rev-parse', '--is-inside-work-tree'], { encoding: 'utf8', windowsHide: true });
-  if (answer?.error?.code === 'ENOENT') return gitEntryAbove(dir);
-  return answer?.status === 0 && String(answer.stdout ?? '').trim() === 'true';
+  if (answer?.error?.code === 'ENOENT') return { inside: gitEntryAbove(dir), refused: null };
+  const inside = answer?.status === 0 && String(answer.stdout ?? '').trim() === 'true';
+  if (inside) return { inside, refused: null };
+  const said = String(answer?.stderr ?? '').split(/\r?\n/).map((l) => l.trim()).find(Boolean) ?? '';
+  const notARepo = /not a git repository|must be run in a work tree/i.test(said) || (answer?.status === 0 && !said);
+  return { inside: false, refused: notARepo ? null : (said || `git exited ${answer?.status ?? 'without a status'}${answer?.error ? ` (${answer.error.code ?? answer.error.message})` : ''}`) };
 }
 
 /**
@@ -461,12 +489,12 @@ export function handoffRemedy(report) {
   if (report.didNotTravel) parts.push(HANDOFF_REMEDY);
   if (report.ledgerLost) parts.push(ledgerLostRemedy());
   // Whether this is inside a repository at all decides which remedies are even runnable.
-  const isRepo = insideRepository(report.root ?? '.');
-  if (report.altered?.length) parts.push(alteredRemedy(report.altered.map((e) => e.file), { isRepo }));
+  const { inside: isRepo, refused } = repositoryState(report.root ?? '.');
+  if (report.altered?.length) parts.push(alteredRemedy(report.altered.map((e) => e.file), { isRepo, refused }));
   if (report.lineEndings?.length) {
     const attributes = readText(path.join(report.root ?? '.', '.gitattributes')) ?? '';
     const pinned = /^research\/raw\/\*\s+text\s+eol=lf\s*$/m.test(attributes);
-    parts.push(lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo, pinned }));
+    parts.push(lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo, pinned, refused }));
   }
   return parts.join('\n\n');
 }

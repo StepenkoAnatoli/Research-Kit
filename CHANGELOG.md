@@ -5,6 +5,9 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- When git refuses to read a repository that is there (`fatal: detected dubious ownership`), the
+  handoff remedies say so and to fix that first, instead of "no git metadata, re-copy the corpus from the
+  machine that has the repository" (found 2026-10-04 by the third external review).
 - Without git on PATH, handoff's fallback walks the project's physical path for a `.git` entry (a
   junction's lexical parents are not where git looks) and reads `GIT_CEILING_DIRECTORIES` as git does:
   absolute entries only, resolved until an empty entry (found 2026-10-04 by the third external review).

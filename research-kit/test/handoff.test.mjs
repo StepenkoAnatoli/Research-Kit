@@ -5,7 +5,7 @@ import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path,
 import { evaluate } from '../lib/gate.mjs';
 import { TEMPLATE_DIR } from '../lib/scaffold.mjs';
 import { PATHS, resolve, writeText } from '../lib/core.mjs';
-import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, alteredRemedy, safePathspec, insideRepository, NAMES_FILE, PIN_LINES } from '../lib/handoff.mjs';
+import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, alteredRemedy, safePathspec, insideRepository, repositoryState, NAMES_FILE, PIN_LINES } from '../lib/handoff.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
 
@@ -449,6 +449,30 @@ test('the names-file commands, run as printed, restore only the file named in th
   }
   assert.equal(fs.readFileSync(path.join(dir, capture), 'utf8'), 'fetched\n', 'the named capture was restored');
   assert.equal(fs.readFileSync(path.join(dir, neighbour), 'utf8'), 'neighbour\nuncommitted work\n', 'the neighbour the glob matches kept its work');
+});
+
+// Found 2026-10-04 by the third external review: git refusing to READ a repository that is
+// there (`fatal: detected dubious ownership`) was explained as "no git metadata", and the
+// operator sent to copy the corpus from another machine - which fixes nothing here.
+test('a git refusal is explained as a refusal, not as absent metadata', () => {
+  const refusing = () => ({ status: 128, stdout: '', stderr: "fatal: detected dubious ownership in repository at 'C:/corpus'\nTo add an exception run: git config --global --add safe.directory C:/corpus\n" });
+  const state = repositoryState('/any/where', { run: refusing });
+  assert.equal(state.inside, false);
+  assert.match(state.refused, /dubious ownership/);
+  for (const remedy of [alteredRemedy(['research/raw/a.md'], { isRepo: false, refused: state.refused }), lineEndingRemedy(['research/raw/a.md'], { isRepo: false, refused: state.refused })]) {
+    assert.match(remedy, /git refused to read this folder's repository: fatal: detected dubious ownership/);
+    assert.doesNotMatch(remedy, /no git metadata/);
+    assert.doesNotMatch(remedy, /re-copy this corpus|re-fetch or re-copy/);
+    assert.doesNotMatch(remedy, /^ {4}git /m, 'no command is printed');
+  }
+  // Not a repository at all is still that, in git's words or in a clean exit.
+  const notARepo = () => ({ status: 128, stdout: '', stderr: 'fatal: not a git repository (or any of the parent directories): .git\n' });
+  assert.deepEqual(repositoryState('/any/where', { run: notARepo }), { inside: false, refused: null });
+  const bare = () => ({ status: 128, stdout: '', stderr: 'fatal: this operation must be run in a work tree\n' });
+  assert.deepEqual(repositoryState('/any/where', { run: bare }), { inside: false, refused: null });
+  // A spawn that failed for a reason other than "no git" is a refusal with that reason.
+  const eacces = () => ({ error: Object.assign(new Error('spawn git EACCES'), { code: 'EACCES' }), status: null, stdout: '', stderr: '' });
+  assert.match(repositoryState('/any/where', { run: eacces }).refused, /EACCES/);
 });
 
 test('a report holding both causes prints both remedies', () => {
