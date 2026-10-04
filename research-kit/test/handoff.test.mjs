@@ -287,9 +287,14 @@ test('a capture committed altered and edited again: the printed checkout is foll
   assert.equal(before.altered.length, 1);
   const remedy = handoffRemedy(before);
   assert.match(git(dir, 'status', '--porcelain', '--', capture.file).stdout, /\S/, 'the status is dirty, as the remedy expects');
+  let ran = 0;
   for (const line of remedy.split('\n').map((l) => l.trim())) {
-    if (line.startsWith('git checkout HEAD')) assert.equal(git(dir, ...line.split(/\s+/).slice(1)).status, 0, line);
+    if (line.startsWith('git checkout HEAD')) { assert.equal(git(dir, ...line.split(/\s+/).slice(1)).status, 0, line); ran += 1; }
   }
+  // Without this the test passed with the checkout command deleted: handoff was failing before
+  // the restore too (found 2026-10-04 by the second external review).
+  assert.equal(ran, 1, 'the printed checkout did not run');
+  assert.equal(fs.readFileSync(resolve(dir, capture.file), 'utf8').includes('local edit'), false, 'the checkout did not restore HEAD');
   const after = verifyHandoff(dir);
   assert.equal(after.ok, false, 'HEAD holds the altered bytes; restoring it cannot pass');
   assert.deepEqual(after.altered.map((e) => e.file), [capture.file]);
