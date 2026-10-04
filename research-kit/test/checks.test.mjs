@@ -521,6 +521,19 @@ test('hygiene: a capture\'s full timestamp agrees with a day-only cell, and an u
   assert.equal(hygiene.some((f) => f.rule === 'date-mismatch'), false, 'an unparseable cell is unparseable-date\'s to name, once');
 });
 
+// Gap audit 2026-10-03, rank 1: the row the parser could not keep is a FAIL, like a mistyped ID.
+test('hygiene: a table-split problem fails by name, once, and corpus-shape does not repeat it', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace(/(\| U-1 \|[^\n]*\n)/, '$1\n| U-2 | A second blocking question? | It decides the design | OPEN | |\n'));
+  const corpus = snapshot(dir);
+  const findings = runChecks(corpus, { localHooksPath: null }).filter((f) => /table-split/.test(f.rule) || /U-2/.test(f.detail));
+  assert.equal(findings.length, 1, JSON.stringify(findings));
+  assert.equal(findings[0].check, 'hygiene');
+  assert.equal(findings[0].rule, 'table-split');
+  assert.equal(findings[0].severity, 'fail');
+  assert.match(findings[0].detail, /DISCOVERY\.md:\d+/);
+});
+
 // ---------------------------------------------------------------- corroboration
 
 /** Rewrite the fixture's evidence table and the unknown that cites it. */

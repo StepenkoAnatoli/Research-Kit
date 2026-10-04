@@ -265,6 +265,11 @@ export function normalizeScrape(stdout, url, label = name) {
     markdown,
     statusCode: status(data.metadata?.statusCode) || status(data.statusCode),
     transport: label,
+    // The vendor's own account of where the bytes came from, kept when it sends one (ADR-0139).
+    cacheState: text(data.metadata?.cacheState),
+    cachedAt: text(data.metadata?.cachedAt),
+    // The text the Markdown was converted from, kept beside the capture (ADR-0140).
+    source: text(data.rawHtml) || text(data.html),
     ...gradeCompleteness(markdown),
   };
 }
@@ -350,7 +355,11 @@ export function parseStatus(stdout) {
 // ---------------------------------------------------------------- the adapter
 
 export function scrape(url, { execFn = exec, ...opts } = {}) {
-  const argv = ['scrape', String(url), '--only-main-content', '--json'];
+  // `--max-age 0`: a scrape is a live fetch. Without it the vendor serves a cached copy up to
+  // two days old, and a capture stamped with today's date could be yesterday's page (ADR-0139).
+  // `--format markdown,rawHtml`: the page's HTML comes back beside the Markdown, at no extra
+  // credit, and is kept beside the capture as its source (ADR-0140).
+  const argv = ['scrape', String(url), '--only-main-content', '--max-age', '0', '--format', 'markdown,rawHtml', '--json'];
   const result = execFn(argv, opts);
   if (!result.ok) {
     return { ok: false, url, error: result.stderr || `firecrawl exited ${result.status}`, cmd: command(argv), transport: name };

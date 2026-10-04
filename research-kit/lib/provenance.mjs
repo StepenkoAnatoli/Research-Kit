@@ -420,6 +420,13 @@ export function appendFetch(root, fields) {
     // hash it was written with - the chain covers the canonical entry, and an absent
     // field was never in it.
     if (fields.discoveredBy) entry.discoveredBy = String(fields.discoveredBy);
+    if (fields.cacheState) entry.cacheState = String(fields.cacheState);   // ADR-0139
+    if (fields.cachedAt) entry.cachedAt = String(fields.cachedAt);
+    if (fields.source && fields.sourceSha256) {                            // ADR-0140
+      entry.source = String(fields.source);
+      entry.sourceSha256 = String(fields.sourceSha256);
+    }
+    if (fields.sourceOmitted) entry.sourceOmitted = String(fields.sourceOmitted);
     entry.entrySha256 = entryHash(entry);
     appendLine(resolve(root, PATHS.ledger), JSON.stringify(entry));
     return entry;
@@ -449,27 +456,34 @@ export function verifyLedger(root, { corpus = null } = {}) {
 
   const lineEndings = [];
   problems.push(...chainProblems(ledger.entries));
+  // Every file an entry names is checked the same way: the capture (`raw`, `bodySha256`) and,
+  // since ADR-0140, the source it was converted from (`source`, `sourceSha256`).
+  const named = [];
   for (const entry of ledger.entries) {
     if (entry.op === 'fail' || !entry.raw) continue;
-    const { abs, problem } = projectFile(root, entry.raw);
+    named.push({ entry, file: entry.raw, hash: entry.bodySha256, what: 'capture' });
+    if (entry.source) named.push({ entry, file: entry.source, hash: entry.sourceSha256, what: 'source' });
+  }
+  for (const { entry, file, hash, what } of named) {
+    const { abs, problem } = projectFile(root, file);
     if (problem === 'outside') {
-      problems.push({ rule: 'raw-outside', line: entry.line, file: entry.raw,
-        detail: `${entry.raw}, named by seq ${entry.seq}, is outside the project - not read` });
+      problems.push({ rule: 'raw-outside', line: entry.line, file,
+        detail: `${file}, named by seq ${entry.seq}, is outside the project - not read` });
       continue;
     }
     if (problem === 'missing') {
-      problems.push({ rule: 'raw-missing', line: entry.line, file: entry.raw, detail: `capture named by seq ${entry.seq} is not on disk` });
+      problems.push({ rule: 'raw-missing', line: entry.line, file, detail: `${what} named by seq ${entry.seq} is not on disk` });
       continue;
     }
-    if (!entry.bodySha256) continue;
+    if (!hash) continue;
     // A capture that is not a regular file is refused BY NAME before it is opened: a fifo
     // here blocks in open() until another process writes to it, and /dev/zero allocates
     // until libstdc++ kills the process with std::bad_alloc (found 2026-09-28,
     // break-test). Both ended the run of every entrypoint that verifies a corpus,
     // including the commit gate, with no diagnostic at all.
     if (problem === 'not-file') {
-      problems.push({ rule: 'raw-unreadable', line: entry.line, file: entry.raw,
-        detail: `${entry.raw}, named by seq ${entry.seq}, could not be read (it is not a regular file, `
+      problems.push({ rule: 'raw-unreadable', line: entry.line, file,
+        detail: `${file}, named by seq ${entry.seq}, could not be read (it is not a regular file, `
           + 'so it has no end to read to) - check what it is' });
       continue;
     }
@@ -479,21 +493,21 @@ export function verifyLedger(root, { corpus = null } = {}) {
     try {
       bytes = fs.readFileSync(abs);
     } catch (err) {
-      problems.push({ rule: 'raw-unreadable', line: entry.line, file: entry.raw,
-        detail: `${entry.raw}, named by seq ${entry.seq}, could not be read (${err.code ?? err.message}) - check its permissions` });
+      problems.push({ rule: 'raw-unreadable', line: entry.line, file,
+        detail: `${file}, named by seq ${entry.seq}, could not be read (${err.code ?? err.message}) - check its permissions` });
       continue;
     }
-    if (sha256(bytes) === entry.bodySha256) continue;
-    const rewrite = isLineEndingRewrite(bytes, entry.bodySha256);
-    if (rewrite) lineEndings.push({ file: entry.raw, seq: entry.seq });
+    if (sha256(bytes) === hash) continue;
+    const rewrite = isLineEndingRewrite(bytes, hash);
+    if (rewrite) lineEndings.push({ file, seq: entry.seq });
     problems.push({
       rule: 'body-unmodified',
       kind: rewrite ? 'line-endings' : 'modified',
       line: entry.line,
-      file: entry.raw,
+      file,
       detail: rewrite
-        ? `${entry.raw} differs only by CRLF line endings`
-        : `${entry.raw} does not match the hash recorded at fetch`,
+        ? `${file} differs only by CRLF line endings`
+        : `${file} does not match the hash recorded at fetch`,
     });
   }
 

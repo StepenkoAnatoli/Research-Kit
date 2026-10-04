@@ -347,7 +347,7 @@ When Firecrawl's credits run out mid-run, a local run stops, reports what is lef
 or run it with `--fallback`, which switches the rest of the run to `browser` when a browser
 is installed, else `http-keyless`, each capture's ledger entry naming the transport that
 fetched it (ADR-0086). The unattended collectors pass `--fallback`. Tavily is not a fallback: its terms
-reserve training on what is sent (C-6, re-checked 2026-09-28).
+reserve training on what is sent (C-6, re-checked 2026-09-28). Beside each capture the collector keeps the text it was converted from, `<capture>.source.html`, named and hashed in the same ledger entry (ADR-0140), so a conversion can be checked or redone later; it is never cited or graded itself.
 
 ## What is built
 
@@ -453,7 +453,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1570 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1585 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

@@ -501,6 +501,7 @@ export function scrape(url, opts = {}) {
     url: job.url ?? url,
     title: titleOf(html),
     markdown,
+    source: html,          // the text this Markdown was converted from (ADR-0140)
     statusCode: job.statusCode ?? '',
     transport: name,
     cmd: command(argv),

@@ -5,10 +5,11 @@ import { test, describe, assert, makeProject, makePassingProject, fs, path, KIT_
 import { PATHS, resolve, readText, writeText, writeJson, today } from '../lib/core.mjs';
 import { readCorpus, parseTable, cacheDecision, CAPTURE_MAX_BYTES } from '../lib/corpus.mjs';
 import { HEADERS } from '../lib/core.mjs';
-import { collectOne, writeRaw, captureName, bodyHashOf } from '../lib/collect.mjs';
+import { collectOne, writeRaw, writeSource, captureName, bodyHashOf } from '../lib/collect.mjs';
 import { rateLimitWaitMs } from '../lib/firecrawl.mjs';
 import { topicMatch } from '../lib/research-run.mjs';
 import { verifyLedger } from '../lib/provenance.mjs';
+import * as checksModule from '../lib/checks.mjs';
 import { supersededRows } from '../lib/checks.mjs';
 import { runResearch, readPlan, rankCandidate, selectCandidates, parsePreference, urlKey, DEPTH_SCRAPES, usageSummary } from '../lib/research-run.mjs';
 
@@ -1279,4 +1280,154 @@ test('a capture is written with LF line endings only, so git normalisation canno
   assert.equal(text.includes('\r'), false, 'a CR survived into the capture');
   assert.ok(text.includes('\n---\n# Title\n\nline one\nline two\nline three\n'), JSON.stringify(text.slice(-60)));
   assert.equal(entry.bytes, Buffer.byteLength('# Title\n\nline one\nline two\nline three\n', 'utf8'), 'bytes counts the normalised body');
+});
+
+// ADR-0139: a vendor's cached answer travels into the capture's front matter and the ledger.
+test('ADR-0139: a cached vendor answer is written into the capture and its ledger entry', () => {
+  const dir = makeProject();
+  const url = 'https://x.invalid/cached';
+  const scrape = (u) => ({ ok: true, url: u, title: 'Cached', markdown: `# Cached\n\n${'The free plan allows 10 requests per minute. '.repeat(40)}`, statusCode: 200,
+    transport: 'stub-transport', completeness: 'full', omitted: '', cmd: `stub scrape ${u}`, cacheState: 'hit', cachedAt: '2026-10-02T16:46:39.718Z' });
+  const outcome = collectOne(dir, url, { runScrape: scrape, corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.equal(outcome.status, 'collected', outcome.reason);
+  const capture = readText(resolve(dir, outcome.entry.file));
+  assert.match(capture, /^cacheState: hit$/m, capture.slice(0, 400));
+  assert.match(capture, /^cachedAt: 2026-10-02T16:46:39\.718Z$/m);
+  const entry = readCorpus(dir).ledger.entries.at(-1);
+  assert.equal(entry.cacheState, 'hit');
+  assert.equal(entry.cachedAt, '2026-10-02T16:46:39.718Z');
+  // A live answer writes neither field.
+  const live = collectOne(dir, 'https://x.invalid/live', { runScrape: (u) => ({ ...scrape(u), cacheState: '', cachedAt: '' }), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.doesNotMatch(readText(resolve(dir, live.entry.file)), /cacheState|cachedAt/);
+  assert.equal('cacheState' in readCorpus(dir).ledger.entries.at(-1), false);
+});
+
+// ADR-0140 (gap audit 2026-10-03, rank 3): the text a capture was converted from is kept beside
+// it as `<capture>.source.html`, named and hashed in the ledger, verified like the capture,
+// and never a capture itself.
+test('ADR-0140: a source is written beside the capture, named in the ledger, verified, and never indexed as a capture', () => {
+  const dir = makeProject();
+  const url = 'https://x.invalid/limits';
+  const html = `<html>\r\n<body><main><p>${'The free plan allows 10 requests per minute. '.repeat(40)}</p></main></body>\r\n</html>`;
+  const scrape = (u) => ({ ok: true, url: u, title: 'Limits', markdown: `# Limits\n\n${'The free plan allows 10 requests per minute. '.repeat(40)}`, source: html, statusCode: 200,
+    transport: 'stub-transport', completeness: 'full', omitted: '', cmd: `stub scrape ${u}` });
+  const outcome = collectOne(dir, url, { runScrape: scrape, corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.equal(outcome.status, 'collected', outcome.reason);
+  const sibling = outcome.entry.file.replace(/\.md$/, '.source.html');
+  const kept = readText(resolve(dir, sibling));
+  assert.equal(kept, html.replace(/\r\n/g, '\n'), 'the source is kept LF-folded, like the body');
+  const corpus = readCorpus(dir);
+  const entry = corpus.ledger.entries.at(-1);
+  assert.equal(entry.source, sibling);
+  assert.equal(entry.sourceSha256, bodyHashOf(dir, sibling));
+  assert.equal(corpus.captures.entries.some((e) => e.file === sibling), false, 'a source is not a capture');
+  assert.deepEqual(corpus.problems.filter((p) => /source/.test(JSON.stringify(p))), []);
+  assert.equal(verifyLedger(dir, { corpus }).ok, true, JSON.stringify(verifyLedger(dir, { corpus }).problems));
+  // The gate names nothing about the sibling: not uncited, not dangling.
+  const { runChecks } = checksModule;
+  const findings = runChecks(corpus, { localHooksPath: null }).filter((f) => /source\.html/.test(f.detail));
+  assert.deepEqual(findings, [], JSON.stringify(findings));
+
+  // Edited after the fetch: refused by name, like a capture. Deleted: missing, like a capture.
+  writeText(resolve(dir, sibling), `${kept}<!-- edited -->`);
+  const edited = verifyLedger(dir, { corpus: readCorpus(dir) });
+  assert.ok(edited.problems.some((p) => p.rule === 'body-unmodified' && p.file === sibling), JSON.stringify(edited.problems));
+  fs.unlinkSync(resolve(dir, sibling));
+  const gone = verifyLedger(dir, { corpus: readCorpus(dir) });
+  assert.ok(gone.problems.some((p) => p.rule === 'raw-missing' && p.file === sibling), JSON.stringify(gone.problems));
+});
+
+test('ADR-0140: no source is kept for a verbatim answer, an absent one, an oversized one, or a sibling that already differs', () => {
+  const dir = makeProject();
+  const markdown = `# Limits\n\n${'The free plan allows 10 requests per minute. '.repeat(40)}`;
+  const base = (u, extra) => ({ ok: true, url: u, title: 'Limits', markdown, statusCode: 200, transport: 'stub-transport', completeness: 'full', omitted: '', cmd: `stub scrape ${u}`, ...extra });
+  const entryOf = () => readCorpus(dir).ledger.entries.at(-1);
+  const verbatim = collectOne(dir, 'https://x.invalid/text', { runScrape: (u) => base(u, { source: markdown }), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.equal(verbatim.status, 'collected');
+  assert.equal('source' in entryOf(), false, 'a source that is the capture is not kept twice');
+  assert.equal(fs.existsSync(resolve(dir, verbatim.entry.file.replace(/\.md$/, '.source.html'))), false);
+  const absent = collectOne(dir, 'https://x.invalid/none', { runScrape: (u) => base(u, {}), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.equal('source' in entryOf(), false);
+  assert.equal(fs.existsSync(resolve(dir, absent.entry.file.replace(/\.md$/, '.source.html'))), false);
+  const big = collectOne(dir, 'https://x.invalid/big', { runScrape: (u) => base(u, { source: `<p>${'x'.repeat(CAPTURE_MAX_BYTES + 10)}</p>` }), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.equal(big.status, 'collected', 'an oversized source does not refuse the capture');
+  assert.equal('source' in entryOf(), false);
+  // Same markdown, same day, a different source: the capture file is reused and the sibling
+  // is not overwritten; the second fetch names no source.
+  const first = collectOne(dir, 'https://x.invalid/same', { runScrape: (u) => base(u, { source: '<html>one</html>' }), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  const sibling = first.entry.file.replace(/\.md$/, '.source.html');
+  assert.equal(readText(resolve(dir, sibling)), '<html>one</html>');
+  const second = collectOne(dir, 'https://x.invalid/same', { runScrape: (u) => base(u, { source: '<html>two</html>' }), corpus: readCorpus(dir), force: true, transportName: 'stub-transport' });
+  assert.equal(second.entry.file, first.entry.file, 'identical text reuses the capture');
+  assert.equal(readText(resolve(dir, sibling)), '<html>one</html>', 'the first source stands');
+  assert.equal('source' in entryOf(), false, 'the second fetch names no source it did not write');
+  assert.equal(verifyLedger(dir, { corpus: readCorpus(dir) }).ok, true);
+});
+
+
+// Breaker review of bed6bc0 (2026-10-04): a link planted at the sibling's name made `writeSource`
+// throw AFTER the capture was written, leaving an orphan capture with no ledger entry that the
+// next run took for a cache hit; and an oversized source vanished without a trace.
+// Breaker finding (2026-10-04): a link planted at the sibling's name. Two links, because
+// they test two different guards: a DANGLING link is caught only by the path check (a
+// write through it would create a file outside the project), while a link to an existing
+// file is also caught by the "sibling already differs" rule. The targets live in the
+// test's own scratch, never at a fixed host path - Windows stores a POSIX absolute target
+// resolved against the current drive (`/etc/hostname` read back as `D:\etc\hostname`, CI
+// 2026-10-04) - so the assertions compare real paths, and the links are made through
+// requireSymlink: a host that refuses file symlinks reports UNSUP, not red.
+test('ADR-0140: a sibling that cannot be written leaves the fetch ledgered without a source', () => {
+  const markdown = `# Limits\n\n${'The free plan allows 10 requests per minute. '.repeat(40)}`;
+  const base = (u, extra) => ({ ok: true, url: u, title: 'Limits', markdown, statusCode: 200, transport: 'stub-transport', completeness: 'full', omitted: '', cmd: `stub scrape ${u}`, ...extra });
+  const elsewhere = tempDir('rk-source-outside-');
+  const collect = (dir, url) => {
+    const outcome = collectOne(dir, url, { runScrape: (u) => base(u, { source: '<html>x</html>' }), corpus: readCorpus(dir), transportName: 'stub-transport' });
+    assert.equal(outcome.status, 'collected', outcome.reason);
+    const entry = readCorpus(dir).ledger.entries.at(-1);
+    assert.equal(entry.raw, outcome.entry.file, 'the fetch is in the ledger');
+    assert.equal('source' in entry, false, 'a sibling that could not be written is not named');
+    assert.match(entry.sourceOmitted, /outside|link|not kept/i, entry.sourceOmitted);
+    assert.equal(verifyLedger(dir, { corpus: readCorpus(dir) }).ok, true);
+    return entry;
+  };
+  const siblingName = (url) => captureName(url, { date: today(), title: 'Limits' }).replace(/\.md$/, '.source.html');
+
+  const dangling = makeProject();
+  const url = 'https://x.invalid/dangling';
+  const danglingLink = resolve(dangling, `${PATHS.raw}/${siblingName(url)}`);
+  requireSymlink(path.join(elsewhere, 'created.html'), danglingLink, 'a source name that is a link out of the project');
+  const entry = collect(dangling, url);
+  assert.match(entry.sourceOmitted, /could not be written/, 'a dangling link is refused by the path guard, not by content');
+  assert.equal(fs.existsSync(path.join(elsewhere, 'created.html')), false, 'the source was written through the link, outside the project');
+  assert.equal(fs.lstatSync(danglingLink).isSymbolicLink(), true, 'the link was replaced');
+
+  const pointing = makeProject();
+  const victim = path.join(elsewhere, 'victim.txt');
+  fs.writeFileSync(victim, 'DO NOT TOUCH\n');
+  const url2 = 'https://x.invalid/pointing';
+  const link = resolve(pointing, `${PATHS.raw}/${siblingName(url2)}`);
+  requireSymlink(victim, link, 'a source name that is a link out of the project');
+  collect(pointing, url2);
+  assert.equal(fs.lstatSync(link).isSymbolicLink(), true, 'the link was replaced');
+  assert.equal(fs.realpathSync(link), fs.realpathSync(victim), 'the link was redirected');
+  assert.equal(fs.readFileSync(victim, 'utf8'), 'DO NOT TOUCH\n', 'the link was followed');
+});
+
+test('ADR-0140: an oversized source is not kept, and the omission names the limit', () => {
+  const dir = makeProject();
+  const markdown = `# Limits\n\n${'The free plan allows 10 requests per minute. '.repeat(40)}`;
+  const big = collectOne(dir, 'https://x.invalid/big', { runScrape: (u) => ({ ok: true, url: u, title: 'Limits', markdown, statusCode: 200, transport: 'stub-transport', completeness: 'full', omitted: '', cmd: `stub scrape ${u}`, source: `<p>${'x'.repeat(CAPTURE_MAX_BYTES + 10)}</p>` }), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.equal(big.status, 'collected', big.reason);
+  const bigEntry = readCorpus(dir).ledger.entries.at(-1);
+  assert.equal('source' in bigEntry, false);
+  assert.match(bigEntry.sourceOmitted, /CAPTURE_MAX_BYTES|MB/, bigEntry.sourceOmitted);
+  assert.deepEqual(fs.readdirSync(resolve(dir, PATHS.raw)).filter((f) => f.endsWith('.source.html')), [], 'an oversized source was written');
+  assert.equal(verifyLedger(dir, { corpus: readCorpus(dir) }).ok, true);
+});
+
+// Mutation audit (2026-10-04): the guard against a sibling name that is the capture's own.
+test('ADR-0140: writeSource never writes at the capture\'s own path', () => {
+  const dir = makeProject();
+  assert.equal(writeSource(dir, 'research/raw/2026-01-01-x.txt', '<html>src</html>', 'md body'), null);
+  assert.equal(fs.existsSync(resolve(dir, 'research/raw/2026-01-01-x.txt')), false);
 });

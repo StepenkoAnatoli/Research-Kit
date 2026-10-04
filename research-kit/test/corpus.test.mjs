@@ -278,6 +278,77 @@ test('a row with an empty ID cell that holds content is a malformed-id problem, 
   assert.equal(corpus.unknowns.length, 1);
 });
 
+// Gap audit 2026-10-03, rank 1: a blank line inside a table ends it (as GFM renders it), and
+// every row-shaped line after the blank vanished with no problem recorded - a blocking unknown
+// written below a blank line dropped out of the gate, which printed PASS. The rows stay out of
+// the table (GitHub shows them as prose), but the parser now says so, by line.
+test('a row-shaped line after the table ended is a table-split problem naming the line, in each table', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace(/(\| U-1 \|[^\n]*\n)/, '$1\n| U-2 | A second blocking question? | It decides the design | OPEN | |\n'));
+  corrupt(dir, PATHS.evidence, (text) => `${text}\n| E-02 | 2026-01-01 | P | https://example.invalid/more | A second reading. | research/raw/x.md |\n`);
+  corrupt(dir, PATHS.map, (text) => `${text}\n| D-99 | Another dimension | It matters | GAP | |\n`);
+  const corpus = readCorpus(dir);
+  const split = corpus.problems.filter((p) => p.kind === 'table-split');
+  assert.deepEqual(split.map((p) => p.artifact).sort(), [PATHS.discovery, PATHS.evidence, PATHS.map].sort(), JSON.stringify(corpus.problems));
+  for (const p of split) {
+    assert.ok(p.line > 0, 'the line is named');
+    assert.match(p.detail, /blank line/, p.detail);
+    assert.match(p.detail, /U-2|E-02|D-99/, p.detail);
+  }
+  assert.equal(corpus.unknowns.length, 1, 'the row after the blank is still not an unknown: GFM ends the table there');
+  assert.equal(lineOf(dir, PATHS.discovery, '| U-2'), split.find((p) => p.artifact === PATHS.discovery).line);
+});
+
+test('a second table after a blank line, with its own header and separator, is not a split', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => `${text}\n| Note | Text |\n|---|---|\n| n-1 | a note table below the unknowns |\n`);
+  const corpus = readCorpus(dir);
+  assert.deepEqual(corpus.problems.filter((p) => p.kind === 'table-split'), []);
+  // The repository's own SOURCES.md holds two tables with different headers, blank-separated.
+  assert.deepEqual(readCorpus('/home/user/Research-Kit').problems.filter((p) => p.kind === 'table-split'), []);
+});
+
+// Breaker review of 9ca9fc1 (2026-10-04): a row-shaped line inside a fenced code block or an
+// HTML comment after the table is rendered as code or hidden, not as a stray row; a heading of
+// a deeper level, or `#tag` prose, does not end the table's section, so a stray row below it
+// was still dropped in silence; and a second table whose separator is malformed is named as
+// that, not as three splits of the first.
+test('the table-split scan skips fences and comments, runs past deeper headings, and names a malformed second table', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => `${text}\nAn example of a row, as code:\n\n\`\`\`\n| U-9 | not a row | x | OPEN | |\n\`\`\`\n\n<!--\n| U-8 | hidden | x | OPEN | |\n-->\n`);
+  assert.deepEqual(readCorpus(dir).problems.filter((p) => p.kind === 'table-split'), [], 'a fenced or commented row is not a split');
+
+  const deeper = makePassingProject();
+  corrupt(deeper, PATHS.discovery, (text) => `${text}\n### A note under the unknowns\n\nSee #tag-123 for context.\n\n| U-2 | A second blocking question? | It decides the design | CLOSED | E-99 |\n`);
+  const split = readCorpus(deeper).problems.filter((p) => p.kind === 'table-split');
+  assert.equal(split.length, 1, `a stray row below a deeper heading was dropped in silence: ${JSON.stringify(readCorpus(deeper).problems)}`);
+  assert.equal(split[0].line, lineOf(deeper, PATHS.discovery, '| U-2'));
+
+  const same = makePassingProject();
+  corrupt(same, PATHS.discovery, (text) => `${text}\n## Another section\n\n| U-3 | belongs to another section | x | OPEN | |\n`);
+  assert.deepEqual(readCorpus(same).problems.filter((p) => p.kind === 'table-split'), [], 'a heading of the same level ends the section');
+
+  // Mutation audit (2026-10-04): a lone separator after the table is not a row.
+  const lone = makePassingProject();
+  corrupt(lone, PATHS.discovery, (text) => `${text}\n|---|---|\n`);
+  assert.deepEqual(readCorpus(lone).problems.filter((p) => p.kind === 'table-split'), []);
+
+  const malformed = makePassingProject();
+  corrupt(malformed, PATHS.discovery, (text) => `${text}\n| A | B |\n|===|===|\n| x | y |\n`);
+  const named = readCorpus(malformed).problems.filter((p) => p.kind === 'table-split');
+  assert.equal(named.length, 1, JSON.stringify(named));
+  assert.match(named[0].detail, /separator/, named[0].detail);
+});
+
+// A `.source.html` under raw/ that no ledger entry names is a planted file, not a source.
+test('a source sibling no ledger entry names is a corpus problem', () => {
+  const dir = makePassingProject();
+  writeText(resolve(dir, `${PATHS.raw}/2026-10-03-planted.source.html`), '<html>planted</html>');
+  const problems = readCorpus(dir).problems.filter((p) => p.kind === 'source-unnamed');
+  assert.equal(problems.length, 1, JSON.stringify(readCorpus(dir).problems));
+  assert.match(problems[0].detail, /planted\.source\.html/);
+});
+
 test('a plan that will not parse is reported, never absorbed', () => {
   const dir = makePassingProject();
   writeText(resolve(dir, PATHS.plan), '{ not json');
