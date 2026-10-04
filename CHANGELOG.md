@@ -5,6 +5,14 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The ADR-0119 launch-allowance test scales its budget with the host's Node boot, measured
+  once (`max(2 s, 5 × boot)`), so Node always has twice its measure to start: on the operator's
+  Windows PC the fixed 2 s budget left it 800 ms and the test failed 2 runs in 10 (GPT's review,
+  2026-10-04); a Node made to boot 900 ms slower reproduced it here. The shape the test pins -
+  launch and page together past the timeout, apart inside it - is unchanged, and its failure
+  message now carries `startupMs`, `elapsedMs`, the boot measure and the budget. The guard LIVE
+  test's over-20 s line names the browser's first-request time, as the transport's /stalled
+  line already did (break-test pass 6 follow-up).
 - The browser transport's parent waits for the guard child as long as ADR-0119 allows the
   browser - the launch allowance plus the render budget, `2 × timeout`, and 10 s to report -
   instead of `timeout + 10 s`. A Chromium that took most of its launch allowance to make its
