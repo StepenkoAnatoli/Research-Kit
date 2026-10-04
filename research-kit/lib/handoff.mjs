@@ -157,9 +157,11 @@ export function alteredRemedy(files = [], { isRepo = true, refused = null } = {}
  * splits an unquoted name into two pathspecs; inside double quotes PowerShell still expands
  * `$copy` to nothing; and `[12]` is a git glob whatever the shell did, so `git checkout HEAD
  * -- "research/raw/topic[12] copy.md"` restored a neighbour too and discarded its uncommitted
- * work (found 2026-10-04, first and second external review, both verified by running). The
- * ledger names such a file only when rewritten by hand; the remedy then names it and tells
- * the operator how to type the command, with `:(literal)` so git takes the name as written.
+ * work (found 2026-10-04, first and second external review, both verified by running). Such
+ * a name reaches the ledger rarely but not only by hand: `captureName` embeds the URL's host
+ * as it is, so an IPv6 literal (`[::1]`) or an adapter-supplied host outside DNS's alphabet
+ * (`a;b.example`, from a stub) produces one (third review, verified with an offline adapter).
+ * The remedy then names it and has git read it from a file (unsafeNote).
  */
 export function safePathspec(file) {
   return /^[A-Za-z0-9._/-]+$/.test(file);

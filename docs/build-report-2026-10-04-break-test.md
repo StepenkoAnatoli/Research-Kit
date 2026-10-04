@@ -173,6 +173,20 @@ and http-linear, files none of these PRs touch, in a run that took 1247 s agains
 CI; the Windows CI leg passed the same commit. Not reproduced here; recorded as the known
 sensitivity of those tests to a loaded host.
 
+### Third external review (2026-10-04)
+
+The same reader reviewed PR #243 and reported six more defects; all six were verified here and
+fixed, one commit each, red-first, through the gate.
+
+| # | Finding | Fix |
+|---|---|---|
+| 1 | The safety check ran over the five names the text lists, so an unsafe sixth name got no note and "handle the remaining files the same way". | `classify(files)` runs over every affected file (a957525). |
+| 2 | "Quote it for your shell and prefix `:(literal)`" was not enough: cmd expands `%NAME%` inside double quotes. | Unsafe names go in `handoff-names.txt`; the printed `git --literal-pathspecs checkout HEAD --pathspec-from-file=...` types no name (c1c311a). |
+| 3 | Without git, the fallback walked a junction's lexical parents. | It walks the physical path (realpath) first (7847470). |
+| 4 | Without git, relative ceiling entries became ceilings and an empty entry lost its meaning. | Absolute entries only; realpath until an empty entry, as git reads them (7847470). |
+| 5 | A git refusal (`dubious ownership`) was explained as "no git metadata". | `repositoryState` carries git's first line; the remedy says git refused, and to fix that first (ef8d11f). |
+| 6 | The claim that only a hand-rewritten ledger names an unsafe file: `captureName` embeds a URL's host as it is. | Comment and map corrected; the behaviour (named, never typed) already covers it. |
+
 ## Remaining risks
 
 - Findings 3 and 5(b), fixed after the report at the operator's request.
