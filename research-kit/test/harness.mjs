@@ -438,16 +438,18 @@ export function createTempFolder(dir, { mkdir = (p) => fs.mkdirSync(p) } = {}) {
   // having made nothing, removed that process's empty folder at exit (found 2026-10-04 by
   // an external review of the fix). EEXIST is that other process; anything else is the
   // caller's to hear about, as before.
+  // Each created folder goes to the FRONT, so the list is deepest first at every moment - a
+  // sort after the loop was skipped by a mkdir that threw part-way, and the parent already
+  // recorded was then tried before its child and left behind, empty (found 2026-10-04 by
+  // the second external review).
   for (const p of missing.reverse()) {
     try {
       mkdir(p);
-      createdDirs.push(p);
+      createdDirs.unshift(p);
     } catch (err) {
       if (err?.code !== 'EEXIST') throw err;
     }
   }
-  // Deepest first for the rmdir at exit.
-  createdDirs.sort((a, b) => b.length - a.length);
 }
 
 function removeScratch() {

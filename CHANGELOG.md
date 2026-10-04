@@ -5,6 +5,9 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- `createTempFolder` keeps its record deepest-first as it goes: a mkdir that failed part-way (ENOSPC
+  on the third missing ancestor) threw before the sort that ordered the removal, and an ancestor the
+  run had created was left behind, empty (found 2026-10-04 by the second external review).
 - The handoff remedies recognise the enclosing repository: a nested decision project under
   `docs/decisions/` has no `.git` of its own and was told it had "no git metadata" and given no
   checkout command, although the repository above it restores its captures like any other tracked
