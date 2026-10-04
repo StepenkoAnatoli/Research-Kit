@@ -47,7 +47,7 @@ One loop, run inside the project folder:
 | Decompose | `decompose.mjs` | the agent | `research/MAP.md`: the topic split into subtopics, statuses blank |
 | Contract | by hand | the agent | `research/DISCOVERY.md`: the blocking unknowns, `U-1`, `U-2`, ... |
 | Plan | by hand | the agent | `research/plan.json`: the searches and pages that close them |
-| Collect | `research.mjs` | the kit | cached pages under `research/raw/`, rows in `research/EVIDENCE.md`, a hash-chained ledger |
+| Collect | `research.mjs` | the kit | cached pages under `research/raw/`, each with the text it was converted from beside it, rows in `research/EVIDENCE.md`, a hash-chained ledger |
 | Review | by hand | the agent | every finding rewritten into a claim, with a quote from the page |
 | Gate | `preflight.mjs` | the kit | `PASS`, or the name of the unknown that is still unproven |
 | Brief | `brief.mjs` | the agent | `research/BRIEF.md`: the one file a builder has to read |
@@ -424,6 +424,15 @@ the environment or from `~/.agents/research-kit.config.json`, never from a proje
 | `http-keyless` | free | a direct fetch; captures are graded `partial` when the page needed a browser |
 | `browser` | free | a local Chromium renders the page; reads JavaScript-built pages and pages that refuse plain clients |
 
+A Firecrawl scrape is always a live fetch: the kit passes `--max-age 0`, because the vendor
+otherwise answers from a copy up to two days old, and a capture stamped with today's date
+could be yesterday's page. The credit is the same either way
+([ADR-0139](docs/adr/0139-a-firecrawl-scrape-is-a-live-fetch-and-a-cached-answer-says-so.md)).
+Every transport also returns the text it converted the page from, and the kit keeps it beside
+the capture as `<capture>.source.html`, named and hashed in the same ledger entry, so a
+conversion can be checked or redone later
+([ADR-0140](docs/adr/0140-the-pages-source-text-is-kept-beside-the-capture.md)).
+
 Pick one per run with `--transport`, or per machine with `transport` in the config. When
 Firecrawl's credits run out mid-run, the run stops and says what is left, and you decide:
 top up and run the same command, which pays only for the pages still missing, or run it
@@ -607,16 +616,29 @@ research-kit/            the kit: what install.mjs deploys
   hooks/, githooks/      the edit-time gate and the commit gate
   skill/                 the research-first skill for Claude Code
   template/              what new-project.mjs writes into a project
+  recipes/               domain dimensions decompose.mjs adds with --recipe
+  schemas/               the JSON schemas of the portable artifact
+  conformance/           the cross-language test vectors
+  examples/              worked release-evidence packages, passing and failing
   test/                  the offline suite
   README.md              the reference: every command, the artifact format, the transports
+  START_HERE.md          the operator page a deployed kit carries
 research/                this repository's own corpus (it is gated by its own kit)
 docs/
+  README.md              the reading map: which document to read for what
   ARCHITECTURE.md        what each module owns, kept current with the code
   adr/                   every design decision, with what it rejected
-  decisions/             nested research projects about the kit itself
+  decisions/             nested research projects about the kit itself, with their corpora
+  measurements/          dated measurements of the kit on real runs
+  architecture-history/  what the architecture map used to say, and when it changed
+  review-*.md and other dated files: past reviews, audits and build reports
 AGENTS.md                the rules every agent follows in this repository
 CONTEXT.md               the domain vocabulary
 CHANGELOG.md             what changed in each release
+QUICKSTART.md            the GitHub route with one token
+START_HERE.md            the operator page, as a scaffolded project receives it
+LICENSE, LICENSES/, NOTICE, REUSE.toml   the licence of the code, and the one the captured pages are under
+BUNDLE_INDEX.md, RESEARCH_REPORT.md      the archive this repository was received as, frozen (ADR-0028)
 ```
 
 ## Documentation
@@ -632,6 +654,10 @@ CHANGELOG.md             what changed in each release
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): what each module owns.
 - [`docs/adr/`](docs/adr/README.md): why things are the way they are, including what was
   rejected.
+- [`docs/decisions/`](docs/decisions/README.md): the research behind each decision about
+  the kit itself, one nested project per question, each with its own passing gate.
+- [`docs/review-2026-10-03-gap-audit.md`](docs/review-2026-10-03-gap-audit.md): the latest
+  audit of the kit against comparable tools, and what it changed.
 - [`CHANGELOG.md`](CHANGELOG.md): release notes. The kit is feature-frozen since 0.9.0;
   it takes bug fixes, documentation, tests and vendor updates.
 
