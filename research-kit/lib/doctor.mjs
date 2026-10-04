@@ -14,7 +14,7 @@ import { verdictContext, runPreflight } from './preflight.mjs';
 import { isGated } from './gate.mjs';
 import { verifyHandoff, handoffRemedy } from './handoff.mjs';
 import { validateProject, hookExecutability, GATE_MARKERS, KIT_ROOT } from './scaffold.mjs';
-import { settingsState, deployedDrift, driftNote } from './installer.mjs';
+import { settingsState, deployedDrift, driftNote, handOnState } from './installer.mjs';
 import { recordOverride } from './provenance.mjs';
 import { probeFirecrawl, selectTransport } from './transport.mjs';
 import { loadConfig, configPath } from './machine.mjs';
@@ -210,28 +210,11 @@ export function commitGateState({ hooksPath: dir, kitHome = KIT_HOME } = {}) {
 }
 
 /**
- * WHAT the kit's hooks hand on to (ADR-0112): `none` / `missing` / `kit` / `other`.
- *
- * The install records the `core.hooksPath` it replaced, and every hook in githooks/ runs
- * that folder's hook after its own. On the maintainer's machine that folder was the previous
- * implementation's own githooks/ - two gates on every commit, the older one deciding on its
- * own rules, and on 2026-10-03 crashing ("number 0 is not iterable") and failing open after
- * the current gate had allowed. Recognised by the header every version of this kit's
- * pre-commit has carried; a folder with no pre-commit hands nothing on and is nobody's
- * business. Pure, like `commitGateState`, for the same reason (ADR-0004).
+ * WHAT the kit's hooks hand on to (ADR-0112): `none` / `missing` / `kit` / `other`. Lives in
+ * `installer.mjs` since ADR-0141, because the install judges what it records with the same
+ * rule doctor judges it by; re-exported here so doctor stays the place the finding is read.
  */
-export function handOnState({ previous: recorded, base = process.cwd() } = {}) {
-  if (!recorded) return { state: 'none' };
-  // A relative folder is git's to resolve, from the repository's top level, where it runs its
-  // hooks: doctor resolved `.custom-hooks` against its own working directory and from a
-  // subdirectory called a working hand-on missing (outside audit, 2026-10-03).
-  const previous = path.isAbsolute(recorded) ? recorded : path.resolve(base, recorded);
-  if (!isDirectory(previous)) return { state: 'missing', previous };
-  const hook = path.join(previous, 'pre-commit');
-  const head = (readText(hook, '') ?? '').split('\n').slice(0, 3).join('\n');
-  if (/research-kit commit gate/.test(head)) return { state: 'kit', previous, hook };
-  return { state: 'other', previous, hook: exists(hook) ? hook : null };
-}
+export { handOnState };
 
 export function gateHealth(root, { env = process.env, gitPaths = {}, record = true } = {}) {
   const out = [];
