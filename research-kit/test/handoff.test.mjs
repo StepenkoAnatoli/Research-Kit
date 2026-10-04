@@ -5,13 +5,26 @@ import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path,
 import { evaluate } from '../lib/gate.mjs';
 import { TEMPLATE_DIR } from '../lib/scaffold.mjs';
 import { PATHS, resolve, writeText } from '../lib/core.mjs';
-import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, alteredRemedy, pathspec, PIN_LINES } from '../lib/handoff.mjs';
+import { verifyHandoff, handoffRemedy, HANDOFF_REMEDY, lineEndingRemedy, alteredRemedy, safePathspec, insideRepository, PIN_LINES } from '../lib/handoff.mjs';
 import { readCorpus } from '../lib/corpus.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
 
 describe('handoff');
 
 const names = (report) => report.findings.map((f) => f.name);
+
+// Run `fn` with git's repository discovery stopped at the fixture's parent: a scratch folder
+// has no .git of its own, but the question is now git's, and a developer's temp folder may sit
+// under a repository (a dotfiles home). GIT_CEILING_DIRECTORIES is git's own way to say "look
+// no further", and the walk the kit falls back on without git honours it too.
+function outsideAnyRepository(dir, fn) {
+  const saved = process.env.GIT_CEILING_DIRECTORIES;
+  process.env.GIT_CEILING_DIRECTORIES = fs.realpathSync(path.dirname(dir));
+  try { return fn(); } finally {
+    if (saved === undefined) delete process.env.GIT_CEILING_DIRECTORIES;
+    else process.env.GIT_CEILING_DIRECTORIES = saved;
+  }
+}
 
 test('a corpus that arrived whole passes', () => {
   const report = verifyHandoff(makePassingProject());
@@ -147,11 +160,12 @@ test('a line-ending rewrite gets the LOCAL remedy, and no push remedy', () => {
     'sending an operator to the collector for a corpus already on disk is the defect this fixes');
   assert.doesNotMatch(remedy, /git add/);
   // Outside a repository the remedy refuses to print a command that cannot work there rather
-  // than one that would destroy what it cannot restore - the branch asked directly, because
-  // insideRepository also looks above the fixture's scratch folder (2026-10-04).
-  const outside = lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo: false });
+  // than one that would destroy what it cannot restore. Through handoffRemedy, so the choice
+  // of branch is tested too (the second review found the branch asked directly let a detection
+  // that always said "repository" pass every test).
+  const outside = outsideAnyRepository(dir, () => handoffRemedy(report));
   assert.match(outside, /no git metadata/);
-  assert.doesNotMatch(outside, /git add/);
+  assert.doesNotMatch(outside, /git add|git checkout/);
 
   // In a real repository the same cause gets the runnable, non-destructive remedy.
   const inRepo = lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo: true });
@@ -179,10 +193,9 @@ test('a capture changed after its fetch gets the ALTERED remedy, and no push rem
   assert.doesNotMatch(remedy, /Something did not travel/, 'the push remedy sends the same bytes again');
   assert.doesNotMatch(remedy, /git add/);
   assert.match(remedy, /changed AFTER its fetch/);
-  // Outside a repository no command that cannot work is printed. Asked of the branch directly:
-  // the fixture's scratch folder has no .git of its own, but insideRepository looks above it
-  // too, and a developer's temp folder may sit under a repository (a dotfiles home).
-  const outside = alteredRemedy([capture.file], { isRepo: false });
+  // Outside a repository no command that cannot work is printed - through handoffRemedy, so
+  // the choice of branch is tested, with git's discovery stopped above the scratch folder.
+  const outside = outsideAnyRepository(dir, () => handoffRemedy(report));
   assert.match(outside, /no git metadata/);
   assert.doesNotMatch(outside, /git checkout/);
 
@@ -230,23 +243,30 @@ test('the altered-capture remedy, run as printed, restores a capture changed in 
   assert.equal(after.ok, true, `the remedy did not restore it:\n${remedy}\n${JSON.stringify(after.findings.map((f) => f.detail))}`);
 });
 
-// Found 2026-10-04 by an external review: a ledger rewritten by hand can name a capture whose
-// path holds a space, and `git checkout HEAD -- research/raw/topic copy.md` is TWO pathspecs
-// in cmd, PowerShell and sh alike - two unrelated files restored and their uncommitted work
-// discarded, the capture untouched, exit 0. The collector's own names hold no space.
-test('a capture path holding whitespace is one pathspec in every printed command', () => {
-  const spaced = 'research/raw/topic copy.md';
-  assert.equal(pathspec(spaced), '"research/raw/topic copy.md"');
-  assert.equal(pathspec('research/raw/topic.md'), 'research/raw/topic.md', 'a plain path is not quoted');
-  for (const remedy of [alteredRemedy([spaced], { isRepo: true }), lineEndingRemedy([spaced], { isRepo: true })]) {
-    // Only the commands that name the file: the line-ending remedy also prints a folder-level
-    // status check and the .gitattributes add, which name no capture.
-    const commands = remedy.split('\n').filter((l) => /^ {4}git /.test(l) && l.includes('topic')).map((l) => l.trim());
-    assert.ok(commands.length >= 2, remedy);
-    for (const line of commands) {
-      assert.match(line, /-- "research\/raw\/topic copy\.md"$/, `two pathspecs: ${line}`);
+// Found 2026-10-04 by two external reviews: a ledger rewritten by hand can name a capture whose
+// path a shell or git reads - a space is two pathspecs unquoted, `$copy` expands to nothing in
+// PowerShell even inside double quotes, and `[12]` is a git glob whatever the shell did - and
+// `git checkout HEAD --` then restored a neighbour and discarded its uncommitted work, exit 0.
+// No one spelling is literal for cmd, PowerShell, sh AND git, so such a name is never printed
+// as a command: it is named, and the operator is told how to type it. The collector's own
+// names (makeSlug, date, hash, .source.html) are the safe alphabet and still print.
+test('a capture path a shell or git would read is named but never printed as a command', () => {
+  assert.equal(safePathspec('research/raw/2026-10-04-limits-example-a4e22bcd.md'), true);
+  assert.equal(safePathspec('research/raw/2026-10-04-limits-example-a4e22bcd.source.html'), true);
+  for (const bad of ['research/raw/topic copy.md', 'research/raw/topic $copy.md', 'research/raw/topic[12] copy.md', 'research/raw/topic`x.md', 'research/raw/topic;x.md', 'research/raw/topic"x.md']) {
+    assert.equal(safePathspec(bad), false, bad);
+    for (const remedy of [alteredRemedy([bad], { isRepo: true }), lineEndingRemedy([bad], { isRepo: true })]) {
+      const commands = remedy.split('\n').filter((l) => /^ {4}\S/.test(l));
+      assert.ok(commands.every((l) => !l.includes('topic')), `printed as a command:\n${remedy}`);
+      assert.ok(remedy.includes(bad), 'the file is still named');
+      assert.match(remedy, /:\(literal\)/, 'the operator is told how to type it');
     }
   }
+  // A safe name beside an unsafe one: the safe one still prints, the unsafe one is noted.
+  const mixed = alteredRemedy(['research/raw/a.md', 'research/raw/b c.md'], { isRepo: true });
+  assert.match(mixed, /^ {4}git checkout HEAD -- research\/raw\/a\.md$/m);
+  assert.doesNotMatch(mixed, /^ {4}git .*b c\.md/m);
+  assert.match(mixed, /Not printed as a command.*research\/raw\/b c\.md/);
 });
 
 test('a capture committed altered and edited again: the printed checkout is followed by handoff again, which still fails and says what is next', () => {
@@ -267,9 +287,14 @@ test('a capture committed altered and edited again: the printed checkout is foll
   assert.equal(before.altered.length, 1);
   const remedy = handoffRemedy(before);
   assert.match(git(dir, 'status', '--porcelain', '--', capture.file).stdout, /\S/, 'the status is dirty, as the remedy expects');
+  let ran = 0;
   for (const line of remedy.split('\n').map((l) => l.trim())) {
-    if (line.startsWith('git checkout HEAD')) assert.equal(git(dir, ...line.split(/\s+/).slice(1)).status, 0, line);
+    if (line.startsWith('git checkout HEAD')) { assert.equal(git(dir, ...line.split(/\s+/).slice(1)).status, 0, line); ran += 1; }
   }
+  // Without this the test passed with the checkout command deleted: handoff was failing before
+  // the restore too (found 2026-10-04 by the second external review).
+  assert.equal(ran, 1, 'the printed checkout did not run');
+  assert.equal(fs.readFileSync(resolve(dir, capture.file), 'utf8').includes('local edit'), false, 'the checkout did not restore HEAD');
   const after = verifyHandoff(dir);
   assert.equal(after.ok, false, 'HEAD holds the altered bytes; restoring it cannot pass');
   assert.deepEqual(after.altered.map((e) => e.file), [capture.file]);
@@ -305,6 +330,40 @@ test('a nested decision project inside the repository gets the runnable remedy, 
     if (line.startsWith('git checkout HEAD')) assert.equal(git(nested, ...line.split(/\s+/).slice(1)).status, 0, line);
   }
   assert.equal(verifyHandoff(nested).ok, true, 'the committed copy restored the nested capture');
+});
+
+// Found 2026-10-04 by the second external review: a walk up for a `.git` entry walked past a
+// bare repository the project sat inside, and printed a checkout git refused with "this
+// operation must be run in a work tree". The question is git's, so git is asked.
+test('a project inside a bare repository is not given a checkout git would refuse', () => {
+  requireGit('asking git whether the project is in a work tree');
+  const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const outer = tempDir('rk-bare-outer-');
+  assert.equal(git(outer, ...fixtureInitArgs()).status, 0);
+  const bare = path.join(outer, 'bare.git');
+  assert.equal(git(outer, ...fixtureInitArgs('--bare', bare)).status, 0, 'git init --bare');
+  const project = path.join(bare, 'corpus');
+  makePassingProject(project);
+  const capture = readCorpus(project).captures.entries[0];
+  corrupt(project, capture.file, (text) => `${text}\nrewritten by hand\n`);
+
+  assert.equal(insideRepository(project), false, 'git itself says this is not a work tree');
+  const remedy = handoffRemedy(verifyHandoff(project));
+  assert.match(remedy, /no git metadata/);
+  assert.doesNotMatch(remedy, /git checkout/);
+  // The enclosing work tree, asked the same way, is one.
+  assert.equal(insideRepository(outer), true);
+});
+
+test('without git on PATH the answer falls back to a .git entry above, stopping at a ceiling', () => {
+  const noGit = () => ({ error: Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT' }) });
+  const outer = tempDir('rk-nogit-outer-');
+  fs.mkdirSync(path.join(outer, '.git'));
+  const nested = path.join(outer, 'docs', 'decisions', 'x');
+  fs.mkdirSync(nested, { recursive: true });
+  assert.equal(insideRepository(nested, { run: noGit }), true, 'a .git folder above counts');
+  assert.equal(outsideAnyRepository(outer, () => insideRepository(nested, { run: noGit })), true, 'the ceiling is above the .git, so it still counts');
+  assert.equal(outsideAnyRepository(path.join(outer, 'docs'), () => insideRepository(nested, { run: noGit })), false, 'a ceiling below the .git stops the walk');
 });
 
 test('a report holding both causes prints both remedies', () => {

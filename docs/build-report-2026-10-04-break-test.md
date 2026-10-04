@@ -154,6 +154,25 @@ was fixed in its own commit, red-first, through the commit gate.
 | 4 | Re-collecting with `--force` was offered as a repair; a new fetch writes a new capture beside this one and the ledger still names this one. | The line is gone from both branches; the text says why (2793021). |
 | 5 | A nested decision project has no `.git` of its own and was told it had no git metadata. | `insideRepository` looks above the project (the commit that adds it). |
 
+### Second external review (2026-10-04)
+
+The same reader reviewed PR #242 and reported six more defects, each with a reproduction; all
+six were verified here and fixed, one commit each, red-first, through the gate.
+
+| # | Finding | Fix |
+|---|---|---|
+| 1 | Inside double quotes PowerShell expands `$copy` to nothing, so the quoted checkout restored a neighbour. | A capture name outside letters, digits, `.`, `_`, `-`, `/` is named but never printed as a command; the note says to type it quoted for the shell and prefixed `:(literal)` (490c494). |
+| 2 | `[12]` in a quoted pathspec is a git glob whatever the shell did; a neighbour was restored. | Same fix (490c494). |
+| 3 | A mkdir that failed part-way threw before the sort that ordered the removal; an ancestor the run created was left behind. | Each created folder goes to the front of the record, so it is deepest-first at every moment (89c251c). |
+| 4 | The walk up for `.git` walked past a bare repository the project sat inside and printed a checkout git refused. | `insideRepository` asks `git rev-parse --is-inside-work-tree`; the walk remains only without git, and honours `GIT_CEILING_DIRECTORIES` (the commit before this one). |
+| 5 | The no-metadata assertions called the branch directly, so a detection that always said "repository" passed every test. | They go through `handoffRemedy` again, under a `GIT_CEILING_DIRECTORIES` set above the fixture (same commit). |
+| 6 | The committed-alteration test passed with the printed checkout deleted: handoff was failing before the restore too. | The test counts the checkout it ran and checks the local edit is gone (this commit). |
+
+The reviewer's full suite on the PC was red on four timing tests in browser-guard, browser-transport
+and http-linear, files none of these PRs touch, in a run that took 1247 s against about 150 s on
+CI; the Windows CI leg passed the same commit. Not reproduced here; recorded as the known
+sensitivity of those tests to a loaded host.
+
 ## Remaining risks
 
 - Findings 3 and 5(b), fixed after the report at the operator's request.

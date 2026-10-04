@@ -5,6 +5,18 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- `handoff` asks git whether the project is inside a work tree before printing the runnable remedies:
+  the walk up for a `.git` entry walked past a bare repository the project sat inside and printed a
+  checkout git refused. Without git on PATH the walk remains, stopping at a `GIT_CEILING_DIRECTORIES`
+  entry (found 2026-10-04 by the second external review).
+- The handoff remedies print a capture path inside a git command only when it is letters, digits,
+  `.`, `_`, `-` and `/` - the collector's own alphabet. Any other name is named but not printed as a
+  command, with a note on how to type it (quoted for the shell, prefixed `:(literal)`): double quotes
+  left PowerShell expanding `$copy` to nothing and git reading `[12]` as a glob, and either restored a
+  neighbouring file and discarded its uncommitted work (found 2026-10-04 by the second external review).
+- `createTempFolder` keeps its record deepest-first as it goes: a mkdir that failed part-way (ENOSPC
+  on the third missing ancestor) threw before the sort that ordered the removal, and an ancestor the
+  run had created was left behind, empty (found 2026-10-04 by the second external review).
 - The handoff remedies recognise the enclosing repository: a nested decision project under
   `docs/decisions/` has no `.git` of its own and was told it had "no git metadata" and given no
   checkout command, although the repository above it restores its captures like any other tracked

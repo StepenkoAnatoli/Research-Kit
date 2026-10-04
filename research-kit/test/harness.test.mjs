@@ -265,6 +265,27 @@ console.log('made');
   assert.ok(fs.existsSync(asked), 'the run removed a folder another process created');
 });
 
+// Found 2026-10-04 by the second external review: a mkdir that failed part-way (ENOSPC on
+// the third of three missing ancestors) threw before the deepest-first sort ran, so the two
+// folders already recorded were tried shallowest first - the parent refused while its child
+// stood, the child went, and the parent was left behind, empty.
+test('ancestors created before a mkdir failed part-way are still removed, deepest first', () => {
+  const outside = tempDir('rk-partial-base-');
+  const asked = path.join(outside, 'one', 'two', 'three');
+  const child = runChild(`
+import { createTempFolder, fs } from ${JSON.stringify(HARNESS)};
+try {
+  createTempFolder(${JSON.stringify(asked)}, { mkdir: (p) => {
+    if (p.endsWith('three')) { const err = new Error('no room'); err.code = 'ENOSPC'; throw err; }
+    fs.mkdirSync(p);
+  } });
+} catch (err) { console.log('threw ' + err.code); }
+`);
+  assert.equal(child.status, 0, `the probe child failed:\n${child.stderr}`);
+  assert.match(child.stdout, /threw ENOSPC/, 'the failure still reaches the caller');
+  assert.equal(fs.existsSync(path.join(outside, 'one')), false, 'the run left an ancestor it created');
+});
+
 // Found 2026-09-28 (Arena break test 7): findPython took the first of `python`, `python3`
 // that answered --version, and never read the version. On the most common Linux and older
 // macOS layout - `python` an alias for 2.7 or 3.8, `python3` the real one - every

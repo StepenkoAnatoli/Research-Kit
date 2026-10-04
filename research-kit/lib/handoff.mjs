@@ -13,7 +13,9 @@
 // One blanket text for all of them is what used to send operators to re-collect a corpus
 // already on disk.
 
+import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { PATHS, HEADERS, resolve, exists, readText, kitCommand } from './core.mjs';
 import { readCorpus, captureOf, traceOf } from './corpus.mjs';
 import { verifyLedger } from './provenance.mjs';
@@ -81,6 +83,8 @@ export function ledgerLostRemedy() {
 export function alteredRemedy(files = [], { isRepo = true } = {}) {
   const named = files.slice(0, 5);
   const more = files.length > named.length ? `, +${files.length - named.length} more` : '';
+  const safe = named.filter(safePathspec);
+  const unsafe = named.filter((file) => !safePathspec(file));
   const head = [
     'Everything travelled, and a capture was changed AFTER its fetch: its bytes no longer',
     'match the hash the ledger recorded, and not by line endings. An edited capture is not',
@@ -112,18 +116,19 @@ export function alteredRemedy(files = [], { isRepo = true } = {}) {
     'First, whether this checkout changed the file after the commit - this prints the file',
     'when it differs from the committed copy:',
     '',
-    ...named.map((file) => `    git status --porcelain -- ${pathspec(file)}`),
+    ...safe.map((file) => `    git status --porcelain -- ${file}`),
     '',
     'If it prints the file, restore the committed copy, which spends nothing and touches no',
     'other file, then run handoff again:',
     '',
-    ...named.map((file) => `    git checkout HEAD -- ${pathspec(file)}`),
+    ...safe.map((file) => `    git checkout HEAD -- ${file}`),
     ...(files.length > named.length ? ['', 'and the remaining files handoff names above the same way, each by name.'] : []),
+    ...unsafeNote(unsafe),
     '',
     'If handoff still fails on it, or the status printed nothing, the altered bytes were',
     'committed. Find the last commit that held the fetched bytes - the one before the change:',
     '',
-    ...named.map((file) => `    git log --oneline -- ${pathspec(file)}`),
+    ...safe.map((file) => `    git log --oneline -- ${file}`),
     '',
     'and restore the file from it with `git checkout <that commit> -- <file>`, here or on the',
     'collector, where the ledger was written. If no commit holds them, the capture is unproven',
@@ -134,16 +139,29 @@ export function alteredRemedy(files = [], { isRepo = true } = {}) {
 }
 
 /**
- * A capture path as a git pathspec: double-quoted when it holds whitespace, as `spellCommand`
- * quotes a kit path (ADR-0050), and as it is otherwise. The collector's own capture names come
- * from `makeSlug` and hold none, but the path printed here is whatever the LEDGER names, and
- * a ledger rewritten by hand can name `research/raw/topic copy.md`: unquoted, cmd, PowerShell
- * and sh all hand git two pathspecs, and `git checkout HEAD --` then restores two unrelated
- * files - discarding their uncommitted work - and leaves the capture alone (found 2026-10-04
- * by an external review). Double quotes are read the same way by all three shells (ADR-0070).
+ * Whether a capture path can be printed inside a git command AS IT IS: letters, digits, `.`,
+ * `_`, `-` and `/` - the alphabet the collector's own names come from (`makeSlug`, the date,
+ * the hash, `.source.html`). Anything else is not printed as a command at all, because no one
+ * spelling is read literally by cmd, PowerShell and sh alike (ADR-0070) AND by git: a space
+ * splits an unquoted name into two pathspecs; inside double quotes PowerShell still expands
+ * `$copy` to nothing; and `[12]` is a git glob whatever the shell did, so `git checkout HEAD
+ * -- "research/raw/topic[12] copy.md"` restored a neighbour too and discarded its uncommitted
+ * work (found 2026-10-04, first and second external review, both verified by running). The
+ * ledger names such a file only when rewritten by hand; the remedy then names it and tells
+ * the operator how to type the command, with `:(literal)` so git takes the name as written.
  */
-export function pathspec(file) {
-  return /\s/.test(file) ? `"${file}"` : file;
+export function safePathspec(file) {
+  return /^[A-Za-z0-9._/-]+$/.test(file);
+}
+
+/** The sentence for the files that are named but not printed as commands. */
+function unsafeNote(files) {
+  return files.length ? [
+    '',
+    `Not printed as a command, because a shell or git would read part of the name: ${files.join(', ')}.`,
+    'Type the same commands yourself with the name quoted for YOUR shell and prefixed',
+    ':(literal), so git takes it as written and not as a pattern.',
+  ] : [];
 }
 
 /** The .gitattributes lines that pin the corpus to LF (ADR-0020). */
@@ -167,6 +185,8 @@ export const PIN_LINES = Object.freeze(['research/raw/* text eol=lf', '*.jsonl t
 export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } = {}) {
   const named = files.slice(0, 5);
   const more = files.length > named.length ? `, +${files.length - named.length} more` : '';
+  const safe = named.filter(safePathspec);
+  const unsafe = named.filter((file) => !safePathspec(file));
 
   if (!isRepo) {
     return [
@@ -212,10 +232,11 @@ export function lineEndingRemedy(files = [], { isRepo = true, pinned = false } =
     'Rewrite ONLY the affected files through the pin. `git rm --cached` removes the index',
     'entry only - the file stays on disk - so the checkout has to write it again, as LF:',
     '',
-    ...named.flatMap((file) => [
-      `    git rm --cached --quiet -- ${pathspec(file)}`,
-      `    git checkout HEAD -- ${pathspec(file)}`,
+    ...safe.flatMap((file) => [
+      `    git rm --cached --quiet -- ${file}`,
+      `    git checkout HEAD -- ${file}`,
     ]),
+    ...unsafeNote(unsafe),
     ...(files.length > named.length ? [
       '',
       'and the rest of the captures the same way:',
@@ -356,17 +377,31 @@ export function verifyHandoff(root, { corpus = null } = {}) {
 }
 
 /**
- * Whether `root` is inside a git repository: a `.git` entry (a folder, or the file a worktree
- * carries) in `root` or any folder above it. It was `root/.git` alone, so a nested decision
- * project (ADR-0030, `docs/decisions/<name>/`), which has none of its own, was told it had
- * "no git metadata" and given no checkout command, although the enclosing repository restores
- * its tracked captures as it does any other (found 2026-10-04 by an external review). Git's
- * pathspecs are relative to the cwd, so the printed commands run unchanged from the project.
+ * Whether the printed git commands would run from `root`: git's own answer to
+ * `rev-parse --is-inside-work-tree`, asked from that folder. It was `root/.git` alone, so a
+ * nested decision project (ADR-0030, `docs/decisions/<name>/`), which has none of its own,
+ * was told it had "no git metadata" (first external review, 2026-10-04); then a walk up for a
+ * `.git` entry, which walked past a bare repository the project sat inside and printed a
+ * checkout that git refused with "this operation must be run in a work tree" (second review,
+ * verified by running). The commands are git's, so git decides whether they run - ceilings,
+ * bare repositories, worktree files and all. Without git on PATH the walk is the best answer
+ * left, and it stops at a GIT_CEILING_DIRECTORIES entry as git would.
  */
-export function insideRepository(root) {
-  for (let p = path.resolve(root); ; p = path.dirname(p)) {
+export function insideRepository(root, { run = spawnSync } = {}) {
+  const dir = path.resolve(root);
+  const answer = run('git', ['-C', dir, 'rev-parse', '--is-inside-work-tree'], { encoding: 'utf8', windowsHide: true });
+  if (answer?.error?.code === 'ENOENT') return gitEntryAbove(dir);
+  return answer?.status === 0 && String(answer.stdout ?? '').trim() === 'true';
+}
+
+function gitEntryAbove(dir) {
+  const ceilings = new Set(String(process.env.GIT_CEILING_DIRECTORIES ?? '').split(path.delimiter)
+    .filter(Boolean).map((c) => { try { return fs.realpathSync(c.replace(/^:/, '')); } catch { return path.resolve(c.replace(/^:/, '')); } }));
+  const real = (p) => { try { return fs.realpathSync(p); } catch { return p; } };
+  for (let p = dir; ; p = path.dirname(p)) {
     if (exists(path.join(p, '.git'))) return true;
-    if (path.dirname(p) === p) return false;
+    const parent = path.dirname(p);
+    if (parent === p || ceilings.has(real(parent))) return false;
   }
 }
 
