@@ -276,7 +276,8 @@ Fifteen entries from the fourteen pull requests after 0.9.3 (#212 to #225): bug 
 freeze (ADR-0117), the licence (ADR-0130), four decisions (ADR-0127 to ADR-0129, ADR-0131), the
 README rewrite and `QUICKSTART.md`. Tagged `v0.9.4` on GitHub on 2026-10-03 at `f5d581a`, with
 release notes generated there. At that commit `KIT_VERSION` still read 0.9.3 and this changelog
-had no entry for 0.9.4, so for one day the tag and the constant disagreed, against ADR-0116.
+had no entry for 0.9.4, so from that release (published on GitHub on 2026-10-03) until 0.9.5
+the tag and the constant disagreed, against ADR-0116.
 This entry records the release after the fact; the tag stays where it was made, and 0.9.5 is
 the first release cut by the rule again.
 
