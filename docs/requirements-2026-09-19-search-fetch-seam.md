@@ -140,6 +140,11 @@ exist to obtain it without damaging the provenance guarantees the corpus rests o
   **Re-read again 2026-09-28** (asked as a fallback for exhausted Firecrawl credits): §6.5 and
   §6.7 unchanged; the FAQ's "zero data retention" is contradicted by the terms and the
   privacy policy, and is reachable only by a negotiated contract. Trigger still unmet.
+  **Re-read a fourth time 2026-10-04** (the operator proposed Tavily as a fallback provider),
+  now including the pricing and enterprise pages: terms and privacy policy byte-identical to
+  2026-09-28; four tiers, privacy named only for Enterprise and only as four words that resolve
+  to a sales form; the FAQ's "zero data retention" bullet recorded as a contradiction of §6.5.
+  Trigger still unmet. Corpus and brief: `docs/decisions/2026-10-04-tavily-terms-reread/`.
   Corpus and brief: `docs/decisions/2026-09-28-fetch-fallback/`.
 - **Any paid tier** of anything.
 - **Reconciling the two caches** — SerpAPI's 1-hour server cache (C-3) against the kit's
