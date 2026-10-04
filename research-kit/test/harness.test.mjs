@@ -216,6 +216,37 @@ console.log(dir);
   assert.match(child.stderr, /inside this checkout/, 'the move was silent, so nobody learns why their TMPDIR was not used');
 });
 
+// Found 2026-10-04 (break-test pass 4, F3). A TMPDIR naming a folder that does not exist yet
+// is created on purpose - a CI job exports RUNNER_TEMP before creating it, and mkdtemp at
+// module scope would otherwise abort the runner - and the run left the folder behind, empty:
+// `TMPDIR=/nonexistent/dir/xyz` left /nonexistent/dir/xyz, and a relative TMPDIR an empty
+// folder inside the checkout. What the run created is the run's to remove, and only that:
+// a folder that existed before is never touched, and one something else used meanwhile stays.
+test('a temp folder the run had to create goes with its scratch, and only while empty', () => {
+  const outside = tempDir('rk-created-base-');
+  const asked = path.join(outside, 'missing', 'deeper');
+  const env = { TMPDIR: asked, TEMP: asked, TMP: asked };
+  const probe = (extra) => runChild(`
+import { tempDir, fs, path } from ${JSON.stringify(HARNESS)};
+const dir = tempDir('rk-created-probe-');
+fs.writeFileSync(path.join(dir, 'proof.txt'), 'scratch');
+${extra}
+console.log(path.dirname(dir));
+`, env);
+
+  let child = probe('');
+  assert.equal(child.status, 0, `the probe child failed:\n${child.stderr}`);
+  const used = path.resolve(child.stdout.trim().split(/\r?\n/).pop());
+  assert.equal(used, path.resolve(asked), 'the probe did not use the folder it was given');
+  assert.equal(fs.existsSync(path.join(outside, 'missing')), false, 'the run left the folder it created');
+  assert.ok(fs.existsSync(outside), 'a folder that existed before the run is not the run\'s to remove');
+
+  // Something else put a file in the created folder meanwhile: the folder stays, with it.
+  child = probe(`fs.writeFileSync(path.join(path.dirname(dir), 'somebody-elses.txt'), 'kept');`);
+  assert.equal(child.status, 0, `the probe child failed:\n${child.stderr}`);
+  assert.equal(fs.readFileSync(path.join(asked, 'somebody-elses.txt'), 'utf8'), 'kept', 'a folder holding somebody else\'s file was removed');
+});
+
 // Found 2026-09-28 (Arena break test 7): findPython took the first of `python`, `python3`
 // that answered --version, and never read the version. On the most common Linux and older
 // macOS layout - `python` an alias for 2.7 or 3.8, `python3` the real one - every

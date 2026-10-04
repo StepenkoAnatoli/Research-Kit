@@ -98,9 +98,12 @@ checkout (empty, so `git status` stays clean).
 **Root cause.** `fs.mkdirSync(base, { recursive: true })` in `bin/selftest.mjs`, written on purpose:
 the harness documents that TMPDIR may name a directory that does not exist yet (a CI job exports
 RUNNER_TEMP before creating it) and that creating the parent turns a suite-wide abort into
-nothing at all. **Severity: Low, low likelihood.** **Status: not fixed, recorded.** Reversing a
-decided trade-off for an empty leftover directory is not a minimal fix; the decision is the
-harness's to revisit.
+nothing at all. **Severity: Low, low likelihood.** **Status: recorded, then fixed at the operator's
+request.** The trade-off stands - the folder is still created - and what the run created it now
+removes: `createTempFolder` in the harness records the ancestors that did not exist and `rmdir`s
+them, deepest first, with the scratch at exit; non-recursive, so a folder that existed or that
+holds somebody else's file stays. **Tests:** `harness > a temp folder the run had to create goes
+with its scratch, and only while empty`. Both repros leave nothing behind.
 
 ### 4. A ledger entry naming a source without its hash passed with the sibling altered
 
@@ -134,7 +137,7 @@ is the collector's commit, so the remedy is the same push and pull.
 
 ## Remaining risks
 
-- Finding 3, as recorded. Finding 5(b), decided.
+- Finding 3, fixed after the report. Finding 5(b), decided.
 - Windows case-insensitive filesystems: a case-only twin of a capture would be one file on NTFS
   and git would check out whichever came last; not run (no Windows host here). Reading only.
 - Not probed: a slow disk (no tool here), a real old Python (stubbed), the real Firecrawl
