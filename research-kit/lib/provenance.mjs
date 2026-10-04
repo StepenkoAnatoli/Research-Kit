@@ -475,7 +475,17 @@ export function verifyLedger(root, { corpus = null } = {}) {
       problems.push({ rule: 'raw-missing', line: entry.line, file, detail: `${what} named by seq ${entry.seq} is not on disk` });
       continue;
     }
-    if (!hash) continue;
+    if (!hash) {
+      // A capture of the first ledgers carries no hash and is accepted as it always was. A
+      // SOURCE never had that history: ADR-0140 writes `source` and `sourceSha256` together, so
+      // an entry naming one without the other was rechained by hand, and a sibling nobody can
+      // verify is refused rather than nodded through (break-test pass 4, F4, 2026-10-04).
+      if (what === 'source') {
+        problems.push({ rule: 'body-unmodified', kind: 'unhashed', line: entry.line, file,
+          detail: `${file}, named by seq ${entry.seq}, carries no sourceSha256 - a source that cannot be verified is not kept on trust` });
+      }
+      continue;
+    }
     // A capture that is not a regular file is refused BY NAME before it is opened: a fifo
     // here blocks in open() until another process writes to it, and /dev/zero allocates
     // until libstdc++ kills the process with std::bad_alloc (found 2026-09-28,
