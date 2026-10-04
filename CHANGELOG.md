@@ -5,6 +5,15 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The browser transport's parent waits for the guard child as long as ADR-0119 allows the
+  browser - the launch allowance plus the render budget, `2 × timeout`, and 10 s to report -
+  instead of `timeout + 10 s`. A Chromium that took most of its launch allowance to make its
+  first request and then rendered inside its budget was killed by the parent mid-render, the
+  child's record of where the time went was lost, and the verdict read "the browser never made
+  a request in 0 s" (the operator's Windows PC, 1 run in 3; reproduced here with a fake browser
+  that launches in 13 s and renders in 13.5 s under a 15 s timeout). A child the parent gave up
+  on is now said to be that, with the time it was given (break-test pass 6, F1, 2026-10-04).
+
 ## 0.9.5 — 2026-10-04
 
 Forty-one entries under the freeze (ADR-0117), nothing new added: bug fixes from the fourth
