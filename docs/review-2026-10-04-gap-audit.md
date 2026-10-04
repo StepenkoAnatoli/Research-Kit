@@ -218,9 +218,56 @@ rests on a fetched page.
 | `collection-attempts/unknown-attempted` warns for a KNOWN-UNKNOWN that budgeted no fetch | citation project U-7 | the check's intent; accepted in the brief |
 | Search-derived rows are typed `S` even for a vendor's own documentation page; the researcher retyped them `P` by hand and the gate accepted it | extraction project | the P/S/L grade is editable and unvalidated (section 2 of the explorer's gate report); not a gap in itself, the review step owns it |
 | `doctor` without the 1.25.3 CLI first on PATH reports the machine's 1.24.6 | citation project | correct behaviour; the pin is a documented requirement |
+| `doctor`'s committed-key scan read the nested projects' captures: its skip matched the relative path `research/raw`, so only the root's raw folder was outside it, and the F26 self-scan test went red on every CI leg of PR #238 when a Google page's source sibling (ADR-0140) carried Google's own public Maps keys | the archive-tree leg on 5c158a3; reproduced with `git archive HEAD` and the suite | fixed in this PR (9b177bd): the skip applies at any depth; a capture is page content wherever the project sits |
+| decompose's compound-topic split (ADR-0085) searched the fragment "How provenance" alone and spent three scrapes on secondary pages (a museum, the FAIR Cookbook, Springer); the researcher kept them as context rows, one was cited as context, and the RR-9 floor test then rejected it on every CI leg | provenance project E-01..E-03; `selftest search-seam` | the citation was dropped (fd779a2); the split is a kit defect candidate: a fragment of two common words is not a query, and the floor that guards scrapes at run time does not guard decompose's |
+| `brief.mjs --force` redrafts from scratch: the reviewed Contradictions, Known unknowns and Decision survive only in the `.bak`, and the ADR-0055 remedy text says "carry your judgements over" without saying that means by hand | redrafting the provenance brief after the contract changed | documented behaviour; a redraft that keeps answered judged sections under a fresh stamp would remove the hand step (optional idea) |
+| The suite judges the repository's own corpora (F26 self-scan, RR-9 floor), but the commit gate runs the suite only for commits that stage `research-kit/`; four docs-only corpus commits therefore passed the gate and turned CI red | PR #238's first head | a documentation note at least: a corpus commit in this repository is a suite-relevant change; whether the gate should run the suite for `docs/decisions/**/research/` is a decision for an ADR |
 
 Credits spent by this audit: `doctor` read 1,020 before the first collection and 953 after the
 last, so 67 in all; the three ledgers record 43 scrapes (16, 13 and 14), two refused fetches
 and seven searches (the kit estimates a search at two credits), which the researchers' own
 per-run tallies do not add up to exactly - the balance is the vendor's number, the tallies are
 estimates. Overrides taken: none.
+
+## 10. Fresh-eyes design review (brainstorming, Review mode; ideas, not requirements)
+
+Run after the audit by a reviewer who had not written the kit, over both audits, the architecture
+map, the ADR index and the code cited. Ranked by value for cost; none is required for accuracy,
+completeness or reliability beyond what section 3 already asks, and none is implemented.
+
+1. **One verdict summary, rendered once.** `lib/render.mjs` owns `renderFindings` with one caller
+   (`bin/preflight.mjs`). A `verdictSummary(verdict)` - the gate line plus warnings grouped by rule,
+   naming the row or unknown - consumed by the brief (`lib/brief.mjs:271-279`), the audit
+   (`lib/audit.mjs:190`), the package README-FIRST (`lib/artifact.mjs:440`) and the MCP text
+   (`lib/mcp.mjs:379`) removes class (c) and ranks 1, 14 and part of 13 in one place. Small; the
+   brief grows one non-judged section (an amendment to BRIEF_SECTIONS, ADR-0014); no new command
+   or check. Shape: a `warnedProject` fixture (one uncited capture, one partial-only closure, one
+   single-source closure) reused by the brief, audit, artifact and MCP tests; the renderer with its
+   own test; then each consumer in its own commit with its map row; verified by `selftest brief
+   audit artifact mcp`, the root and nested gates unchanged, and one real brief redrafted and
+   compared.
+2. **Grade the capture in one place, from facts the transports report.** Three adapters each
+   compute `completeness` today (`firecrawl.mjs:239-248`, `http-transport.mjs:372-397`,
+   `browser-transport.mjs:359`) and the collector stamps what they declare. Adapters return facts
+   (status, final host, dropped siblings, `metadata.error`, `numPages`/`totalPages`, the challenge
+   header); one collector-side grader writes `completeness` and `omitted`. Removes class (b) and
+   ranks 3 and 5. Medium; the `suspect-capture` rule is a new hygiene kind, so it needs an ADR under
+   ADR-0117, and ADR-0037 is honoured by grading on what the page or vendor says, never on word
+   counts.
+3. **Finish ADR-0015: one capture resolver, one URL identity.** ADR-0015 made `captureOf` the owner
+   and rejected per-consumer predicates "because they drift"; they drifted again (`checks.mjs:56`
+   `ownCapture`, `corpus.mjs:746-751` `captureOf`, `artifact.mjs:309`). `captureOf` returning
+   `{ capture, named }` lets freshness and review resolve through it; `urlKey` in `checks.mjs:610`,
+   `:374` and `:733` as `:717-727` already does. Removes classes (a) and (d), ranks 6 and 10 and the
+   blank-Raw half of rank 2. Small; a bug fix of a decided design, no ADR.
+4. **Decide the release-validator path.** About 3,900 lines of code and 2,900 of tests, twelve
+   schemas, three vector files, the Python floor (ADR-0078) and a cross-language CI step - roughly a
+   sixth of the kit - imported by nothing on the research path, "an open decision" in
+   `docs/ARCHITECTURE.md:76-79` since 2026-09-30 and "not inspected" by both audits. Either its own
+   repository or an ADR that says "stays, reference-only". No audit rank; simplicity and suite time.
+
+The reviewer's order: 1 first (the one high rank in the handoff, smallest cost, no freeze
+question), 3 second (cheapest, two classes, prepares 2). Not to touch, with the reviewer's
+evidence: the thirteen-check registry and the one verdict function (do not add a fourteenth check
+for rank 3; grade at collection); the ledger; ADR-0037's refusal of a thin-capture heuristic; the
+transport seam's pinned shape; the freeze.
