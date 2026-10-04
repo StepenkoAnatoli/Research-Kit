@@ -8,8 +8,10 @@
 //
 // One remedy PER CAUSE. Something that did not travel lives on the collector; a corpus
 // that travelled whole and was rewritten on checkout lives here; a ledger emptied beside
-// its captures is restored from git or re-collected, never pushed. One blanket text for
-// all of them is what used to send operators to re-collect a corpus already on disk.
+// its captures is restored from git or re-collected, never pushed; a capture changed after
+// its fetch is restored from the commit, or on the collector when the change was committed.
+// One blanket text for all of them is what used to send operators to re-collect a corpus
+// already on disk.
 
 import path from 'node:path';
 import { PATHS, HEADERS, resolve, exists, readText, kitCommand } from './core.mjs';
@@ -60,6 +62,63 @@ export function ledgerLostRemedy() {
     'captures are unproven: re-collect them on the collector machine, which spends credits:',
     '',
     `    ${kitCommand('research.mjs', '--plan research/plan.json --force')}`,
+  ].join('\n');
+}
+
+/**
+ * A capture whose bytes no longer match the hash recorded at fetch, and not by line endings
+ * (`body-unmodified/modified`). Everything travelled; the capture was CHANGED after its
+ * fetch - here, uncommitted, or before it was committed. An edited capture is not evidence
+ * (ADR-0093), and neither remedy below edits the ledger to agree with one.
+ *
+ * It got the push remedy until 2026-10-04 (break-test pass 4, F5b): when the change is local
+ * to this checkout that sends an operator to another machine for a file whose committed copy
+ * is one `git checkout` away, and when the change was committed the push sends the same
+ * bytes again. The commands are plain git, one file each (ADR-0070): no folder-wide checkout,
+ * because `git status` prints the altered files by definition, and a checkout of the whole
+ * folder would discard uncommitted work beside them.
+ */
+export function alteredRemedy(files = [], { isRepo = true } = {}) {
+  const named = files.slice(0, 5);
+  const more = files.length > named.length ? `, +${files.length - named.length} more` : '';
+  const head = [
+    'Everything travelled, and a capture was changed AFTER its fetch: its bytes no longer',
+    'match the hash the ledger recorded, and not by line endings. An edited capture is not',
+    'evidence, and the ledger is never edited to agree with one.',
+    '',
+    `Affected: ${named.join(', ')}${more}`,
+    '',
+  ];
+
+  if (!isRepo) {
+    return [
+      ...head,
+      'BUT this directory has no git metadata, so nothing here holds the fetched bytes and no',
+      'command is safe to print: re-copy this corpus from the machine that has the repository,',
+      'or re-collect the capture on the collector machine. Do not edit the capture to match.',
+    ].join('\n');
+  }
+
+  return [
+    ...head,
+    'First, whether the change is local to this checkout - this prints the file when it',
+    'differs from the committed copy:',
+    '',
+    ...named.map((file) => `    git status --porcelain -- ${file}`),
+    '',
+    'If it prints the file, the committed copy is the fetched one. Restore it from the',
+    'commit, which spends nothing and touches no other file:',
+    '',
+    ...named.map((file) => `    git checkout HEAD -- ${file}`),
+    ...(files.length > named.length ? ['', 'and the remaining files handoff names above the same way, each by name.'] : []),
+    '',
+    'If it prints nothing, the altered bytes were committed and this checkout is faithful to',
+    'them. Then the remedy lives on the COLLECTOR machine: restore the capture from the commit',
+    'before the change (git log names it) or re-collect it, which spends credits:',
+    '',
+    `    ${kitCommand('research.mjs', '--plan research/plan.json --force')}`,
+    '',
+    'Pushing from the collector sends the same bytes and fixes nothing here.',
   ].join('\n');
 }
 
@@ -237,7 +296,12 @@ export function verifyHandoff(root, { corpus = null } = {}) {
   // Or entries missing for captures that are here - a torn last line of a longer ledger.
   const ledgerLost = snapshot.ledger.present
     && ((!snapshot.ledger.entries.length && snapshot.captures.entries.length > 0) || unledgered.length > 0);
-  const travelled = findings.filter((f) => (f.name !== 'handoff-chain-broken' || f.kind !== 'line-endings')
+  // A capture changed after its fetch is here, and so is its ledger entry: nothing failed to
+  // travel, the bytes changed (alteredRemedy). A broken chain beside it still did.
+  const altered = chain.problems
+    .filter((p) => p.rule === 'body-unmodified' && p.kind === 'modified')
+    .map((p) => ({ file: p.file, line: p.line }));
+  const travelled = findings.filter((f) => (f.name !== 'handoff-chain-broken' || (f.kind !== 'line-endings' && f.kind !== 'modified'))
     && f.name !== 'handoff-capture-unledgered'
     && !(ledgerLost && f.name === 'handoff-ledger-empty'));
   const report = {
@@ -247,7 +311,9 @@ export function verifyHandoff(root, { corpus = null } = {}) {
     missingCaptures,
     unledgered,
     lineEndings,
-    // "Something did not travel" is anything that is not purely a line-ending rewrite.
+    altered,
+    // "Something did not travel" is anything that is not a line-ending rewrite, a capture
+    // changed after its fetch, or a ledger that lost entries here.
     didNotTravel: travelled.length > 0,
     ledgerLost,
     entries: snapshot.ledger.entries.length,
@@ -270,9 +336,10 @@ export function handoffRemedy(report) {
   const parts = [];
   if (report.didNotTravel) parts.push(HANDOFF_REMEDY);
   if (report.ledgerLost) parts.push(ledgerLostRemedy());
+  // Whether this is a repository at all decides which remedies are even runnable.
+  const isRepo = exists(path.join(report.root ?? '.', '.git'));
+  if (report.altered?.length) parts.push(alteredRemedy(report.altered.map((e) => e.file), { isRepo }));
   if (report.lineEndings?.length) {
-    // Whether this is a repository at all decides which remedy is even runnable.
-    const isRepo = exists(path.join(report.root ?? '.', '.git'));
     const attributes = readText(path.join(report.root ?? '.', '.gitattributes')) ?? '';
     const pinned = /^research\/raw\/\*\s+text\s+eol=lf\s*$/m.test(attributes);
     parts.push(lineEndingRemedy(report.lineEndings.map((e) => e.file), { isRepo, pinned }));

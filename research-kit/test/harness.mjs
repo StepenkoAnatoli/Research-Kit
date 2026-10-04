@@ -398,7 +398,7 @@ export function tempDir(prefix = 'research-kit-') {
   // whichever cwd is current, scatters scratch directories across the filesystem - and it
   // made the COMMIT GATE's index snapshot throw ENOENT and fail open (2026-09-29).
   const base = scratchBase();
-  fs.mkdirSync(base, { recursive: true });
+  createTempFolder(base);
   const dir = fs.mkdtempSync(path.join(base, prefix));
   scratchDirs.push(dir);
   return dir;
@@ -413,9 +413,37 @@ export function tempDir(prefix = 'research-kit-') {
 // On 'exit', not at the end of the test list: an import-time throw, a red run and a
 // process.exit(1) all pass through here too, and none of those should leak either.
 const scratchDirs = [];
+
+/**
+ * Create the temp folder when it does not exist yet, and remember what was created.
+ *
+ * A folder the run created is the run's to remove, and ONLY that: the ancestors that did
+ * not exist are recorded, deepest first, and each goes with the scratch at exit through a
+ * non-recursive rmdir, which refuses a folder holding anything else. A TMPDIR that existed
+ * is never touched, and one something else used meanwhile stays. Until 2026-10-04 the
+ * created chain was left behind, empty: `TMPDIR=/nonexistent/dir/xyz` left
+ * /nonexistent/dir/xyz, and a relative TMPDIR an empty folder inside the checkout
+ * (break-test pass 4, F3). The runner's temp probe creates its folder through here too.
+ */
+const createdDirs = [];
+export function createTempFolder(dir) {
+  const missing = [];
+  for (let p = path.resolve(dir); !fs.existsSync(p); p = path.dirname(p)) {
+    missing.push(p);
+    if (path.dirname(p) === p) break;
+  }
+  fs.mkdirSync(dir, { recursive: true });
+  createdDirs.push(...missing);
+}
+
 function removeScratch() {
   for (const dir of scratchDirs.splice(0)) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* a scratch dir that cannot be removed must not fail the run's own exit */ }
+  }
+  // Deepest first, as recorded. rmdir is deliberately not recursive: a folder that holds
+  // anything the run did not make stays, with what it holds.
+  for (const dir of createdDirs.splice(0)) {
+    try { fs.rmdirSync(dir); } catch { /* not empty, or already gone: either way not this run's to remove */ }
   }
 }
 process.on('exit', removeScratch);

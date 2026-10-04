@@ -9,7 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseFlags, listFiles, refuseUnknownFlags, exists, kitCommand, tolerateClosedStdout, tempBase, tempFreeSpace, exitAfterFlush } from '../lib/core.mjs';
-import { runPending, TEST_TIMEOUT, importTestFiles, describe, test, dominantFailureCause, tempDir } from '../test/harness.mjs';
+import { runPending, TEST_TIMEOUT, importTestFiles, describe, test, dominantFailureCause, tempDir, createTempFolder } from '../test/harness.mjs';
 import { KIT_ROOT } from '../lib/scaffold.mjs';
 import { checkNode, REQUIRED_NODE_MAJOR } from '../lib/runtime.mjs';
 
@@ -88,7 +88,8 @@ if (missingAnchors.length) {
 const tempProblem = (() => {
   const base = tempBase();
   try {
-    fs.mkdirSync(base, { recursive: true });
+    // Through the harness, which removes at exit whatever folder it had to create (and only that).
+    createTempFolder(base);
     fs.rmSync(fs.mkdtempSync(path.join(base, 'rk-selftest-')), { recursive: true, force: true });
     return null;
   } catch (err) {

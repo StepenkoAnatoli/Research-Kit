@@ -98,9 +98,12 @@ checkout (empty, so `git status` stays clean).
 **Root cause.** `fs.mkdirSync(base, { recursive: true })` in `bin/selftest.mjs`, written on purpose:
 the harness documents that TMPDIR may name a directory that does not exist yet (a CI job exports
 RUNNER_TEMP before creating it) and that creating the parent turns a suite-wide abort into
-nothing at all. **Severity: Low, low likelihood.** **Status: not fixed, recorded.** Reversing a
-decided trade-off for an empty leftover directory is not a minimal fix; the decision is the
-harness's to revisit.
+nothing at all. **Severity: Low, low likelihood.** **Status: recorded, then fixed at the operator's
+request.** The trade-off stands - the folder is still created - and what the run created it now
+removes: `createTempFolder` in the harness records the ancestors that did not exist and `rmdir`s
+them, deepest first, with the scratch at exit; non-recursive, so a folder that existed or that
+holds somebody else's file stays. **Tests:** `harness > a temp folder the run had to create goes
+with its scratch, and only while empty`. Both repros leave nothing behind.
 
 ### 4. A ledger entry naming a source without its hash passed with the sibling altered
 
@@ -128,13 +131,18 @@ hygiene: an uncited capture no fetch produced is named as such, a collected one 
 **Status: applied** (c722306). Suite green.
 
 **(b)** A capture altered after its fetch gets the "something did not travel ... the remedy lives
-on the COLLECTOR machine" remedy. **Status: not changed, by decision.** `handoff.test.mjs:160`
-pins it: `a genuinely tampered capture still gets the PUSH remedy` - on a builder the restoration
-is the collector's commit, so the remedy is the same push and pull.
+on the COLLECTOR machine" remedy. **Status: decided against at first, then fixed at the operator's
+request.** The pinned test (`a genuinely tampered capture still gets the PUSH remedy`) rested on
+"the restoration is the collector's commit", which holds only when the change was committed - and
+then a push sends the same bytes again; a change local to the checkout is one `git checkout HEAD --`
+away. `alteredRemedy` in `lib/handoff.mjs` prints both cases, per file, and the report carries the
+captures as `altered` instead of "did not travel". **Tests:** `handoff > a capture changed after its
+fetch gets the ALTERED remedy, and no push remedy`; `handoff > the altered-capture remedy, run as
+printed, restores a capture changed in this checkout`.
 
 ## Remaining risks
 
-- Finding 3, as recorded. Finding 5(b), decided.
+- Findings 3 and 5(b), fixed after the report at the operator's request.
 - Windows case-insensitive filesystems: a case-only twin of a capture would be one file on NTFS
   and git would check out whichever came last; not run (no Windows host here). Reading only.
 - Not probed: a slow disk (no tool here), a real old Python (stubbed), the real Firecrawl
