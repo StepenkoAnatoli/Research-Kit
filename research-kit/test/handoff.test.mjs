@@ -429,7 +429,10 @@ test('the names-file commands, run as printed, restore only the file named in th
   const neighbour = 'research/raw/topic $copy1.md';     // what the glob matches
   fs.writeFileSync(path.join(dir, capture), 'fetched\n');
   fs.writeFileSync(path.join(dir, neighbour), 'neighbour\n');
-  for (const args of [fixtureInitArgs(), ['config', 'user.email', 't@t'], ['config', 'user.name', 't'], ['add', '-A'], fixtureCommitArgs('corpus')]) {
+  // core.autocrlf=false: a project pins LF through .gitattributes; this bare fixture has none,
+  // and the Windows runner's default autocrlf=true rewrote the restored bytes to CRLF (CI,
+  // 2026-10-04). The question here is WHICH file the checkout touched, not its line endings.
+  for (const args of [fixtureInitArgs(), ['config', 'user.email', 't@t'], ['config', 'user.name', 't'], ['config', 'core.autocrlf', 'false'], ['add', '-A'], fixtureCommitArgs('corpus')]) {
     assert.equal(git(dir, ...args).status, 0, `git ${args.join(' ')}`);
   }
   fs.writeFileSync(path.join(dir, capture), 'fetched\naltered\n');
