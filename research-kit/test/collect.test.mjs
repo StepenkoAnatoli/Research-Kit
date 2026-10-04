@@ -5,7 +5,7 @@ import { test, describe, assert, makeProject, makePassingProject, fs, path, KIT_
 import { PATHS, resolve, readText, writeText, writeJson, today } from '../lib/core.mjs';
 import { readCorpus, parseTable, cacheDecision, CAPTURE_MAX_BYTES } from '../lib/corpus.mjs';
 import { HEADERS } from '../lib/core.mjs';
-import { collectOne, writeRaw, captureName, bodyHashOf } from '../lib/collect.mjs';
+import { collectOne, writeRaw, writeSource, captureName, bodyHashOf } from '../lib/collect.mjs';
 import { rateLimitWaitMs } from '../lib/firecrawl.mjs';
 import { topicMatch } from '../lib/research-run.mjs';
 import { verifyLedger } from '../lib/provenance.mjs';
@@ -1362,4 +1362,38 @@ test('ADR-0140: no source is kept for a verbatim answer, an absent one, an overs
   assert.equal(readText(resolve(dir, sibling)), '<html>one</html>', 'the first source stands');
   assert.equal('source' in entryOf(), false, 'the second fetch names no source it did not write');
   assert.equal(verifyLedger(dir, { corpus: readCorpus(dir) }).ok, true);
+});
+
+
+// Breaker review of bed6bc0 (2026-10-04): a link planted at the sibling's name made `writeSource`
+// throw AFTER the capture was written, leaving an orphan capture with no ledger entry that the
+// next run took for a cache hit; and an oversized source vanished without a trace.
+test('ADR-0140: a sibling that cannot be written leaves the fetch ledgered without a source, and an omitted source is named', () => {
+  const dir = makeProject();
+  const markdown = `# Limits\n\n${'The free plan allows 10 requests per minute. '.repeat(40)}`;
+  const base = (u, extra) => ({ ok: true, url: u, title: 'Limits', markdown, statusCode: 200, transport: 'stub-transport', completeness: 'full', omitted: '', cmd: `stub scrape ${u}`, ...extra });
+  const url = 'https://x.invalid/linked';
+  const expected = captureName(url, { date: today(), title: 'Limits' }).replace(/\.md$/, '.source.html');
+  fs.symlinkSync('/etc/hostname', resolve(dir, `${PATHS.raw}/${expected}`));
+  const outcome = collectOne(dir, url, { runScrape: (u) => base(u, { source: '<html>x</html>' }), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.equal(outcome.status, 'collected', outcome.reason);
+  const entry = readCorpus(dir).ledger.entries.at(-1);
+  assert.equal(entry.raw, outcome.entry.file, 'the fetch is in the ledger');
+  assert.equal('source' in entry, false, 'a sibling that could not be written is not named');
+  assert.match(entry.sourceOmitted, /outside|link|not kept/i, entry.sourceOmitted);
+  assert.equal(fs.readlinkSync(resolve(dir, `${PATHS.raw}/${expected}`)), '/etc/hostname', 'the link was not followed or replaced');
+
+  const big = collectOne(dir, 'https://x.invalid/big', { runScrape: (u) => base(u, { source: `<p>${'x'.repeat(CAPTURE_MAX_BYTES + 10)}</p>` }), corpus: readCorpus(dir), transportName: 'stub-transport' });
+  assert.equal(big.status, 'collected');
+  const bigEntry = readCorpus(dir).ledger.entries.at(-1);
+  assert.equal('source' in bigEntry, false);
+  assert.match(bigEntry.sourceOmitted, /CAPTURE_MAX_BYTES|MB/, bigEntry.sourceOmitted);
+  assert.equal(verifyLedger(dir, { corpus: readCorpus(dir) }).ok, true);
+});
+
+// Mutation audit (2026-10-04): the guard against a sibling name that is the capture's own.
+test('ADR-0140: writeSource never writes at the capture\'s own path', () => {
+  const dir = makeProject();
+  assert.equal(writeSource(dir, 'research/raw/2026-01-01-x.txt', '<html>src</html>', 'md body'), null);
+  assert.equal(fs.existsSync(resolve(dir, 'research/raw/2026-01-01-x.txt')), false);
 });

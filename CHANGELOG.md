@@ -11,7 +11,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   and `verifyLedger` checks it like the capture, so an edited source is refused; it is never
   a capture itself. Until now the converted Markdown was all the corpus kept, so a
   conversion defect (G3) was permanent and the ledger certified it (ADR-0140, gap audit
-  2026-10-03, rank 3).
+  2026-10-03, rank 3). The review of that change: a source given and not kept is named on the
+  ledger entry as `sourceOmitted` (over the size cap, a sibling with other content, a sibling
+  name that cannot be written), the fetch is ledgered even when the sibling cannot be written
+  (a planted link had left an orphan capture), and a `*.source.html` no entry names is a
+  `source-unnamed` corpus problem.
 - A Firecrawl scrape is a live fetch: the adapter passes `--max-age 0`, because the vendor
   serves a cached copy up to two days old by default and a capture stamped `retrieved: today`
   could be yesterday's page - a `--force` or `--refresh-days` re-fetch meant to see a change
@@ -23,7 +27,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   them in silence, so a blocking unknown written below a blank line left the gate, which
   printed PASS. Every row-shaped line between a table's end and the next heading is now a
   `table-split` problem naming its line, and `hygiene` fails it; a second table with its own
-  header is not one (gap audit 2026-10-03, rank 1).
+  header is not one (gap audit 2026-10-03, rank 1). The review of that change made the scan
+  run to the end of the table's section (a deeper heading does not end it), skip fenced code
+  and HTML comments, ignore a lone separator, and name a second table with a malformed
+  separator once, as that.
 - The browser transport reads the origin's HTTP status and final URL from Chromium's own net
   log (`--log-net-log`, written to a private folder the guard child deletes after reading):
   an origin's 403 page had been graded `full`, because `--dump-dom` reports no status and

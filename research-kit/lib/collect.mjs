@@ -59,25 +59,37 @@ export function sourcePathFor(file) {
 
 /**
  * Write the text a capture was converted from beside it (ADR-0140), LF-folded like the body,
- * and return `{ file, sha256 }` - or null when there is nothing to keep: no source, a source
- * that IS the capture (a verbatim text or JSON answer), one over CAPTURE_MAX_BYTES, or a
- * sibling already on disk with other content, which is never overwritten (a capture's files
- * are written once). Found 2026-10-03 (gap audit, rank 3): the converted Markdown was all
- * the corpus kept, so a conversion defect (G3) was permanent and the ledger certified it.
+ * and return `{ file, sha256 }`; null when there is nothing to keep (no source, or a source
+ * that IS the capture - a verbatim text or JSON answer); or `{ omitted }` naming why a source
+ * that was given is not kept: over CAPTURE_MAX_BYTES, a sibling already on disk with other
+ * content (a capture's files are written once), or a sibling name that cannot be written
+ * (a link out of the project planted there). The reason rides on the ledger entry as
+ * `sourceOmitted`, so a reader can tell "no source" from "not kept" (breaker review,
+ * 2026-10-04: a planted link made this throw AFTER the capture was written, which left an
+ * orphan capture with no ledger entry that the next run took for a cache hit). Found
+ * 2026-10-03 (gap audit, rank 3): the converted Markdown was all the corpus kept, so a
+ * conversion defect (G3) was permanent and the ledger certified it.
  */
 export function writeSource(root, captureFile, source, markdown) {
   if (typeof source !== 'string' || !source.trim()) return null;
   const text = foldLineEndings(source);
   if (text === foldLineEndings(String(markdown ?? ''))) return null;
-  if (Buffer.byteLength(text, 'utf8') > CAPTURE_MAX_BYTES) return null;
   const file = sourcePathFor(captureFile);
   if (file === captureFile) return null;
+  const bytes = Buffer.byteLength(text, 'utf8');
+  if (bytes > CAPTURE_MAX_BYTES) {
+    return { omitted: `the source is ${(bytes / 1024 / 1024).toFixed(1)} MB, over the ${CAPTURE_MAX_BYTES / 1024 / 1024} MB a file under research/raw may be - not kept` };
+  }
   const abs = resolve(root, file);
-  assertCapturePath(root, abs);
-  if (exists(abs)) {
-    if (readText(abs) !== text) return null;
-  } else {
-    writeText(abs, text);
+  try {
+    assertCapturePath(root, abs);
+    if (exists(abs)) {
+      if (readText(abs) !== text) return { omitted: `${file} already stands beside this capture with other content - not kept, a capture's files are written once` };
+    } else {
+      writeText(abs, text);
+    }
+  } catch (err) {
+    return { omitted: `${file} could not be written (${err.code ?? err.message}) - not kept` };
   }
   return { file, sha256: bodyHashOf(root, file) };
 }
@@ -313,6 +325,7 @@ export function collectOne(root, url, {
       bodySha256,
       source: source?.file,
       sourceSha256: source?.sha256,
+      sourceOmitted: source?.omitted,
       transport: entry.transport || transportName,
       discoveredBy,
       completeness: entry.completeness,

@@ -133,25 +133,51 @@ export function parseTable(text, header) {
     out.rows.push(row);
   }
   // The table ends at the first line that is not a row - a blank line, as GFM renders it. A
-  // row-shaped line AFTER that end is a row somebody wrote into the table that no reader of the
-  // table will see: GitHub shows it as prose, and until 2026-10-03 this parser dropped it in
-  // silence - a blocking unknown written below a blank line left the gate, which printed PASS
-  // (gap audit, rank 1). The row stays out of the table, as it is rendered, and is RECORDED. A
-  // header followed by its separator starts another table and is not a stray row; the scan
-  // stops at the next heading, where the table's section ends.
+  // row-shaped line AFTER that end, in the same section, is a row somebody wrote into the table
+  // that no reader of the table will see: GitHub shows it as prose, and until 2026-10-03 this
+  // parser dropped it in silence - a blocking unknown written below a blank line left the gate,
+  // which printed PASS (gap audit, rank 1). The row stays out of the table, as it is rendered,
+  // and is RECORDED. The scan runs to the end of the table's section: a heading of the same or
+  // a higher level than the one above the table (a deeper `###` note does not end the section,
+  // and `#tag` prose is not a heading). A fenced code block or an HTML comment is skipped, as
+  // GitHub renders a row there as code or hides it; a lone separator is not a row; a header
+  // followed by its separator starts another table and is not a stray row, and a header whose
+  // separator is malformed is named as that, once (breaker review, 2026-10-04).
+  let level = 7;
+  for (let k = start - 1; k >= 0; k -= 1) {
+    const heading = /^(#{1,6})\s/.exec(lines[k]);
+    if (heading) { level = heading[1].length; break; }
+  }
+  let fence = null;
+  let comment = false;
   let i = out.rows.length ? out.rows[out.rows.length - 1].line : start + 2;
   for (; i < lines.length; i += 1) {
     const line = lines[i];
-    if (/^\s*#/.test(line)) break;
-    if (!line.trim().startsWith('|') || isSeparator(line)) continue;
-    if (isSeparator(lines[i + 1] ?? '')) break;      // another table's header: not this table's
+    const text = line.trim();
+    if (fence) { if (text.startsWith(fence)) fence = null; continue; }
+    const opens = /^(`{3,}|~{3,})/.exec(text);
+    if (opens) { fence = opens[1][0] === '`' ? '```' : '~~~'; continue; }
+    if (comment) { if (text.includes('-->')) comment = false; continue; }
+    if (text.startsWith('<!--')) { if (!text.includes('-->')) comment = true; continue; }
+    const heading = /^(#{1,6})\s/.exec(line);
+    if (heading && heading[1].length <= level) break;
+    if (!text.startsWith('|') || isSeparator(line)) continue;
+    const next = lines[i + 1] ?? '';
+    if (isSeparator(next)) break;                                   // another table's header
+    const separatorLike = /^\|?[\s:|=_~.-]+\|?$/.test(next.trim()) && next.trim().length > 1;
     out.problems.push({
       kind: 'table-split',
       line: i + 1,
-      detail: `row \`${splitRow(line)[0] || line.trim().slice(0, 40)}\` stands after a blank line ended the table above it, so no check reads it - `
-        + 'remove the blank line (or the row), because the table ends where the blank line is',
-      text: line.trim(),
+      detail: separatorLike
+        ? `row \`${splitRow(line)[0] || text.slice(0, 40)}\` starts a table whose separator row \`${next.trim()}\` is malformed (a separator is written |---|---|), so the table is not recognised - fix the separator`
+        : `row \`${splitRow(line)[0] || text.slice(0, 40)}\` stands after a blank line ended the table above it, so no check reads it - `
+          + 'remove the blank line (or the row), because the table ends where the blank line is',
+      text,
     });
+    if (separatorLike) {                                            // one finding for that table
+      i += 1;
+      while ((lines[i + 1] ?? '').trim().startsWith('|')) i += 1;
+    }
   }
   return out;
 }
@@ -547,6 +573,16 @@ export function readCorpus(root) {
   const captures = readCaptures(root, { rank: ledgerRank(ledger.entries) });
   for (const p of captures.problems) problems.push({ ...p, artifact: PATHS.raw });
   for (const p of ledger.problems) problems.push({ ...p, artifact: PATHS.ledger });
+  // A source sibling (ADR-0140) that no fetch names is a planted file, not a source: readCaptures
+  // never indexes a sibling, so nothing else would see it (breaker review, 2026-10-04).
+  const namedSources = new Set(ledger.entries.map((e) => e.source).filter(Boolean));
+  for (const name of listFiles(at(PATHS.raw)).sort()) {
+    if (!name.endsWith('.source.html')) continue;
+    const rel = `${PATHS.raw}/${name}`;
+    if (namedSources.has(rel)) continue;
+    problems.push({ kind: 'source-unnamed', artifact: PATHS.raw, file: rel,
+      detail: `${rel} is a source sibling that no fetch in the ledger names - the collector writes a source beside its capture and records it; remove the file` });
+  }
 
   // A data row whose ID is not in its table's form is RECORDED, never silently dropped.
   //

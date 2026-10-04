@@ -39,12 +39,16 @@ source it converts.
    checkouts; the file is the text the converter read, not the wire bytes. A source over
    `CAPTURE_MAX_BYTES` is not written and not named. A sibling already on disk with other
    content is not overwritten (a capture is never rewritten, ADR-0026's rule applied to its
-   source); that fetch's entry then names no source.
+   source); that fetch's entry then names no source. A source that was given and is not kept
+   is named on the entry as `sourceOmitted`, with the reason, so a reader can tell "the
+   transport gave no source" from "not kept"; a sibling name that cannot be written (a link
+   planted there) is one such reason, and never fails the fetch (review, 2026-10-04).
 3. **The source is under the ledger's protection.** `verifyLedger` checks a named source as it
    checks the capture: missing is `raw-missing`, a changed one is `body-unmodified`, so the
    commit gate refuses an edited source as it refuses an edited capture (ADR-0093).
 4. **The source is not a capture.** `readCaptures` skips `*.source.html`: it is never indexed,
-   cited, graded or exported, and `uncited-capture` does not name it. The gate reads the
+   cited, graded or exported, and `uncited-capture` does not name it; a `*.source.html` that
+   no ledger entry names is a `source-unnamed` corpus problem (review, 2026-10-04). The gate reads the
    Markdown, as before. The WARC export is unchanged (ADR-0090 stands); a future ADR may put
    the source into `conversion` or `response` records now that the bytes exist.
 

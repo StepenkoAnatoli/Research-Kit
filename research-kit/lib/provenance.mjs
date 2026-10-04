@@ -426,6 +426,7 @@ export function appendFetch(root, fields) {
       entry.source = String(fields.source);
       entry.sourceSha256 = String(fields.sourceSha256);
     }
+    if (fields.sourceOmitted) entry.sourceOmitted = String(fields.sourceOmitted);
     entry.entrySha256 = entryHash(entry);
     appendLine(resolve(root, PATHS.ledger), JSON.stringify(entry));
     return entry;
