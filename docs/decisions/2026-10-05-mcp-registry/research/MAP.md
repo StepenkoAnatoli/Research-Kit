@@ -6,8 +6,10 @@ How should Research-Kit be distributed and listed in the official MCP Registry?
 
 ## Subtopics
 
-Drafted by `node "$HOME/.agents/research-kit/bin/decompose.mjs" --topic "How should Research-Kit be distributed and listed in the official MCP Registry?"`, seeded with the
-universal checklist and statuses BLANK. Phase 0 gathers material; it does not judge.
+Decomposition is pending; this is an empty scaffold, not a completed map.
+From this project directory, run `node "$HOME/.agents/research-kit/bin/decompose.mjs"`
+on a collector machine to gather material and seed the universal checklist with
+statuses BLANK. Phase 0 gathers material; it does not judge.
 
 Mark every row COVERED (cite the U-## rows that cover it), DISMISSED (reason required -
 dismissing is fine, omitting is not), or GAP, and add topic-specific subtopics where the
