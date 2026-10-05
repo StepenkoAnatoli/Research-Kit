@@ -353,7 +353,8 @@ test('a project inside a bare repository is not given a checkout git would refus
 
   assert.equal(insideRepository(project), false, 'git itself says this is not a work tree');
   const remedy = handoffRemedy(verifyHandoff(project));
-  assert.match(remedy, /no git metadata/);
+  assert.match(remedy, /no git metadata|git refused to read this folder's repository/,
+    'an older Git may see no work tree, while newer Git can refuse the nested bare repository');
   assert.doesNotMatch(remedy, /git checkout/);
   // The enclosing work tree, asked the same way, is one.
   assert.equal(insideRepository(outer), true);

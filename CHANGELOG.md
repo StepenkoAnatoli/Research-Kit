@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A passing generated brief now includes the blocking-finding and warning counts and lists each
+  warning by check/rule, with its row or unknown when available. Before this, the brief said
+  every blocking unknown was closed without surfacing warnings a builder needed to see.
+- The nested-bare-repository handoff test accepts either Git's older “not a work tree” response
+  or newer Git's `safe.bareRepository=explicit` refusal; both must avoid printing an unusable
+  checkout command.
 - The installer records no hand-on to another copy of the kit's gate, on a first install or a
   re-install (ADR-0141): doctor's remedy for that hand-on, `git config --global --unset
   research-kit.previousHooksPath` (ADR-0134), lasted one session on the operator's machine

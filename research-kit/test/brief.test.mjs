@@ -206,6 +206,26 @@ test('an unedited draft is redrafted without --force, and nothing is backed up',
   assert.match(readText(resolve(dir, PATHS.brief)), /Gate: PASS/);
 });
 
+test('a passing brief surfaces its gate warnings and their row or unknown', () => {
+  const dir = makePassingProject();
+  renderBrief(dir, {
+    verdict: {
+      pass: true,
+      counts: { fail: 0, warn: 2 },
+      warnings: [
+        { check: 'unknown-closure', rule: 'single-witness-stale', unknown: 'U-1', detail: 'private details are not copied' },
+        { check: 'hygiene', rule: 'brief-unstamped' },
+      ],
+    },
+  });
+  const text = readText(resolve(dir, PATHS.brief));
+  assert.match(text, /Gate: PASS \(0 blocking findings, 2 warnings\)/);
+  assert.match(text, /Warnings the builder should know \(2\)/);
+  assert.match(text, /`unknown-closure\/single-witness-stale` \(U-1\)/);
+  assert.match(text, /`hygiene\/brief-unstamped`/);
+  assert.doesNotMatch(text, /private details are not copied/);
+});
+
 // The stamp was anchored to the end of the file until 2026-10-03, so a line appended after
 // it - the `Reviewed by: agent` line AGENTS.md asks for - made `draftStamp` return null: the
 // draft read as unstamped, and the edit went unseen (review of the G1 fix).
