@@ -244,6 +244,25 @@ prior that was recorded in advance is worth more than a right one remembered aft
 `;
 }
 
+function gateWarningBlock(verdict) {
+  const warnings = (Array.isArray(verdict?.warnings) ? verdict.warnings : []).filter((warning) => (
+    warning?.check !== 'gate-integrity'
+    && !(warning?.check === 'hygiene' && ['brief-stale', 'brief-unstamped'].includes(warning.rule))
+  ));
+  if (!warnings.length) return '';
+
+  const items = warnings.map((warning) => {
+    const label = [warning.check, warning.rule]
+      .map((value) => String(value ?? 'unknown').replace(/[^a-z0-9-]/gi, '-'))
+      .join('/');
+    const targets = [warning.row, warning.unknown]
+      .filter((value) => value !== undefined && value !== null && String(value) !== '')
+      .map((value) => String(value).replace(/[^a-z0-9._:-]/gi, '?'));
+    return `- \`${label}\`${targets.length ? ` (${targets.join(', ')})` : ''}`;
+  });
+  return `\n\n**Warnings the builder should know (${warnings.length}):**\n${items.join('\n')}`;
+}
+
 export function renderBrief(root, { force = false, date = today(), corpus = null, verdict = null } = {}) {
   const snapshot = corpus ?? readCorpus(root);
   const file = resolve(root, PATHS.brief);
@@ -273,7 +292,7 @@ export function renderBrief(root, { force = false, date = today(), corpus = null
     ? `**Gate state: not evaluated in this run.**`
     : (gatePasses
       ? `**Gate: PASS.** Every blocking unknown is closed with evidence, and every claim below
-traces to a cached page in \`${PATHS.raw}/\`.`
+traces to a cached page in \`${PATHS.raw}/\`.${gateWarningBlock(verdict)}`
       : `**Gate: FAIL (${verdict.counts.fail} blocking finding${verdict.counts.fail === 1 ? '' : 's'}).** This brief is a
 draft of an incomplete research pass: phase 2 does not start until \`${PATHS.discovery}\`
 passes. Run \`${documentCommand('preflight.mjs', '', { root })}\` to see what is unproven.`);

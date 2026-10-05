@@ -5,6 +5,15 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A passing generated brief now lists actionable corpus warnings by check/rule, with their row
+  or unknown when available. Before this, the brief said every blocking unknown was closed
+  without surfacing warnings a builder needed to see.
+- Builder-facing brief warnings now omit `brief-stale`, `brief-unstamped`, and all
+  `gate-integrity` findings; the ordinary `Gate: PASS.` line remains unchanged when no other
+  warnings are listed.
+- The nested-bare-repository handoff test accepts either Git's older “not a work tree” response
+  or newer Git's `safe.bareRepository=explicit` refusal; both must avoid printing an unusable
+  checkout command.
 - The commit gate's suite budget in the kit's own checkout is 65 minutes, twice the slowest honest
   run measured on a supported host, and `RESEARCH_KIT_GATE_TIMEOUT` now governs it as well as the
   hook's watchdog: the suite gets the watchdog less 120 s, never more than half a short one, and the
