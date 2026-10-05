@@ -4,7 +4,9 @@
 import { spawnSync } from 'node:child_process';
 import { test, describe, assert, makePassingProject, makeProject, corrupt, tempDir, fs, path, KIT_ROOT, requireGit, fixtureInitArgs } from './harness.mjs';
 import { PATHS, resolve, writeText, readText, writeJson } from '../lib/core.mjs';
-import { evaluate, isGated, splitPathList, architectureMapBreach, loadGateConfig, DEFAULT_CODE_PATHS, suiteBreach, suiteOwed, runSuiteHere, isKitCheckout, SUITE_RULE } from '../lib/gate.mjs';
+import { evaluate, isGated, splitPathList, architectureMapBreach, loadGateConfig, DEFAULT_CODE_PATHS, suiteBreach, suiteOwed, runSuiteHere, isKitCheckout, SUITE_RULE, SUITE_TIMEOUT_MS } from '../lib/gate.mjs';
+// The suite budget's helpers are read off the namespace, so a missing one fails its own test, not the file.
+import * as gateLib from '../lib/gate.mjs';
 import { GATE_MARKERS, TEMPLATE_DIR } from '../lib/scaffold.mjs';
 
 describe('gate');
@@ -246,6 +248,107 @@ test('the suite rule stops a suite that does not finish, and says so', () => {
   assert.ok(Date.now() - started < 15_000, 'the hung runner was not stopped');
   assert.equal(breach?.rule, SUITE_RULE, JSON.stringify(breach));
   assert.match(breach.detail, /did not finish within 1 s/);
+});
+
+// Found 2026-10-05 on the operator's Windows PC (ADR-0142): the whole suite ran green in 1825 s -
+// `1599 passed, 0 failed, 7 unsupported in 1824.6s` - and the 20-minute budget stopped it and
+// blocked every commit touching research-kit/ on that green tree. The only way through was
+// --no-verify. A budget is a backstop for a hang; one below an honest run on a supported host is
+// a gate that teaches the override.
+const SLOWEST_MEASURED_SUITE_S = 1825;
+test('the default suite budget is at least twice the slowest run measured on a supported host', () => {
+  assert.ok(SUITE_TIMEOUT_MS >= 2 * SLOWEST_MEASURED_SUITE_S * 1000,
+    `a ${SUITE_TIMEOUT_MS / 1000} s budget blocks a green suite that took ${SLOWEST_MEASURED_SUITE_S} s on the operator's PC`);
+});
+
+// The same day: RESEARCH_KIT_GATE_TIMEOUT reached the hook's watchdog and not the suite's budget,
+// so an operator who raised it to fit a slow suite was still stopped at the node side's 1200 s.
+// One setting now governs both layers: the suite gets the watchdog less the rest of the gate's
+// allowance (the hook's own 120 s default), and never more than half of a short one, so the gate
+// - not the watchdog, whose kill is decided by posture - always reports first.
+test('the operator\'s RESEARCH_KIT_GATE_TIMEOUT sets the suite\'s budget, less the rest of the gate\'s allowance', () => {
+  const { suiteBudgetMs, GATE_REST_S } = gateLib;
+  assert.equal(typeof suiteBudgetMs, 'function', 'the suite\'s budget does not follow the operator\'s gate timeout');
+  assert.equal(GATE_REST_S, 120, 'the rest of the gate\'s allowance is the hook\'s default watchdog');
+  const budget = (value) => suiteBudgetMs(value === undefined ? {} : { RESEARCH_KIT_GATE_TIMEOUT: value });
+  assert.equal(budget(undefined), SUITE_TIMEOUT_MS, 'unset: the default budget');
+  assert.equal(budget(''), SUITE_TIMEOUT_MS, 'empty is unset, as the hook\'s ${VAR:-} reads it');
+  assert.equal(budget('7200'), (7200 - GATE_REST_S) * 1000);
+  // The one grammar both layers read (gateTimeoutSeconds, and the hook's gate_timeout_readable):
+  // seconds, an optional fraction, an optional s, m, h or d, at most nine digits before the point.
+  assert.equal(budget('3600s'), (3600 - GATE_REST_S) * 1000);
+  assert.equal(budget('90m'), (5400 - GATE_REST_S) * 1000);
+  assert.equal(budget('2h'), (7200 - GATE_REST_S) * 1000);
+  assert.equal(budget('1.5h'), (5400 - GATE_REST_S) * 1000);
+  assert.equal(budget('1d'), (86400 - GATE_REST_S) * 1000);
+  // 0 disables timeout(1)'s watchdog. With no watchdog to stay under, the budget stays the one
+  // backstop for a hang: a runner blocked in a synchronous child would otherwise hold the commit.
+  assert.equal(budget('0'), SUITE_TIMEOUT_MS);
+  assert.equal(budget('0m'), SUITE_TIMEOUT_MS);
+  // A watchdog shorter than twice the allowance: the suite gets half of it, still inside it.
+  assert.equal(budget('200'), 100_000);
+  assert.equal(budget('40'), 20_000);
+  assert.equal(budget('239'), 119_500);
+  assert.equal(budget('240'), 120_000);
+  // Outside the grammar, the default - and the hook, held to the same table in hook.test.mjs, uses
+  // its own: timeout(1) takes a sign, an exponent and hex, and a short watchdog this side could not
+  // read had fired before the gate's budget (review of ADR-0142, 2026-10-05).
+  for (const bad of ['soon', '-5', '10x', 'm', '1 h', ' 7200 ', '+40', '40.', '4e1', '0x28', '40\r', '-0', '.',
+    '1234567890', '99999999999999999999', '106751991167300d', '9'.repeat(400)]) {
+    assert.equal(budget(bad), SUITE_TIMEOUT_MS, JSON.stringify(bad));
+  }
+  // A positive watchdog never reads as no bound, and none outruns a timer.
+  assert.equal(budget('0.0001'), 1);
+  assert.equal(budget('999999999'), 2 ** 31 - 1, 'past a timer\'s reach, the longest timer');
+  assert.equal(budget('999999999d'), 2 ** 31 - 1);
+  assert.equal(budget('999999999.5'), 2 ** 31 - 1);
+});
+
+// Found 2026-10-05 reviewing ADR-0142: spawnSync stops a runner with SIGTERM, and the runner's harness
+// listens for SIGTERM to remove its scratch. A listener runs only when the event loop turns, so on
+// POSIX a runner blocked synchronously outlived its budget, the hook's watchdog killed the gate, and
+// the posture decided. Windows terminates the process whatever the signal: red on POSIX only.
+test('a runner blocked synchronously, and listening for SIGTERM, is still stopped at its budget', () => {
+  const dir = makePassingProject();
+  for (const rel of ['research-kit/lib/core.mjs', 'research-kit/bin/gate.mjs', 'research-kit/test/.keep']) {
+    fs.mkdirSync(path.dirname(resolve(dir, rel)), { recursive: true });
+    writeText(resolve(dir, rel), '// stand-in\n');
+  }
+  writeText(resolve(dir, 'research-kit/bin/selftest.mjs'), [
+    "process.once('SIGTERM', () => process.exit(143));",
+    'const end = Date.now() + 15_000;',
+    'while (Date.now() < end) { /* blocked: no listener runs until this returns */ }',
+    '',
+  ].join('\n'));
+  const started = Date.now();
+  const breach = suiteBreach(dir, ['research-kit/lib/x.mjs'], { run: () => runSuiteHere(dir, { timeout: 1000 }) });
+  assert.ok(Date.now() - started < 10_000, `the runner outlived its 1 s budget: ${Date.now() - started} ms`);
+  assert.equal(breach?.rule, SUITE_RULE, JSON.stringify(breach));
+  assert.match(breach.detail, /did not finish within 1 s/);
+});
+
+test('a hung suite is stopped at the budget the operator\'s gate timeout leaves it, and the block names that setting', () => {
+  const dir = makePassingProject();
+  for (const rel of ['research-kit/lib/core.mjs', 'research-kit/bin/gate.mjs', 'research-kit/test/.keep']) {
+    fs.mkdirSync(path.dirname(resolve(dir, rel)), { recursive: true });
+    writeText(resolve(dir, rel), '// stand-in\n');
+  }
+  // A runner that never reports: it outlives the budget, then exits with no result file.
+  writeText(resolve(dir, 'research-kit/bin/selftest.mjs'), 'setTimeout(() => {}, 10_000);\n');
+  const saved = process.env.RESEARCH_KIT_GATE_TIMEOUT;
+  process.env.RESEARCH_KIT_GATE_TIMEOUT = '2';
+  const started = Date.now();
+  let breach;
+  try {
+    breach = suiteBreach(dir, ['research-kit/lib/x.mjs']);
+  } finally {
+    if (saved === undefined) delete process.env.RESEARCH_KIT_GATE_TIMEOUT; else process.env.RESEARCH_KIT_GATE_TIMEOUT = saved;
+  }
+  assert.equal(breach?.rule, SUITE_RULE, JSON.stringify(breach));
+  assert.match(breach.detail, /did not finish within 1 s/, 'the suite ran past the budget the operator\'s 2 s watchdog leaves it');
+  assert.ok(Date.now() - started < 8_000, 'the runner was not stopped at the budget');
+  // The remedy on a slow host is the setting, not only the override, with the default's margin.
+  assert.match(breach.fix, /RESEARCH_KIT_GATE_TIMEOUT to twice that plus 120/);
 });
 
 test('bin/gate.mjs says the suite is about to run, and names the suite rule when it blocks', () => {

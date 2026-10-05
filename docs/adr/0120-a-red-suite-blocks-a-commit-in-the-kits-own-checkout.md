@@ -1,7 +1,8 @@
 # ADR-0120 — A red suite blocks a commit in the kit's own checkout
 
 - **Date:** 2026-10-01
-- **Status:** accepted
+- **Status:** accepted; amended by ADR-0142 (the suite's budget is 65 minutes, the hook's
+  watchdog in the kit's checkout is 4020 s, and `RESEARCH_KIT_GATE_TIMEOUT` governs both)
 - **Area:** `lib/gate.mjs` (the suite rule), `bin/gate.mjs` (the block's wording),
   `githooks/pre-commit` (the watchdog in the kit's checkout)
 - **Lifts the freeze (ADR-0117)** for one item: this check.

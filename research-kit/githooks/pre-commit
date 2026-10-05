@@ -33,7 +33,31 @@ fi
 
 KIT_HOME="${RESEARCH_KIT_HOME:-$HOME/.agents/research-kit}"
 CONFIG="${RESEARCH_KIT_CONFIG:-$HOME/.agents/research-kit.config.json}"
-GATE_TIMEOUT="${RESEARCH_KIT_GATE_TIMEOUT:-120}"
+
+# The operator's bound on the whole gate, read in the one grammar lib/gate.mjs reads it in
+# (gateTimeoutSeconds): seconds, with an optional fraction and an optional s, m, h or d, and at
+# most nine digits before the point. timeout(1) takes more - a sign, an exponent, hex - and
+# lib/gate.mjs read such a value as unset and kept its own budget, so this watchdog fired first
+# and the posture decided (ADR-0142); and Git for Windows' timeout(1) reads 2^63 s or more as
+# already expired. A value outside the grammar is named, and both layers treat it as unset. A
+# test holds this function and lib/gate.mjs to one table.
+gate_timeout_readable() {
+  _num="${1%[smhd]}"
+  case "$_num" in
+    ''|*[!0-9.]*|*.*.*|*.) return 1 ;;
+  esac
+  case "${_num%%.*}" in
+    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]*) return 1 ;;
+  esac
+  return 0
+}
+OPERATOR_TIMEOUT="${RESEARCH_KIT_GATE_TIMEOUT:-}"
+if [ -n "$OPERATOR_TIMEOUT" ] && ! gate_timeout_readable "$OPERATOR_TIMEOUT"; then
+  # printf, not echo: dash's echo reads backslashes in the operator's value as escapes.
+  printf "research gate: RESEARCH_KIT_GATE_TIMEOUT='%s' is not a duration the gate reads (seconds, optionally ending in s, m, h or d) - using the default watchdog\n" "$OPERATOR_TIMEOUT" >&2
+  OPERATOR_TIMEOUT=
+fi
+GATE_TIMEOUT="${OPERATOR_TIMEOUT:-120}"
 
 # --- the self-contained posture reader -------------------------------------------
 #
@@ -105,10 +129,14 @@ command -v node >/dev/null 2>&1 || decide_without_gate "node is not on PATH"
 # In the kit's OWN checkout a commit touching research-kit/ runs the suite before it is allowed
 # (the suite rule, ADR-0120), and the suite takes minutes, not seconds: the default watchdog
 # would kill it and report an internal error on every such commit. So the checkout is
-# recognised here, by the same markers lib/gate.mjs uses, and the watchdog widened - unless the
-# operator set one, which is theirs to set.
-if [ -z "${RESEARCH_KIT_GATE_TIMEOUT:-}" ] && [ -f research-kit/bin/selftest.mjs ] && [ -d research-kit/test ] && [ -f research-kit/lib/core.mjs ]; then
-  GATE_TIMEOUT=1500
+# recognised here, by the same markers lib/gate.mjs uses, and the watchdog widened to the
+# suite's budget (SUITE_TIMEOUT_MS there, 65 minutes) plus the 120 s this hook gives a gate that
+# runs no suite (GATE_REST_S there): the gate stops a suite that overruns and blocks it, before
+# this watchdog could kill it and leave the verdict to the posture (ADR-0142). An operator's
+# RESEARCH_KIT_GATE_TIMEOUT is theirs to set, and governs both layers: lib/gate.mjs gives the
+# suite that watchdog less 120 s, never more than half of one under 240 s; 0 leaves its default.
+if [ -z "$OPERATOR_TIMEOUT" ] && [ -f research-kit/bin/selftest.mjs ] && [ -d research-kit/test ] && [ -f research-kit/lib/core.mjs ]; then
+  GATE_TIMEOUT=4020
 fi
 
 # --- the watchdog -----------------------------------------------------------------
