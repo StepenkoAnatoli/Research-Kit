@@ -9,7 +9,9 @@ import { test, describe, assert, makePassingProject, corrupt, tempDir, fs, path,
 import { PATHS, resolve, writeText, readText } from '../lib/core.mjs';
 import { posture } from '../lib/machine.mjs';
 import { hookExecutability, scaffoldProject } from '../lib/scaffold.mjs';
-import { splitPathList } from '../lib/gate.mjs';
+import { splitPathList, SUITE_TIMEOUT_MS } from '../lib/gate.mjs';
+// Read off the namespace, so a missing helper fails its own test, not the file.
+import * as gateLib from '../lib/gate.mjs';
 
 describe('hook');
 
@@ -80,7 +82,72 @@ test('the hook widens its watchdog only in the kit\'s own checkout, and only whe
   assert.match(text, /research-kit\/bin\/selftest\.mjs/, 'the hook does not know the kit\'s checkout');
   assert.match(text, /RESEARCH_KIT_GATE_TIMEOUT:-/, 'an operator\'s own timeout must win');
   const widened = /GATE_TIMEOUT=(\d+)\s*$/m.exec(text.split('selftest.mjs')[1] ?? '');
-  assert.ok(widened && Number(widened[1]) >= 1500, `the watchdog in the kit\'s checkout must outlast a 20-minute suite: ${widened?.[0]}`);
+  // ADR-0142: the node side decides. The watchdog in the kit's checkout is the suite's budget plus
+  // the rest of the gate's allowance, so it never fires on a suite the gate could still report on;
+  // it had been 1500 s against a 1200 s budget, and the budget was the number a slow host met.
+  const { GATE_REST_S } = gateLib;
+  assert.equal(typeof GATE_REST_S, 'number', 'the gate exports no allowance for the rest of the gate');
+  assert.equal(Number(widened?.[1]), SUITE_TIMEOUT_MS / 1000 + GATE_REST_S,
+    `the watchdog in the kit's checkout must be the suite's budget plus the rest of the gate's allowance: ${widened?.[0]}`);
+  const fallback = /GATE_TIMEOUT="\$\{OPERATOR_TIMEOUT:-(\d+)\}"/.exec(text);
+  assert.equal(Number(fallback?.[1]), GATE_REST_S, 'the rest of the gate\'s allowance is the hook\'s own default watchdog');
+});
+
+// Found 2026-10-05 (ADR-0142): RESEARCH_KIT_GATE_TIMEOUT reached the hook's watchdog and not the
+// suite's budget. Set below the gate's 1200 s, the watchdog killed the gate before the gate could
+// report - an internal error, decided by posture - and a fail-open machine ALLOWED a commit whose
+// suite never reported. With the setting governing both layers, the gate stops the suite first
+// and blocks it, naming the suite rule.
+test('with the operator\'s gate timeout set, a hung suite is BLOCKED by the gate, not killed by the watchdog', () => {
+  requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
+  const probe = spawnSync(SH, ['-c', 'command -v timeout || command -v gtimeout'], { encoding: 'utf8' });
+  requireCapability(probe.status === 0, 'WATCHDOG-NOT-FOUND', 'no timeout(1) or gtimeout on this host, so the hook runs the gate unwatched');
+  const dir = makeRepo();
+  for (const rel of ['research-kit/lib/core.mjs', 'research-kit/bin/gate.mjs', 'research-kit/test/.keep', 'research-kit/lib/x.mjs']) {
+    fs.mkdirSync(path.dirname(resolve(dir, rel)), { recursive: true });
+    writeText(resolve(dir, rel), '// stand-in\n');
+  }
+  // A runner that never reports inside the 40 s watchdog.
+  writeText(resolve(dir, 'research-kit/bin/selftest.mjs'), 'setTimeout(() => {}, 60_000);\n');
+  git(dir, ['add', 'research-kit']);
+  const started = Date.now();
+  // runHook's own 60 s bound would race the watchdog; this one leaves it room.
+  const result = spawnSync(SH, [HOOK], {
+    cwd: dir, encoding: 'utf8', timeout: 120_000,
+    env: { ...process.env, RESEARCH_KIT_HOME: KIT_ROOT, RESEARCH_KIT_CONFIG: isolatedConfig(),
+      RESEARCH_KIT_INSTALL_STATE: path.join(tempDir('research-kit-hookstate-'), 'install.json'),
+      RESEARCH_KIT_GATE_TIMEOUT: '40' },
+  });
+  const out = `${result.stdout}${result.stderr}`;
+  assert.doesNotMatch(out, /exceeded 40s and was killed/, `the watchdog decided, by posture, a suite the gate should have stopped:\n${out}`);
+  assert.notEqual(result.status, 0, `a commit whose suite never reported was allowed:\n${out}`);
+  assert.match(out, /did not finish within 20 s/, out);
+  assert.match(out, /suite rule/, out);
+  assert.ok(Date.now() - started < 40_000, 'the gate did not stop the suite inside the watchdog');
+});
+
+// Found 2026-10-05 reviewing ADR-0142: the hook handed RESEARCH_KIT_GATE_TIMEOUT to timeout(1), which
+// takes a sign, an exponent and hex, while lib/gate.mjs read only seconds with a unit. For '+40' the
+// watchdog took 40 s and the gate kept its 65-minute budget, so the watchdog fired first and a
+// fail-open machine allowed the commit. Both layers now read one grammar, and this table holds them.
+test('the hook and lib/gate.mjs read RESEARCH_KIT_GATE_TIMEOUT in one grammar, and the hook names a value outside it', () => {
+  requireCapability(SH, 'SHELL-NOT-FOUND', `no POSIX sh on this host (tried: ${SH_TRIED.join(', ')})`);
+  const { gateTimeoutSeconds } = gateLib;
+  assert.equal(typeof gateTimeoutSeconds, 'function', 'lib/gate.mjs exports no reader for the gate timeout');
+  const dir = tempDir('research-kit-gate-timeout-');
+  const scriptFile = path.join(dir, 'timeout.sh');
+  writeText(scriptFile, `${readText(HOOK).split('# --- can we run the gate')[0]}\nprintf '%s' "$GATE_TIMEOUT"\n`);
+  const values = ['40', '40s', '90m', '2h', '1d', '1.5h', '.5', '0', '0m', '007', '', ' 40', '40 ', '+40', '40.', '.',
+    '4e1', '0x28', '-0', '-5', 'm', '40ms', '4.0.0', '40S', 'soon', '40\r', 'inf', '5\\c', '%s',
+    '999999999', '999999999d', '1234567890', '99999999999999999999', '106751991167300d', '0000000001.5'];
+  for (const value of values) {
+    const shell = spawnSync(SH, [scriptFile], { encoding: 'utf8', timeout: 30_000,
+      env: { ...process.env, RESEARCH_KIT_GATE_TIMEOUT: value, RESEARCH_KIT_CONFIG: isolatedConfig() } });
+    const readable = gateTimeoutSeconds(value) !== null;
+    assert.equal(shell.stdout, readable ? value : '120', `${JSON.stringify(value)}: the hook's watchdog and lib/gate.mjs's budget read it differently`);
+    if (value !== '' && !readable) assert.match(shell.stderr, /is not a duration the gate reads/, JSON.stringify(value));
+    else assert.doesNotMatch(shell.stderr, /is not a duration/, JSON.stringify(value));
+  }
 });
 
 test('the hook wrapper exists and is a POSIX sh script', () => {

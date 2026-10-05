@@ -5,6 +5,24 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The commit gate's suite budget in the kit's own checkout is 65 minutes, twice the slowest honest
+  run measured on a supported host, and `RESEARCH_KIT_GATE_TIMEOUT` now governs it as well as the
+  hook's watchdog: the suite gets the watchdog less 120 s, never more than half a short one, and the
+  hook's widened watchdog is the budget plus 120 s (4020 s), so the gate stops an overrunning suite
+  and blocks before the watchdog fires (ADR-0142). On the operator's Windows PC the green suite takes
+  about 1825 s, and the 20-minute budget blocked every commit touching `research-kit/`, leaving
+  `--no-verify` as the only way through; the variable reached only the watchdog, and set below the
+  budget it let the watchdog kill the gate first, so a fail-open machine allowed a commit whose suite
+  never reported (reproduced here with a hung runner, 2026-10-05). A suite stopped at its budget now
+  names the variable, with the default's margin, before the override. The hook and the gate read the
+  variable in one grammar (seconds, an optional fraction and unit), and the hook names and ignores a
+  value outside it: timeout(1) also takes a sign, an exponent or hex, and for `+40` the watchdog
+  fired first again. The narrowing reaches every gated project's hook: `+600` or `6e2` now falls back
+  to the 120 s default with a warning, and a malformed value no longer makes timeout(1) exit 125 and
+  block every commit. Nine digits at most before the point: Git for Windows' timeout(1) reads 2^63 s
+  or more as already expired. `0` disables the watchdog and leaves the suite's default budget. The gate stops
+  the runner with SIGKILL, since the harness's SIGTERM listener kept a synchronously blocked runner
+  alive past its budget on POSIX (review of the change, the same day).
 - The installer records no hand-on to another copy of the kit's gate, on a first install or a
   re-install (ADR-0141): doctor's remedy for that hand-on, `git config --global --unset
   research-kit.previousHooksPath` (ADR-0134), lasted one session on the operator's machine

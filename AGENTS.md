@@ -369,8 +369,8 @@ reviews under `docs/`, and the terms the rules are named in, in
 For an agent that plans and delegates work on this repository (recorded 2026-10-03; correct
 what has gone stale).
 
-- **Gate.** `node research-kit/bin/selftest.mjs` (the offline suite, about 150 s; a group by
-  file name, e.g. `selftest.mjs checks transport`), `node research-kit/bin/preflight.mjs`
+- **Gate.** `node research-kit/bin/selftest.mjs` (the offline suite, about 150 s on CI and 25 to
+  30 minutes on the operator's Windows PC - 1409 to 1825 s measured, ADR-0142; a group by file name, e.g. `selftest.mjs checks transport`), `node research-kit/bin/preflight.mjs`
   (the research gate on the root corpus: PASS), `node research-kit/bin/handoff.mjs` (exit 0),
   `node research-kit/bin/doctor.mjs` (READY). The commit gate runs the suite for any commit
   that stages `research-kit/` and refuses a stale "N tests, offline" line in

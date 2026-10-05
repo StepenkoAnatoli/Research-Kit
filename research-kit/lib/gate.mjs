@@ -122,7 +122,61 @@ export function architectureMapBreach(root, stagedPaths) {
  * is a block, never a pass.
  */
 export const SUITE_RULE = 'suite-green-before-commit';
-export const SUITE_TIMEOUT_MS = 20 * 60_000;
+
+/**
+ * The suite's budget (ADR-0142) is a backstop for a hang, never a forecast of a run. The default
+ * is twice the slowest honest run measured on a supported host - 1825 s, the operator's Windows
+ * PC, 2026-10-05 - rounded up to five minutes. It was 20 minutes, and that PC's green suite met
+ * it on every commit touching research-kit/: a budget below an honest run blocks a green tree,
+ * and the only way through it is the override the rule exists to make rare.
+ */
+export const SUITE_TIMEOUT_MS = 65 * 60_000;
+
+/**
+ * The rest of the gate's allowance: what the hook's own default watchdog gives a gate that runs
+ * no suite (`githooks/pre-commit`, 120 s). In the kit's checkout the hook's watchdog is the
+ * suite's budget plus this, so the gate stops an overrunning suite and reports it before the
+ * watchdog fires - a watchdog kill is an internal error, decided by posture, and a fail-open
+ * machine allows it (ADR-0142, ADR-0020).
+ */
+export const GATE_REST_S = 120;
+
+// The one grammar both layers read RESEARCH_KIT_GATE_TIMEOUT in: seconds, with an optional fraction
+// and an optional s, m, h or d, and at most nine digits before the point. timeout(1) takes more - a
+// sign, an exponent, hex - and a value this side could not read kept its own budget while the
+// watchdog took the operator's, so the watchdog fired first; the hook now checks the same grammar
+// (gate_timeout_readable) and treats a value outside it as unset, as this side does. The nine
+// digits keep every value far below the 2^63 s that Git for Windows' timeout(1) reads as already
+// expired (exit 124 at once). A test holds the two readers to one table (ADR-0142).
+const DURATION = /^(\d{1,9}(?:\.\d+)?|\.\d+)([smhd]?)$/;
+const DURATION_UNIT_S = Object.freeze({ '': 1, s: 1, m: 60, h: 3_600, d: 86_400 });
+// The longest timer Node keeps exactly (setTimeout's bound); spawnSync refuses Infinity outright.
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
+/** The operator's gate timeout in seconds, or null for unset, empty, or outside the grammar. */
+export function gateTimeoutSeconds(value) {
+  const parsed = DURATION.exec(String(value ?? ''));
+  return parsed ? Number(parsed[1]) * DURATION_UNIT_S[parsed[2]] : null;
+}
+
+/**
+ * The suite's budget in ms. `RESEARCH_KIT_GATE_TIMEOUT` is the operator's bound on the whole gate,
+ * and the hook gives it to the watchdog; it reached only the watchdog, so an operator who raised it
+ * for a slow suite was still stopped at the node side's budget (ADR-0142). One setting now governs
+ * both layers: the suite gets that watchdog less `GATE_REST_S`, and never more than half of a
+ * watchdog too short for the allowance, so the gate reports first whenever its own work before
+ * and after the suite fits what is left - a watchdog too short for even that is decided by
+ * posture, as it is for every rule (ADR-0020). 0 disables timeout(1)'s watchdog and leaves the
+ * default: with no watchdog to stay under, the budget is still the one backstop for a hang. Unset,
+ * empty, or outside the grammar leaves the default, as it leaves the hook's.
+ */
+export function suiteBudgetMs(env = process.env) {
+  const watchdogS = gateTimeoutSeconds(env.RESEARCH_KIT_GATE_TIMEOUT);
+  if (watchdogS === null || watchdogS === 0) return SUITE_TIMEOUT_MS;
+  // Never 0 for a positive watchdog - spawnSync reads 0 as no bound - and never past a timer's reach.
+  return Math.min(MAX_TIMER_MS, Math.max(1, Math.round(Math.max(watchdogS - GATE_REST_S, watchdogS / 2) * 1000)));
+}
+
 const KIT_DIR = 'research-kit';
 const KIT_CHECKOUT_MARKERS = Object.freeze([`${KIT_DIR}/lib/core.mjs`, `${KIT_DIR}/bin/gate.mjs`, `${KIT_DIR}/bin/selftest.mjs`, `${KIT_DIR}/test`]);
 
@@ -152,17 +206,23 @@ const REPOSITORY_LOCATION = Object.freeze(['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMM
  * scraped from it cannot tell a red suite from one that never printed.
  *
  * The runner's exit code is read with the gate's own definition of red: an unsupported test
- * (no Chromium, no Python - ADR-0108) is not red, so the run is given the local opt-in.
+ * (no Chromium, no Python - ADR-0108) is not red, so the run is given the local opt-in. The
+ * budget is `suiteBudgetMs()`: the operator's gate timeout, when set, governs it (ADR-0142).
  */
-export function runSuiteHere(root, { timeout = SUITE_TIMEOUT_MS } = {}) {
+export function runSuiteHere(root, { timeout = suiteBudgetMs() } = {}) {
   const resultFile = path.join(tempBase(), `rk-suite-${process.pid}-${Date.now()}.json`);
   const env = { ...process.env, RESEARCH_KIT_RESULT_FILE: resultFile, RESEARCH_KIT_ALLOW_UNSUP: '1' };
   for (const name of REPOSITORY_LOCATION) delete env[name];
   try {
+    // SIGKILL, not spawnSync's SIGTERM: the runner's harness listens for SIGTERM to remove its
+    // scratch, and a listener runs only when the event loop turns, so a runner blocked
+    // synchronously outlived its budget on POSIX until the hook's watchdog killed the gate and the
+    // posture decided (ADR-0142). Its scratch is left behind in the temp folder on a stop; Windows
+    // terminates the process whatever the signal.
     const run = spawnSync(process.execPath, [resolve(root, `${KIT_DIR}/bin/selftest.mjs`)], {
-      cwd: root, stdio: 'ignore', timeout, windowsHide: true, env,
+      cwd: root, stdio: 'ignore', timeout, killSignal: 'SIGKILL', windowsHide: true, env,
     });
-    if (run.error?.code === 'ETIMEDOUT') return { timedOut: true, seconds: Math.round(timeout / 1000) };
+    if (run.error?.code === 'ETIMEDOUT') return { timedOut: true, seconds: Math.round(timeout / 100) / 10 };
     const result = readJson(resultFile);
     return result && typeof result === 'object' ? result : null;
   } catch {
@@ -182,7 +242,13 @@ export function suiteBreach(root, stagedPaths, { run = () => runSuiteHere(root),
     return { rule: SUITE_RULE, detail: 'the suite was run and the runner produced no result - it crashed before reporting', fix };
   }
   if (result.timedOut) {
-    return { rule: SUITE_RULE, detail: `the suite did not finish within ${result.seconds} s and was stopped - a suite that cannot report is not green`, fix };
+    // A slow host and a hung test read the same here; the remedy for the first is the operator's
+    // setting, not the override (ADR-0142).
+    return {
+      rule: SUITE_RULE,
+      detail: `the suite did not finish within ${result.seconds} s and was stopped - a suite that cannot report is not green`,
+      fix: `if the suite is only slow on this host, time a run (node ${KIT_DIR}/bin/selftest.mjs prints its seconds, and names a test that hangs) and set RESEARCH_KIT_GATE_TIMEOUT to twice that plus ${GATE_REST_S} for the commit (RESEARCH_KIT_GATE_TIMEOUT=<seconds> git commit ...) - the hook's watchdog; the suite gets it less ${GATE_REST_S} s, or half of one under ${2 * GATE_REST_S} s (ADR-0142); git commit --no-verify overrides, and records nothing - say so in your reply`,
+    };
   }
   const failures = Number(result.failures) || 0;
   const unsupported = Number(result.unsupported) || 0;
