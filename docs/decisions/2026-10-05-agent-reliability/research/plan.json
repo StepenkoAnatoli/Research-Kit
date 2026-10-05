@@ -1,0 +1,19 @@
+{
+  "topic": "How can Research-Kit reduce unsupported claims and coding mistakes while accurately stating its guarantees?",
+  "notes": "Mission audit, not an implementation plan. Decompose seeds the map with --dry-run: no paid discovery searches, primary pages located by a read-only research agent. Budget six Firecrawl scrapes, no fallback. Local implementation observations are in AUDIT.md, not fabricated fetched evidence. Historical studies bound interventions; none measures this kit.",
+  "depth": "normal",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 3,
+  "maxScrapes": 6,
+  "prefer": [],
+  "queries": [],
+  "urls": [
+    {"url": "https://arxiv.org/abs/2304.09848", "type": "P", "why": "U-1: citation presence versus claim support"},
+    {"url": "https://arxiv.org/html/2305.01210v3", "type": "P", "why": "U-2: code passing shallow tests can still be wrong"},
+    {"url": "https://arxiv.org/html/2310.01798v2", "type": "P", "why": "U-3: limitations of intrinsic self-correction"},
+    {"url": "https://arxiv.org/html/2309.11495v2", "type": "P", "why": "U-3: independent verification and its limitations"},
+    {"url": "https://openai.com/index/why-language-models-hallucinate/", "type": "P", "why": "U-4: evaluate errors, abstention and useful accuracy separately"},
+    {"url": "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents", "type": "P", "why": "U-5: task outcomes, repeated trials and grader calibration"}
+  ]
+}
