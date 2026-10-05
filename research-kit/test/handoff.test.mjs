@@ -339,24 +339,43 @@ test('a nested decision project inside the repository gets the runnable remedy, 
 // Found 2026-10-04 by the second external review: a walk up for a `.git` entry walked past a
 // bare repository the project sat inside, and printed a checkout git refused with "this
 // operation must be run in a work tree". The question is git's, so git is asked.
+function withGitSetting(key, value, run) {
+  const count = Number(process.env.GIT_CONFIG_COUNT ?? 0);
+  const names = ['GIT_CONFIG_COUNT', `GIT_CONFIG_KEY_${count}`, `GIT_CONFIG_VALUE_${count}`];
+  const previous = names.map((name) => process.env[name]);
+  process.env.GIT_CONFIG_COUNT = String(count + 1);
+  process.env[`GIT_CONFIG_KEY_${count}`] = key;
+  process.env[`GIT_CONFIG_VALUE_${count}`] = value;
+  try {
+    return run();
+  } finally {
+    names.forEach((name, index) => {
+      if (previous[index] === undefined) delete process.env[name];
+      else process.env[name] = previous[index];
+    });
+  }
+}
+
 test('a project inside a bare repository is not given a checkout git would refuse', () => {
   requireGit('asking git whether the project is in a work tree');
-  const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
-  const outer = tempDir('rk-bare-outer-');
-  assert.equal(git(outer, ...fixtureInitArgs()).status, 0);
-  const bare = path.join(outer, 'bare.git');
-  assert.equal(git(outer, ...fixtureInitArgs('--bare', bare)).status, 0, 'git init --bare');
-  const project = path.join(bare, 'corpus');
-  makePassingProject(project);
-  const capture = readCorpus(project).captures.entries[0];
-  corrupt(project, capture.file, (text) => `${text}\nrewritten by hand\n`);
+  withGitSetting('safe.bareRepository', 'all', () => {
+    const git = (cwd, ...args) => spawnSync('git', args, { cwd, encoding: 'utf8' });
+    const outer = tempDir('rk-bare-outer-');
+    assert.equal(git(outer, ...fixtureInitArgs()).status, 0);
+    const bare = path.join(outer, 'bare.git');
+    assert.equal(git(outer, ...fixtureInitArgs('--bare', bare)).status, 0, 'git init --bare');
+    const project = path.join(bare, 'corpus');
+    makePassingProject(project);
+    const capture = readCorpus(project).captures.entries[0];
+    corrupt(project, capture.file, (text) => `${text}\nrewritten by hand\n`);
 
-  assert.equal(insideRepository(project), false, 'git itself says this is not a work tree');
-  const remedy = handoffRemedy(verifyHandoff(project));
-  assert.match(remedy, /no git metadata/);
-  assert.doesNotMatch(remedy, /git checkout/);
-  // The enclosing work tree, asked the same way, is one.
-  assert.equal(insideRepository(outer), true);
+    assert.equal(insideRepository(project), false, 'git itself says this is not a work tree');
+    const remedy = handoffRemedy(verifyHandoff(project));
+    assert.match(remedy, /no git metadata/);
+    assert.doesNotMatch(remedy, /git checkout/);
+    // The enclosing work tree, asked the same way, is one.
+    assert.equal(insideRepository(outer), true);
+  });
 });
 
 test('without git on PATH the answer falls back to a .git entry above, stopping at a ceiling', () => {
