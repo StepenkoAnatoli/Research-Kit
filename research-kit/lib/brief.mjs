@@ -7,6 +7,7 @@
 import { PATHS, resolve, readText, writeText, today, documentCommand, exists, sha256, foldLineEndings } from './core.mjs';
 import { readCorpus, sectionOf, claimOf, captureOf } from './corpus.mjs';
 import { readPrior } from './prior.mjs';
+import { renderGateWarnings } from './render.mjs';
 
 /** `judged: true` marks a section the corpus cannot fill - it needs the reviewer's call. */
 export const BRIEF_SECTIONS = Object.freeze([
@@ -188,7 +189,7 @@ function knownUnknowns(corpus) {
     const secondhand = corpus.unknowns
       .filter((u) => u.status === 'CLOSED' && !u.cites.some((id) => /^E-\d+$/i.test(id) && typeOf(id) === 'P'))
       .map((u) => u.id);
-    const none = 'None. Every blocking unknown was closed with cited evidence.';
+    const none = 'None. No unknown is declared KNOWN-UNKNOWN.';
     if (!secondhand.length) return none;
     return `${none} ${secondhand.join(', ')} ${secondhand.length === 1 ? 'rests' : 'rest'} on no primary (P) source; the Type column above shows what carries ${secondhand.length === 1 ? 'it' : 'them'}.`;
   }
@@ -272,8 +273,8 @@ export function renderBrief(root, { force = false, date = today(), corpus = null
   const gateLine = gatePasses === null
     ? `**Gate state: not evaluated in this run.**`
     : (gatePasses
-      ? `**Gate: PASS.** Every blocking unknown is closed with evidence, and every claim below
-traces to a cached page in \`${PATHS.raw}/\`.`
+      ? `**Gate: PASS.** The configured research checks passed. Disclosed known unknowns
+and gate warnings still apply; PASS does not establish that every claim is correct.`
       : `**Gate: FAIL (${verdict.counts.fail} blocking finding${verdict.counts.fail === 1 ? '' : 's'}).** This brief is a
 draft of an incomplete research pass: phase 2 does not start until \`${PATHS.discovery}\`
 passes. Run \`${documentCommand('preflight.mjs', '', { root })}\` to see what is unproven.`);
@@ -289,6 +290,8 @@ approved handoff are three different states._
 Reviewed by: _agent - the agent that classified the map, rewrote the findings and answered the ${TODO_MARK} sections replaces this line with \`Reviewed by: agent\`_
 
 **This is the phase-1 to phase-2 handoff.** ${gateLine}
+
+${renderGateWarnings(verdict)}
 
 Whoever you are - another agent, a different model, or a person - read this file
 first. You should not need to re-research anything to start work. If something
@@ -307,8 +310,8 @@ ${verifiedTable(snapshot)}
 
 ${TODO_MARK} - review the primary sources above for disagreements (pricing pages vs
 billing docs, docs vs issue trackers, version-dependent behaviour). Record both
-sides and state which you trust and why. Two independent sources agree unless
-noted here.
+sides and state which you trust and why. State whether independent corroboration
+was obtained; a single source does not establish agreement.
 
 ## ${BRIEF_SECTIONS[3].heading}
 

@@ -2,13 +2,22 @@
 
 [![offline suite](https://github.com/StepenkoAnatoli/Research-Kit/actions/workflows/offline-suite.yml/badge.svg)](https://github.com/StepenkoAnatoli/Research-Kit/actions/workflows/offline-suite.yml)
 
-**Research first, build second.** Research-Kit makes an AI agent collect evidence from real
-sources before it designs or builds anything, keeps a tamper-evident record of where every
-claim came from, and refuses to let the build start until a gate passes.
+**Research first, build second.** Research-Kit gives AI agents a workflow for collecting
+sources, declaring blocking unknowns, and handing traceable research artifacts to a builder.
+It keeps cached pages and a tamper-evident fetch record. When the installed hooks are
+operating and the gate has not been overridden, commits that change product code are
+blocked while the configured research gate fails.
 
 It exists for the facts an agent would otherwise guess: API limits, pricing, what a licence
 permits, whether a platform can do the thing the design depends on. Plain Node, no
 dependencies, no `package.json`. Everything except the collection itself runs offline.
+
+**What PASS means.** The configured checks passed for the declared research contract.
+A pass can retain disclosed known unknowns and warnings. Generated briefs, audits and
+package reading guides preserve those warnings and their reasons. The gate checks
+provenance and research structure; an agent still has to check whether a source supports
+a claim and whether an implementation behaves correctly. No controlled evaluation has
+yet measured how much this kit reduces mistakes in research, code or writing.
 
 **In a hurry?** [`QUICKSTART.md`](QUICKSTART.md) is the two-minute setup: the agent collects
 through GitHub with one token, and you only read the brief.

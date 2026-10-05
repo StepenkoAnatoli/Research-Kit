@@ -5,6 +5,14 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- Handoffs preserve the configured gate's cautions (ADR-0142): the brief no longer turns
+  PASS into a claim that every unknown is closed or that independent sources agree.
+  Briefs, full and subtopic audits, package reading guides and collection summaries carry
+  all evaluated warning reasons and remedies. The MCP approval text directs the builder
+  to those cautions. An unavailable warning observation is distinct from an evaluated zero.
+  Audit version selection includes the rendered gate result, so a changed warning earns
+  a new immutable snapshot. The public description states these limits and makes no claim
+  of a measured reduction in downstream errors; gate policy and package formats are unchanged.
 - The installer records no hand-on to another copy of the kit's gate, on a first install or a
   re-install (ADR-0141): doctor's remedy for that hand-on, `git config --global --unset
   research-kit.previousHooksPath` (ADR-0134), lasted one session on the operator's machine

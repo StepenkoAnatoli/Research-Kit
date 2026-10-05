@@ -15,6 +15,42 @@ import { holdsLock } from '../lib/provenance.mjs';
 
 describe('audit');
 
+test('standalone audits retain the full preflight warning that accompanies a pass', () => {
+  const dir = makePassingProject();
+  const result = writeAudit(dir, { env: {} });
+  assert.equal(result.written, true);
+  assert.equal(result.verdict.pass, true);
+  const warning = result.verdict.warnings.find((f) => f.check === 'corroboration' && f.rule === 'single-source');
+  assert.ok(warning);
+  assert.ok(result.subtopics.length > 0);
+  for (const file of [result.main, ...result.subtopics]) {
+    const text = readText(resolve(dir, file));
+    assert.match(text, /corroboration\/single-source/);
+    assert.ok(text.includes(warning.detail), `${file} drops the warning reason`);
+  }
+});
+
+test('changed gate warnings earn a new audit version without rewriting the earlier snapshot', () => {
+  const date = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const dir = makePassingProject(undefined, { date });
+  const config = resolve(tempDir(), 'config.json');
+  const env = { RESEARCH_KIT_CONFIG: config };
+  writeText(config, JSON.stringify({ maxAgeDays: 60 }));
+  const first = writeAudit(dir, { env });
+  assert.equal(first.written, true);
+  const original = readText(resolve(dir, first.main));
+  assert.doesNotMatch(original, /unknown-closure\/stale-evidence/);
+  writeText(config, JSON.stringify({ maxAgeDays: 1 }));
+  const second = writeAudit(dir, { env });
+  assert.equal(second.written, true, second.reason);
+  assert.notEqual(second.version, first.version);
+  const warning = second.verdict.warnings.find((f) => f.rule === 'stale-evidence');
+  assert.ok(warning);
+  assert.ok(readText(resolve(dir, second.main)).includes(warning.detail));
+  assert.equal(readText(resolve(dir, first.main)), original, 'the historical snapshot was rewritten');
+  assert.equal(writeAudit(dir, { env }).written, false, 'an unchanged evaluation should reuse its snapshot');
+});
+
 // --- the container -----------------------------------------------------------------
 
 test('crc32 matches its published vectors', () => {
