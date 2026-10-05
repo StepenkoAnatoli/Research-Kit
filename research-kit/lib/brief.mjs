@@ -245,9 +245,11 @@ prior that was recorded in advance is worth more than a right one remembered aft
 }
 
 function gateWarningBlock(verdict) {
-  const warnings = Array.isArray(verdict?.warnings) ? verdict.warnings : [];
-  const count = verdict?.counts?.warn ?? warnings.length;
-  if (!count) return '';
+  const warnings = (Array.isArray(verdict?.warnings) ? verdict.warnings : []).filter((warning) => (
+    warning?.check !== 'gate-integrity'
+    && !(warning?.check === 'hygiene' && ['brief-stale', 'brief-unstamped'].includes(warning.rule))
+  ));
+  if (!warnings.length) return '';
 
   const items = warnings.map((warning) => {
     const label = [warning.check, warning.rule]
@@ -258,8 +260,7 @@ function gateWarningBlock(verdict) {
       .map((value) => String(value).replace(/[^a-z0-9._:-]/gi, '?'));
     return `- \`${label}\`${targets.length ? ` (${targets.join(', ')})` : ''}`;
   });
-  if (!items.length) items.push('- Warning details are unavailable in this verdict.');
-  return `\n\n**Warnings the builder should know (${count}):**\n${items.join('\n')}`;
+  return `\n\n**Warnings the builder should know (${warnings.length}):**\n${items.join('\n')}`;
 }
 
 export function renderBrief(root, { force = false, date = today(), corpus = null, verdict = null } = {}) {
@@ -290,7 +291,7 @@ export function renderBrief(root, { force = false, date = today(), corpus = null
   const gateLine = gatePasses === null
     ? `**Gate state: not evaluated in this run.**`
     : (gatePasses
-      ? `**Gate: PASS (${verdict.counts?.fail ?? 0} blocking findings, ${verdict.counts?.warn ?? verdict.warnings?.length ?? 0} warnings).** Every blocking unknown is closed with evidence, and every claim below
+      ? `**Gate: PASS.** Every blocking unknown is closed with evidence, and every claim below
 traces to a cached page in \`${PATHS.raw}/\`.${gateWarningBlock(verdict)}`
       : `**Gate: FAIL (${verdict.counts.fail} blocking finding${verdict.counts.fail === 1 ? '' : 's'}).** This brief is a
 draft of an incomplete research pass: phase 2 does not start until \`${PATHS.discovery}\`

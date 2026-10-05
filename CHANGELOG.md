@@ -5,9 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
-- A passing generated brief now includes the blocking-finding and warning counts and lists each
-  warning by check/rule, with its row or unknown when available. Before this, the brief said
-  every blocking unknown was closed without surfacing warnings a builder needed to see.
+- A passing generated brief now lists actionable corpus warnings by check/rule, with their row
+  or unknown when available. Before this, the brief said every blocking unknown was closed
+  without surfacing warnings a builder needed to see.
+- Builder-facing brief warnings now omit `brief-stale`, `brief-unstamped`, and all
+  `gate-integrity` findings; the ordinary `Gate: PASS.` line remains unchanged when no other
+  warnings are listed.
 - The nested-bare-repository handoff test accepts either Git's older “not a work tree” response
   or newer Git's `safe.bareRepository=explicit` refusal; both must avoid printing an unusable
   checkout command.

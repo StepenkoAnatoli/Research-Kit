@@ -206,24 +206,46 @@ test('an unedited draft is redrafted without --force, and nothing is backed up',
   assert.match(readText(resolve(dir, PATHS.brief)), /Gate: PASS/);
 });
 
-test('a passing brief surfaces its gate warnings and their row or unknown', () => {
+test('a passing brief lists corpus warnings but omits brief and machine warnings', () => {
   const dir = makePassingProject();
   renderBrief(dir, {
     verdict: {
       pass: true,
-      counts: { fail: 0, warn: 2 },
+      counts: { fail: 0, warn: 5 },
       warnings: [
         { check: 'unknown-closure', rule: 'single-witness-stale', unknown: 'U-1', detail: 'private details are not copied' },
+        { check: 'citations', rule: 'raw-thin', row: 'E-1' },
+        { check: 'hygiene', rule: 'brief-stale' },
         { check: 'hygiene', rule: 'brief-unstamped' },
+        { check: 'gate-integrity', rule: 'local-hooks-path' },
       ],
     },
   });
   const text = readText(resolve(dir, PATHS.brief));
-  assert.match(text, /Gate: PASS \(0 blocking findings, 2 warnings\)/);
+  assert.match(text, /Gate: PASS\./);
   assert.match(text, /Warnings the builder should know \(2\)/);
   assert.match(text, /`unknown-closure\/single-witness-stale` \(U-1\)/);
-  assert.match(text, /`hygiene\/brief-unstamped`/);
+  assert.match(text, /`citations\/raw-thin` \(E-1\)/);
+  assert.doesNotMatch(text, /brief-stale|brief-unstamped|local-hooks-path/);
   assert.doesNotMatch(text, /private details are not copied/);
+});
+
+test('a passing brief keeps the plain PASS line when only brief or machine warnings exist', () => {
+  const dir = makePassingProject();
+  renderBrief(dir, {
+    verdict: {
+      pass: true,
+      counts: { fail: 0, warn: 3 },
+      warnings: [
+        { check: 'hygiene', rule: 'brief-stale' },
+        { check: 'hygiene', rule: 'brief-unstamped' },
+        { check: 'gate-integrity', rule: 'local-hooks-path' },
+      ],
+    },
+  });
+  const text = readText(resolve(dir, PATHS.brief));
+  assert.match(text, /\*\*Gate: PASS\.\*\*/);
+  assert.doesNotMatch(text, /Warnings the builder should know|brief-stale|brief-unstamped|local-hooks-path/);
 });
 
 // The stamp was anchored to the end of the file until 2026-10-03, so a line appended after
