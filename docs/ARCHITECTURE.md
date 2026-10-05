@@ -66,8 +66,9 @@ about defects that were already fixed. Nothing was deleted; it was moved and lin
 
    lib/scaffold.mjs ─── project shape: LAYOUT, the four GATE_MARKERS, templates
    lib/brief.mjs ────── research/BRIEF.md: the brief's shape (sections, the
-                        judged two, the scaffold/draft/authored state) and the
-                        reader lib/audit.mjs consumes — headings written from it
+                        judged two, the scaffold/draft/authored state), its
+                        gate warning summary, and the reader lib/audit.mjs
+                        consumes — headings written from it
    lib/doctor.mjs ───── diagnostics: aggregates machine + project + gate + chain
    lib/installer.mjs ── installs the hooks, records/restores prior state
 ```

@@ -269,12 +269,22 @@ export function renderBrief(root, { force = false, date = today(), corpus = null
   // Asserting "phase 1 is complete" over unanswered TODOs is the corpus claiming a
   // review that never happened.
   const gatePasses = verdict?.pass ?? null;
+  const warnings = (verdict?.findings ?? []).filter((finding) => finding.severity === 'warn');
+  const warningCount = warnings.length;
+  const warningBlock = warningCount
+    ? `\n\n**Warnings the builder should know:**\n\n${warnings.map((finding) => {
+      const label = finding.rule && finding.rule !== finding.check
+        ? `${finding.check}/${finding.rule}`
+        : finding.check ?? finding.rule ?? 'warning';
+      return `- \`${label}\` — ${finding.detail ?? label}`;
+    }).join('\n')}`
+    : '';
   const gateLine = gatePasses === null
     ? `**Gate state: not evaluated in this run.**`
     : (gatePasses
-      ? `**Gate: PASS.** Every blocking unknown is closed with evidence, and every claim below
+      ? `**Gate: PASS (${warningCount} warning${warningCount === 1 ? '' : 's'}).** Every blocking unknown is closed with evidence, and every claim below
 traces to a cached page in \`${PATHS.raw}/\`.`
-      : `**Gate: FAIL (${verdict.counts.fail} blocking finding${verdict.counts.fail === 1 ? '' : 's'}).** This brief is a
+      : `**Gate: FAIL (${verdict.counts.fail} blocking finding${verdict.counts.fail === 1 ? '' : 's'}, ${warningCount} warning${warningCount === 1 ? '' : 's'}).** This brief is a
 draft of an incomplete research pass: phase 2 does not start until \`${PATHS.discovery}\`
 passes. Run \`${documentCommand('preflight.mjs', '', { root })}\` to see what is unproven.`);
 
@@ -288,7 +298,7 @@ approved handoff are three different states._
 
 Reviewed by: _agent - the agent that classified the map, rewrote the findings and answered the ${TODO_MARK} sections replaces this line with \`Reviewed by: agent\`_
 
-**This is the phase-1 to phase-2 handoff.** ${gateLine}
+**This is the phase-1 to phase-2 handoff.** ${gateLine}${warningBlock}
 
 Whoever you are - another agent, a different model, or a person - read this file
 first. You should not need to re-research anything to start work. If something

@@ -5,6 +5,8 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A passing research brief now carries the preflight warning count and each warning's check,
+  rule and detail, so a builder reading only the handoff sees caveats behind PASS.
 - The installer records no hand-on to another copy of the kit's gate, on a first install or a
   re-install (ADR-0141): doctor's remedy for that hand-on, `git config --global --unset
   research-kit.previousHooksPath` (ADR-0134), lasted one session on the operator's machine
