@@ -11,7 +11,7 @@
 //   skill that collects (ADR-0010: a builder does not collect).
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, fs, path, KIT_ROOT, tempDir } from './harness.mjs';
+import { test, describe, assert, fs, path, KIT_ROOT, tempDir, Unsupported } from './harness.mjs';
 import { writeText } from '../lib/core.mjs';
 
 describe('skill-set');
@@ -105,7 +105,7 @@ test('auto-build readiness script rejects a missing --base value', () => {
   const candidates = ['bash', 'C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files\\Git\\usr\\bin\\bash.exe'];
   const bash = candidates.find((candidate) => spawnSync(candidate, ['-c', 'echo ok'],
     { encoding: 'utf8', timeout: 10_000, windowsHide: true }).stdout?.trim() === 'ok');
-  assert.ok(bash, 'bash is required to run the auto-build readiness script');
+  if (!bash) throw new Unsupported('NO_BASH', 'bash is required to run the auto-build readiness script');
 
   const script = path.join(SET, 'auto-build', 'scripts', 'pr-readiness.sh');
   for (const args of [['123', '--base'], ['123', '--base=']]) {
