@@ -38,7 +38,7 @@ mandate - when any of these holds:
 | the kit's gate fails, the suite is red, `handoff` fails, `doctor` is not READY | a red result stops work |
 | break-test or an audit reports a Critical or S1 finding | the owner decides if it ships |
 | a research claim the design rests on proves wrong, or a fact is missing | the plan changed under the run |
-| the merge | always the owner's word, given in this run |
+| the merge | the owner's word, for the exact head commit he saw (see Stage 8) |
 
 At a stop the run writes `RUN.md` (state, what it found, the question, Next action
 "awaiting owner") and **ends its turn**. It does not continue on a guess, and it does not
@@ -48,6 +48,19 @@ owner can overrule it.
 
 The standing mandate may still pre-answer *preferences* (branch names, merge method, audit
 depth, page budget for free transports). It never pre-approves a stop in the table above.
+
+**No timeouts, no defaults that act.** A run that has waited a long time stays stopped; it
+never proceeds because no answer came.
+
+**A corrected Mandate needs a fresh approval.** A reply with corrections is not an approval:
+the run presents the corrected Mandate again and waits. A `GO` given to an earlier version
+does not carry over to a changed design.
+
+**Unattended runs stop at the Mandate**, standing mandate or not. "Unattended" means the
+owner has not replied in the current session. Before the Mandate the run only reads the
+repository, plans and writes notes - and, on a collector, collects through the free
+transports only; paid pages need the budget the owner gives in the Mandate. It leaves the
+Mandate message ready to read, `RUN.md` Next action "awaiting owner", every question listed.
 
 ## Stage 0: Orient - start from the router, not from the task
 
@@ -138,12 +151,34 @@ And:
 
 - **Never `--no-verify`, never `research/GATE_OFF`, never a local `core.hooksPath` to step
   around the gate.** If the gate fails, the run stops and says why.
-- **No merge without the owner's word in this run.** A standing mandate's `GO MERGE` or
-  `Merge: allowed` is read as `GO`: Stage 8 stops at an open pull request, sends the owner
-  the merge summary (checks, gate, suite, preflight, findings, what was not verified) and
-  waits for "merge". This holds on a collector and a builder alike.
 - Without `gh`, the run stops at a pushed branch or a patch, as the SKILL.md says.
-- An unattended run stops at the Mandate, standing mandate or not.
+
+### The merge approval is tied to the head commit
+
+A standing mandate's `GO MERGE` or `Merge: allowed` is read as `GO`. The merge needs the
+owner's word, and that word approves **one head commit**:
+
+1. **Ask.** Stage 8 stops at the open pull request and sends the merge summary: the PR, its
+   **head commit** (full sha), the checks, the gate, the suite, `preflight`, the findings and
+   what was not verified. `RUN.md` Next action: "awaiting owner: merge <sha>".
+2. **Record.** The owner's reply, word for word, and the sha it approves are written to
+   `MANDATE.md` and `RUN.md` - who approved which code.
+3. **The approval lapses** on any change to the head: a push, a rebase, a fix, a base
+   update merged in. The run then stops again with a new summary for the new head. An
+   approval never moves to a commit the owner did not see.
+4. **The run folder, not the session, holds it.** The owner may reply hours later. The
+   resumed run (`resume-from-disk`) reads the approval from `RUN.md`, checks that the PR's
+   head is still the approved sha, re-runs the gate, the suite and `preflight` on it, and
+   merges with `--match-head-commit <sha>` (or the method's equivalent), so a head that
+   moved in between is refused rather than merged. Any mismatch or red result is a stop.
+
+The same rule holds on a collector and a builder; merging collects nothing. **On a builder**
+two more conditions hold before the merge summary is even sent:
+
+- no `fact-request` in the run folder is still open;
+- `preflight` reports no evidence older than its age limit for any `E-##` row a requirement
+  rests on. A builder cannot re-check a fact itself, so a stale one is a `fact-request` for
+  a `freshness-recheck` on the collector, and the run stops "awaiting collector".
 
 ## Before the merge: freshness
 
@@ -151,7 +186,7 @@ And:
   code depends on (`research.mjs --refresh-days`). If a fact changed, the run returns to
   Stage 1 for that topic and re-plans what depended on it; it does not merge.
 - **On a builder**, a fact that may be stale becomes a `fact-request`, and the merge waits
-  when the stale fact is one a requirement rests on.
+  (see Stage 8's builder conditions).
 
 ## Resuming: "continue the auto-build"
 

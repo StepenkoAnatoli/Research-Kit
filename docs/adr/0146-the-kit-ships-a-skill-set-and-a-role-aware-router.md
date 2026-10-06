@@ -92,7 +92,13 @@ names the set exactly, is enough).
    any hard-to-reverse or costly decision, anything touching secrets, permissions, CI or
    the gate, anything destructive, a red gate or suite, a Critical finding, a broken
    research claim, and the merge. A standing mandate pre-answers preferences only, never
-   a stop; `GO MERGE` is the owner's word in this run, on either role.
+   a stop. **The merge approval is tied to the head commit** (owner's choice, option B):
+   the summary names the PR's head sha, the owner's reply approves that sha only and is
+   recorded in `MANDATE.md` and `RUN.md`, any change to the head lapses it, and a resumed
+   run re-checks the sha, the gate, the suite and `preflight` before merging with the head
+   pinned. On a builder the merge also needs no open fact request and no evidence past
+   preflight's age limit under a requirement. Unattended runs stop at the Mandate; a
+   corrected Mandate needs a fresh approval; no timeout ever acts.
 
 ## Rejected
 
@@ -110,6 +116,12 @@ names the set exactly, is enough).
 - **Letting a standing mandate approve the Mandate, an architectural choice or the merge**
   (the received skill allows it): rejected for security on the owner's order; the cost is
   a run that waits for its owner more often.
+- **A merge approval scoped to the session** (option A): ambiguous once a session ends,
+  and it did not say which code was approved.
+- **The run never merges** (option C): simplest, but it drops the post-merge checks
+  (base green, branches cleaned); the owner chose B.
+- **An opt-in unattended draft mode** (`Unattended: draft`): code and CI on a design nobody
+  approved; not adopted.
 - **Editing the received auto-build text** for the kit's rules: the note beside it carries
   them, so the copy stays identical to its source; if the owner edits SkillsMDs instead,
   the kit re-vendors.

@@ -145,7 +145,8 @@ test('auto-build carries the kit note that governs it, and the router points at 
   assert.ok(fs.existsSync(note), 'auto-build/references/research-kit.md is missing');
   const text = fs.readFileSync(note, 'utf8');
   for (const must of ['handoff.mjs', 'preflight.mjs', 'fact-request', 'awaiting collector',
-    'awaiting owner', 'ends its turn', 'never pre-approves', '--no-verify', 'resume-from-disk', 'commit-report', 'cite-in-code']) {
+    'awaiting owner', 'ends its turn', 'never pre-approves', '--no-verify',
+    'head commit', 'approval lapses', 'match-head-commit', 'fresh approval', 'Unattended runs stop at the Mandate', 'resume-from-disk', 'commit-report', 'cite-in-code']) {
     assert.ok(text.includes(must), `the auto-build note no longer says ${must}`);
   }
   assert.doesNotMatch(text, /\b(claude|gpt|gemini|opus|sonnet|haiku|copilot|codex|cursor)\b/i);

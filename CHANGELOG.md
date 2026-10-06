@@ -21,7 +21,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   and `preflight` on the merged head, no override ever. It asks the owner every question
   only he can answer and stops for his reply at the Mandate, costly or irreversible
   decisions, secrets and permissions, anything destructive or critical, and the merge; a
-  standing mandate no longer approves any of them.
+  standing mandate no longer approves any of them. The merge approval names the PR's head
+  commit and lapses on any change to it; a resumed run re-checks that sha, the gate, the
+  suite and `preflight` before merging. A builder also needs no open fact request and no
+  stale evidence under a requirement. Unattended runs stop at the Mandate.
 - A matched-arm evaluation of the kit against a strongly prompted agent with the same
   tools and budget is adopted (ADR-0145) and scaffolded as the nested project
   `docs/decisions/2026-10-06-kit-vs-prompt-evaluation/`, its protocol and grading rubrics
