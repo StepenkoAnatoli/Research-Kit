@@ -1,0 +1,2107 @@
+<!DOCTYPE html><html lang="en" data-theme="light" style="--docs-sticky-top: 194px;"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	
+	<meta name="awa-expId" content="cv-downloadv2:1227264;">
+	<meta name="awa-env" content="prod">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="google-site-verification" content="hNs7DXrTySP_X-0P_AC0WulAXvUwgSXEmgfcO2r79dw">
+
+	<!-- Twitter and Facebook OpenGraph Metadata-->
+	<meta name="twitter:card" content="summary_large_image">
+	<meta name="twitter:site" content="@code">
+
+	<meta name="description" content="Learn how to add and manage Model Context Protocol (MCP) servers with GitHub Copilot in Visual Studio Code.">
+<meta name="keywords" content="">
+<meta name="ms.prod" content="vs-code">
+<meta name="ms.TOCTitle" content="">
+<meta name="ms.ContentId" content="7c550054-4ade-4665-b368-215798c48673">
+<meta name="ms.date" content="9/30/2026">
+<meta name="ms.topic" content="conceptual">
+<!-- Twitter and Facebook OpenGraph Metadata-->
+<meta name="twitter:card" content="summary_large_image">
+<meta property="og:url" content="https://code.visualstudio.com/docs/agent-customization/mcp-servers">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Add and manage MCP servers in VS Code">
+<meta property="og:description" content="Learn how to add and manage Model Context Protocol (MCP) servers with GitHub Copilot in Visual Studio Code.">
+
+<meta property="og:image" content="https://code.visualstudio.com/opengraphimg/generated/docs/agent-customization/mcp-servers.webp">
+
+
+
+	<link rel="shortcut icon" href="https://code.visualstudio.com/assets/favicon.ico" sizes="128x128">
+	<link rel="apple-touch-icon" href="https://code.visualstudio.com/assets/apple-touch-icon.png">
+
+	<title>Add and manage MCP servers in VS Code</title>
+
+	<link rel="stylesheet" href="https://code.visualstudio.com/dist/style.css">
+
+	<script src="https://consentdeliveryfd.azurefd.net/mscc/lib/v2/wcp-consent.js"></script>
+	<script type="text/javascript" src="https://js.monitor.azure.com/scripts/c/ms.analytics-web-4.min.js"></script>
+	
+	<script type="text/javascript">
+	// Leave as var; siteConsent is initialized and referenced elsewhere.
+	var siteConsent = null;
+	
+	const GPC_DataSharingOptIn = false;
+	WcpConsent.onInitCallback(function () {
+		window.appInsights = new oneDS.ApplicationInsights();
+		window.appInsights.initialize({
+			instrumentationKey: "1a3eb3104447440391ad5f2a6ee06a0a-62879566-bc58-4741-9650-302bf2af703f-7103",
+			propertyConfiguration: {
+				userConsented: false,
+				gpcDataSharingOptIn: false,
+				callback: {
+					// Stable closure: the SDK calls this per-event, so it picks up the
+					// real consent state once WcpConsent.init() resolves (siteConsent
+					// is still null when this callback is registered).
+					userConsentDetails: function () {
+						return siteConsent ? siteConsent.getConsent() : undefined;
+					}
+				},
+			},
+			cookieCfg: {
+				ignoreCookies: ["MSCC"]
+			},
+			webAnalyticsConfiguration:{ // Web Analytics Plugin configuration
+				urlCollectQuery: true,
+				urlCollectHash: true,
+				autoCapture: {
+					scroll: true,
+					pageView: true,
+					onLoad: true,
+					onUnload: true,
+					click: true,
+					resize: true,
+					jsError: true
+				}
+			}
+		}, []);
+	
+		window.appInsights.getPropertyManager().getPropertiesContext().web.gpcDataSharingOptIn = GPC_DataSharingOptIn;
+	});
+	</script>
+	<link rel="alternate" type="application/atom+xml" title="RSS Feed for code.visualstudio.com" href="https://code.visualstudio.com/feed.xml">
+</head>
+
+<body class="linux x64">
+	<div class="sr-only" aria-hidden="true">
+		AI agents: See <a href="https://code.visualstudio.com/llms.txt" tabindex="-1">llms.txt</a> for documentation discovery and navigation. Documentation articles are also available as Markdown by appending <code>.md</code> to the article URL.
+	</div>
+	<!-- Setting theme here to avoid FOUC -->
+	<script>
+		function setTheme(themeName) {
+			if (themeName === 'dark') {
+				document.documentElement.removeAttribute('data-theme'); // dark is default, so no data-theme attribute needed
+			}
+
+			if (themeName === 'light') {
+				document.documentElement.setAttribute('data-theme', themeName);
+			}
+			return;
+		}
+
+		// Determine initial theme: user preference or system preference
+		let theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+		setTheme(theme); // Apply the initial theme
+
+		// Listen for changes in the system theme preference
+		window.matchMedia('(prefers-color-scheme: dark)').addListener(e => {
+			if (!localStorage.getItem('theme')) { // Only if no user preference is saved
+				setTheme(e.matches ? 'dark' : 'light');
+			}
+		});
+	</script>
+
+	<div id="main">
+		<div class="navbar-fixed-container">
+			<div class="navbar navbar-inverse navbar-fixed-top ">
+				<div id="cookie-banner"></div>		<nav role="navigation" aria-label="Top Level">
+					<div class="container">
+						<div class="nav navbar-header">
+							<a class="navbar-brand" href="https://code.visualstudio.com/"><span>Visual Studio Code</span></a>
+						</div>
+						<div class="navbar-collapse collapse" style="max-height: min(60vh, 450px);">
+							<ul class="nav navbar-nav navbar-left" data-m="{&quot;cN&quot;:&quot;top-navbar&quot;,&quot;aN&quot;:&quot;navigation&quot;}">
+								<li class="nav-dropdown">
+									<a id="nav-features" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#" class="nav-dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Features&quot;,&quot;aN&quot;:&quot;navigation&quot;,&quot;cT&quot;:&quot;toggle&quot;}">
+										Features <span class="nav-dropdown-caret" aria-hidden="true"></span>
+									</a>
+									<ul class="nav-dropdown-menu" role="menu">
+										<li role="none"><a role="menuitem" href="https://code.visualstudio.com/features/agents" data-m="{&quot;cN&quot;:&quot;Agents&quot;,&quot;aN&quot;:&quot;navigation - Features&quot;}">Agents</a></li>
+										<li role="none"><a role="menuitem" href="https://code.visualstudio.com/features/customizations" data-m="{&quot;cN&quot;:&quot;Agent Customization&quot;,&quot;aN&quot;:&quot;navigation - Features&quot;}">Agent Customization</a></li>
+										<li role="none"><a role="menuitem" href="https://code.visualstudio.com/features/models" data-m="{&quot;cN&quot;:&quot;Models &amp; Agent Harnesses&quot;,&quot;aN&quot;:&quot;navigation - Features&quot;}">Models &amp; Agent Harnesses</a></li>
+										<li role="none"><a role="menuitem" href="https://code.visualstudio.com/features/enterprise" data-m="{&quot;cN&quot;:&quot;Enterprise&quot;,&quot;aN&quot;:&quot;navigation - Features&quot;}">Enterprise</a></li>
+										<li role="none"><a role="menuitem" href="https://code.visualstudio.com/features/extensibility" data-m="{&quot;cN&quot;:&quot;Extensibility&quot;,&quot;aN&quot;:&quot;navigation - Features&quot;}">Extensibility</a></li>
+									</ul>
+								</li>
+								<li class="nav-dropdown active">
+									<a id="nav-docs" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#" class="nav-dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Docs&quot;,&quot;aN&quot;:&quot;navigation&quot;,&quot;cT&quot;:&quot;toggle&quot;}">
+										Docs <span class="nav-dropdown-caret" aria-hidden="true"></span>
+									</a>
+									<ul class="nav-dropdown-menu" role="menu">
+										<li role="none"><a role="menuitem" href="https://code.visualstudio.com/docs" data-m="{&quot;cN&quot;:&quot;Documentation&quot;,&quot;aN&quot;:&quot;navigation - Docs&quot;}">Documentation</a></li>
+										<li role="none"><a role="menuitem" href="https://code.visualstudio.com/api" data-m="{&quot;cN&quot;:&quot;API&quot;,&quot;aN&quot;:&quot;navigation - Docs&quot;}">API</a></li>
+										<li role="none"><a role="menuitem" id="nav-faqs" href="https://code.visualstudio.com/docs/supporting/faq" data-m="{&quot;cN&quot;:&quot;FAQ&quot;,&quot;aN&quot;:&quot;navigation - Docs&quot;}">FAQ</a></li>
+									</ul>
+								</li>
+								<li><a id="nav-updates" href="https://code.visualstudio.com/updates" data-m="{&quot;cN&quot;:&quot;Release Notes&quot;}">Release Notes</a>
+								</li>
+								<li><a id="nav-blogs" href="https://code.visualstudio.com/blogs" data-m="{&quot;cN&quot;:&quot;Blog&quot;}">Blog</a></li>
+								<li><a id="nav-learn" href="https://code.visualstudio.com/learn" data-m="{&quot;cN&quot;:&quot;Learn&quot;}">Learn</a></li>
+								<li><a id="nav-events" href="https://aka.ms/vscode/live" target="_blank" rel="noopener" data-m="{&quot;cN&quot;:&quot;Events&quot;}">Events<span class="codicon codicon-link-external nav-external-icon" aria-hidden="true"></span></a></li>
+								<li class="nav-dropdown">
+									<a id="nav-resources" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#" class="nav-dropdown-toggle" role="button" aria-haspopup="true" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Resources&quot;,&quot;aN&quot;:&quot;navigation&quot;,&quot;cT&quot;:&quot;toggle&quot;}">
+										Resources <span class="nav-dropdown-caret" aria-hidden="true"></span>
+									</a>
+									<ul class="nav-dropdown-menu" role="menu">
+										<li role="none"><a role="menuitem" href="https://marketplace.visualstudio.com/VSCode" target="_blank" rel="noopener" id="nav-extensions" data-m="{&quot;cN&quot;:&quot;Extensions&quot;,&quot;aN&quot;:&quot;navigation - Resources&quot;}">Extensions<span class="codicon codicon-link-external nav-external-icon" aria-hidden="true"></span></a></li>
+										<li role="none"><a role="menuitem" id="nav-mcp" href="https://code.visualstudio.com/mcp" target="_blank" rel="noopener" data-m="{&quot;cN&quot;:&quot;MCP&quot;,&quot;aN&quot;:&quot;navigation - Resources&quot;}">MCP<span class="codicon codicon-link-external nav-external-icon" aria-hidden="true"></span></a></li>
+									</ul>
+								</li>
+							</ul>
+							<ul class="nav navbar-nav navbar-right" role="presentation">
+								<li>
+									<a class="link-button" href="https://code.visualstudio.com/download" id="nav-download">
+										<span>Download</span>
+									</a><div class="tabloopElement" tabindex="0" style="display: none;"></div>
+								</li>
+							</ul>
+						</div>
+						<div class="navbar-actions">
+							<div class="search" role="presentation">
+								<div class="nav-search search-control" role="button" tabindex="0" aria-label="Open search dialog">
+									<div class="input-group" role="presentation">
+										<span class="input-group-btn">
+											<span class="btn search-icon-container" aria-hidden="true">
+												<img class="search-icon-dark" src="https://code.visualstudio.com/assets/icons/search-dark.svg" alt="" width="300" height="150">
+												<img class="search-icon-light" src="https://code.visualstudio.com/assets/icons/search.svg" alt="" width="300" height="150">
+											</span>
+										</span>
+										<span class="search-box form-control" aria-hidden="true" role="presentation"></span>
+										<span class="search-shortcut-placeholder">Search</span>
+										<span class="search-shortcut-overlay" style="opacity: 0.7;">Ctrl+Shift+P</span>
+									</div>
+								</div>					</div>
+							<button type="button" class="theme-switch" id="theme-toggle">
+								<img class="theme-icon-light" src="https://code.visualstudio.com/assets/icons/theme-light.svg" alt="Switch to the dark theme" width="300" height="150">
+								<img class="theme-icon-dark" src="https://code.visualstudio.com/assets/icons/theme-dark.svg" alt="Switch to the light theme" width="300" height="150">
+							</button>
+							<a class="link-button navbar-actions-download" href="https://code.visualstudio.com/Download">
+								<span>Download</span>
+							</a>
+						</div>
+						<div class="tabloopElement" tabindex="0" style="display: none;"></div><button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse" aria-label="Expand and Collapse Menu">
+							<span class="icon-bar"></span>
+							<span class="icon-bar"></span>
+							<span class="icon-bar"></span>
+						</button>
+					</div>
+				</nav>
+			</div>
+		</div>		<div data-announcement-version="2026-09-09-vscode-documentary-agent-host" data-rotation-interval-seconds="8" class="updates-banner" data-active-message-index="2">
+			<div class="container banner-messages">
+				<p class="message" data-banner-message="" aria-hidden="true" inert=""><a href="https://aka.ms/the-story-of-vs-code?source=vsc-website-banner" target="_blank" rel="noopener">🎬 Watch The Story of VS Code!<span class="codicon codicon-link-external external-link-icon" aria-hidden="true"></span></a></p>
+				<p class="message " data-banner-message="" aria-hidden="true" inert=""><a href="https://aka.ms/VSCode/IG?source=vsc-website-banner" target="_blank" rel="noopener">VS Code is now on Instagram, follow @vscode.ig for updates, tips, and more.<span class="codicon codicon-link-external external-link-icon" aria-hidden="true"></span></a></p>
+				<p class="message active" data-banner-message="" aria-hidden="false"><a href="https://gh.io/githubcopilotday?source=vsc-website-banner" target="_blank" rel="noopener">Rewatch GitHub Copilot Day.<span class="codicon codicon-link-external external-link-icon" aria-hidden="true"></span></a></p>
+			</div>
+			<button type="button" title="Dismiss this update" class="dismiss-btn" id="banner-dismiss-btn"><span class="sr-only">Dismiss this update</span><span aria-hidden="true" class="glyph-icon"></span></button>
+		</div>
+		<script>
+			// Restore dismissal and the session's random starting message before first paint.
+			(function () {
+				var banner = document.currentScript.previousElementSibling;
+				if (!banner) {
+					return;
+				}
+		
+				var version = banner.getAttribute('data-announcement-version');
+				try {
+					if (localStorage.getItem('dismissedAnnouncementVersion') === version) {
+						banner.classList.add('js-hidden');
+					}
+				} catch (error) {
+					console.warn('Unable to restore banner dismissal state.', error);
+				}
+		
+				var messages = banner.querySelectorAll('[data-banner-message]');
+				if (messages.length < 2) {
+					return;
+				}
+		
+				var storageKey = 'initialAnnouncementMessage:' + version;
+				var activeIndex;
+				try {
+					var storedIndex = sessionStorage.getItem(storageKey);
+					if (storedIndex !== null) {
+						activeIndex = Number(storedIndex);
+					}
+				} catch (error) {
+					console.warn('Unable to restore the initial banner message.', error);
+				}
+				if (!Number.isInteger(activeIndex) || activeIndex < 0 || activeIndex >= messages.length) {
+					activeIndex = Math.floor(Math.random() * messages.length);
+					try {
+						sessionStorage.setItem(storageKey, String(activeIndex));
+					} catch (error) {
+						console.warn('Unable to remember the initial banner message.', error);
+					}
+				}
+		
+				for (var index = 0; index < messages.length; index++) {
+					var isActive = index === activeIndex;
+					messages[index].classList.toggle('active', isActive);
+					messages[index].setAttribute('aria-hidden', String(!isActive));
+					messages[index].toggleAttribute('inert', !isActive);
+				}
+				banner.setAttribute('data-active-message-index', String(activeIndex));
+			})();
+		</script>
+		<!-- This div wraps around the entire site -->
+		<!-- The body itself should already have a main tag -->
+		<main id="main-content">
+			<div class="body-content docs docs-github-layout">
+    <div class="docs-layout-wrapper">
+        <!-- Left sidebar - Table of Contents -->
+        <aside class="docs-left-sidebar">
+            <nav id="docs-navbar" aria-label="Topics" class="docs-nav visible-md visible-lg" data-m="{&quot;cN&quot;:&quot;docs-left-nav&quot;,&quot;aN&quot;:&quot;navigation&quot;}">
+              
+              <h4>Documentation</h4>
+              <ul class="nav" id="main-nav">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs" data-m="{&quot;cN&quot;:&quot;Overview&quot;}">Overview</a>
+                </li>
+            
+                
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-0-articles" data-parent="#main-nav" data-toggle="collapse" aria-controls="docs-docs-0-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Get Started&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Get Started</a>
+              <ul id="docs-docs-0-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/getstarted/overview" data-m="{&quot;cN&quot;:&quot;Overview&quot;,&quot;aN&quot;:&quot;Get Started&quot;}">Overview</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/quickstart" data-m="{&quot;cN&quot;:&quot;Agents Quickstart&quot;,&quot;aN&quot;:&quot;Get Started&quot;}">Agents Quickstart</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/getting-started/editor-tutorial" data-m="{&quot;cN&quot;:&quot;Editor Tutorial&quot;,&quot;aN&quot;:&quot;Get Started&quot;}">Editor Tutorial</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/getstarted/introvideos" data-m="{&quot;cN&quot;:&quot;Intro Videos&quot;,&quot;aN&quot;:&quot;Get Started&quot;}">Intro Videos</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel active expanded">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-1-articles" data-parent="#main-nav" data-toggle="collapse" aria-controls="docs-docs-1-articles" aria-expanded="true" data-m="{&quot;cN&quot;:&quot;Agents&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Agents</a>
+              <ul id="docs-docs-1-articles" class="collapse in" aria-expanded="true">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/overview" data-m="{&quot;cN&quot;:&quot;AI Overview&quot;,&quot;aN&quot;:&quot;Agents&quot;}">AI Overview</a>
+                </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-1-1-articles" data-toggle="collapse" aria-controls="docs-docs-1-1-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Get started&quot;,&quot;aN&quot;:&quot;Agents&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Get started</a>
+              <ul id="docs-docs-1-1-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/quickstart" data-m="{&quot;cN&quot;:&quot;Agents Quickstart&quot;,&quot;aN&quot;:&quot;Agents - Get started&quot;}">Agents Quickstart</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/overview" data-m="{&quot;cN&quot;:&quot;Find a Guide&quot;,&quot;aN&quot;:&quot;Agents - Get started&quot;}">Find a Guide</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/setup/copilot" data-m="{&quot;cN&quot;:&quot;Set Up GitHub Copilot&quot;,&quot;aN&quot;:&quot;Agents - Get started&quot;}">Set Up GitHub Copilot</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/agents-tutorial" data-m="{&quot;cN&quot;:&quot;Agents Tutorial&quot;,&quot;aN&quot;:&quot;Agents - Get started&quot;}">Agents Tutorial</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/best-practices" data-m="{&quot;cN&quot;:&quot;Best Practices&quot;,&quot;aN&quot;:&quot;Agents - Get started&quot;}">Best Practices</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-1-2-articles" data-toggle="collapse" aria-controls="docs-docs-1-2-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Concepts&quot;,&quot;aN&quot;:&quot;Agents&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Concepts</a>
+              <ul id="docs-docs-1-2-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/concepts/agents" data-m="{&quot;cN&quot;:&quot;Agents&quot;,&quot;aN&quot;:&quot;Agents - Concepts&quot;}">Agents</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/concepts/language-models" data-m="{&quot;cN&quot;:&quot;How Models Work&quot;,&quot;aN&quot;:&quot;Agents - Concepts&quot;}">How Models Work</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/concepts/context" data-m="{&quot;cN&quot;:&quot;Context&quot;,&quot;aN&quot;:&quot;Agents - Concepts&quot;}">Context</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/concepts/tools" data-m="{&quot;cN&quot;:&quot;Tools&quot;,&quot;aN&quot;:&quot;Agents - Concepts&quot;}">Tools</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/concepts/sessions" data-m="{&quot;cN&quot;:&quot;Sessions and Chats&quot;,&quot;aN&quot;:&quot;Agents - Concepts&quot;}">Sessions and Chats</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/concepts/trust-and-safety" data-m="{&quot;cN&quot;:&quot;Trust &amp; Safety&quot;,&quot;aN&quot;:&quot;Agents - Concepts&quot;}">Trust &amp; Safety</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/concepts/customization" data-m="{&quot;cN&quot;:&quot;Agent Customization&quot;,&quot;aN&quot;:&quot;Agents - Concepts&quot;}">Agent Customization</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/concepts/agent-harnesses" data-m="{&quot;cN&quot;:&quot;Agent Harnesses&quot;,&quot;aN&quot;:&quot;Agents - Concepts&quot;}">Agent Harnesses</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/reference/workspace-context" data-m="{&quot;cN&quot;:&quot;Workspace Context&quot;,&quot;aN&quot;:&quot;Agents - Concepts&quot;}">Workspace Context</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/concepts/agent-host" data-m="{&quot;cN&quot;:&quot;Agent Host Architecture&quot;,&quot;aN&quot;:&quot;Agents - Concepts&quot;}">Agent Host Architecture</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-1-3-articles" data-toggle="collapse" aria-controls="docs-docs-1-3-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Use Agents&quot;,&quot;aN&quot;:&quot;Agents&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Use Agents</a>
+              <ul id="docs-docs-1-3-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/chat-view" data-m="{&quot;cN&quot;:&quot;Chat View and Layout&quot;,&quot;aN&quot;:&quot;Agents - Use Agents&quot;}">Chat View and Layout</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/agents-window" data-m="{&quot;cN&quot;:&quot;Agents Window&quot;,&quot;aN&quot;:&quot;Agents - Use Agents&quot;}">Agents Window</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/agent-harnesses" data-m="{&quot;cN&quot;:&quot;Choose an Agent Harness&quot;,&quot;aN&quot;:&quot;Agents - Use Agents&quot;}">Choose an Agent Harness</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/agents-window-configuration" data-m="{&quot;cN&quot;:&quot;Configure the Agents Window&quot;,&quot;aN&quot;:&quot;Agents - Use Agents&quot;}">Configure the Agents Window</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/chat/chat-overview" data-m="{&quot;cN&quot;:&quot;Chat Interaction Controls&quot;,&quot;aN&quot;:&quot;Agents - Use Agents&quot;}">Chat Interaction Controls</a>
+                </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-1-3-5-articles" data-toggle="collapse" aria-controls="docs-docs-1-3-5-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Plan and Run Tasks&quot;,&quot;aN&quot;:&quot;Agents - Use Agents&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Plan and Run Tasks</a>
+              <ul id="docs-docs-1-3-5-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/planning" data-m="{&quot;cN&quot;:&quot;Plan Work&quot;,&quot;aN&quot;:&quot;Agents - Use Agents - Plan and Run Tasks&quot;}">Plan Work</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/tools" data-m="{&quot;cN&quot;:&quot;Use Tools&quot;,&quot;aN&quot;:&quot;Agents - Use Agents - Plan and Run Tasks&quot;}">Use Tools</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/browser-tools" data-m="{&quot;cN&quot;:&quot;Browser Tools&quot;,&quot;aN&quot;:&quot;Agents - Use Agents - Plan and Run Tasks&quot;}">Browser Tools</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/subagents" data-m="{&quot;cN&quot;:&quot;Subagents&quot;,&quot;aN&quot;:&quot;Agents - Use Agents - Plan and Run Tasks&quot;}">Subagents</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/automations" data-m="{&quot;cN&quot;:&quot;Automations&quot;,&quot;aN&quot;:&quot;Agents - Use Agents - Plan and Run Tasks&quot;}">Automations</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-1-3-6-articles" data-toggle="collapse" aria-controls="docs-docs-1-3-6-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Sessions and Results&quot;,&quot;aN&quot;:&quot;Agents - Use Agents&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Sessions and Results</a>
+              <ul id="docs-docs-1-3-6-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/sessions/manage-sessions" data-m="{&quot;cN&quot;:&quot;Manage Sessions&quot;,&quot;aN&quot;:&quot;Agents - Use Agents - Sessions and Results&quot;}">Manage Sessions</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/sessions/session-history" data-m="{&quot;cN&quot;:&quot;Session History&quot;,&quot;aN&quot;:&quot;Agents - Use Agents - Sessions and Results&quot;}">Session History</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/remote-agent-sessions" data-m="{&quot;cN&quot;:&quot;Remote Agent Sessions&quot;,&quot;aN&quot;:&quot;Agents - Use Agents - Sessions and Results&quot;}">Remote Agent Sessions</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/memory" data-m="{&quot;cN&quot;:&quot;Memory&quot;,&quot;aN&quot;:&quot;Agents - Use Agents - Sessions and Results&quot;}">Memory</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/review-code-edits" data-m="{&quot;cN&quot;:&quot;Review &amp; Revert Changes&quot;,&quot;aN&quot;:&quot;Agents - Use Agents - Sessions and Results&quot;}">Review &amp; Revert Changes</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/artifacts" data-m="{&quot;cN&quot;:&quot;Artifacts&quot;,&quot;aN&quot;:&quot;Agents - Use Agents - Sessions and Results&quot;}">Artifacts</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-1-3-7-articles" data-toggle="collapse" aria-controls="docs-docs-1-3-7-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Permissions and Security&quot;,&quot;aN&quot;:&quot;Agents - Use Agents&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Permissions and Security</a>
+              <ul id="docs-docs-1-3-7-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/approvals" data-m="{&quot;cN&quot;:&quot;Approvals &amp; Permissions&quot;,&quot;aN&quot;:&quot;Agents - Use Agents - Permissions and Security&quot;}">Approvals &amp; Permissions</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/agent-sandboxing" data-m="{&quot;cN&quot;:&quot;Agent Sandboxing&quot;,&quot;aN&quot;:&quot;Agents - Use Agents - Permissions and Security&quot;}">Agent Sandboxing</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/run/security" data-m="{&quot;cN&quot;:&quot;AI Security&quot;,&quot;aN&quot;:&quot;Agents - Use Agents - Permissions and Security&quot;}">AI Security</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel active expanded">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-1-4-articles" data-toggle="collapse" aria-controls="docs-docs-1-4-articles" aria-expanded="true" data-m="{&quot;cN&quot;:&quot;Customize agents&quot;,&quot;aN&quot;:&quot;Agents&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Customize agents</a>
+              <ul id="docs-docs-1-4-articles" class="collapse in" aria-expanded="true">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agent-customization/overview" data-m="{&quot;cN&quot;:&quot;Create and Manage&quot;,&quot;aN&quot;:&quot;Agents - Customize agents&quot;}">Create and Manage</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agent-customization/custom-instructions" data-m="{&quot;cN&quot;:&quot;Instructions&quot;,&quot;aN&quot;:&quot;Agents - Customize agents&quot;}">Instructions</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agent-customization/agent-skills" data-m="{&quot;cN&quot;:&quot;Agent Skills&quot;,&quot;aN&quot;:&quot;Agents - Customize agents&quot;}">Agent Skills</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agent-customization/custom-agents" data-m="{&quot;cN&quot;:&quot;Custom Agents&quot;,&quot;aN&quot;:&quot;Agents - Customize agents&quot;}">Custom Agents</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agent-customization/language-models" data-m="{&quot;cN&quot;:&quot;Choose and Configure Models&quot;,&quot;aN&quot;:&quot;Agents - Customize agents&quot;}">Choose and Configure Models</a>
+                </li>
+            
+                <li class="active">
+                  <a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers" data-m="{&quot;cN&quot;:&quot;MCP&quot;,&quot;aN&quot;:&quot;Agents - Customize agents&quot;}" aria-current="page" aria-label="Current Page: MCP">MCP</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agent-customization/hooks" data-m="{&quot;cN&quot;:&quot;Hooks&quot;,&quot;aN&quot;:&quot;Agents - Customize agents&quot;}">Hooks</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agent-customization/agent-plugins" data-m="{&quot;cN&quot;:&quot;Plugins&quot;,&quot;aN&quot;:&quot;Agents - Customize agents&quot;}">Plugins</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agent-customization/prompt-files" data-m="{&quot;cN&quot;:&quot;Prompt Files&quot;,&quot;aN&quot;:&quot;Agents - Customize agents&quot;}">Prompt Files</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-1-5-articles" data-toggle="collapse" aria-controls="docs-docs-1-5-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Tutorials &amp; guides&quot;,&quot;aN&quot;:&quot;Agents&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Tutorials &amp; guides</a>
+              <ul id="docs-docs-1-5-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/explore-a-codebase" data-m="{&quot;cN&quot;:&quot;Explore a Codebase&quot;,&quot;aN&quot;:&quot;Agents - Tutorials &amp; guides&quot;}">Explore a Codebase</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/add-a-feature" data-m="{&quot;cN&quot;:&quot;Add a Feature&quot;,&quot;aN&quot;:&quot;Agents - Tutorials &amp; guides&quot;}">Add a Feature</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/fix-a-bug-with-agents" data-m="{&quot;cN&quot;:&quot;Fix a Bug&quot;,&quot;aN&quot;:&quot;Agents - Tutorials &amp; guides&quot;}">Fix a Bug</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/refactor-safely" data-m="{&quot;cN&quot;:&quot;Refactor Safely&quot;,&quot;aN&quot;:&quot;Agents - Tutorials &amp; guides&quot;}">Refactor Safely</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/test-code-with-ai" data-m="{&quot;cN&quot;:&quot;Add Tests&quot;,&quot;aN&quot;:&quot;Agents - Tutorials &amp; guides&quot;}">Add Tests</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/browser-agent-testing-guide" data-m="{&quot;cN&quot;:&quot;Test Web Apps&quot;,&quot;aN&quot;:&quot;Agents - Tutorials &amp; guides&quot;}">Test Web Apps</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/delegate-two-tasks" data-m="{&quot;cN&quot;:&quot;Run Parallel Tasks&quot;,&quot;aN&quot;:&quot;Agents - Tutorials &amp; guides&quot;}">Run Parallel Tasks</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/get-agent-back-on-track" data-m="{&quot;cN&quot;:&quot;Get Back on Track&quot;,&quot;aN&quot;:&quot;Agents - Tutorials &amp; guides&quot;}">Get Back on Track</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/customize-copilot-guide" data-m="{&quot;cN&quot;:&quot;Adapt Agents to Your Project&quot;,&quot;aN&quot;:&quot;Agents - Tutorials &amp; guides&quot;}">Adapt Agents to Your Project</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/context-engineering-guide" data-m="{&quot;cN&quot;:&quot;Context Engineering&quot;,&quot;aN&quot;:&quot;Agents - Tutorials &amp; guides&quot;}">Context Engineering</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/test-driven-development-guide" data-m="{&quot;cN&quot;:&quot;Test-Driven Development&quot;,&quot;aN&quot;:&quot;Agents - Tutorials &amp; guides&quot;}">Test-Driven Development</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/notebooks-with-ai" data-m="{&quot;cN&quot;:&quot;Jupyter Notebooks&quot;,&quot;aN&quot;:&quot;Agents - Tutorials &amp; guides&quot;}">Jupyter Notebooks</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/optimize-usage" data-m="{&quot;cN&quot;:&quot;Reduce Credit Usage&quot;,&quot;aN&quot;:&quot;Agents - Tutorials &amp; guides&quot;}">Reduce Credit Usage</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/prompt-examples" data-m="{&quot;cN&quot;:&quot;Prompt Examples&quot;,&quot;aN&quot;:&quot;Agents - Tutorials &amp; guides&quot;}">Prompt Examples</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-1-6-articles" data-toggle="collapse" aria-controls="docs-docs-1-6-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Reference&quot;,&quot;aN&quot;:&quot;Agents&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Reference</a>
+              <ul id="docs-docs-1-6-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/reference/ai-features-cheat-sheet" data-m="{&quot;cN&quot;:&quot;Cheat Sheet&quot;,&quot;aN&quot;:&quot;Agents - Reference&quot;}">Cheat Sheet</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/reference/tools-reference" data-m="{&quot;cN&quot;:&quot;Tools and Context&quot;,&quot;aN&quot;:&quot;Agents - Reference&quot;}">Tools and Context</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/reference/ai-settings" data-m="{&quot;cN&quot;:&quot;Settings Reference&quot;,&quot;aN&quot;:&quot;Agents - Reference&quot;}">Settings Reference</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/reference/chat-pet" data-m="{&quot;cN&quot;:&quot;VS Code Pet&quot;,&quot;aN&quot;:&quot;Agents - Reference&quot;}">VS Code Pet</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/reference/mcp-configuration" data-m="{&quot;cN&quot;:&quot;MCP Configuration&quot;,&quot;aN&quot;:&quot;Agents - Reference&quot;}">MCP Configuration</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/reference/hooks-reference" data-m="{&quot;cN&quot;:&quot;Hooks Reference&quot;,&quot;aN&quot;:&quot;Agents - Reference&quot;}">Hooks Reference</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/monitoring-agents" data-m="{&quot;cN&quot;:&quot;OpenTelemetry Monitoring&quot;,&quot;aN&quot;:&quot;Agents - Reference&quot;}">OpenTelemetry Monitoring</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-1-7-articles" data-toggle="collapse" aria-controls="docs-docs-1-7-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Troubleshooting&quot;,&quot;aN&quot;:&quot;Agents&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Troubleshooting</a>
+              <ul id="docs-docs-1-7-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/agent-troubleshooting/troubleshooting" data-m="{&quot;cN&quot;:&quot;Troubleshooting&quot;,&quot;aN&quot;:&quot;Agents - Troubleshooting&quot;}">Troubleshooting</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/agent-troubleshooting/chat-debug-view" data-m="{&quot;cN&quot;:&quot;Debug Chat Interactions&quot;,&quot;aN&quot;:&quot;Agents - Troubleshooting&quot;}">Debug Chat Interactions</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/agent-troubleshooting/cache-explorer" data-m="{&quot;cN&quot;:&quot;Diagnose Prompt Caching&quot;,&quot;aN&quot;:&quot;Agents - Troubleshooting&quot;}">Diagnose Prompt Caching</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/agent-troubleshooting/faq" data-m="{&quot;cN&quot;:&quot;FAQ&quot;,&quot;aN&quot;:&quot;Agents - Troubleshooting&quot;}">FAQ</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-2-articles" data-parent="#main-nav" data-toggle="collapse" aria-controls="docs-docs-2-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Chat&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Chat</a>
+              <ul id="docs-docs-2-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/chat/chat-overview" data-m="{&quot;cN&quot;:&quot;Chat Interaction Controls&quot;,&quot;aN&quot;:&quot;Chat&quot;}">Chat Interaction Controls</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/chat/inline-chat" data-m="{&quot;cN&quot;:&quot;Inline &amp; Quick Chat&quot;,&quot;aN&quot;:&quot;Chat&quot;}">Inline &amp; Quick Chat</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/chat/copilot-chat-context" data-m="{&quot;cN&quot;:&quot;Add Prompt Context&quot;,&quot;aN&quot;:&quot;Chat&quot;}">Add Prompt Context</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-3-articles" data-parent="#main-nav" data-toggle="collapse" aria-controls="docs-docs-3-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Editor&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Editor</a>
+              <ul id="docs-docs-3-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/getting-started/overview" data-m="{&quot;cN&quot;:&quot;Overview&quot;,&quot;aN&quot;:&quot;Editor&quot;}">Overview</a>
+                </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-3-1-articles" data-toggle="collapse" aria-controls="docs-docs-3-1-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Getting Started&quot;,&quot;aN&quot;:&quot;Editor&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Getting Started</a>
+              <ul id="docs-docs-3-1-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/getting-started/editor-tutorial" data-m="{&quot;cN&quot;:&quot;Editor Tutorial&quot;,&quot;aN&quot;:&quot;Editor - Getting Started&quot;}">Editor Tutorial</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/getting-started/userinterface" data-m="{&quot;cN&quot;:&quot;User Interface&quot;,&quot;aN&quot;:&quot;Editor - Getting Started&quot;}">User Interface</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/getting-started/tips-and-tricks" data-m="{&quot;cN&quot;:&quot;Tips and Tricks&quot;,&quot;aN&quot;:&quot;Editor - Getting Started&quot;}">Tips and Tricks</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-3-2-articles" data-toggle="collapse" aria-controls="docs-docs-3-2-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Write code&quot;,&quot;aN&quot;:&quot;Editor&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Write code</a>
+              <ul id="docs-docs-3-2-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/codebasics" data-m="{&quot;cN&quot;:&quot;Basic Editing&quot;,&quot;aN&quot;:&quot;Editor - Write code&quot;}">Basic Editing</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/intellisense" data-m="{&quot;cN&quot;:&quot;IntelliSense&quot;,&quot;aN&quot;:&quot;Editor - Write code&quot;}">IntelliSense</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/ai-powered-suggestions" data-m="{&quot;cN&quot;:&quot;Inline Suggestions&quot;,&quot;aN&quot;:&quot;Editor - Write code&quot;}">Inline Suggestions</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/copilot-smart-actions" data-m="{&quot;cN&quot;:&quot;Smart Actions&quot;,&quot;aN&quot;:&quot;Editor - Write code&quot;}">Smart Actions</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/editingevolved" data-m="{&quot;cN&quot;:&quot;Code Navigation&quot;,&quot;aN&quot;:&quot;Editor - Write code&quot;}">Code Navigation</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/refactoring" data-m="{&quot;cN&quot;:&quot;Refactoring&quot;,&quot;aN&quot;:&quot;Editor - Write code&quot;}">Refactoring</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/userdefinedsnippets" data-m="{&quot;cN&quot;:&quot;Snippets&quot;,&quot;aN&quot;:&quot;Editor - Write code&quot;}">Snippets</a>
+                </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-3-2-7-articles" data-toggle="collapse" aria-controls="docs-docs-3-2-7-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Workspaces&quot;,&quot;aN&quot;:&quot;Editor - Write code&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Workspaces</a>
+              <ul id="docs-docs-3-2-7-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/workspaces/workspaces" data-m="{&quot;cN&quot;:&quot;Overview&quot;,&quot;aN&quot;:&quot;Editor - Write code - Workspaces&quot;}">Overview</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/workspaces/multi-root-workspaces" data-m="{&quot;cN&quot;:&quot;Multi-Root Workspaces&quot;,&quot;aN&quot;:&quot;Editor - Write code - Workspaces&quot;}">Multi-Root Workspaces</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/editing/workspaces/workspace-trust" data-m="{&quot;cN&quot;:&quot;Workspace Trust&quot;,&quot;aN&quot;:&quot;Editor - Write code - Workspaces&quot;}">Workspace Trust</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-3-3-articles" data-toggle="collapse" aria-controls="docs-docs-3-3-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Configure the editor&quot;,&quot;aN&quot;:&quot;Editor&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Configure the editor</a>
+              <ul id="docs-docs-3-3-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/configure/locales" data-m="{&quot;cN&quot;:&quot;Display Language&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor&quot;}">Display Language</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/configure/custom-layout" data-m="{&quot;cN&quot;:&quot;Layout&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor&quot;}">Layout</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/configure/keybindings" data-m="{&quot;cN&quot;:&quot;Keyboard Shortcuts&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor&quot;}">Keyboard Shortcuts</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/configure/settings" data-m="{&quot;cN&quot;:&quot;Settings&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor&quot;}">Settings</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/configure/settings-sync" data-m="{&quot;cN&quot;:&quot;Settings Sync&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor&quot;}">Settings Sync</a>
+                </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-3-3-5-articles" data-toggle="collapse" aria-controls="docs-docs-3-3-5-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Extensions&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Extensions</a>
+              <ul id="docs-docs-3-3-5-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/configure/extensions/extensions" data-m="{&quot;cN&quot;:&quot;Overview&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor - Extensions&quot;}">Overview</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/configure/extensions/extension-marketplace" data-m="{&quot;cN&quot;:&quot;Extension Marketplace&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor - Extensions&quot;}">Extension Marketplace</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/configure/extensions/extension-runtime-security" data-m="{&quot;cN&quot;:&quot;Extension Runtime Security&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor - Extensions&quot;}">Extension Runtime Security</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/configure/themes" data-m="{&quot;cN&quot;:&quot;Themes&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor&quot;}">Themes</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/configure/profiles" data-m="{&quot;cN&quot;:&quot;Profiles&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor&quot;}">Profiles</a>
+                </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-3-3-8-articles" data-toggle="collapse" aria-controls="docs-docs-3-3-8-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Accessibility&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Accessibility</a>
+              <ul id="docs-docs-3-3-8-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/configure/accessibility/accessibility" data-m="{&quot;cN&quot;:&quot;Overview&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor - Accessibility&quot;}">Overview</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/configure/accessibility/voice" data-m="{&quot;cN&quot;:&quot;Voice Interactions&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor - Accessibility&quot;}">Voice Interactions</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/configure/command-line" data-m="{&quot;cN&quot;:&quot;Command Line Interface&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor&quot;}">Command Line Interface</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/configure/telemetry" data-m="{&quot;cN&quot;:&quot;Telemetry&quot;,&quot;aN&quot;:&quot;Editor - Configure the editor&quot;}">Telemetry</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-3-4-articles" data-toggle="collapse" aria-controls="docs-docs-3-4-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Reference&quot;,&quot;aN&quot;:&quot;Editor&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Reference</a>
+              <ul id="docs-docs-3-4-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/reference/default-keybindings" data-m="{&quot;cN&quot;:&quot;Default Keyboard Shortcuts&quot;,&quot;aN&quot;:&quot;Editor - Reference&quot;}">Default Keyboard Shortcuts</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/reference/default-settings" data-m="{&quot;cN&quot;:&quot;Default Settings&quot;,&quot;aN&quot;:&quot;Editor - Reference&quot;}">Default Settings</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/reference/variables-reference" data-m="{&quot;cN&quot;:&quot;Substitution Variables&quot;,&quot;aN&quot;:&quot;Editor - Reference&quot;}">Substitution Variables</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/reference/tasks-appendix" data-m="{&quot;cN&quot;:&quot;Tasks Schema&quot;,&quot;aN&quot;:&quot;Editor - Reference&quot;}">Tasks Schema</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-4-articles" data-parent="#main-nav" data-toggle="collapse" aria-controls="docs-docs-4-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Source Control&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Source Control</a>
+              <ul id="docs-docs-4-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/sourcecontrol/overview" data-m="{&quot;cN&quot;:&quot;Overview&quot;,&quot;aN&quot;:&quot;Source Control&quot;}">Overview</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/sourcecontrol/quickstart" data-m="{&quot;cN&quot;:&quot;Quickstart&quot;,&quot;aN&quot;:&quot;Source Control&quot;}">Quickstart</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/sourcecontrol/repos-remotes" data-m="{&quot;cN&quot;:&quot;Repositories &amp; Remotes&quot;,&quot;aN&quot;:&quot;Source Control&quot;}">Repositories &amp; Remotes</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/sourcecontrol/staging-commits" data-m="{&quot;cN&quot;:&quot;Staging, Commits &amp; Undo&quot;,&quot;aN&quot;:&quot;Source Control&quot;}">Staging, Commits &amp; Undo</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/sourcecontrol/history" data-m="{&quot;cN&quot;:&quot;History &amp; Blame&quot;,&quot;aN&quot;:&quot;Source Control&quot;}">History &amp; Blame</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/sourcecontrol/branches-worktrees" data-m="{&quot;cN&quot;:&quot;Branches, Stashes &amp; Worktrees&quot;,&quot;aN&quot;:&quot;Source Control&quot;}">Branches, Stashes &amp; Worktrees</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/sourcecontrol/merge-conflicts" data-m="{&quot;cN&quot;:&quot;Merge Conflicts&quot;,&quot;aN&quot;:&quot;Source Control&quot;}">Merge Conflicts</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/sourcecontrol/github" data-m="{&quot;cN&quot;:&quot;Collaborate on GitHub&quot;,&quot;aN&quot;:&quot;Source Control&quot;}">Collaborate on GitHub</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/sourcecontrol/troubleshooting" data-m="{&quot;cN&quot;:&quot;Troubleshooting&quot;,&quot;aN&quot;:&quot;Source Control&quot;}">Troubleshooting</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/sourcecontrol/faq" data-m="{&quot;cN&quot;:&quot;FAQ&quot;,&quot;aN&quot;:&quot;Source Control&quot;}">FAQ</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-5-articles" data-parent="#main-nav" data-toggle="collapse" aria-controls="docs-docs-5-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Terminal&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Terminal</a>
+              <ul id="docs-docs-5-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/terminal/getting-started" data-m="{&quot;cN&quot;:&quot;Get Started&quot;,&quot;aN&quot;:&quot;Terminal&quot;}">Get Started</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/terminal/basics" data-m="{&quot;cN&quot;:&quot;Terminal Basics&quot;,&quot;aN&quot;:&quot;Terminal&quot;}">Terminal Basics</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/terminal/profiles" data-m="{&quot;cN&quot;:&quot;Terminal Profiles&quot;,&quot;aN&quot;:&quot;Terminal&quot;}">Terminal Profiles</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/terminal/shell-integration" data-m="{&quot;cN&quot;:&quot;Shell Integration&quot;,&quot;aN&quot;:&quot;Terminal&quot;}">Shell Integration</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/terminal/appearance" data-m="{&quot;cN&quot;:&quot;Appearance&quot;,&quot;aN&quot;:&quot;Terminal&quot;}">Appearance</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/terminal/advanced" data-m="{&quot;cN&quot;:&quot;Advanced&quot;,&quot;aN&quot;:&quot;Terminal&quot;}">Advanced</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-6-articles" data-parent="#main-nav" data-toggle="collapse" aria-controls="docs-docs-6-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Debugging &amp; Testing&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Debugging &amp; Testing</a>
+              <ul id="docs-docs-6-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/debugtest/debugging" data-m="{&quot;cN&quot;:&quot;Debugging&quot;,&quot;aN&quot;:&quot;Debugging &amp; Testing&quot;}">Debugging</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/debugtest/debugging-configuration" data-m="{&quot;cN&quot;:&quot;Debug Configuration&quot;,&quot;aN&quot;:&quot;Debugging &amp; Testing&quot;}">Debug Configuration</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/debugtest/tasks" data-m="{&quot;cN&quot;:&quot;Tasks&quot;,&quot;aN&quot;:&quot;Debugging &amp; Testing&quot;}">Tasks</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/debugtest/testing" data-m="{&quot;cN&quot;:&quot;Testing&quot;,&quot;aN&quot;:&quot;Debugging &amp; Testing&quot;}">Testing</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/debugtest/integrated-browser" data-m="{&quot;cN&quot;:&quot;Integrated Browser&quot;,&quot;aN&quot;:&quot;Debugging &amp; Testing&quot;}">Integrated Browser</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/debugtest/port-forwarding" data-m="{&quot;cN&quot;:&quot;Port Forwarding&quot;,&quot;aN&quot;:&quot;Debugging &amp; Testing&quot;}">Port Forwarding</a>
+                </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-6-6-articles" data-toggle="collapse" aria-controls="docs-docs-6-6-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Guides &amp; Tutorials&quot;,&quot;aN&quot;:&quot;Debugging &amp; Testing&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Guides &amp; Tutorials</a>
+              <ul id="docs-docs-6-6-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/test-driven-development-guide" data-m="{&quot;cN&quot;:&quot;Test-Driven Development&quot;,&quot;aN&quot;:&quot;Debugging &amp; Testing - Guides &amp; Tutorials&quot;}">Test-Driven Development</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/agents/guides/browser-agent-testing-guide" data-m="{&quot;cN&quot;:&quot;Test Web Apps&quot;,&quot;aN&quot;:&quot;Debugging &amp; Testing - Guides &amp; Tutorials&quot;}">Test Web Apps</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-7-articles" data-parent="#main-nav" data-toggle="collapse" aria-controls="docs-docs-7-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Enterprise&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Enterprise</a>
+              <ul id="docs-docs-7-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/enterprise/overview" data-m="{&quot;cN&quot;:&quot;Overview&quot;,&quot;aN&quot;:&quot;Enterprise&quot;}">Overview</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/enterprise/policies" data-m="{&quot;cN&quot;:&quot;Enterprise Policies&quot;,&quot;aN&quot;:&quot;Enterprise&quot;}">Enterprise Policies</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/enterprise/manage-ai-settings" data-m="{&quot;cN&quot;:&quot;Manage AI Settings&quot;,&quot;aN&quot;:&quot;Enterprise&quot;}">Manage AI Settings</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/enterprise/extensions" data-m="{&quot;cN&quot;:&quot;Extensions&quot;,&quot;aN&quot;:&quot;Enterprise&quot;}">Extensions</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/enterprise/telemetry" data-m="{&quot;cN&quot;:&quot;Telemetry&quot;,&quot;aN&quot;:&quot;Enterprise&quot;}">Telemetry</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/enterprise/updates" data-m="{&quot;cN&quot;:&quot;Updates&quot;,&quot;aN&quot;:&quot;Enterprise&quot;}">Updates</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-8-articles" data-parent="#main-nav" data-toggle="collapse" aria-controls="docs-docs-8-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Remote&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Remote</a>
+              <ul id="docs-docs-8-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/remote/remote-overview" data-m="{&quot;cN&quot;:&quot;Overview&quot;,&quot;aN&quot;:&quot;Remote&quot;}">Overview</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/remote/vscode-web" data-m="{&quot;cN&quot;:&quot;VS Code for the Web&quot;,&quot;aN&quot;:&quot;Remote&quot;}">VS Code for the Web</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/remote/ssh" data-m="{&quot;cN&quot;:&quot;SSH&quot;,&quot;aN&quot;:&quot;Remote&quot;}">SSH</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/remote/ssh-tutorial" data-m="{&quot;cN&quot;:&quot;SSH Tutorial&quot;,&quot;aN&quot;:&quot;Remote&quot;}">SSH Tutorial</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/remote/tunnels" data-m="{&quot;cN&quot;:&quot;Tunnels&quot;,&quot;aN&quot;:&quot;Remote&quot;}">Tunnels</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/remote/dev-containers" data-m="{&quot;cN&quot;:&quot;Dev Containers&quot;,&quot;aN&quot;:&quot;Remote&quot;}">Dev Containers</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/remote/wsl" data-m="{&quot;cN&quot;:&quot;WSL&quot;,&quot;aN&quot;:&quot;Remote&quot;}">WSL</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/remote/wsl-tutorial" data-m="{&quot;cN&quot;:&quot;WSL Tutorial&quot;,&quot;aN&quot;:&quot;Remote&quot;}">WSL Tutorial</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/remote/codespaces" data-m="{&quot;cN&quot;:&quot;GitHub Codespaces&quot;,&quot;aN&quot;:&quot;Remote&quot;}">GitHub Codespaces</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/remote/vscode-server" data-m="{&quot;cN&quot;:&quot;VS Code Server&quot;,&quot;aN&quot;:&quot;Remote&quot;}">VS Code Server</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/remote/linux" data-m="{&quot;cN&quot;:&quot;Linux Prerequisites&quot;,&quot;aN&quot;:&quot;Remote&quot;}">Linux Prerequisites</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/remote/troubleshooting" data-m="{&quot;cN&quot;:&quot;Tips and Tricks&quot;,&quot;aN&quot;:&quot;Remote&quot;}">Tips and Tricks</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/remote/faq" data-m="{&quot;cN&quot;:&quot;FAQ&quot;,&quot;aN&quot;:&quot;Remote&quot;}">FAQ</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+            <li class="panel collapsed">
+              <a class="area" role="button" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#docs-docs-9-articles" data-parent="#main-nav" data-toggle="collapse" aria-controls="docs-docs-9-articles" aria-expanded="false" data-m="{&quot;cN&quot;:&quot;Advanced Setup&quot;,&quot;cT&quot;:&quot;toggle&quot;}">Advanced Setup</a>
+              <ul id="docs-docs-9-articles" class="collapse" aria-expanded="false">
+                
+                <li>
+                  <a href="https://code.visualstudio.com/docs/setup/copilot" data-m="{&quot;cN&quot;:&quot;GitHub Copilot Setup&quot;,&quot;aN&quot;:&quot;Advanced Setup&quot;}">GitHub Copilot Setup</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/setup/linux" data-m="{&quot;cN&quot;:&quot;Linux&quot;,&quot;aN&quot;:&quot;Advanced Setup&quot;}">Linux</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/setup/mac" data-m="{&quot;cN&quot;:&quot;macOS&quot;,&quot;aN&quot;:&quot;Advanced Setup&quot;}">macOS</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/setup/windows" data-m="{&quot;cN&quot;:&quot;Windows&quot;,&quot;aN&quot;:&quot;Advanced Setup&quot;}">Windows</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/setup/raspberry-pi" data-m="{&quot;cN&quot;:&quot;Raspberry Pi&quot;,&quot;aN&quot;:&quot;Advanced Setup&quot;}">Raspberry Pi</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/setup/network" data-m="{&quot;cN&quot;:&quot;Network&quot;,&quot;aN&quot;:&quot;Advanced Setup&quot;}">Network</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/setup/portable" data-m="{&quot;cN&quot;:&quot;Portable Mode&quot;,&quot;aN&quot;:&quot;Advanced Setup&quot;}">Portable Mode</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/setup/additional-components" data-m="{&quot;cN&quot;:&quot;Additional Components&quot;,&quot;aN&quot;:&quot;Advanced Setup&quot;}">Additional Components</a>
+                </li>
+            
+                <li>
+                  <a href="https://code.visualstudio.com/docs/setup/uninstall" data-m="{&quot;cN&quot;:&quot;Uninstall&quot;,&quot;aN&quot;:&quot;Advanced Setup&quot;}">Uninstall</a>
+                </li>
+            
+              </ul>
+            </li>
+            
+                <li>
+                  <a class="area" href="https://code.visualstudio.com/docs/languages/overview" data-m="{&quot;cN&quot;:&quot;Languages &amp; Runtimes&quot;}">Languages &amp; Runtimes</a>
+                </li>
+            
+                <li>
+                  <a class="area" href="https://code.visualstudio.com/docs/extension-docs/overview" data-m="{&quot;cN&quot;:&quot;Extension Docs&quot;}">Extension Docs</a>
+                </li>
+            
+              </ul>
+            </nav>
+            <nav id="small-nav" aria-label="Topics" class="docs-nav hidden-md hidden-lg">
+              <label class="faux-h4" for="small-nav-dropdown">Topics</label>
+              <select id="small-nav-dropdown" aria-label="topics">
+                
+                
+                <option value="/docs">Overview</option>
+            
+                <optgroup label="Get Started">
+                <option value="/docs/getstarted/overview">Overview</option>
+            
+                <option value="/docs/agents/quickstart">Agents Quickstart</option>
+            
+                <option value="/docs/editing/getting-started/editor-tutorial">Editor Tutorial</option>
+            
+                <option value="/docs/getstarted/introvideos">Intro Videos</option>
+            </optgroup><optgroup label="Agents">
+                <option value="/docs/agents/overview">AI Overview</option>
+            <option disabled="">Get started</option>
+                <option value="/docs/agents/quickstart">&nbsp;&nbsp;&nbsp;&nbsp;Agents Quickstart</option>
+            
+                <option value="/docs/agents/guides/overview">&nbsp;&nbsp;&nbsp;&nbsp;Find a Guide</option>
+            
+                <option value="/docs/setup/copilot">&nbsp;&nbsp;&nbsp;&nbsp;Set Up GitHub Copilot</option>
+            
+                <option value="/docs/agents/agents-tutorial">&nbsp;&nbsp;&nbsp;&nbsp;Agents Tutorial</option>
+            
+                <option value="/docs/agents/best-practices">&nbsp;&nbsp;&nbsp;&nbsp;Best Practices</option>
+            <option disabled="">Concepts</option>
+                <option value="/docs/agents/concepts/agents">&nbsp;&nbsp;&nbsp;&nbsp;Agents</option>
+            
+                <option value="/docs/agents/concepts/language-models">&nbsp;&nbsp;&nbsp;&nbsp;How Models Work</option>
+            
+                <option value="/docs/agents/concepts/context">&nbsp;&nbsp;&nbsp;&nbsp;Context</option>
+            
+                <option value="/docs/agents/concepts/tools">&nbsp;&nbsp;&nbsp;&nbsp;Tools</option>
+            
+                <option value="/docs/agents/concepts/sessions">&nbsp;&nbsp;&nbsp;&nbsp;Sessions and Chats</option>
+            
+                <option value="/docs/agents/concepts/trust-and-safety">&nbsp;&nbsp;&nbsp;&nbsp;Trust &amp; Safety</option>
+            
+                <option value="/docs/agents/concepts/customization">&nbsp;&nbsp;&nbsp;&nbsp;Agent Customization</option>
+            
+                <option value="/docs/agents/concepts/agent-harnesses">&nbsp;&nbsp;&nbsp;&nbsp;Agent Harnesses</option>
+            
+                <option value="/docs/agents/reference/workspace-context">&nbsp;&nbsp;&nbsp;&nbsp;Workspace Context</option>
+            
+                <option value="/docs/agents/concepts/agent-host">&nbsp;&nbsp;&nbsp;&nbsp;Agent Host Architecture</option>
+            <option disabled="">Use Agents</option>
+                <option value="/docs/agents/run/chat-view">&nbsp;&nbsp;&nbsp;&nbsp;Chat View and Layout</option>
+            
+                <option value="/docs/agents/run/agents-window">&nbsp;&nbsp;&nbsp;&nbsp;Agents Window</option>
+            
+                <option value="/docs/agents/run/agent-harnesses">&nbsp;&nbsp;&nbsp;&nbsp;Choose an Agent Harness</option>
+            
+                <option value="/docs/agents/run/agents-window-configuration">&nbsp;&nbsp;&nbsp;&nbsp;Configure the Agents Window</option>
+            
+                <option value="/docs/chat/chat-overview">&nbsp;&nbsp;&nbsp;&nbsp;Chat Interaction Controls</option>
+            <option disabled="">&nbsp;&nbsp;&nbsp;&nbsp;Plan and Run Tasks</option>
+                <option value="/docs/agents/run/planning">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Plan Work</option>
+            
+                <option value="/docs/agents/run/tools">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Use Tools</option>
+            
+                <option value="/docs/agents/run/browser-tools">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Browser Tools</option>
+            
+                <option value="/docs/agents/run/subagents">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Subagents</option>
+            
+                <option value="/docs/agents/run/automations">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Automations</option>
+            <option disabled="">&nbsp;&nbsp;&nbsp;&nbsp;Sessions and Results</option>
+                <option value="/docs/agents/run/sessions/manage-sessions">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Manage Sessions</option>
+            
+                <option value="/docs/agents/run/sessions/session-history">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Session History</option>
+            
+                <option value="/docs/agents/run/remote-agent-sessions">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Remote Agent Sessions</option>
+            
+                <option value="/docs/agents/run/memory">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Memory</option>
+            
+                <option value="/docs/agents/run/review-code-edits">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Review &amp; Revert Changes</option>
+            
+                <option value="/docs/agents/run/artifacts">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Artifacts</option>
+            <option disabled="">&nbsp;&nbsp;&nbsp;&nbsp;Permissions and Security</option>
+                <option value="/docs/agents/run/approvals">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Approvals &amp; Permissions</option>
+            
+                <option value="/docs/agents/run/agent-sandboxing">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Agent Sandboxing</option>
+            
+                <option value="/docs/agents/run/security">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;AI Security</option>
+            <option disabled="">Customize agents</option>
+                <option value="/docs/agent-customization/overview">&nbsp;&nbsp;&nbsp;&nbsp;Create and Manage</option>
+            
+                <option value="/docs/agent-customization/custom-instructions">&nbsp;&nbsp;&nbsp;&nbsp;Instructions</option>
+            
+                <option value="/docs/agent-customization/agent-skills">&nbsp;&nbsp;&nbsp;&nbsp;Agent Skills</option>
+            
+                <option value="/docs/agent-customization/custom-agents">&nbsp;&nbsp;&nbsp;&nbsp;Custom Agents</option>
+            
+                <option value="/docs/agent-customization/language-models">&nbsp;&nbsp;&nbsp;&nbsp;Choose and Configure Models</option>
+            
+                <option value="/docs/agent-customization/mcp-servers" selected="">&nbsp;&nbsp;&nbsp;&nbsp;MCP</option>
+            
+                <option value="/docs/agent-customization/hooks">&nbsp;&nbsp;&nbsp;&nbsp;Hooks</option>
+            
+                <option value="/docs/agent-customization/agent-plugins">&nbsp;&nbsp;&nbsp;&nbsp;Plugins</option>
+            
+                <option value="/docs/agent-customization/prompt-files">&nbsp;&nbsp;&nbsp;&nbsp;Prompt Files</option>
+            <option disabled="">Tutorials &amp; guides</option>
+                <option value="/docs/agents/guides/explore-a-codebase">&nbsp;&nbsp;&nbsp;&nbsp;Explore a Codebase</option>
+            
+                <option value="/docs/agents/guides/add-a-feature">&nbsp;&nbsp;&nbsp;&nbsp;Add a Feature</option>
+            
+                <option value="/docs/agents/guides/fix-a-bug-with-agents">&nbsp;&nbsp;&nbsp;&nbsp;Fix a Bug</option>
+            
+                <option value="/docs/agents/guides/refactor-safely">&nbsp;&nbsp;&nbsp;&nbsp;Refactor Safely</option>
+            
+                <option value="/docs/agents/guides/test-code-with-ai">&nbsp;&nbsp;&nbsp;&nbsp;Add Tests</option>
+            
+                <option value="/docs/agents/guides/browser-agent-testing-guide">&nbsp;&nbsp;&nbsp;&nbsp;Test Web Apps</option>
+            
+                <option value="/docs/agents/guides/delegate-two-tasks">&nbsp;&nbsp;&nbsp;&nbsp;Run Parallel Tasks</option>
+            
+                <option value="/docs/agents/guides/get-agent-back-on-track">&nbsp;&nbsp;&nbsp;&nbsp;Get Back on Track</option>
+            
+                <option value="/docs/agents/guides/customize-copilot-guide">&nbsp;&nbsp;&nbsp;&nbsp;Adapt Agents to Your Project</option>
+            
+                <option value="/docs/agents/guides/context-engineering-guide">&nbsp;&nbsp;&nbsp;&nbsp;Context Engineering</option>
+            
+                <option value="/docs/agents/guides/test-driven-development-guide">&nbsp;&nbsp;&nbsp;&nbsp;Test-Driven Development</option>
+            
+                <option value="/docs/agents/guides/notebooks-with-ai">&nbsp;&nbsp;&nbsp;&nbsp;Jupyter Notebooks</option>
+            
+                <option value="/docs/agents/guides/optimize-usage">&nbsp;&nbsp;&nbsp;&nbsp;Reduce Credit Usage</option>
+            
+                <option value="/docs/agents/guides/prompt-examples">&nbsp;&nbsp;&nbsp;&nbsp;Prompt Examples</option>
+            <option disabled="">Reference</option>
+                <option value="/docs/agents/reference/ai-features-cheat-sheet">&nbsp;&nbsp;&nbsp;&nbsp;Cheat Sheet</option>
+            
+                <option value="/docs/agents/reference/tools-reference">&nbsp;&nbsp;&nbsp;&nbsp;Tools and Context</option>
+            
+                <option value="/docs/agents/reference/ai-settings">&nbsp;&nbsp;&nbsp;&nbsp;Settings Reference</option>
+            
+                <option value="/docs/agents/reference/chat-pet">&nbsp;&nbsp;&nbsp;&nbsp;VS Code Pet</option>
+            
+                <option value="/docs/agents/reference/mcp-configuration">&nbsp;&nbsp;&nbsp;&nbsp;MCP Configuration</option>
+            
+                <option value="/docs/agents/reference/hooks-reference">&nbsp;&nbsp;&nbsp;&nbsp;Hooks Reference</option>
+            
+                <option value="/docs/agents/guides/monitoring-agents">&nbsp;&nbsp;&nbsp;&nbsp;OpenTelemetry Monitoring</option>
+            <option disabled="">Troubleshooting</option>
+                <option value="/docs/agents/agent-troubleshooting/troubleshooting">&nbsp;&nbsp;&nbsp;&nbsp;Troubleshooting</option>
+            
+                <option value="/docs/agents/agent-troubleshooting/chat-debug-view">&nbsp;&nbsp;&nbsp;&nbsp;Debug Chat Interactions</option>
+            
+                <option value="/docs/agents/agent-troubleshooting/cache-explorer">&nbsp;&nbsp;&nbsp;&nbsp;Diagnose Prompt Caching</option>
+            
+                <option value="/docs/agents/agent-troubleshooting/faq">&nbsp;&nbsp;&nbsp;&nbsp;FAQ</option>
+            </optgroup><optgroup label="Chat">
+                <option value="/docs/chat/chat-overview">Chat Interaction Controls</option>
+            
+                <option value="/docs/chat/inline-chat">Inline &amp; Quick Chat</option>
+            
+                <option value="/docs/chat/copilot-chat-context">Add Prompt Context</option>
+            </optgroup><optgroup label="Editor">
+                <option value="/docs/editing/getting-started/overview">Overview</option>
+            <option disabled="">Getting Started</option>
+                <option value="/docs/editing/getting-started/editor-tutorial">&nbsp;&nbsp;&nbsp;&nbsp;Editor Tutorial</option>
+            
+                <option value="/docs/editing/getting-started/userinterface">&nbsp;&nbsp;&nbsp;&nbsp;User Interface</option>
+            
+                <option value="/docs/editing/getting-started/tips-and-tricks">&nbsp;&nbsp;&nbsp;&nbsp;Tips and Tricks</option>
+            <option disabled="">Write code</option>
+                <option value="/docs/editing/codebasics">&nbsp;&nbsp;&nbsp;&nbsp;Basic Editing</option>
+            
+                <option value="/docs/editing/intellisense">&nbsp;&nbsp;&nbsp;&nbsp;IntelliSense</option>
+            
+                <option value="/docs/editing/ai-powered-suggestions">&nbsp;&nbsp;&nbsp;&nbsp;Inline Suggestions</option>
+            
+                <option value="/docs/editing/copilot-smart-actions">&nbsp;&nbsp;&nbsp;&nbsp;Smart Actions</option>
+            
+                <option value="/docs/editing/editingevolved">&nbsp;&nbsp;&nbsp;&nbsp;Code Navigation</option>
+            
+                <option value="/docs/editing/refactoring">&nbsp;&nbsp;&nbsp;&nbsp;Refactoring</option>
+            
+                <option value="/docs/editing/userdefinedsnippets">&nbsp;&nbsp;&nbsp;&nbsp;Snippets</option>
+            <option disabled="">&nbsp;&nbsp;&nbsp;&nbsp;Workspaces</option>
+                <option value="/docs/editing/workspaces/workspaces">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Overview</option>
+            
+                <option value="/docs/editing/workspaces/multi-root-workspaces">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Multi-Root Workspaces</option>
+            
+                <option value="/docs/editing/workspaces/workspace-trust">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Workspace Trust</option>
+            <option disabled="">Configure the editor</option>
+                <option value="/docs/configure/locales">&nbsp;&nbsp;&nbsp;&nbsp;Display Language</option>
+            
+                <option value="/docs/configure/custom-layout">&nbsp;&nbsp;&nbsp;&nbsp;Layout</option>
+            
+                <option value="/docs/configure/keybindings">&nbsp;&nbsp;&nbsp;&nbsp;Keyboard Shortcuts</option>
+            
+                <option value="/docs/configure/settings">&nbsp;&nbsp;&nbsp;&nbsp;Settings</option>
+            
+                <option value="/docs/configure/settings-sync">&nbsp;&nbsp;&nbsp;&nbsp;Settings Sync</option>
+            <option disabled="">&nbsp;&nbsp;&nbsp;&nbsp;Extensions</option>
+                <option value="/docs/configure/extensions/extensions">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Overview</option>
+            
+                <option value="/docs/configure/extensions/extension-marketplace">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Extension Marketplace</option>
+            
+                <option value="/docs/configure/extensions/extension-runtime-security">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Extension Runtime Security</option>
+            
+                <option value="/docs/configure/themes">&nbsp;&nbsp;&nbsp;&nbsp;Themes</option>
+            
+                <option value="/docs/configure/profiles">&nbsp;&nbsp;&nbsp;&nbsp;Profiles</option>
+            <option disabled="">&nbsp;&nbsp;&nbsp;&nbsp;Accessibility</option>
+                <option value="/docs/configure/accessibility/accessibility">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Overview</option>
+            
+                <option value="/docs/configure/accessibility/voice">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Voice Interactions</option>
+            
+                <option value="/docs/configure/command-line">&nbsp;&nbsp;&nbsp;&nbsp;Command Line Interface</option>
+            
+                <option value="/docs/configure/telemetry">&nbsp;&nbsp;&nbsp;&nbsp;Telemetry</option>
+            <option disabled="">Reference</option>
+                <option value="/docs/reference/default-keybindings">&nbsp;&nbsp;&nbsp;&nbsp;Default Keyboard Shortcuts</option>
+            
+                <option value="/docs/reference/default-settings">&nbsp;&nbsp;&nbsp;&nbsp;Default Settings</option>
+            
+                <option value="/docs/reference/variables-reference">&nbsp;&nbsp;&nbsp;&nbsp;Substitution Variables</option>
+            
+                <option value="/docs/reference/tasks-appendix">&nbsp;&nbsp;&nbsp;&nbsp;Tasks Schema</option>
+            </optgroup><optgroup label="Source Control">
+                <option value="/docs/sourcecontrol/overview">Overview</option>
+            
+                <option value="/docs/sourcecontrol/quickstart">Quickstart</option>
+            
+                <option value="/docs/sourcecontrol/repos-remotes">Repositories &amp; Remotes</option>
+            
+                <option value="/docs/sourcecontrol/staging-commits">Staging, Commits &amp; Undo</option>
+            
+                <option value="/docs/sourcecontrol/history">History &amp; Blame</option>
+            
+                <option value="/docs/sourcecontrol/branches-worktrees">Branches, Stashes &amp; Worktrees</option>
+            
+                <option value="/docs/sourcecontrol/merge-conflicts">Merge Conflicts</option>
+            
+                <option value="/docs/sourcecontrol/github">Collaborate on GitHub</option>
+            
+                <option value="/docs/sourcecontrol/troubleshooting">Troubleshooting</option>
+            
+                <option value="/docs/sourcecontrol/faq">FAQ</option>
+            </optgroup><optgroup label="Terminal">
+                <option value="/docs/terminal/getting-started">Get Started</option>
+            
+                <option value="/docs/terminal/basics">Terminal Basics</option>
+            
+                <option value="/docs/terminal/profiles">Terminal Profiles</option>
+            
+                <option value="/docs/terminal/shell-integration">Shell Integration</option>
+            
+                <option value="/docs/terminal/appearance">Appearance</option>
+            
+                <option value="/docs/terminal/advanced">Advanced</option>
+            </optgroup><optgroup label="Debugging &amp; Testing">
+                <option value="/docs/debugtest/debugging">Debugging</option>
+            
+                <option value="/docs/debugtest/debugging-configuration">Debug Configuration</option>
+            
+                <option value="/docs/debugtest/tasks">Tasks</option>
+            
+                <option value="/docs/debugtest/testing">Testing</option>
+            
+                <option value="/docs/debugtest/integrated-browser">Integrated Browser</option>
+            
+                <option value="/docs/debugtest/port-forwarding">Port Forwarding</option>
+            <option disabled="">Guides &amp; Tutorials</option>
+                <option value="/docs/agents/guides/test-driven-development-guide">&nbsp;&nbsp;&nbsp;&nbsp;Test-Driven Development</option>
+            
+                <option value="/docs/agents/guides/browser-agent-testing-guide">&nbsp;&nbsp;&nbsp;&nbsp;Test Web Apps</option>
+            </optgroup><optgroup label="Enterprise">
+                <option value="/docs/enterprise/overview">Overview</option>
+            
+                <option value="/docs/enterprise/policies">Enterprise Policies</option>
+            
+                <option value="/docs/enterprise/manage-ai-settings">Manage AI Settings</option>
+            
+                <option value="/docs/enterprise/extensions">Extensions</option>
+            
+                <option value="/docs/enterprise/telemetry">Telemetry</option>
+            
+                <option value="/docs/enterprise/updates">Updates</option>
+            </optgroup><optgroup label="Remote">
+                <option value="/docs/remote/remote-overview">Overview</option>
+            
+                <option value="/docs/remote/vscode-web">VS Code for the Web</option>
+            
+                <option value="/docs/remote/ssh">SSH</option>
+            
+                <option value="/docs/remote/ssh-tutorial">SSH Tutorial</option>
+            
+                <option value="/docs/remote/tunnels">Tunnels</option>
+            
+                <option value="/docs/remote/dev-containers">Dev Containers</option>
+            
+                <option value="/docs/remote/wsl">WSL</option>
+            
+                <option value="/docs/remote/wsl-tutorial">WSL Tutorial</option>
+            
+                <option value="/docs/remote/codespaces">GitHub Codespaces</option>
+            
+                <option value="/docs/remote/vscode-server">VS Code Server</option>
+            
+                <option value="/docs/remote/linux">Linux Prerequisites</option>
+            
+                <option value="/docs/remote/troubleshooting">Tips and Tricks</option>
+            
+                <option value="/docs/remote/faq">FAQ</option>
+            </optgroup><optgroup label="Advanced Setup">
+                <option value="/docs/setup/copilot">GitHub Copilot Setup</option>
+            
+                <option value="/docs/setup/linux">Linux</option>
+            
+                <option value="/docs/setup/mac">macOS</option>
+            
+                <option value="/docs/setup/windows">Windows</option>
+            
+                <option value="/docs/setup/raspberry-pi">Raspberry Pi</option>
+            
+                <option value="/docs/setup/network">Network</option>
+            
+                <option value="/docs/setup/portable">Portable Mode</option>
+            
+                <option value="/docs/setup/additional-components">Additional Components</option>
+            
+                <option value="/docs/setup/uninstall">Uninstall</option>
+            </optgroup>
+                <option value="/docs/languages/overview">Languages &amp; Runtimes</option>
+            
+                <option value="/docs/extension-docs/overview">Extension Docs</option>
+            
+              </select>
+            </nav>        </aside>
+        
+        <!-- Content wrapper contains main content + right sidebar -->
+        <div class="docs-content-wrapper">
+            <!-- Right sidebar - On This Page -->
+            <aside class="docs-right-sidebar hidden-xs">
+                <nav id="docs-subnavbar" aria-label="On Page">
+                    
+                    <h4><span class="sr-only">On this page there are 13 sections</span><span aria-hidden="true">On this page</span></h4>
+                    <ul class="nav">
+                        
+                        <li class="active"><a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_quickstart-use-an-mcp-server-in-chat" aria-current="location">Quickstart: use an MCP server in chat</a></li>
+                        
+                        <li><a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_add-an-mcp-server">Add an MCP server</a></li>
+                        
+                        <li><a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_other-mcp-capabilities">Other MCP capabilities</a></li>
+                        
+                        <li><a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_sandbox-mcp-servers">Sandbox MCP servers</a></li>
+                        
+                        <li><a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_manage-mcp-servers">Manage MCP servers</a></li>
+                        
+                        <li><a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_enable-or-disable-mcp-servers">Enable or disable MCP servers</a></li>
+                        
+                        <li><a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_centrally-manage-access-to-mcp-servers-in-vs-code">Centrally manage access to MCP servers in VS Code</a></li>
+                        
+                        <li><a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_automatically-start-mcp-servers">Automatically start MCP servers</a></li>
+                        
+                        <li><a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_mcp-server-trust">MCP server trust</a></li>
+                        
+                        <li><a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_synchronize-mcp-configuration-across-devices">Synchronize MCP configuration across devices</a></li>
+                        
+                        <li><a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_troubleshoot-and-debug-mcp-servers">Troubleshoot and debug MCP servers</a></li>
+                        
+                        <li><a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_frequently-asked-questions">Frequently asked questions</a></li>
+                        
+                        <li><a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_related-resources">Related resources</a></li>
+                        
+                    </ul>
+                    
+                </nav>
+                
+            </aside>
+            
+            <!-- Main article content -->
+            <main class="docs-main-content body">
+                
+                <h1>Add and manage MCP servers in VS Code</h1>
+                
+                
+
+
+
+
+<div class="docs-markdown-actions">
+	<div class="docs-markdown-dropdown" data-markdown-url="/docs/agent-customization/mcp-servers.md">
+		<button type="button" class="docs-markdown-btn-main" data-action="copy-markdown" aria-label="Copy as Markdown">
+			<span class="codicon codicon-copy" aria-hidden="true"></span>
+			<span>Copy as Markdown</span>
+		</button>
+		<button type="button" class="docs-markdown-btn-trigger" aria-haspopup="menu" aria-expanded="false" aria-label="More page actions">
+			<span class="codicon codicon-chevron-down docs-markdown-chevron" aria-hidden="true"></span>
+		</button>
+		<ul class="docs-markdown-menu" role="menu" aria-label="Page actions">
+			<li role="none">
+				<button type="button" role="menuitem" data-action="copy-markdown">
+					<span class="codicon codicon-copy" aria-hidden="true"></span>
+					<span>Copy as Markdown</span>
+				</button>
+			</li>
+			<li role="none">
+				<a role="menuitem" data-action="view-markdown" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers.md" target="_blank" rel="noopener noreferrer">
+					<span class="codicon codicon-file" aria-hidden="true"></span>
+					<span>View as Markdown</span>
+					<span class="codicon codicon-link-external" aria-hidden="true"></span>
+				</a>
+			</li>
+			<li class="docs-markdown-menu-separator" role="separator"></li>
+			<li role="none">
+				<a role="menuitem" data-action="ask-vscode" data-version="stable" href="vscode://GitHub.Copilot-Chat/chat?prompt=Read%20https%3A%2F%2Fcode.visualstudio.com%2Fdocs%2Fagent-customization%2Fmcp-servers%20and%20answer%20questions%20about%20the%20content.&amp;windowId=_blank">
+					<span class="codicon codicon-chat-sparkle" aria-hidden="true"></span>
+					<span>Ask in VS Code</span>
+				</a>
+			</li>
+			<li role="none">
+				<a role="menuitem" data-action="ask-vscode" data-version="insiders" href="vscode-insiders://GitHub.Copilot-Chat/chat?prompt=Read%20https%3A%2F%2Fcode.visualstudio.com%2Fdocs%2Fagent-customization%2Fmcp-servers%20and%20answer%20questions%20about%20the%20content.&amp;windowId=_blank">
+					<span class="codicon codicon-chat-sparkle" aria-hidden="true"></span>
+					<span>Ask in VS Code Insiders</span>
+				</a>
+			</li>
+		</ul>
+	</div>
+	<noscript>
+		<a class="docs-page-actions-noscript" href="vscode://GitHub.Copilot-Chat/chat?prompt=Read%20https%3A%2F%2Fcode.visualstudio.com%2Fdocs%2Fagent-customization%2Fmcp-servers%20and%20answer%20questions%20about%20the%20content.&amp;windowId=_blank">
+			<span class="codicon codicon-chat-sparkle" aria-hidden="true"></span>
+			<span>Ask in VS Code</span>
+		</a>
+	</noscript>
+</div>
+
+                <hr class="docs-article-header-divider" aria-hidden="true">
+                
+                
+<p>Add an MCP server when a coding task needs information or actions that your agent's existing tools don't provide. For example, a server can let the agent query a database or update an issue in an external service instead of asking you to perform those steps manually.</p>
+<p><a href="https://modelcontextprotocol.io/" class="external-link" target="_blank">Model Context Protocol (MCP)<span class="codicon codicon-link-external external-link-icon" aria-hidden="true"></span></a> is an open standard for connecting AI models to external tools and services. In Visual Studio Code, servers expose these capabilities as <a href="https://code.visualstudio.com/docs/agents/run/tools">tools</a>. MCP servers can also provide <a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_other-mcp-capabilities">resources, prompts, and interactive apps</a>.</p>
+<p>If the tools already available meet your needs, you don't need an additional server. Adding one means configuring access and deciding whether to <a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_mcp-server-trust">trust the server</a>.</p>
+<p>For background on how MCP fits into the AI customization framework, see <a href="https://code.visualstudio.com/docs/agents/concepts/customization">Customization concepts</a> and <a href="https://code.visualstudio.com/docs/agents/concepts/tools">Tools concepts</a>.</p>
+<p>This article covers how to add, configure, and manage MCP servers. To learn how agents invoke tools, see <a href="https://code.visualstudio.com/docs/agents/run/tools">Use tools with agents</a>.</p>
+<div class="markdown-alert tip" dir="auto">
+      <span>
+        <svg class="markdown-alert-icon" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true">
+          <path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z">
+          </path>
+        </svg>
+        Tip
+      </span><p>Use the <a href="https://code.visualstudio.com/docs/agent-customization/overview#_agent-customizations-editor">Agent Customizations editor</a> (Preview) to discover, create, and manage all your agent customizations in one place. Run <strong>Chat: Open Customizations</strong> from the Command Palette.</p>
+</div><h2 id="_quickstart-use-an-mcp-server-in-chat" data-needslink="_quickstart-use-an-mcp-server-in-chat"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_quickstart-use-an-mcp-server-in-chat">Quickstart: use an MCP server in chat</a></h2>
+<p>This walkthrough demonstrates adding an external tool provider with the <a href="https://github.com/microsoft/playwright-mcp" class="external-link" target="_blank">Playwright<span class="codicon codicon-link-external external-link-icon" aria-hidden="true"></span></a> MCP server. If your goal is browser interaction rather than learning MCP setup, check the <a href="https://code.visualstudio.com/docs/agents/run/browser-tools">built-in browser tools</a> first. They don't require an MCP server.</p>
+<ol>
+<li>
+<p>Open the Extensions view (<span class="dynamic-keybinding keybinding linux" data-commandid="workbench.view.extensions" data-osx="⇧⌘X" data-win="Ctrl+Shift+X" data-linux="Ctrl+Shift+X" title="macOS: ⇧⌘X, Windows: Ctrl+Shift+X">Ctrl+Shift+X</span>) and enter <code>@mcp playwright</code> in the search field.</p>
+</li>
+<li>
+<p>Select <strong>Install</strong> to install the Playwright MCP server in your user profile.</p>
+</li>
+<li>
+<p>When prompted, confirm that you trust the server to start it. VS Code discovers the server's tools and makes them available in chat.</p>
+</li>
+<li>
+<p>Open the Chat view (<span class="dynamic-keybinding keybinding linux" data-commandid="workbench.action.chat.open" data-osx="⌃⌘I" data-win="Ctrl+Alt+I" data-linux="Ctrl+Alt+I" title="macOS: ⌃⌘I, Windows: Ctrl+Alt+I">Ctrl+Alt+I</span>) and enter a prompt that uses the Playwright tools. For example:</p>
+<div class="code-block-wrapper"><div class="code-block-actions" role="group" aria-label="Code block actions"><div class="code-block-open-dropdown"><button class="code-block-open-btn-main" type="button" tabindex="0" id="prompt-open-1" title="Open in VS Code" aria-label="Open in VS Code">Open in VS Code</button><button class="code-block-open-dropdown-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Select VS Code version"><svg class="code-block-open-dropdown-chevron" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M7.976 10.072l4.357-4.357.62.618L8.284 11h-.618L3 6.333l.619-.618 4.357 4.357z"></path>
+    </svg></button><ul class="code-block-open-dropdown-menu" role="listbox" aria-label="VS Code version"><li role="option" data-version="stable" tabindex="0" aria-selected="true">Stable</li><li role="option" data-version="insiders" tabindex="0" aria-selected="false">Insiders</li></ul></div><button class="code-block-copy-btn" title="Copy code to clipboard" aria-label="Copy code to clipboard" type="button" tabindex="0"><span class="codicon codicon-copy"></span></button></div><pre class="shiki" data-lang="prompt" shiki-themes="" dark-plus="" light-plus"="" style="--shiki-dark:#D4D4D4;--shiki-light:#000000;--shiki-dark-bg:#1E1E1E;--shiki-light-bg:#FFFFFF" tabindex="0" aria-label="Code block in Prompt"><code><span class="line"><span>Go to code.visualstudio.com, decline the cookie banner, and give me a screenshot of the homepage.</span></span>
+<span class="line"><span></span></span></code></pre></div>
+<p>VS Code invokes the Playwright tools to open the page in a browser, and take a screenshot. You might be asked to confirm each tool invocation.</p>
+</li>
+</ol>
+<div class="markdown-alert tip" dir="auto">
+      <span>
+        <svg class="markdown-alert-icon" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true">
+          <path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z">
+          </path>
+        </svg>
+        Tip
+      </span><p>Select the <strong>Configure Tools</strong> button in the chat input to see all available tools for the Playwright MCP server and toggle specific tools on or off.</p>
+</div><h2 id="_add-an-mcp-server" data-needslink="_add-an-mcp-server"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_add-an-mcp-server">Add an MCP server</a></h2>
+<p>To install an MCP server from the MCP server gallery:</p>
+<ol>
+<li>
+<p>Open the Extensions view (<span class="dynamic-keybinding keybinding linux" data-commandid="workbench.view.extensions" data-osx="⇧⌘X" data-win="Ctrl+Shift+X" data-linux="Ctrl+Shift+X" title="macOS: ⇧⌘X, Windows: Ctrl+Shift+X">Ctrl+Shift+X</span>) and enter <code>@mcp</code> in the search field. This shows the list of available MCP servers in the gallery.</p>
+</li>
+<li>
+<p>You can install an MCP server in your user profile or in your workspace:</p>
+<ul>
+<li>
+<p>To install in your user profile, select <strong>Install</strong>.</p>
+</li>
+<li>
+<p>To install in your workspace, right-click the MCP server and select <strong>Install in Workspace</strong>. This updates the <code>.vscode/mcp.json</code> file in your workspace.</p>
+</li>
+</ul>
+</li>
+<li>
+<p>To view the MCP server details, select the MCP server in the list to open the details page.</p>
+</li>
+</ol>
+<div class="markdown-alert caution" dir="auto">
+      <span>
+        <svg class="markdown-alert-icon" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true">
+          <path d="M4.47.22A.749.749 0 0 1 5 0h6c.199 0 .389.079.53.22l4.25 4.25c.141.14.22.331.22.53v6a.749.749 0 0 1-.22.53l-4.25 4.25A.749.749 0 0 1 11 16H5a.749.749 0 0 1-.53-.22L.22 11.53A.749.749 0 0 1 0 11V5c0-.199.079-.389.22-.53Zm.84 1.28L1.5 5.31v5.38l3.81 3.81h5.38l3.81-3.81V5.31L10.69 1.5ZM8 4a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4Zm0 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z">
+          </path>
+        </svg>
+        Caution
+      </span><p>Local MCP servers can run arbitrary code on your machine. Only add servers from <a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_mcp-server-trust">trusted sources</a>, and review the publisher and server configuration before starting it. Read the <a href="https://code.visualstudio.com/docs/agents/run/security">Security documentation</a> for using AI in VS Code to understand the implications.</p>
+</div><h3 id="_configure-the-mcpjson-file" data-needslink="_configure-the-mcpjson-file"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_configure-the-mcpjson-file">Configure the mcp.json file</a></h3>
+<p>You can manually configure MCP servers in the following locations:</p>
+<ul>
+<li><strong>Workspace, VS Code format</strong>: create or open <code>.vscode/mcp.json</code> in your project. This format defines servers in a top-level <code>servers</code> object.</li>
+<li><strong>Workspace, portable format</strong>: create <code>.mcp.json</code> at the root of your project. This format defines servers in a top-level <code>mcpServers</code> object and works across compatible tools.</li>
+<li><strong>User profile</strong>: run the <strong>MCP: Open User Configuration</strong> command to open the <code>mcp.json</code> file in your <a href="https://code.visualstudio.com/docs/configure/profiles">user profile</a> folder. Servers configured here are available across all your workspaces. When you use multiple profiles, each profile can have its own MCP server configuration.</li>
+<li><strong>User, portable format</strong>: create <code>$COPILOT_HOME/mcp-config.json</code>, or <code>~/.copilot/mcp-config.json</code> when <code>COPILOT_HOME</code> is not set. This format defines servers in a top-level <code>mcpServers</code> object and works across compatible Copilot tools.</li>
+</ul>
+<p>Include workspace configuration in source control to share MCP servers with your team.</p>
+<p>You can also run <strong>MCP: Add Server</strong> in the Command Palette (<span class="dynamic-keybinding keybinding linux" data-commandid="workbench.action.showCommands" data-osx="⇧⌘P" data-win="Ctrl+Shift+P" data-linux="Ctrl+Shift+P" title="macOS: ⇧⌘P, Windows: Ctrl+Shift+P">Ctrl+Shift+P</span>) to add a server through a guided flow. Choose <strong>.mcp.json</strong> to save a portable configuration at the workspace root, or <strong>Copilot Global</strong> to save it in <code>$COPILOT_HOME/mcp-config.json</code> with <code>~/.copilot/mcp-config.json</code> as the fallback location. The flow also lists the deprecated <code>.vscode/mcp.json</code> and VS Code user-profile destinations for compatibility. Prefer the portable destinations for new servers.</p>
+<p>For sessions that run on <a href="https://code.visualstudio.com/docs/agents/concepts/agent-host">Agent Host</a>, the Agent Host doesn't read <code>.vscode/mcp.json</code> directly. Instead, VS Code forwards your MCP server configuration to the Agent Host, except servers that require interactive input (for example, <code>${input:...}</code> variables). For MCP configuration that is portable across the Agent Host and other Copilot tools, use a workspace <code>.mcp.json</code> file or a user <code>~/.copilot/mcp-config.json</code> file, which the Agent Host reads natively. Learn more about <a href="https://code.visualstudio.com/docs/agents/concepts/agent-host#_behavior-on-the-extension-host">behavior on the extension host</a>.</p>
+<div class="markdown-alert important" dir="auto">
+      <span>
+        <svg class="markdown-alert-icon" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true">
+          <path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z">
+          </path>
+        </svg>
+        Important
+      </span><p>Avoid hardcoding sensitive information like API keys. Use <a href="https://code.visualstudio.com/docs/agents/reference/mcp-configuration#_input-variables-for-sensitive-data">input variables</a> or environment files instead.</p>
+</div><p>The following example shows an <code>mcp.json</code> file that configures a remote MCP server and a local MCP server:</p>
+<div class="code-block-wrapper"><div class="code-block-actions" role="group" aria-label="Code block actions"><button class="code-block-copy-btn" title="Copy code to clipboard" aria-label="Copy code to clipboard" type="button" tabindex="0"><span class="codicon codicon-copy"></span></button></div><pre class="shiki" data-lang="json" shiki-themes="" dark-plus="" light-plus"="" style="--shiki-dark:#D4D4D4;--shiki-light:#000000;--shiki-dark-bg:#1E1E1E;--shiki-light-bg:#FFFFFF" tabindex="0" aria-label="Code block in JSON"><code><span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">{</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">  "servers"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: {</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">    "github"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: {</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">      "type"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: </span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"http"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">,</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">      "url"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: </span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"https://api.githubcopilot.com/mcp"</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">    },</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">    "playwright"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: {</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">      "command"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: </span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"npx"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">,</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">      "args"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: [</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"-y"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">, </span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"@microsoft/mcp-server-playwright"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">]</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">    }</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">  }</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">}</span></span>
+<span class="line"></span></code></pre></div>
+<p>VS Code provides IntelliSense for the configuration file. For the full configuration schema and field reference, see the <a href="https://code.visualstudio.com/docs/agents/reference/mcp-configuration">MCP configuration reference</a>.</p>
+<div class="markdown-alert note" dir="auto">
+      <span>
+        <svg class="markdown-alert-icon" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true">
+          <path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z">
+          </path>
+        </svg>
+        Note
+      </span><p>MCP servers run wherever they are configured. Servers in your user profile run locally. If you're connected to a <a href="https://code.visualstudio.com/docs/remote/remote-overview">remote</a> and want a server to run on the remote machine, define it in the workspace settings or remote user settings (<strong>MCP: Open Remote User Configuration</strong>).</p>
+</div><h3 id="_other-options-to-add-an-mcp-server" data-needslink="_other-options-to-add-an-mcp-server"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_other-options-to-add-an-mcp-server">Other options to add an MCP server</a></h3>
+<details>
+<summary>Add an MCP server to a dev container</summary>
+<p>MCP servers can be configured in Dev Containers through the <code>devcontainer.json</code> file. This allows you to include MCP server configurations as part of your containerized development environment.</p>
+<p>To configure MCP servers in a Dev Container, add the server configuration to the <code>customizations.vscode.mcp</code> section:</p>
+<div class="code-block-wrapper"><div class="code-block-actions" role="group" aria-label="Code block actions"><button class="code-block-copy-btn" title="Copy code to clipboard" aria-label="Copy code to clipboard" type="button" tabindex="0"><span class="codicon codicon-copy"></span></button></div><pre class="shiki" data-lang="json" shiki-themes="" dark-plus="" light-plus"="" style="--shiki-dark:#D4D4D4;--shiki-light:#000000;--shiki-dark-bg:#1E1E1E;--shiki-light-bg:#FFFFFF" tabindex="0" aria-label="Code block in JSON"><code><span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">{</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">  "image"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: </span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"mcr.microsoft.com/devcontainers/typescript-node:latest"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">,</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">  "customizations"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: {</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">    "vscode"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: {</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">      "mcp"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: {</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">        "servers"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: {</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">          "playwright"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: {</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">            "command"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: </span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"npx"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">,</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">            "args"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: [</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"-y"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">, </span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"@microsoft/mcp-server-playwright"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">]</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">          }</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">        }</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">      }</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">    }</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">  }</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">}</span></span>
+<span class="line"></span></code></pre></div>
+<p>When the Dev Container is created, VS Code automatically writes the MCP server configurations to the remote <code>mcp.json</code> file, making them available in your containerized development environment.</p>
+</details>
+<details>
+<summary>Automatically discover MCP servers</summary>
+<p>VS Code can automatically detect and reuse MCP server configurations from other applications, such as Claude Desktop.</p>
+<p>With the <span class="setting"><span class="setting-dropdown" data-setting-id="chat.mcp.discovery.enabled">
+    <span class="setting-link-main">
+      <span class="codicon codicon-settings-gear dynamic-setting-icon"></span>
+      chat.mcp.discovery.enabled
+      
+    </span>
+    <button type="button" class="setting-dropdown-trigger" aria-haspopup="menu" aria-expanded="false" aria-label="Open setting in VS Code">
+        <svg class="setting-dropdown-chevron" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M7.976 10.072l4.357-4.357.62.618L8.284 11h-.618L3 6.333l.619-.618 4.357 4.357z"></path>
+        </svg>
+    </button>
+    <span class="setting-dropdown-menu" role="menu" aria-label="Open setting">
+      <span role="menuitem" class="setting-action-item" data-version="stable" tabindex="0">Open in VS Code</span>
+      <span role="menuitem" class="setting-action-item" data-version="insiders" tabindex="-1">Open in VS Code Insiders</span>
+    </span>
+  </span></span> setting, you can select one or more tools from which to discover their MCP server configuration.</p>
+<p>Supported sources include Claude Desktop, GitHub Copilot CLI, Cursor, and Windsurf. Learn more about <a href="https://code.visualstudio.com/docs/agents/reference/mcp-configuration#_automatic-mcp-server-discovery">automatic MCP server discovery</a>, including configuration locations and remote behavior.</p>
+</details>
+<details>
+<summary>Install an MCP server from the command line</summary>
+<p>You can also use the VS Code command-line interface to add an MCP server to your user profile or to a workspace.</p>
+<p>To add an MCP server to your user profile, use the <code>--add-mcp</code> VS Code command line option, and provide the JSON server configuration in the form <code>{\"name\":\"server-name\",\"command\":...}</code>.</p>
+<div class="code-block-wrapper"><div class="code-block-actions" role="group" aria-label="Code block actions"><button class="code-block-copy-btn" title="Copy code to clipboard" aria-label="Copy code to clipboard" type="button" tabindex="0"><span class="codicon codicon-copy"></span></button></div><pre class="shiki" data-lang="bash" shiki-themes="" dark-plus="" light-plus"="" style="--shiki-dark:#D4D4D4;--shiki-light:#000000;--shiki-dark-bg:#1E1E1E;--shiki-light-bg:#FFFFFF" tabindex="0" aria-label="Code block in Bash"><code><span class="line"><span style="--shiki-dark:#DCDCAA;--shiki-light:#795E26">code</span><span style="--shiki-dark:#569CD6;--shiki-light:#0000FF"> --add-mcp</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515"> "{</span><span style="--shiki-dark:#D7BA7D;--shiki-light:#EE0000">\"</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">name</span><span style="--shiki-dark:#D7BA7D;--shiki-light:#EE0000">\"</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">:</span><span style="--shiki-dark:#D7BA7D;--shiki-light:#EE0000">\"</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">my-server</span><span style="--shiki-dark:#D7BA7D;--shiki-light:#EE0000">\"</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">,</span><span style="--shiki-dark:#D7BA7D;--shiki-light:#EE0000">\"</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">command</span><span style="--shiki-dark:#D7BA7D;--shiki-light:#EE0000">\"</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">: </span><span style="--shiki-dark:#D7BA7D;--shiki-light:#EE0000">\"</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">uvx</span><span style="--shiki-dark:#D7BA7D;--shiki-light:#EE0000">\"</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">,</span><span style="--shiki-dark:#D7BA7D;--shiki-light:#EE0000">\"</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">args</span><span style="--shiki-dark:#D7BA7D;--shiki-light:#EE0000">\"</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">: [</span><span style="--shiki-dark:#D7BA7D;--shiki-light:#EE0000">\"</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">mcp-server-fetch</span><span style="--shiki-dark:#D7BA7D;--shiki-light:#EE0000">\"</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">]}"</span></span>
+<span class="line"></span></code></pre></div>
+</details>
+<h2 id="_other-mcp-capabilities" data-needslink="_other-mcp-capabilities"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_other-mcp-capabilities">Other MCP capabilities</a></h2>
+<p>Beyond tools, MCP servers can provide other capabilities:</p>
+<div class="table-expand-container"><button class="table-expand-button">
+          Expand table
+        </button><div class="table-wrapper"><table class="table table-striped">
+<thead>
+<tr>
+<th>Capability</th>
+<th>Description</th>
+<th>How to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Resources</strong></td>
+<td>Access data from MCP servers as context in your prompts, such as files, database tables, or API responses. Resources provide read-only context that you attach to a chat request.</td>
+<td>In the Chat view, select <strong>Add Context</strong> &gt; <strong>MCP Resources</strong>. You can also use the <strong>MCP: Browse Resources</strong> command.</td>
+</tr>
+<tr>
+<td><strong>Prompts</strong></td>
+<td>Use preconfigured prompt templates from MCP servers to standardize common tasks. Each MCP server can expose its own set of prompts tailored to its capabilities.</td>
+<td>Type <code>/&lt;MCP server&gt;.&lt;prompt&gt;</code> in the chat input.</td>
+</tr>
+<tr>
+<td><strong>MCP Apps</strong></td>
+<td>Get interactive UI components like forms, visualizations, and drag-and-drop lists rendered directly in chat. MCP Apps enable richer interactions beyond text responses. Learn more in the <a href="https://code.visualstudio.com/blogs/2026/01/26/mcp-apps-support">MCP Apps blog post</a>.</td>
+<td>MCP Apps appear inline when an MCP server supports them.</td>
+</tr>
+</tbody>
+</table></div></div>
+<h2 id="_sandbox-mcp-servers" data-needslink="_sandbox-mcp-servers"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_sandbox-mcp-servers">Sandbox MCP servers</a></h2>
+<p>On macOS and Linux, you can enable sandboxing for locally-running stdio MCP servers to restrict their access to the file system and network. Sandboxed servers run in an isolated environment and can only access the file paths and network domains that you explicitly permit.</p>
+<p>To enable sandboxing for a server, set <code>"sandboxEnabled": true</code> in the server configuration in your <code>mcp.json</code> file. You can further customize the sandbox restrictions by adding a top-level <code>sandbox</code> object with specific file system and network rules.</p>
+<p>The following example shows how to enable sandboxing for a local MCP server and restrict its access to only write to files in the workspace and access a specific API domain:</p>
+<div class="code-block-wrapper"><div class="code-block-actions" role="group" aria-label="Code block actions"><button class="code-block-copy-btn" title="Copy code to clipboard" aria-label="Copy code to clipboard" type="button" tabindex="0"><span class="codicon codicon-copy"></span></button></div><pre class="shiki" data-lang="json" shiki-themes="" dark-plus="" light-plus"="" style="--shiki-dark:#D4D4D4;--shiki-light:#000000;--shiki-dark-bg:#1E1E1E;--shiki-light-bg:#FFFFFF" tabindex="0" aria-label="Code block in JSON"><code><span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">{</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">  "servers"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: {</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">    "myServer"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: {</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">      "type"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: </span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"stdio"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">,</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">      "command"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: </span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"npx"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">,</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">      "args"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: [</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"-y"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">, </span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"@example/mcp-server"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">],</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">      "sandboxEnabled"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: </span><span style="--shiki-dark:#569CD6;--shiki-light:#0000FF">true</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">    }</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">  },</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">  "sandbox"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: {</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">    "filesystem"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: {</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">      "allowWrite"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: [</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"${workspaceFolder}"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">]</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">    },</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">    "network"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: {</span></span>
+<span class="line"><span style="--shiki-dark:#9CDCFE;--shiki-light:#0451A5">      "allowedDomains"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">: [</span><span style="--shiki-dark:#CE9178;--shiki-light:#A31515">"api.example.com"</span><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">]</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">    }</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">  }</span></span>
+<span class="line"><span style="--shiki-dark:#D4D4D4;--shiki-light:#000000">}</span></span>
+<span class="line"></span></code></pre></div>
+<p>When sandboxing is enabled, tool calls from the server are auto-approved because they run in a controlled environment.</p>
+<p>For the full sandbox configuration schema, see the <a href="https://code.visualstudio.com/docs/agents/reference/mcp-configuration#_sandbox-configuration">Sandbox configuration</a> reference.</p>
+<div class="markdown-alert note" dir="auto">
+      <span>
+        <svg class="markdown-alert-icon" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true">
+          <path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z">
+          </path>
+        </svg>
+        Note
+      </span><p>Sandboxing is currently not available on Windows.</p>
+</div><h2 id="_manage-mcp-servers" data-needslink="_manage-mcp-servers"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_manage-mcp-servers">Manage MCP servers</a></h2>
+<p>VS Code provides several options to manage your MCP servers, such as starting or stopping a server, viewing logs, uninstalling, or clearing cached tools.</p>
+<div class="table-expand-container"><button class="table-expand-button">
+          Expand table
+        </button><div class="table-wrapper"><table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Description</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Extensions view</strong></td>
+<td>Right-click a server in the <strong>MCP SERVERS - INSTALLED</strong> section or select the gear icon.</td>
+<td><img src="https://code.visualstudio.com/assets/docs/agent-customization/mcp-servers/extensions-view-mcp-servers.png" alt="Screenshot showing the MCP servers in the Extensions view." loading="lazy"></td>
+</tr>
+<tr>
+<td><strong><code>mcp.json</code> editor</strong></td>
+<td>Open the configuration file and use the inline actions (code lenses). Use <strong>MCP: Open User Configuration</strong> or <strong>MCP: Open Workspace Folder Configuration</strong> to open the file.</td>
+<td><img src="https://code.visualstudio.com/assets/docs/agent-customization/mcp-servers/mcp-server-config-lenses.png" alt="MCP server configuration with lenses to manage server." loading="lazy"></td>
+</tr>
+<tr>
+<td><strong>Command Palette</strong></td>
+<td>Run <strong>MCP: List Servers</strong>, select a server, and choose an action.</td>
+<td><img src="https://code.visualstudio.com/assets/docs/agent-customization/mcp-servers/mcp-list-servers-actions.png" alt="Screenshot showing the actions for an MCP server in the Command Palette." loading="lazy"></td>
+</tr>
+</tbody>
+</table></div></div>
+<h2 id="_enable-or-disable-mcp-servers" data-needslink="_enable-or-disable-mcp-servers"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_enable-or-disable-mcp-servers">Enable or disable MCP servers</a></h2>
+<p>You can enable or disable an MCP server globally or for a specific workspace. When an MCP server is disabled, it does not start and its tools, prompts, resources, and MCP apps are excluded from chat.</p>
+<p>To enable or disable an MCP server:</p>
+<ul>
+<li>Right-click a server in the <strong>MCP SERVERS - INSTALLED</strong> section of the Extensions view and select <strong>Enable</strong> or <strong>Disable</strong>.</li>
+<li>Run <strong>MCP: List Servers</strong> from the Command Palette, select a server, and choose <strong>Enable</strong> or <strong>Disable</strong>.</li>
+<li>Use the <a href="https://code.visualstudio.com/docs/agent-customization/overview#_agent-customizations-editor">Agent Customizations editor</a> to toggle the server's enabled state.</li>
+</ul>
+<p>The enable/disable state is stored separately from the server configuration in <code>mcp.json</code>, so it does not affect shared configuration files.</p>
+<h2 id="_centrally-manage-access-to-mcp-servers-in-vs-code" data-needslink="_centrally-manage-access-to-mcp-servers-in-vs-code"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_centrally-manage-access-to-mcp-servers-in-vs-code">Centrally manage access to MCP servers in VS Code</a></h2>
+<p>Organizations can centrally manage access to MCP servers via GitHub policies. Learn more about <a href="https://code.visualstudio.com/docs/enterprise/manage-ai-settings#_configure-mcp-server-access">enterprise management of MCP servers</a>.</p>
+<h2 id="_automatically-start-mcp-servers" data-needslink="_automatically-start-mcp-servers"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_automatically-start-mcp-servers">Automatically start MCP servers</a></h2>
+<aside class="docs-feature-lifecycle docs-feature-lifecycle--experimental" aria-label="Automatically start MCP servers feature status: Experimental">
+  <span class="docs-feature-lifecycle-badge">Experimental</span>
+  <span><strong>Automatically start MCP servers</strong> is experimental and might change or be removed.</span>
+</aside>
+<p>When you submit a chat message, VS Code can automatically start MCP servers so that their tools are available to the chat. Use the <span class="setting"><span class="setting-dropdown" data-setting-id="chat.mcp.autostart">
+    <span class="setting-link-main">
+      <span class="codicon codicon-settings-gear dynamic-setting-icon"></span>
+      chat.mcp.autostart
+      
+    </span>
+    <button type="button" class="setting-dropdown-trigger" aria-haspopup="menu" aria-expanded="false" aria-label="Open setting in VS Code">
+        <svg class="setting-dropdown-chevron" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M7.976 10.072l4.357-4.357.62.618L8.284 11h-.618L3 6.333l.619-.618 4.357 4.357z"></path>
+        </svg>
+    </button>
+    <span class="setting-dropdown-menu" role="menu" aria-label="Open setting">
+      <span role="menuitem" class="setting-action-item" data-version="stable" tabindex="0">Open in VS Code</span>
+      <span role="menuitem" class="setting-action-item" data-version="insiders" tabindex="-1">Open in VS Code Insiders</span>
+    </span>
+  </span></span> setting to control which servers VS Code starts during this autostart pass:</p>
+<ul>
+<li><code>never</code>: Don't automatically start MCP servers.</li>
+<li><code>onlyNew</code>: Start servers that have never run.</li>
+<li><code>newAndOutdated</code> (default): Start servers that have never run and servers whose configuration has changed.</li>
+</ul>
+<p>Disabled servers and servers in an error state are excluded from the autostart pass.</p>
+<div class="markdown-alert important" dir="auto">
+      <span>
+        <svg class="markdown-alert-icon" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true">
+          <path d="M0 1.75C0 .784.784 0 1.75 0h12.5C15.216 0 16 .784 16 1.75v9.5A1.75 1.75 0 0 1 14.25 13H8.06l-2.573 2.573A1.458 1.458 0 0 1 3 14.543V13H1.75A1.75 1.75 0 0 1 0 11.25Zm1.75-.25a.25.25 0 0 0-.25.25v9.5c0 .138.112.25.25.25h2a.75.75 0 0 1 .75.75v2.19l2.72-2.72a.749.749 0 0 1 .53-.22h6.5a.25.25 0 0 0 .25-.25v-9.5a.25.25 0 0 0-.25-.25Zm7 2.25v2.5a.75.75 0 0 1-1.5 0v-2.5a.75.75 0 0 1 1.5 0ZM9 9a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z">
+          </path>
+        </svg>
+        Important
+      </span><p>For <a href="https://code.visualstudio.com/docs/agents/concepts/agent-host">Agent Host</a> sessions, <span class="setting"><span class="setting-dropdown" data-setting-id="chat.mcp.autostart">
+    <span class="setting-link-main">
+      <span class="codicon codicon-settings-gear dynamic-setting-icon"></span>
+      chat.mcp.autostart
+      
+    </span>
+    <button type="button" class="setting-dropdown-trigger" aria-haspopup="menu" aria-expanded="false" aria-label="Open setting in VS Code">
+        <svg class="setting-dropdown-chevron" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M7.976 10.072l4.357-4.357.62.618L8.284 11h-.618L3 6.333l.619-.618 4.357 4.357z"></path>
+        </svg>
+    </button>
+    <span class="setting-dropdown-menu" role="menu" aria-label="Open setting">
+      <span role="menuitem" class="setting-action-item" data-version="stable" tabindex="0">Open in VS Code</span>
+      <span role="menuitem" class="setting-action-item" data-version="insiders" tabindex="-1">Open in VS Code Insiders</span>
+    </span>
+  </span></span> only controls the VS Code MCP autostart pass. The Agent Host and Copilot SDK manage their MCP server processes independently. The Agent Host discovers MCP configuration from workspace <code>.mcp.json</code> and user <code>~/.copilot/mcp-config.json</code> files. VS Code also forwards eligible server configurations from supported sources, including <code>.vscode/mcp.json</code>. As a result, setting <span class="setting"><span class="setting-dropdown" data-setting-id="chat.mcp.autostart">
+    <span class="setting-link-main">
+      <span class="codicon codicon-settings-gear dynamic-setting-icon"></span>
+      chat.mcp.autostart
+      
+    </span>
+    <button type="button" class="setting-dropdown-trigger" aria-haspopup="menu" aria-expanded="false" aria-label="Open setting in VS Code">
+        <svg class="setting-dropdown-chevron" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M7.976 10.072l4.357-4.357.62.618L8.284 11h-.618L3 6.333l.619-.618 4.357 4.357z"></path>
+        </svg>
+    </button>
+    <span class="setting-dropdown-menu" role="menu" aria-label="Open setting">
+      <span role="menuitem" class="setting-action-item" data-version="stable" tabindex="0">Open in VS Code</span>
+      <span role="menuitem" class="setting-action-item" data-version="insiders" tabindex="-1">Open in VS Code Insiders</span>
+    </span>
+  </span></span> to <code>never</code> doesn't prevent an Agent Host session from starting its configured MCP servers.</p>
+</div><h2 id="_mcp-server-trust" data-needslink="_mcp-server-trust"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_mcp-server-trust">MCP server trust</a></h2>
+<p>Workspace MCP servers inherit <a href="https://code.visualstudio.com/docs/editing/workspaces/workspace-trust">Workspace Trust</a>. When you trust a workspace, servers in <code>.vscode/mcp.json</code> and workspace-root <code>.mcp.json</code> can start without a separate MCP server trust prompt, including after their configuration changes. In restricted mode, workspace MCP configuration is blocked and these servers don't start.</p>
+<p>Review workspace MCP configuration before you trust a repository because local MCP servers can run code on your machine.</p>
+<p>MCP servers from other sources can use a separate trust decision. For these servers, VS Code shows a dialog when a server first starts or its configuration changes. In the dialog, select the link to the MCP server to review its configuration.</p>
+<p><img src="https://code.visualstudio.com/assets/docs/agent-customization/mcp-servers/mcp-server-trust-dialog.png" alt="Screenshot showing the MCP server trust prompt." loading="lazy"></p>
+<p>If you don't trust the MCP server, it will not be started, and chat requests will continue without using the tools provided by the server.</p>
+<p>To reset separate MCP server trust decisions, run the <strong>MCP: Reset Trust</strong> command from the Command Palette. This command doesn't change Workspace Trust.</p>
+<h2 id="_synchronize-mcp-configuration-across-devices" data-needslink="_synchronize-mcp-configuration-across-devices"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_synchronize-mcp-configuration-across-devices">Synchronize MCP configuration across devices</a></h2>
+<p>With <a href="https://code.visualstudio.com/docs/configure/settings-sync">Settings Sync</a> enabled, you can synchronize settings and configurations across devices, including MCP server configurations. This enables you to maintain a consistent development environment and access the same MCP servers on all your devices.</p>
+<p>To synchronize MCP server configuration with Settings Sync:</p>
+<ol>
+<li>
+<p>Run the <strong>Settings Sync: Configure</strong> command from the Command Palette</p>
+</li>
+<li>
+<p>Enable the <strong>MCP Servers</strong> option in the list of synchronized configurations</p>
+</li>
+</ol>
+<h2 id="_troubleshoot-and-debug-mcp-servers" data-needslink="_troubleshoot-and-debug-mcp-servers"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_troubleshoot-and-debug-mcp-servers">Troubleshoot and debug MCP servers</a></h2>
+<h3 id="_mcp-output-log" data-needslink="_mcp-output-log"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_mcp-output-log">MCP output log</a></h3>
+<p>When VS Code encounters an issue with an MCP server, it shows an error indicator in the Chat view.</p>
+<p><img src="https://code.visualstudio.com/assets/docs/agent-customization/mcp-servers/mcp-error-loading-tool.png" alt="MCP Server Error" loading="lazy"></p>
+<p>Select the error notification in the Chat view, and then select the <strong>Show Output</strong> option to view the server logs. Alternatively, run <strong>MCP: List Servers</strong> from the Command Palette, select the server, and then choose <strong>Show Output</strong>.</p>
+<p><img src="https://code.visualstudio.com/assets/docs/agent-customization/mcp-servers/mcp-server-error-output.png" alt="MCP Server Error Output" loading="lazy"></p>
+<h2 id="_frequently-asked-questions" data-needslink="_frequently-asked-questions"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_frequently-asked-questions">Frequently asked questions</a></h2>
+<details>
+<summary>The MCP server is not starting when using Docker</summary>
+<p>Verify that the command arguments are correct and that the container is not running in detached mode (<code>-d</code> option). You can also check the MCP server output for any error messages (see <a href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_troubleshoot-and-debug-mcp-servers">Troubleshooting</a>).</p>
+</details>
+<h2 id="_related-resources" data-needslink="_related-resources"><a class="hash-link" href="https://code.visualstudio.com/docs/agent-customization/mcp-servers#_related-resources">Related resources</a></h2>
+<ul>
+<li><a href="https://code.visualstudio.com/docs/agents/reference/mcp-configuration">MCP configuration reference</a></li>
+<li><a href="https://code.visualstudio.com/docs/agents/run/tools">Use tools with agents</a></li>
+<li><a href="https://modelcontextprotocol.io/" class="external-link" target="_blank">Model Context Protocol Documentation<span class="codicon codicon-link-external external-link-icon" aria-hidden="true"></span></a></li>
+<li><a href="https://code.visualstudio.com/blogs/2026/01/26/mcp-apps-support">MCP Apps support in VS Code</a></li>
+<li><a href="https://code.visualstudio.com/docs/agent-customization/agent-plugins">Discover and manage agent plugins</a>, including <a href="https://code.visualstudio.com/docs/agent-customization/agent-plugins#_mcp-servers-in-plugins">MCP servers in plugins</a></li>
+</ul>
+
+                <div class="feedback" data-edit-url="https://vscode.dev/github/microsoft/vscode-docs/blob/main/docs/agent-customization/mcp-servers.md"><section class="feedback-section" aria-labelledby="feedback-heading"><h2 id="feedback-heading" class="sr-only">Help and support</h2><div class="feedback-container"><div class="feedback-left"><div class="widget"><form aria-label="Feedback"><div class="buttons"><h3 class="feedback-header">Was this page helpful?</h3><br><button value="1">Yes<span class="sr-only"> , this page was helpful</span></button><button value="0">No<span class="sr-only"> , this page was not helpful</span></button></div></form></div></div><div class="feedback-middle"><h3>Still need help?</h3><ul class="support-links"><li><a href="https://stackoverflow.com/questions/tagged/vscode" target="_blank" rel="noopener noreferrer"><img alt="" src="https://code.visualstudio.com/assets/community/sidebar/stackoverflow.svg" aria-hidden="true" width="300" height="150">Ask the community</a></li><li><a href="https://github.com/microsoft/vscode/issues/new/choose" target="_blank" rel="noopener noreferrer"><img alt="" src="https://code.visualstudio.com/assets/community/sidebar/github.svg" aria-hidden="true" width="300" height="150">Request features</a></li><li><a href="https://www.github.com/Microsoft/vscode/issues" target="_blank" rel="noopener noreferrer"><img alt="" src="https://code.visualstudio.com/assets/community/sidebar/issue.svg" aria-hidden="true" width="300" height="150">Report issues</a></li></ul></div><div class="feedback-right"><h3>Help us improve</h3><div class="buttons"><button type="button">Edit this page</button></div></div></div></section></div>
+                
+                <div class="body-footer">9/30/2026</div>
+                
+            </main>
+        </div>
+        
+        <!-- Mobile connect widget -->
+        <div class="docs-mobile-widgets visible-xs">
+            <div class="connect-widget"><ul class="connect-links"><li><a href="https://code.visualstudio.com/feed.xml" target="_blank"><img alt="RSS" src="https://code.visualstudio.com/assets/community/sidebar/rss.svg" width="300" height="150">RSS Feed</a></li><li><a href="https://stackoverflow.com/questions/tagged/vscode" target="_blank" rel="noopener noreferrer"><img alt="Stackoverflow" src="https://code.visualstudio.com/assets/community/sidebar/stackoverflow.svg" width="300" height="150">Ask questions</a></li><li><a href="https://go.microsoft.com/fwlink/?LinkID=533687" target="_blank" rel="noopener noreferrer"><img alt="Twitter" src="https://code.visualstudio.com/assets/community/sidebar/twitter.svg" width="300" height="150">Follow @code</a></li><li id="connect-uservoice"><a href="https://github.com/microsoft/vscode/issues/new/choose" target="_blank" rel="noopener noreferrer"><img alt="GitHub" src="https://code.visualstudio.com/assets/community/sidebar/github.svg" width="300" height="150">Request features</a></li><li id="connect-github"><a href="https://www.github.com/microsoft/vscode/issues" target="_blank" rel="noopener noreferrer"><img alt="Issues" src="https://code.visualstudio.com/assets/community/sidebar/issue.svg" width="300" height="150">Report issues</a></li><li id="connect-youtube"><a href="https://www.youtube.com/channel/UCs5Y5_7XK8HLDX0SLNwkd3w" target="_blank" rel="noopener noreferrer"><img alt="YouTube" src="https://code.visualstudio.com/assets/community/sidebar/youtube.svg" width="300" height="150">Watch videos</a></li></ul></div>
+        </div>
+    </div>
+</div>
+		</main>
+	</div>
+
+	<div id="search-popup-overlay" class="search-popup-overlay" role="dialog" aria-modal="true" aria-label="Search">
+		<div class="search-popup-container">
+			<div class="search-popup-header">
+				<form class="search-popup-form">
+					<div class="input-group">
+						<input type="text" name="q" class="search-box form-control" placeholder="Search the website" aria-label="Search text" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="search-results-listbox" aria-activedescendant="">
+						<span class="input-group-btn">
+							<button tabindex="0" class="btn" type="submit" aria-label="Search">
+								<img class="search-icon-dark" src="https://code.visualstudio.com/assets/icons/search-dark.svg" alt="Search" width="300" height="150">
+								<img class="search-icon-light" src="https://code.visualstudio.com/assets/icons/search.svg" alt="Search" width="300" height="150">
+							</button>
+						</span>
+					</div>
+				</form>
+				<button class="search-popup-close" type="button" aria-label="Close search"><i class="codicon codicon-close" aria-hidden="true"></i></button>
+			</div>
+			<div class="search-popup-results">
+				<ul class="search-popup-results-list" id="search-results-listbox" role="listbox" aria-label="Search results"></ul>
+			</div>
+			<div class="sr-only" role="status" aria-live="polite" aria-atomic="true" id="search-popup-status"></div>
+		</div>
+	</div>
+
+
+	<footer role="contentinfo" class="container">
+		<div class="footer-container">
+			<div class="footer-row">
+				<div class="footer-social">
+					<ul class="links">
+						<li>
+							<a href="https://github.com/microsoft/vscode"><img src="https://code.visualstudio.com/assets/icons/github-icon.svg" alt="VS Code on Github" width="300" height="150"></a>
+						</li>
+						<li>
+							<a href="https://go.microsoft.com/fwlink/?LinkID=533687"><img src="https://code.visualstudio.com/assets/icons/x-icon.svg" class="x-icon" alt="Follow us on X" width="300" height="150"></a>
+						</li>
+						<li>
+							<a href="https://www.linkedin.com/showcase/vs-code"><img src="https://code.visualstudio.com/assets/icons/linkedin-icon.svg" alt="VS Code on LinkedIn" width="300" height="150"></a>
+						</li>
+						<li>
+							<a href="https://bsky.app/profile/vscode.dev"><img src="https://code.visualstudio.com/assets/icons/bluesky-icon.svg" alt="VS Code on Bluesky" width="300" height="150"></a>
+						</li>
+						<li>
+							<a href="https://www.reddit.com/r/vscode/"><img src="https://code.visualstudio.com/assets/icons/reddit-icon.svg" alt="Join the VS Code community on Reddit" width="300" height="150"></a>
+						</li>
+						<li>
+							<a href="https://www.vscodepodcast.com/"><img src="https://code.visualstudio.com/assets/icons/podcast-icon.svg" alt="The VS Code Insiders Podcast" width="300" height="150"></a>
+						</li>
+						<li>
+							<a href="https://www.instagram.com/vscode.ig"><img src="https://code.visualstudio.com/assets/icons/instagram-icon.svg" alt="VS Code on Instagram" width="300" height="150"></a>
+						</li>
+						<li>
+							<a href="https://www.tiktok.com/@vscode"><img src="https://code.visualstudio.com/assets/icons/tiktok-icon.svg" alt="VS Code on TikTok" width="300" height="150"></a>
+						</li>
+						<li>
+							<a href="https://www.youtube.com/@code"><img src="https://code.visualstudio.com/assets/icons/youtube-icon.svg" alt="VS Code on YouTube" width="300" height="150"></a>
+						</li>
+						<script>
+							function manageConsent() {
+								if (siteConsent && siteConsent.isConsentRequired) {
+									siteConsent.manageConsent();
+								}
+							}
+						</script>
+					</ul>
+					<a id="footer-microsoft-link" class="microsoft-logo" href="https://www.microsoft.com/">
+						<img src="https://code.visualstudio.com/assets/icons/microsoft.svg" alt="Microsoft homepage" width="300" height="150">
+					</a>
+				</div>
+			</div>
+			<div class="footer-row">
+				<ul class="links">
+					<li><a id="footer-support-link" href="https://support.serviceshub.microsoft.com/supportforbusiness/create?sapId=d66407ed-3967-b000-4cfb-2c318cad363d" target="_blank" rel="noopener" title="Get support for VS Code" aria-label="Get support for VS Code (opens in new tab)">Support<span class="codicon codicon-link-external external-link-icon" aria-hidden="true"></span></a></li>
+					<li><a id="footer-privacy-link" href="https://go.microsoft.com/fwlink/?LinkId=521839" target="_blank" rel="noopener" title="View the Microsoft privacy statement" aria-label="Microsoft privacy statement (opens in new tab)">Privacy<span class="codicon codicon-link-external external-link-icon" aria-hidden="true"></span></a></li>
+					<li style="display: none;"><a id="footer-cookie-link" style="cursor: pointer;" target="_blank" rel="noopener">Manage Cookies</a></li>
+					<li><a id="footer-terms-link" href="https://www.microsoft.com/legal/terms-of-use" target="_blank" rel="noopener" title="View the Microsoft Terms of Use" aria-label="Microsoft Terms of Use (opens in new tab)">Terms of Use<span class="codicon codicon-link-external external-link-icon" aria-hidden="true"></span></a></li>
+					<li><a id="footer-license-link" href="https://code.visualstudio.com/License" target="_blank" rel="noopener" title="View the Visual Studio Code license" aria-label="Visual Studio Code license (opens in new tab)">License</a></li>
+				</ul>
+			</div>
+			<div class="footer-row">
+				<ul class="links">
+					<li>
+						<svg class="privacy-choices" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 14" xml:space="preserve" height="16" width="43">
+							<title>Your Privacy Choices Opt-Out Icon</title>
+							<path d="M7.4 12.8h6.8l3.1-11.6H7.4C4.2 1.2 1.6 3.8 1.6 7s2.6 5.8 5.8 5.8z" style="fill-rule:evenodd;clip-rule:evenodd;fill:#fff"></path>
+							<path d="M22.6 0H7.4c-3.9 0-7 3.1-7 7s3.1 7 7 7h15.2c3.9 0 7-3.1 7-7s-3.2-7-7-7zm-21 7c0-3.2 2.6-5.8 5.8-5.8h9.9l-3.1 11.6H7.4c-3.2 0-5.8-2.6-5.8-5.8z" style="fill-rule:evenodd;clip-rule:evenodd;fill:#06f"></path>
+							<path d="M24.6 4c.2.2.2.6 0 .8L22.5 7l2.2 2.2c.2.2.2.6 0 .8-.2.2-.6.2-.8 0l-2.2-2.2-2.2 2.2c-.2.2-.6.2-.8 0-.2-.2-.2-.6 0-.8L20.8 7l-2.2-2.2c-.2-.2-.2-.6 0-.8.2-.2.6-.2.8 0l2.2 2.2L23.8 4c.2-.2.6-.2.8 0z" style="fill:#fff"></path>
+							<path d="M12.7 4.1c.2.2.3.6.1.8L8.6 9.8c-.1.1-.2.2-.3.2-.2.1-.5.1-.7-.1L5.4 7.7c-.2-.2-.2-.6 0-.8.2-.2.6-.2.8 0L8 8.6l3.8-4.5c.2-.2.6-.2.9 0z" style="fill:#06f"></path>
+						</svg>
+						<a id="footer-privacy-choices-link" href="https://aka.ms/YourCaliforniaPrivacyChoices" target="_blank" rel="noopener" title="View Your Privacy Choices" aria-label="Your Privacy Choices (opens in new tab)">Your Privacy Choices<span class="codicon codicon-link-external external-link-icon" aria-hidden="true"></span></a></li>
+					<li><a id="footer-consumer-health-privacy-link" href="https://go.microsoft.com/fwlink/?linkid=2259814" target="_blank" rel="noopener" title="View the Microsoft Consumer Health Privacy policy" aria-label="Microsoft Consumer Health Privacy policy (opens in new tab)">Consumer Health Privacy<span class="codicon codicon-link-external external-link-icon" aria-hidden="true"></span></a></li>
+				</ul>
+			</div>
+		</div>
+	</footer>
+	<script type="module">
+		document.addEventListener('DOMContentLoaded', () => {
+			const copilotDeepLinks = document.querySelectorAll('.copilot-deep-link');
+			if (copilotDeepLinks.length === 0) {
+				return;
+			}
+			if (window.innerWidth < 992) {
+				for (const link of copilotDeepLinks) {
+					link.href = 'https://aka.ms/vscode-activatecopilotfree';
+				}
+			}
+		});
+	</script>
+
+	<script src="https://code.visualstudio.com/dist/index.js"></script>
+
+	
+
+	<script type="application/ld+json">
+		{
+			"@context" : "http://schema.org",
+			"@type" : "SoftwareApplication",
+			"name" : "Visual Studio Code",
+			"softwareVersion": "1.140",
+			"offers": {
+				"@type": "Offer",
+				"price": "0",
+				"priceCurrency": "USD"
+			},
+			"applicationCategory": "DeveloperApplication",
+			"applicationSubCategory": "AI Code Editor",
+			"description": "Visual Studio Code is a free, open source AI code editor for agent-first development. Build with AI agents, manage multi-agent workflows, and code across any environment.",
+			"alternateName": "VS Code",
+			"datePublished": "2021-11-03",
+			"operatingSystem": "Mac, Linux, Windows",
+			"logo": "https://code.visualstudio.com/assets/apple-touch-icon.png",
+			"screenshot": "https://code.visualstudio.com/assets/images/product-screenshot.png",
+			"releaseNotes": "https://code.visualstudio.com/updates",
+			"downloadUrl": "https://code.visualstudio.com/download",
+			"license": "https://code.visualstudio.com/license",
+			"softwareRequirements": "https://code.visualstudio.com/docs/supporting/requirements",
+			"url" : "https://code.visualstudio.com",
+			"author": {
+				"@type": "Organization",
+				"name": "Microsoft"
+			},
+			"publisher": {
+				"@type": "Organization",
+				"name": "Microsoft"
+			},
+			"maintainer": {
+				"@type": "Organization",
+				"name": "Microsoft"
+			},
+			"potentialAction": {
+				"@type": "SearchAction",
+				"target": "https://code.visualstudio.com/Search?q={search_term_string}",
+				"query-input": "required name=search_term_string"
+			},
+			"sameAs" : [
+				"https://en.wikipedia.org/wiki/Visual_Studio_Code",
+				"https://twitter.com/code",
+				"https://www.youtube.com/code",
+				"https://www.tiktok.com/@vscode",
+				"https://github.com/microsoft/vscode"
+			]
+		}
+	</script>
+
+
+</body></html>
