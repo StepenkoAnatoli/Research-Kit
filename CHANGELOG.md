@@ -5,6 +5,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- A matched-arm evaluation of the kit against a strongly prompted agent with the same
+  tools and budget is adopted (ADR-0145) and scaffolded as the nested project
+  `docs/decisions/2026-10-06-kit-vs-prompt-evaluation/`, its protocol and grading rubrics
+  frozen before any trial runs. Evaluation only: no command, check or format changes, the
+  feature freeze (ADR-0117) is not lifted, and ADR-0089's semantic boundary stays in force.
 - The pre-merge audit of ADR-0143 closes two remaining handoff defects: a failed or
   unevaluated brief qualifies CLOSED claims as declarations, and returning to an earlier
   warning state earns a new audit version so the default bundle reflects the latest

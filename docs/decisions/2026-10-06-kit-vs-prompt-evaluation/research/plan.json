@@ -1,0 +1,61 @@
+{
+  "topic": "Does the kit measurably beat a strongly prompted agent with the same tools and budget?",
+  "notes": "Fill queries and urls BEFORE collecting - every scrape spends a credit. q is the search query, why records which unknown in research/DISCOVERY.md it closes, prefer lists the official domains that carry the fact. depth sets the scrapes per run (probe 2, quick 4, normal 10, deep 25); maxScrapes can only lower that.",
+  "depth": "quick",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 3,
+  "maxScrapes": 10,
+  "prefer": [
+    "anthropic.com",
+    "arxiv.org",
+    "openai.com"
+  ],
+  "queries": [
+    {
+      "q": "agent evaluation grading rubric final environment state transcript repeated trials",
+      "why": "U-1 — current guidance for outcome-vs-transcript scoring, trials and grader calibration",
+      "prefer": [
+        "anthropic.com"
+      ]
+    },
+    {
+      "q": "benchmark citation accuracy unsupported claim definition generative search evaluation",
+      "why": "U-2 — the published definition of an unsupported/uncited claim the rubric will reuse",
+      "prefer": [
+        "arxiv.org"
+      ]
+    },
+    {
+      "q": "code generation evaluation incorrect programs passing tests expanded test suite",
+      "why": "U-3 — how defects that pass an initial suite are defined and detected",
+      "prefer": [
+        "arxiv.org"
+      ]
+    },
+    {
+      "q": "LLM agent ablation study matched budget tooling controlled comparison design",
+      "why": "U-4 — what matched-arm agent comparisons control for",
+      "prefer": [
+        "arxiv.org"
+      ]
+    }
+  ],
+  "urls": [
+    {
+      "url": "https://arxiv.org/html/2305.01210",
+      "type": "P",
+      "why": "U-3 — EvalPlus: HumanEval-passing programs shown incorrect under an expanded test suite; the operational definition of a defect that passes the initial tests"
+    },
+    {
+      "url": "https://arxiv.org/html/2407.01502",
+      "type": "P",
+      "why": "U-4 — AI Agents That Matter: cost-controlled agent comparison, what matched-budget evaluations hold fixed"
+    },
+    {
+      "url": "https://arxiv.org/abs/2603.08877",
+      "type": "P",
+      "why": "U-4 — design decisions under a fixed budget in agentic search, surfaced by the U-4 search and skipped on budget"
+    }
+  ]
+}
