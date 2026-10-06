@@ -19,6 +19,9 @@ provenance and research structure; an agent still has to check whether a source 
 a claim and whether an implementation behaves correctly. No controlled evaluation has
 yet measured how much this kit reduces mistakes in research, code or writing.
 
+For daily research, coding and writing, see the optional
+[Work with evidence](docs/WORK-WITH-EVIDENCE.md) guide.
+
 **In a hurry?** [`QUICKSTART.md`](QUICKSTART.md) is the two-minute setup: the agent collects
 through GitHub with one token, and you only read the brief.
 
