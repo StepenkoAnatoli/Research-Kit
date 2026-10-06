@@ -1,7 +1,5 @@
 # Brief - MCP Registry distribution research
 
-_Auto-drafted 2026-10-06, then reviewed and authored by the agent._
-
 Reviewed by: agent
 
 Research completed 2026-10-06 against kit 0.9.5 and repository main c61b17c.
@@ -18,7 +16,7 @@ the official MCP Registry, with honest promises about Claude Code, Cursor and VS
 This completes the retained research scaffold. No package, server.json, publisher login,
 Registry submission or MCP server change is part of this deliverable.
 
-## What we verified
+## Verified claims with sources
 
 Sources are the 21 primary rows in [EVIDENCE.md](EVIDENCE.md), fetched on 2026-10-06 with
 their captures, source siblings and hash-chained ledger in research/raw/.
@@ -33,7 +31,7 @@ their captures, source siblings and hash-chained ledger in research/raw/.
 | Client behavior | Claude Code, Cursor and VS Code document explicit installation/configuration and trust or activation. Official Registry publication does not establish that this server appears in every client's catalog. | E-08, E-09, E-10, E-11, E-18 |
 | npm access/cost | Scoped packages need explicit public visibility and publisher authentication. npm terms name no public-service usage charge; no Registry-fee or free-collection guarantee is inferred. | E-12, E-13, E-19 |
 | License/service boundary | The kit is PolyForm Shield 1.0.0, with Required Notice and restrictions; cached third-party pages are excluded. Preserve those boundaries and review the actual host terms. Registry moderation is not a certification. | E-14, E-17, E-19 |
-| Existing server | General launch floor is Node 22+; a configured environment proxy needs 22.21+ or 24+ to avoid direct requests. Environment credential and imported modules remain prerequisites. Remote collection also needs the fork/workflow and protected Firecrawl environment. | E-15, E-20, E-21 |
+| Existing server | Node 22+, environment credential and imported kit modules are prerequisites. Remote collection additionally needs the configured fork/workflow and protected Firecrawl environment; a token alone is insufficient. | E-15, E-20, E-21 |
 | Existing decisions | KIT_VERSION remains the version source; ADR-0116 rejects making the current kit an npm package merely to supply a version. ADR-0117 still governs implementation. | E-16; local ADR-0117 |
 
 Warnings from the reviewed whole-project evaluation remain relevant:
@@ -64,7 +62,7 @@ and preserves historical metadata (E-07). Do not promise permanent erasure or as
 an older rendered guide supplies the current behavior. Any future publishing work must
 validate against the then-current schema/API and retain its new observations.
 
-## Known unknowns
+## Known unknowns with day-one verification
 
 **U-10:** private operator permissions, final scoped package identity/availability and
 future catalog admission have not been exercised. Before publication, the operator
@@ -80,7 +78,7 @@ later implementation. None was exercised here. Node smoke tests need no live tok
 paid collection needs the operator's existing workflow controls and a small explicit
 budget. Client-version and publisher-version changes require fresh verification.
 
-## Decision
+## Decision and first build step
 
 **Recommendation, not an accepted packaging design:** evaluate a scoped npm distribution
 for the existing Node entrypoint as the first candidate. It matches the documented Node
@@ -88,8 +86,6 @@ client workflows. OCI introduces a container prerequisite; MCPB is a documented 
 artifact alternative whose target-client support still needs testing. A remote service
 changes deployment and authentication and is outside this local-stdio research intent.
 These comparisons are engineering inferences from the collected requirements.
-
-## Next steps
 
 The first implementation step is a separate ADR resolving distribution scope, the
 ADR-0116 version/package boundary and the exact ADR-0117 freeze exception, if any. It must
@@ -100,4 +96,4 @@ test installation/launch and perform the operator checks above. Publication is a
 explicit action. This briefing authorizes no publication and makes no catalog-placement
 claim.
 
-<!-- research-kit:brief-draft body=0835a2ba22cfafa9 inputs=6cb208fc6c5a8e1c gate=pass -->
+<!-- research-kit:brief-draft body=bd2d22f971d44d8b inputs=5e15e24809b0db5f gate=pass -->
