@@ -52,7 +52,7 @@ A builder never runs a collecting skill: `research.mjs` and `decompose.mjs` refu
 | a constant, endpoint, limit or schema field that came from the research | `cite-in-code` |
 | tests that hold the code to the brief | `contract-tests` |
 | multi-unit work, parallel agents | `lead-orchestrator` (on a builder, its Phase 1b becomes `fact-request`) |
-| idea to merged pull request in one run | `auto-build` (on a builder, its research stage becomes `fact-request`) |
+| idea to merged pull request in one run | `auto-build`, run as its `references/research-kit.md` says: Stage 0 starts from this table, on a builder its research stage becomes `fact-request`, and it asks the owner and stops at every decision that is his - the Mandate, money, secrets, anything destructive or critical, the merge |
 | the structure of the diff just written | `architecture-pass` |
 | friction across a subsystem | `improve-codebase-architecture` |
 | will the build or CI break | `break-test` (on a builder, its Research-Kit step becomes `fact-request`) |
@@ -78,7 +78,7 @@ replaced by `fact-request`.
 | source-grader | no | after collect | never - phase-1 review |
 | brief-writer | no | after the gate passes | never - phase-1 review |
 | lead-orchestrator | stage | multi-unit work | multi-unit work, Phase 1b replaced by fact-request |
-| auto-build | stage | idea to merged PR | idea to merged PR, research stage replaced by fact-request |
+| auto-build | stage | idea to merged PR, per its references/research-kit.md | idea to merged PR, per its references/research-kit.md: research stage replaced by fact-request |
 | break-test | stage | hardening a build | hardening a build, Research-Kit step replaced by fact-request |
 | skill-router | no | always first | always first |
 | resume-from-disk | no | after an interruption | after an interruption |

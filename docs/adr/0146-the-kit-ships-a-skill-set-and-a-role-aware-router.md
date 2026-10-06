@@ -77,6 +77,23 @@ names the set exactly, is enough).
    a machine installed before the set existed reads as drift with the remedy
    (`install.mjs`), never repaired by doctor.
 
+6. **Auto-build runs the kit's way, from a note beside it** (owner order, 2026-10-06):
+   `auto-build/references/research-kit.md`, written by the kit, governs the run inside a
+   Research-Kit project. Stage 0 starts from the router (`doctor`, `preflight`, `handoff`,
+   the brief); on a builder Stage 1 is `handoff` + `build-from-brief` + `fact-request` and
+   the run stops at the Mandate with "awaiting collector" when a fact is missing;
+   requirements and Mandate decisions name the `E-##` rows they rest on; constants cite
+   them in code; verified claims become contract tests; `GO MERGE` adds the commit gate,
+   a green suite and `preflight` on the merged head and never takes an override; a
+   collector re-checks freshness before merging; one commit per unit with the five-part
+   report; the run records the kit version and skill set. **Ask and stop** (owner order,
+   same day): the note replaces auto-build's autonomous decision rule - the run asks the
+   owner every question only he can answer and stops, ending its turn, at the Mandate,
+   any hard-to-reverse or costly decision, anything touching secrets, permissions, CI or
+   the gate, anything destructive, a red gate or suite, a Critical finding, a broken
+   research claim, and the merge. A standing mandate pre-answers preferences only, never
+   a stop; `GO MERGE` is the owner's word in this run, on either role.
+
 ## Rejected
 
 - **A router command or configuration key** (`route.mjs`, `router.*`): a new command, and
@@ -90,6 +107,12 @@ names the set exactly, is enough).
 - **Rewriting the received text** to the kit's vocabulary: the owner's skills ship as he
   wrote them; the router and the kit's note carry the kit's rules around them, and a
   rewrite would fork them from their source.
+- **Letting a standing mandate approve the Mandate, an architectural choice or the merge**
+  (the received skill allows it): rejected for security on the owner's order; the cost is
+  a run that waits for its owner more often.
+- **Editing the received auto-build text** for the kit's rules: the note beside it carries
+  them, so the copy stays identical to its source; if the owner edits SkillsMDs instead,
+  the kit re-vendors.
 - **Restoring a `~/.agents/skills` mirror** because E-03 calls `.agents/skills/` a common
   convention: ADR-0006 removed it, and `skillRoots` in the machine config already adds
   any root a machine needs.

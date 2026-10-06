@@ -139,3 +139,17 @@ test('deploy puts every skill in every skill root, beside research-first, and --
   const gone = drift.skills.find((s) => s.location === path.join(rootB, set[0]));
   assert.ok(gone && gone.missing.includes('SKILL.md'), 'a set skill absent from a deployed root was not reported');
 });
+
+test('auto-build carries the kit note that governs it, and the router points at it', () => {
+  const note = path.join(SET, 'auto-build', 'references', 'research-kit.md');
+  assert.ok(fs.existsSync(note), 'auto-build/references/research-kit.md is missing');
+  const text = fs.readFileSync(note, 'utf8');
+  for (const must of ['handoff.mjs', 'preflight.mjs', 'fact-request', 'awaiting collector',
+    'awaiting owner', 'ends its turn', 'never pre-approves', '--no-verify', 'resume-from-disk', 'commit-report', 'cite-in-code']) {
+    assert.ok(text.includes(must), `the auto-build note no longer says ${must}`);
+  }
+  assert.doesNotMatch(text, /\b(claude|gpt|gemini|opus|sonnet|haiku|copilot|codex|cursor)\b/i);
+  const route = table(router(), 'Step 3: route by task (once building is allowed)')
+    .find(([, use]) => use.includes('`auto-build`'));
+  assert.ok(route && route[1].includes('references/research-kit.md'), 'the router does not point auto-build at its note');
+});

@@ -14,6 +14,14 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   resume-from-disk); `skill-router` routes by role and gate state and never sends a
   builder to a skill that collects. Doctor's deploy check measures the set like the skill.
   Researched in `docs/decisions/2026-10-06-builder-skills/`.
+- Auto-build runs the kit's way (ADR-0146): `skills/auto-build/references/research-kit.md`
+  starts every run from the router, replaces the research stage on a builder with
+  handoff, build-from-brief and fact-request, ties requirements, the Mandate, code
+  constants and tests to `E-##` rows, and tightens merging - the commit gate, a green suite
+  and `preflight` on the merged head, no override ever. It asks the owner every question
+  only he can answer and stops for his reply at the Mandate, costly or irreversible
+  decisions, secrets and permissions, anything destructive or critical, and the merge; a
+  standing mandate no longer approves any of them.
 - A matched-arm evaluation of the kit against a strongly prompted agent with the same
   tools and budget is adopted (ADR-0145) and scaffolded as the nested project
   `docs/decisions/2026-10-06-kit-vs-prompt-evaluation/`, its protocol and grading rubrics
