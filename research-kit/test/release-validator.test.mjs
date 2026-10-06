@@ -335,3 +335,27 @@ test('nested promotion pointers require a committed promotion and verify pointer
     cleanup(root);
   }
 });
+
+test('descendant invalidation attributes multiple roots to each affected pointer', async () => {
+  const { computeDescendantInvalidation } = await import('../lib/release-validator.mjs');
+  const rootA = 'a'.repeat(64);
+  const rootB = 'b'.repeat(64);
+  const targetA = '1'.repeat(64);
+  const targetB = '2'.repeat(64);
+  const pointers = [
+    { package: 'R28', generation: 1, recordId: 'branch-a', targetHash: targetA, predecessorHashes: [rootA] },
+    { package: 'R29', generation: 1, recordId: 'branch-b', targetHash: targetB, predecessorHashes: [rootB] },
+    { package: 'R30', generation: 1, recordId: 'join', targetHash: '3'.repeat(64), predecessorHashes: [targetA, targetB] },
+    { package: 'R31', generation: 1, recordId: 'unaffected', targetHash: '4'.repeat(64), predecessorHashes: ['c'.repeat(64)] },
+  ];
+
+  const result = computeDescendantInvalidation({ pointers, invalidationRoots: [rootB, rootA] });
+
+  assertEqual(result.status, 'PASS', JSON.stringify(result));
+  assert.deepEqual(result.affectedPointers, ['branch-a', 'branch-b', 'join']);
+  assert.deepEqual(result.revocations.map(({ recordId, invalidationRoots }) => ({ recordId, invalidationRoots })), [
+    { recordId: 'branch-a', invalidationRoots: [rootA] },
+    { recordId: 'branch-b', invalidationRoots: [rootB] },
+    { recordId: 'join', invalidationRoots: [rootA, rootB] },
+  ]);
+});
