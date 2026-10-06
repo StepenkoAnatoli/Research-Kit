@@ -119,6 +119,25 @@ test('auto-build readiness script rejects a missing --base value', () => {
   }
 });
 
+test('auto-build readiness script accepts hyphen-leading base refs', () => {
+  const candidates = ['bash', 'C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files\\Git\\usr\\bin\\bash.exe'];
+  const bash = candidates.find((candidate) => spawnSync(candidate, ['-c', 'echo ok'],
+    { encoding: 'utf8', timeout: 10_000, windowsHide: true }).stdout?.trim() === 'ok');
+  if (!bash) throw new Unsupported('NO_BASH', 'bash is required to run the auto-build readiness script');
+
+  const script = path.join(SET, 'auto-build', 'scripts', 'pr-readiness.sh');
+  for (const args of [
+    ['123', '--base', '-foo', '--help'], ['123', '--base=-foo', '--help'], ['123', '--base=--foo', '--help'],
+  ]) {
+    const result = spawnSync(bash, [script, ...args], {
+      encoding: 'utf8', timeout: 2_000, windowsHide: true,
+    });
+    assert.equal(result.status, 3, result.error?.message || result.stderr);
+    assert.doesNotMatch(result.stderr, /BLOCKED: --base requires a branch/);
+    assert.match(result.stdout, /Usage:/);
+  }
+});
+
 test('the router names no model and no runtime (ADR-0012)', () => {
   assert.doesNotMatch(router(), /\b(claude|gpt|gemini|opus|sonnet|haiku|copilot|codex|cursor)\b/i);
 });
