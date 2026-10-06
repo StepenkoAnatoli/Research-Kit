@@ -137,9 +137,12 @@ That file is `~/.agents/research-kit.config.json`. The other keys it takes are u
 |---|---|
 | `~/.agents/research-kit/` | the deployed kit; `install.mjs` overwrites it on every run |
 | `~/.agents/research-kit.config.json` | this machine's settings: transport, role, evidence policy |
-| `~/.claude/skills/research-first/` | the skill Claude Code picks up automatically |
+| `~/.claude/skills/` | `research-first` and the shipped skill set, including `skill-router`, as siblings |
 | `~/.claude/settings.json` | the edit-time gate, a Claude Code hook |
 | git `core.hooksPath` | the commit gate, machine-wide, every agent and every human |
+
+Pass `--into <project>` to `install.mjs` to also bind `research-first` and the skill set into
+that project's skill directory.
 
 **Update.** Pull and deploy again. `doctor` reports when the deployed copy no longer
 matches the checkout, and its last line names the version this machine runs (`kit 0.9.5`).
@@ -551,7 +554,8 @@ Every command runs from inside the project folder. The main ones:
 | `export-warc.mjs` | the captures as one WARC file for archive tools |
 | `collect-remote.mjs` | run the collector on GitHub and bring the result back |
 | `mcp-server.mjs` | the collector as an MCP server over stdio |
-| `install.mjs`, `install-hooks.mjs` | deploy the kit; install the gates and declare the machine's role |
+| `install.mjs` | deploy the kit (`--dry-run`, `--into <project>` to bind skills into a project) |
+| `install-hooks.mjs` | install the gates and declare the machine's role |
 | `selftest.mjs` | the whole suite, offline |
 
 The full table, including the release-evidence validators and the artifact format, is in
@@ -631,6 +635,7 @@ research-kit/            the kit: what install.mjs deploys
   lib/                   the modules behind them
   hooks/, githooks/      the edit-time gate and the commit gate
   skill/                 the research-first skill for Claude Code
+  skills/                the role-aware router and the shipped skill set
   template/              what new-project.mjs writes into a project
   recipes/               domain dimensions decompose.mjs adds with --recipe
   schemas/               the JSON schemas of the portable artifact
