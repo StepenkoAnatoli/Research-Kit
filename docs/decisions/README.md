@@ -14,6 +14,7 @@ repository. The retention rule is **ADR-0102**:
 
 | Project | Question | Backs | Status |
 |---|---|---|---|
+| [2026-10-05-agent-reliability](2026-10-05-agent-reliability/) | How the kit can better fulfill its original purpose of reducing unsupported claims and mistakes in agent research, coding and writing; separates provenance checks from semantic support and tested outcomes, and proposes a matched outcome evaluation | the project's AUDIT.md and research/BRIEF.md; recommendation only, ADR-0089 and the freeze (ADR-0117) remain in force | reference |
 | [2026-09-21-agent-interface](2026-09-21-agent-interface/) | How an MCP server should expose the collector: transports, auth, long-running calls | ADR-0034, ADR-0036 | active |
 | [2026-09-21-delivery-architecture](2026-09-21-delivery-architecture/) | How the kit should be delivered to a non-technical user | ADR-0030–0033, ADR-0035, ADR-0036; `collect.yml` | active |
 | [2026-09-21-public-run-visibility](2026-09-21-public-run-visibility/) | Who can read Actions run logs and artifacts on a public repository | ADR-0035, ADR-0036; `collect.yml` | active |

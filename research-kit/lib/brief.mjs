@@ -7,6 +7,7 @@
 import { PATHS, resolve, readText, writeText, today, documentCommand, exists, sha256, foldLineEndings } from './core.mjs';
 import { readCorpus, sectionOf, claimOf, captureOf } from './corpus.mjs';
 import { readPrior } from './prior.mjs';
+import { renderGateWarnings } from './render.mjs';
 
 /** `judged: true` marks a section the corpus cannot fill - it needs the reviewer's call. */
 export const BRIEF_SECTIONS = Object.freeze([
@@ -188,7 +189,7 @@ function knownUnknowns(corpus) {
     const secondhand = corpus.unknowns
       .filter((u) => u.status === 'CLOSED' && !u.cites.some((id) => /^E-\d+$/i.test(id) && typeOf(id) === 'P'))
       .map((u) => u.id);
-    const none = 'None. Every blocking unknown was closed with cited evidence.';
+    const none = 'None. No unknown is declared KNOWN-UNKNOWN.';
     if (!secondhand.length) return none;
     return `${none} ${secondhand.join(', ')} ${secondhand.length === 1 ? 'rests' : 'rest'} on no primary (P) source; the Type column above shows what carries ${secondhand.length === 1 ? 'it' : 'them'}.`;
   }
@@ -244,25 +245,6 @@ prior that was recorded in advance is worth more than a right one remembered aft
 `;
 }
 
-function gateWarningBlock(verdict) {
-  const warnings = (Array.isArray(verdict?.warnings) ? verdict.warnings : []).filter((warning) => (
-    warning?.check !== 'gate-integrity'
-    && !(warning?.check === 'hygiene' && ['brief-stale', 'brief-unstamped'].includes(warning.rule))
-  ));
-  if (!warnings.length) return '';
-
-  const items = warnings.map((warning) => {
-    const label = [warning.check, warning.rule]
-      .map((value) => String(value ?? 'unknown').replace(/[^a-z0-9-]/gi, '-'))
-      .join('/');
-    const targets = [warning.row, warning.unknown]
-      .filter((value) => value !== undefined && value !== null && String(value) !== '')
-      .map((value) => String(value).replace(/[^a-z0-9._:-]/gi, '?'));
-    return `- \`${label}\`${targets.length ? ` (${targets.join(', ')})` : ''}`;
-  });
-  return `\n\n**Warnings the builder should know (${warnings.length}):**\n${items.join('\n')}`;
-}
-
 export function renderBrief(root, { force = false, date = today(), corpus = null, verdict = null } = {}) {
   const snapshot = corpus ?? readCorpus(root);
   const file = resolve(root, PATHS.brief);
@@ -291,11 +273,18 @@ export function renderBrief(root, { force = false, date = today(), corpus = null
   const gateLine = gatePasses === null
     ? `**Gate state: not evaluated in this run.**`
     : (gatePasses
-      ? `**Gate: PASS.** Every blocking unknown is closed with evidence, and every claim below
-traces to a cached page in \`${PATHS.raw}/\`.${gateWarningBlock(verdict)}`
+      ? `**Gate: PASS.** The configured research checks passed. Disclosed known unknowns
+and gate warnings still apply; PASS does not establish that every claim is correct.`
       : `**Gate: FAIL (${verdict.counts.fail} blocking finding${verdict.counts.fail === 1 ? '' : 's'}).** This brief is a
 draft of an incomplete research pass: phase 2 does not start until \`${PATHS.discovery}\`
 passes. Run \`${documentCommand('preflight.mjs', '', { root })}\` to see what is unproven.`);
+
+  const closureQualification = gatePasses === true ? ''
+    : `**These are declared CLOSED claims; verification has ${gatePasses === null
+      ? 'not been evaluated' : 'not succeeded'} in this run.**
+Read the recorded claims and sources below as a draft for review, not successful verification.
+
+`;
 
   const body = `# Brief - ${topic}
 
@@ -309,6 +298,8 @@ Reviewed by: _agent - the agent that classified the map, rewrote the findings an
 
 **This is the phase-1 to phase-2 handoff.** ${gateLine}
 
+${renderGateWarnings(verdict)}
+
 Whoever you are - another agent, a different model, or a person - read this file
 first. You should not need to re-research anything to start work. If something
 here is not enough to build from, say which fact is missing rather than guessing
@@ -320,14 +311,14 @@ ${snapshot.intent || '_The contract states no build intent._'}
 
 ## ${BRIEF_SECTIONS[1].heading}
 
-${verifiedTable(snapshot)}
+${closureQualification}${verifiedTable(snapshot)}
 
 ## ${BRIEF_SECTIONS[2].heading}
 
 ${TODO_MARK} - review the primary sources above for disagreements (pricing pages vs
 billing docs, docs vs issue trackers, version-dependent behaviour). Record both
-sides and state which you trust and why. Two independent sources agree unless
-noted here.
+sides and state which you trust and why. State whether independent corroboration
+was obtained; a single source does not establish agreement.
 
 ## ${BRIEF_SECTIONS[3].heading}
 

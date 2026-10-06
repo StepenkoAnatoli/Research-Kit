@@ -2,13 +2,25 @@
 
 [![offline suite](https://github.com/StepenkoAnatoli/Research-Kit/actions/workflows/offline-suite.yml/badge.svg)](https://github.com/StepenkoAnatoli/Research-Kit/actions/workflows/offline-suite.yml)
 
-**Research first, build second.** Research-Kit makes an AI agent collect evidence from real
-sources before it designs or builds anything, keeps a tamper-evident record of where every
-claim came from, and refuses to let the build start until a gate passes.
+**Research first, build second.** Research-Kit gives AI agents a workflow for collecting
+sources, declaring blocking unknowns, and handing traceable research artifacts to a builder.
+It keeps cached pages and a tamper-evident fetch record. With the commit hook operating
+and no override in effect, a gated project's commit is blocked while preflight fails if
+it stages paths outside `research/` and the permitted project scaffolding.
 
 It exists for the facts an agent would otherwise guess: API limits, pricing, what a licence
 permits, whether a platform can do the thing the design depends on. Plain Node, no
 dependencies, no `package.json`. Everything except the collection itself runs offline.
+
+**What PASS means.** The configured checks passed for the declared research contract.
+A pass can retain disclosed known unknowns and warnings. Generated briefs, audits and
+package reading guides preserve those warnings and their reasons. The gate checks
+provenance and research structure; an agent still has to check whether a source supports
+a claim and whether an implementation behaves correctly. No controlled evaluation has
+yet measured how much this kit reduces mistakes in research, code or writing.
+
+For daily research, coding and writing, see the optional
+[Work with evidence](docs/WORK-WITH-EVIDENCE.md) guide.
 
 **In a hurry?** [`QUICKSTART.md`](QUICKSTART.md) is the two-minute setup: the agent collects
 through GitHub with one token, and you only read the brief.
@@ -57,9 +69,11 @@ Two ideas carry the whole design:
 - **Evidence is fetched, never typed.** Every cited page is on disk, and the ledger
   (`research/raw/.fetches.jsonl`) records its hash and the transport that fetched it. A
   hand-written capture, or a page edited after the fact, fails the gate.
-- **The gate is enforced, not advisory.** With the hooks installed, `git commit` refuses a
-  change outside `research/` while the gate fails, and Claude Code's edit hook interrupts
-  the agent in the same state.
+- **The gate has executable hooks.** In gated projects, the operating commit hook blocks
+  staged changes outside `research/` and permitted project scaffolding while preflight
+  fails, unless overridden. It classifies paths, not whether their contents are product
+  code. Claude Code also has an edit hook: its default `ask` mode requests permission
+  for gated edits; `hard-block` denies them.
 
 The work splits into **two phases**, usually done by different agents. Phase 1 is research:
 it ends with a passing gate and a brief, and never writes product code. Phase 2 is the
@@ -250,8 +264,9 @@ is really in the capture. A fact that is genuinely unreachable gets the status
 node "$HOME/.agents/research-kit/bin/preflight.mjs"
 ```
 
-`PASS` means the thirteen checks agree the evidence supports starting. Anything else names
-what blocks and prints one fix. Do not build before `PASS`.
+`PASS` means the configured checks passed for the declared research contract. Read any
+remaining warnings and known unknowns. A failure names the blocking findings and a
+remedy. Do not build before `PASS`.
 
 **7. Write the brief and commit.**
 
@@ -546,8 +561,8 @@ The full table, including the release-evidence validators and the artifact forma
 
 | Status | Exit | Means |
 |---|---:|---|
-| `PASS` | 0 | checked, and correct |
-| `FAIL` / `REOPEN` | 1 | checked, and wrong |
+| `PASS` | 0 | the command's checked conditions passed |
+| `FAIL` / `REOPEN` | 1 | one or more checked conditions failed |
 | `INCOMPLETE` | 2 | could not be checked, which is not the same as wrong |
 | `BLOCKED` | 3 | refused to start |
 

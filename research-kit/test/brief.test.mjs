@@ -3,6 +3,8 @@
 
 import { test, describe, assert, makePassingProject, corrupt, fs, path } from './harness.mjs';
 import { PATHS, resolve, readText, writeText } from '../lib/core.mjs';
+import { runPreflight } from '../lib/preflight.mjs';
+import { readCorpus } from '../lib/corpus.mjs';
 import {
   draftStamp,
   BRIEF_SECTIONS, JUDGED_SECTIONS, BRIEF_FILE_MARKER, TODO_MARK,
@@ -11,9 +13,113 @@ import {
 
 describe('brief');
 
+test('failed verification qualifies CLOSED claims even when their citation or capture is missing', () => {
+  for (const missing of ['citation', 'capture']) {
+    const dir = makePassingProject();
+    if (missing === 'citation') {
+      corrupt(dir, PATHS.discovery, (text) => text.replace('E-01:', 'E-99:'));
+    } else {
+      fs.rmSync(resolve(dir, readCorpus(dir).evidence[0].raw));
+    }
+    const verdict = runPreflight(dir, { env: {} });
+    assert.equal(verdict.pass, false, `${missing} must fail the real gate`);
+    renderBrief(dir, { verdict });
+    const section = briefSection(readText(resolve(dir, PATHS.brief)), 'verified');
+    assert.match(section, /declared CLOSED claims/i, 'the section must identify declarations rather than successful verification');
+    assert.match(section, /verification has not succeeded/i);
+    assert.match(section, missing === 'citation' ? /E-99/ : /1,000 credits/, 'retain the claimed closure for review');
+  }
+});
+
+test('an unevaluated brief does not present declared closures as successful verification', () => {
+  const dir = makePassingProject();
+  renderBrief(dir);
+  const section = briefSection(readText(resolve(dir, PATHS.brief)), 'verified');
+  assert.match(section, /declared CLOSED claims/i);
+  assert.match(section, /verification has not been evaluated/i);
+  assert.match(section, /10 requests per minute/, 'the draft still contains the claim to review');
+});
+
+// A structural PASS can retain a disclosed gap; the handoff must not turn it into closure.
+test('a passing brief retains a known unknown without claiming every unknown is closed', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => `${text.trimEnd()}\n| U-2 | What is the private account quota? | Sets the production budget | KNOWN-UNKNOWN | E-01 does not establish the private quota. Day one: log in and inspect the account quota. |\n`);
+  const verdict = runPreflight(dir, { env: {} });
+  assert.equal(verdict.pass, true);
+  renderBrief(dir, { verdict });
+  const brief = readText(resolve(dir, PATHS.brief));
+  assert.match(brief, /Gate: PASS/);
+  assert.match(brief, /U-2/);
+  assert.match(brief, /log in and inspect the account quota/);
+  assert.doesNotMatch(brief, /Every blocking unknown is closed/);
+});
+
+test('a passing brief preserves the reason for its nonblocking gate warning', () => {
+  const dir = makePassingProject();
+  const verdict = runPreflight(dir, { env: {} });
+  assert.equal(verdict.pass, true);
+  const warning = verdict.warnings.find((f) => f.check === 'corroboration' && f.rule === 'single-source');
+  assert.ok(warning, 'the real fixture has a single-source warning');
+  renderBrief(dir, { verdict });
+  const brief = readText(resolve(dir, PATHS.brief));
+  assert.match(brief, /Gate: PASS/);
+  assert.match(brief, /corroboration\/single-source/);
+  assert.ok(brief.includes(warning.detail), 'the builder receives the complete warning');
+  assert.doesNotMatch(brief, /Two independent sources agree unless noted here/);
+});
+
+test('an incomplete contract is not described as fully closed in the known-unknown section', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace('| CLOSED |', '| OPEN |'));
+  const verdict = runPreflight(dir, { env: {} });
+  assert.equal(verdict.pass, false);
+  renderBrief(dir, { verdict });
+  const brief = readText(resolve(dir, PATHS.brief));
+  assert.match(brief, /Gate: FAIL/);
+  assert.doesNotMatch(briefSection(brief, 'unknowns'), /Every blocking unknown was closed/);
+});
+
+test('a warning-free evaluation does not acquire a single-source caution in the brief', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.discovery, (text) => text.replace('E-01: 10 requests per minute, 1,000 credits',
+    'E-01: 10 requests per minute, 1,000 credits [single-witness: only the vendor defines its own quota; this fixture uses the official limit]'));
+  const verdict = runPreflight(dir, { env: {} });
+  assert.equal(verdict.pass, true);
+  assert.equal(verdict.warnings.length, 0);
+  renderBrief(dir, { verdict });
+  const brief = readText(resolve(dir, PATHS.brief));
+  assert.match(brief, /Gate: PASS/);
+  assert.match(brief, /Gate warnings[^\n]*0/);
+  assert.doesNotMatch(brief, /corroboration\/single-source/);
+});
+
 test('six sections, two of them judged', () => {
   assert.equal(BRIEF_SECTIONS.length, 6);
   assert.deepEqual(JUDGED_SECTIONS, ['contradictions', 'decision']);
+});
+
+test('a brief distinguishes unavailable warning observations from an evaluated zero', () => {
+  for (const verdict of [null, { pass: true }]) {
+    const dir = makePassingProject();
+    renderBrief(dir, { verdict });
+    const brief = readText(resolve(dir, PATHS.brief));
+    assert.match(brief, /Gate warnings: not (evaluated|supplied)/);
+    assert.doesNotMatch(brief, /Gate warnings[^\n]*\b0\b/);
+  }
+});
+
+test('every warning reaches the brief when a passing evaluation has several', () => {
+  const dir = makePassingProject();
+  corrupt(dir, PATHS.evidence, (text) => text.replace(/\| P \|/, '| S |'));
+  const verdict = runPreflight(dir, { env: {} });
+  assert.equal(verdict.pass, true);
+  assert.ok(verdict.warnings.length >= 2);
+  renderBrief(dir, { verdict });
+  const brief = readText(resolve(dir, PATHS.brief));
+  for (const warning of verdict.warnings) {
+    assert.ok(brief.includes(warning.detail), `${warning.check}/${warning.rule} was dropped`);
+    if (warning.fix) assert.ok(brief.includes(warning.fix), 'the suggested remedy was dropped');
+  }
 });
 
 test('the scaffold ships the marker, and the marker is what says "still the scaffold"', () => {
@@ -170,7 +276,8 @@ test('a closure resting on no primary source is not called primary', () => {
 test('drafting over a brief with --force keeps the brief it replaced', () => {
   const dir = makePassingProject();
   renderBrief(dir);
-  const answered = readText(resolve(dir, PATHS.brief)).replace(/\*\*TODO\*\* - review the primary sources[\s\S]*?noted here\./, 'We trust the vendor page over the blog.');
+  const drafted = readText(resolve(dir, PATHS.brief));
+  const answered = drafted.replace(briefSection(drafted, 'contradictions'), 'We trust the vendor page over the blog.');
   writeText(resolve(dir, PATHS.brief), answered);
   const first = renderBrief(dir, { force: true, date: '2026-09-27' });
   assert.ok(first.backup, 'no backup was reported');
@@ -206,46 +313,56 @@ test('an unedited draft is redrafted without --force, and nothing is backed up',
   assert.match(readText(resolve(dir, PATHS.brief)), /Gate: PASS/);
 });
 
-test('a passing brief lists corpus warnings but omits brief and machine warnings', () => {
+test('a passing brief retains full reasons and targets from the whole warning evaluation', () => {
   const dir = makePassingProject();
   renderBrief(dir, {
     verdict: {
       pass: true,
       counts: { fail: 0, warn: 5 },
       warnings: [
-        { check: 'unknown-closure', rule: 'single-witness-stale', unknown: 'U-1', detail: 'private details are not copied' },
-        { check: 'citations', rule: 'raw-thin', row: 'E-1' },
-        { check: 'hygiene', rule: 'brief-stale' },
-        { check: 'hygiene', rule: 'brief-unstamped' },
-        { check: 'gate-integrity', rule: 'local-hooks-path' },
+        { severity: 'warn', check: 'unknown-closure', rule: 'single-witness-stale', unknown: 'U-1', detail: 'The single witness is older than policy.', fix: 'Refresh its capture.' },
+        { severity: 'warn', check: 'citations', rule: 'raw-thin', row: 'E-1', detail: 'The capture contains too little page text.' },
+        { severity: 'warn', check: 'hygiene', rule: 'brief-stale', detail: 'The brief predates the current inputs.' },
+        { severity: 'warn', check: 'hygiene', rule: 'brief-unstamped', detail: 'The brief currency cannot be checked.' },
+        { severity: 'warn', check: 'gate-integrity', rule: 'local-hooks-path', detail: 'The repository hooks path displaces the machine gate.' },
       ],
     },
   });
   const text = readText(resolve(dir, PATHS.brief));
   assert.match(text, /Gate: PASS\./);
-  assert.match(text, /Warnings the builder should know \(2\)/);
-  assert.match(text, /`unknown-closure\/single-witness-stale` \(U-1\)/);
-  assert.match(text, /`citations\/raw-thin` \(E-1\)/);
-  assert.doesNotMatch(text, /brief-stale|brief-unstamped|local-hooks-path/);
-  assert.doesNotMatch(text, /private details are not copied/);
+  const warnings = text.slice(text.indexOf('Gate warnings from'), text.indexOf('## Intent'));
+  assert.match(warnings, /evaluation: 5/);
+  assert.match(warnings, /unknown-closure\/single-witness-stale[^\n]*U-1/);
+  assert.match(warnings, /citations\/raw-thin[^\n]*E-1/);
+  assert.match(warnings, /brief-stale/);
+  assert.match(warnings, /brief-unstamped/);
+  assert.match(warnings, /local-hooks-path/);
+  assert.match(warnings, /The single witness is older than policy/);
+  assert.match(warnings, /Refresh its capture/);
+  assert.equal(briefState(text), 'draft', 'presenting warnings does not finish the review');
 });
 
-test('a passing brief keeps the plain PASS line when only brief or machine warnings exist', () => {
+test('a passing brief labels brief and machine warnings as retained observations without changing its review state', () => {
   const dir = makePassingProject();
   renderBrief(dir, {
     verdict: {
       pass: true,
       counts: { fail: 0, warn: 3 },
       warnings: [
-        { check: 'hygiene', rule: 'brief-stale' },
-        { check: 'hygiene', rule: 'brief-unstamped' },
-        { check: 'gate-integrity', rule: 'local-hooks-path' },
+        { severity: 'warn', check: 'hygiene', rule: 'brief-stale', detail: 'The brief predates the current inputs.' },
+        { severity: 'warn', check: 'hygiene', rule: 'brief-unstamped', detail: 'The brief currency cannot be checked.' },
+        { severity: 'warn', check: 'gate-integrity', rule: 'local-hooks-path', detail: 'The repository hooks path displaces the machine gate.' },
       ],
     },
   });
   const text = readText(resolve(dir, PATHS.brief));
   assert.match(text, /\*\*Gate: PASS\.\*\*/);
-  assert.doesNotMatch(text, /Warnings the builder should know|brief-stale|brief-unstamped|local-hooks-path/);
+  assert.match(text, /whole corpus at the time of this evaluation/);
+  assert.match(text, /Re-run\npreflight after edits/);
+  assert.match(text, /brief-stale/);
+  assert.match(text, /brief-unstamped/);
+  assert.match(text, /local-hooks-path/);
+  assert.equal(briefState(text), 'draft', 'warning visibility does not approve the handoff');
 });
 
 // The stamp was anchored to the end of the file until 2026-10-03, so a line appended after
