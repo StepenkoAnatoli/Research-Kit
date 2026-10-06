@@ -155,3 +155,39 @@ test('auto-build carries the kit note that governs it, and the router points at 
     .find(([, use]) => use.includes('`auto-build`'));
   assert.ok(route && route[1].includes('references/research-kit.md'), 'the router does not point auto-build at its note');
 });
+
+test('deploy leaves a same-named skill that is not the kit\'s as it is, and drift ignores it', async () => {
+  const { deploy, deployedDrift } = await import('../lib/installer.mjs');
+  const root = tempDir('research-kit-skillset-own-');
+  const project = tempDir('research-kit-skillset-own-project-');
+  writeText(path.join(project, 'AGENTS.md'), '# a project\n');
+  const own = '---\nname: brainstorming\ndescription: MY OWN\n---\n';
+  writeText(path.join(root, 'brainstorming', 'SKILL.md'), own);
+  writeText(path.join(root, 'brainstorming', 'notes.md'), 'mine\n');
+  writeText(path.join(project, '.claude', 'skills', 'brainstorming', 'SKILL.md'), own);
+  const cfg = path.join(tempDir('research-kit-skillset-own-cfg-'), 'c.json');
+  writeText(cfg, JSON.stringify({ skillRoots: [root] }));
+  const env = {
+    ...process.env,
+    RESEARCH_KIT_CONFIG: cfg,
+    RESEARCH_KIT_INSTALL_STATE: path.join(tempDir('research-kit-skillset-own-state-'), 'install.json'),
+  };
+  const kitHome = path.join(tempDir('research-kit-skillset-own-home-'), 'research-kit');
+
+  const preview = deploy({ from: KIT_ROOT, kitHome, env, into: project, dryRun: true });
+  assert.ok(preview.skillConflicts.includes(path.join(root, 'brainstorming')), 'the dry run did not name the conflict');
+  assert.equal(fs.readFileSync(path.join(root, 'brainstorming', 'SKILL.md'), 'utf8'), own);
+
+  for (let run = 0; run < 2; run++) {
+    const result = deploy({ from: KIT_ROOT, kitHome, env, into: project });
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.skillConflicts.sort(),
+      [path.join(project, '.claude', 'skills', 'brainstorming'), path.join(root, 'brainstorming')].sort());
+    assert.equal(fs.readFileSync(path.join(root, 'brainstorming', 'SKILL.md'), 'utf8'), own, 'the user\'s skill was overwritten');
+    assert.equal(fs.readFileSync(path.join(project, '.claude', 'skills', 'brainstorming', 'SKILL.md'), 'utf8'), own);
+    assert.ok(fs.existsSync(path.join(root, 'careful-coding', 'SKILL.md')), 'the other set skills were not deployed');
+  }
+  const drift = deployedDrift({ from: KIT_ROOT, kitHome, env });
+  assert.equal(drift.skills.some((s) => s.location === path.join(root, 'brainstorming')), false, 'somebody else\'s skill was reported as drift');
+  assert.equal(drift.drifted, 0);
+});

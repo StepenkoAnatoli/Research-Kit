@@ -13,6 +13,8 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   finding-rewriter, source-grader, brief-writer, freshness-recheck, adr-writer,
   resume-from-disk); `skill-router` routes by role and gate state and never sends a
   builder to a skill that collects. Doctor's deploy check measures the set like the skill.
+  A skill of the same name that is not the kit's is left as it is and named, never
+  overwritten.
   Researched in `docs/decisions/2026-10-06-builder-skills/`.
 - Auto-build runs the kit's way (ADR-0146): `skills/auto-build/references/research-kit.md`
   starts every run from the router, replaces the research stage on a builder with

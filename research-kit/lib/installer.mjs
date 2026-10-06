@@ -456,6 +456,47 @@ export function shippedSkills(from = KIT_ROOT) {
 }
 
 /**
+ * Whether a set skill's target folder may be written: it is absent, the install state records
+ * the kit deployed it there, or it already holds the kit's own SKILL.md byte for byte. Any
+ * other folder is somebody else's skill that happens to share a name - `brainstorming` is a
+ * common one - and the deploy had overwritten its SKILL.md and left its other files mixed
+ * with the kit's (found 2026-10-06, review). Such a folder is left as it is and reported.
+ */
+function setSkillIsKits(target, src, recorded) {
+  if (!exists(target)) return true;
+  if (recorded.has(path.resolve(target))) return true;
+  const mine = path.join(target, 'SKILL.md');
+  return isDirectory(target) && exists(mine) && sha256File(mine) === sha256File(path.join(src, 'SKILL.md'));
+}
+
+/** Every set-skill path the install state records the kit wrote. */
+function recordedSetSkills(env) {
+  const state = readInstallState(env) ?? {};
+  const list = [...(Array.isArray(state.skills) ? state.skills : []), ...(Array.isArray(state.boundSet) ? state.boundSet : [])];
+  return new Set(list.filter((l) => typeof l === 'string' && l).map((l) => path.resolve(l)));
+}
+
+/**
+ * The set-skill targets a deploy would write, split into the kit's and somebody else's.
+ * `into` adds the project skill directory beside the bound research-first skill.
+ */
+function setSkillTargets({ from, env, into }) {
+  const set = shippedSkills(from);
+  const recorded = recordedSetSkills(env);
+  const roots = exists(path.join(from, 'skill')) ? [...skillRoots(env)] : [];
+  const projectDir = into ? path.join(into, ...runtimePaths(env).projectSkillDir.split('/')) : '';
+  const targets = [];
+  for (const root of roots) for (const name of set) targets.push({ name, target: path.join(root, name), bound: false });
+  if (projectDir) for (const name of set) targets.push({ name, target: path.join(projectDir, name), bound: true });
+  const write = [];
+  const conflicts = [];
+  for (const t of targets) {
+    (setSkillIsKits(t.target, path.join(from, SKILL_SET_DIR, t.name), recorded) ? write : conflicts).push(t);
+  }
+  return { set, write, conflicts: conflicts.map((t) => t.target) };
+}
+
+/**
  * What is deployed, against what would be deployed now.
  *
  * `doctor` used to report `deploy` from the install STATE alone - "an install was recorded,
@@ -501,11 +542,14 @@ export function deployedDrift({ from = KIT_ROOT, kitHome = KIT_HOME, env = proce
     : [];
   // The skill set (ADR-0146) drifts per skill. A root that holds research-first is a root the
   // kit deploys to, so a set skill absent there is missing - an install from before the set.
+  // A folder of the same name that is not the kit's is somebody else's skill: not drift.
+  const recorded = recordedSetSkills(env);
   for (const root of skillRoots(env)) {
     if (!isDirectory(path.join(root, SKILL_NAME))) continue;
     for (const name of shippedSkills(from)) {
       const location = path.join(root, name);
       const src = path.join(from, SKILL_SET_DIR, name);
+      if (!setSkillIsKits(location, src, recorded)) continue;
       skills.push(isDirectory(location)
         ? { location, ...compare(src, location) }
         : { location, missing: listTree(src), changed: [], extra: [] });
@@ -583,26 +627,26 @@ export function deploy({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env,
     const shipped = new Set(listTree(from));
     const retired = RETIRED_KIT_FILES.filter((rel) => exists(path.join(kitHome, ...rel.split('/'))));
     const extra = listTree(kitHome).filter((rel) => !shipped.has(rel) && !retired.includes(rel));
-    return { dryRun: true, from, to: kitHome, prune: [...retired, ...extra] };
+    return { dryRun: true, from, to: kitHome, prune: [...retired, ...extra], skillConflicts: setSkillTargets({ from, env, into }).conflicts };
   }
 
   const copied = copyTree(from, kitHome, { prune: RETIRED_KIT_FILES, mirror: true });
   const skills = [];
   const skillSource = path.join(from, 'skill');
-  const set = shippedSkills(from);
+  // Decided before anything is written, from the state as it was: a set skill goes only where
+  // the folder is absent or already the kit's; a same-named folder of somebody else's is left.
+  const { set, write, conflicts } = setSkillTargets({ from, env, into });
   if (exists(skillSource)) {
     for (const target of skillLocations(env)) {
       copyTree(skillSource, target);
       skills.push(target);
     }
-    // Each set skill is a sibling of research-first under the root, never inside it: a runtime
-    // discovers subdirectories of a skills root that hold SKILL.md (ADR-0146).
-    for (const root of skillRoots(env)) {
-      for (const name of set) {
-        copyTree(path.join(from, SKILL_SET_DIR, name), path.join(root, name));
-        skills.push(path.join(root, name));
-      }
-    }
+  }
+  // Each set skill is a sibling of research-first under the root, never inside it: a runtime
+  // discovers subdirectories of a skills root that hold SKILL.md (ADR-0146).
+  for (const t of write.filter((w) => !w.bound)) {
+    copyTree(path.join(from, SKILL_SET_DIR, t.name), t.target);
+    skills.push(t.target);
   }
 
   let bound = '';
@@ -612,15 +656,15 @@ export function deploy({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env,
     const dir = path.join(projectDir, SKILL_NAME);
     copyTree(skillSource, dir);
     bound = dir;
-    for (const name of set) {
-      copyTree(path.join(from, SKILL_SET_DIR, name), path.join(projectDir, name));
-      boundSet.push(path.join(projectDir, name));
+    for (const t of write.filter((w) => w.bound)) {
+      copyTree(path.join(from, SKILL_SET_DIR, t.name), t.target);
+      boundSet.push(t.target);
     }
   }
 
   const state = readInstallState(env) ?? {};
   writeInstallState({ ...state, kitHome, deployedFrom: from, skills, bound, boundSet }, env);
-  return { ok: true, from, to: kitHome, files: copied.written.length, pruned: copied.pruned, skills, bound, boundSet, skillSet: set };
+  return { ok: true, from, to: kitHome, files: copied.written.length, pruned: copied.pruned, skills, bound, boundSet, skillSet: set, skillConflicts: conflicts };
 }
 
 export function uninstall({ env = process.env, gitPaths = {}, dryRun = false } = {}) {
