@@ -32,10 +32,10 @@ Anything else (`OPEN`, blank, "in progress") fails the gate.
 
 | ID | Unknown | Why it blocks the build | Status | Evidence |
 |---|---|---|---|---|
-| U-1 | What outcome definitions and scoring practices does current agent-evaluation guidance prescribe for distinguishing a reported success from the actual final environment state, and for repeated trials and grader calibration? | The rubrics must be grounded in published guidance before they are frozen; guessing produces graders the results cannot be trusted on. | OPEN | collect per plan.json |
-| U-2 | How do published benchmarks define and count an unsupported claim (citation present but not supporting the statement), so the metric is comparable rather than invented? | "Unsupported claims" is the primary outcome; a home-made definition would make the pilot incomparable with anything. | OPEN | collect per plan.json |
-| U-3 | How do code-generation evaluations define and detect an implementation defect that passes an initial test suite, so the defect metric does not equate tests-pass with correct? | Implementation defects are a primary outcome and the known failure mode is tests that pass over wrong code. | OPEN | collect per plan.json |
-| U-4 | What matched-budget / matched-tooling comparison designs are used for agent ablations, and what do they control for (model, tools, token/cost budget, trial count)? | The arms must be matched in everything but the workflow; an unmatched confounder invalidates the comparison. | OPEN | collect per plan.json |
+| U-1 | What outcome definitions and scoring practices does current agent-evaluation guidance prescribe for distinguishing a reported success from the actual final environment state, and for repeated trials and grader calibration? | The rubrics must be grounded in published guidance before they are frozen; guessing produces graders the results cannot be trusted on. | CLOSED | E-01, E-03 |
+| U-2 | How do published benchmarks define and count an unsupported claim (citation present but not supporting the statement), so the metric is comparable rather than invented? | "Unsupported claims" is the primary outcome; a home-made definition would make the pilot incomparable with anything. | CLOSED | E-04, E-01 |
+| U-3 | How do code-generation evaluations define and detect an implementation defect that passes an initial test suite, so the defect metric does not equate tests-pass with correct? | Implementation defects are a primary outcome and the known failure mode is tests that pass over wrong code. | CLOSED | E-05, E-02, E-01 |
+| U-4 | What matched-budget / matched-tooling comparison designs are used for agent ablations, and what do they control for (model, tools, token/cost budget, trial count)? | The arms must be matched in everything but the workflow; an unmatched confounder invalidates the comparison. | CLOSED | E-06, E-07, E-03 |
 
 ## Questions for the human (maximum 3)
 

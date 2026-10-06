@@ -100,6 +100,19 @@ Grading rules, fixed now:
 - Every result is reported with the status vocabulary: verified (run and seen),
   untested (written, not run), expected (reasoned, not run).
 
+## Cited definitions (filled 2026-10-06, before any trial)
+
+The terms marked (U-1)..(U-4) above take these operational definitions from the rows in
+`EVIDENCE.md` that closed the unknowns. The structure above is unchanged; this section
+is the fill-in the frozen draft reserved for itself.
+
+| Term | Definition used by every rubric | Evidence |
+|---|---|---|
+| Outcome; trials; grader calibration (U-1) | The outcome is the final environment state at the end of the trial, scored apart from the transcript. Three trials per arm per task; per-trial values and the per-arm mean are reported, and pass^3 for the binary outcomes (handoff, truthful reporting). Model graders are calibrated against a human spot-check per task type before scoring; a task whose expected outcome two readers would not agree on is fixed before use. | E-01, E-03 |
+| Unsupported claim (U-2) | Unit: the sentence. A verification-worthy sentence is unsupported when a generic reader, given its cited or saved sources, would not affirm it (citation recall). A citation that does not support its own sentence is a citation-precision failure and is counted too. | E-04, E-01 |
+| Implementation defect (U-3) | A program that passes the task's provided tests and fails the expanded hidden suite written from the same specification, or whose root cause is not fixed on grader review (a patch that makes tests pass without fixing the bug). C3's reference solution must pass the hidden suite before the first trial. | E-05, E-02, E-01 |
+| Matched arms and budget (U-4) | Same model and version, tool set, task set and trial count per arm. The per-trial budget (tokens, metered credits, wall-clock) is enforced during the trial, not totalled after it. Cost is reported in money and tokens, never a proxy. | E-06, E-07, E-03 |
+
 ## Pre-registered simplification criteria (decision 4)
 
 Fixed now, per mechanism, so the post-hoc decision cannot be fitted to the results.
