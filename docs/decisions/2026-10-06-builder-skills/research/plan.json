@@ -1,0 +1,52 @@
+{
+  "topic": "Which skills from StepenkoAnatoli/SkillsMDs, plus a role-aware router, should Research-Kit ship for builders and collectors?",
+  "notes": "Primary owners only: the SkillsMDs repository pinned at commit 3f2d2fc6627d63ea93ff97d4d33845a753db16cc, and the Agent Skills specification repository. No search: every page is named. The .skill files are zip archives and are attempted once (careful-coding.skill) to record whether a text transport can read one; see U-07.",
+  "depth": "normal",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 1,
+  "maxScrapes": 10,
+  "prefer": [
+    "raw.githubusercontent.com/StepenkoAnatoli/SkillsMDs",
+    "raw.githubusercontent.com/agentskills/agentskills"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://raw.githubusercontent.com/StepenkoAnatoli/SkillsMDs/3f2d2fc6627d63ea93ff97d4d33845a753db16cc/LICENSE",
+      "why": "U-01 licence of the skills to be vendored"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/agentskills/agentskills/main/docs/specification.mdx",
+      "why": "U-02 what makes a directory a valid skill: SKILL.md, name rules, description length"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/agentskills/agentskills/main/docs/client-implementation/adding-skills-support.mdx",
+      "why": "U-03 how runtimes discover skills: subdirectories of a skills root holding SKILL.md"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/StepenkoAnatoli/SkillsMDs/3f2d2fc6627d63ea93ff97d4d33845a753db16cc/leadorchastratorv2-20261006T054702Z-1-001/leadorchastratorv2/leadorchastratorv2.md",
+      "why": "U-04 U-05 U-06 the router: model selection, gate rules, builder never re-researches, references it names"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/StepenkoAnatoli/SkillsMDs/3f2d2fc6627d63ea93ff97d4d33845a753db16cc/leadorchastratorv2-20261006T054702Z-1-001/leadorchastratorv2/agent-briefsv2.md",
+      "why": "U-06 the brief templates lead-orchestrator names"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/StepenkoAnatoli/SkillsMDs/3f2d2fc6627d63ea93ff97d4d33845a753db16cc/Auto%20build-v3!!!!!/skills/auto-build/SKILL.md",
+      "why": "U-04 U-05 auto-build composes the other skills and forbids gate bypass"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/StepenkoAnatoli/SkillsMDs/3f2d2fc6627d63ea93ff97d4d33845a753db16cc/break-test-20261006T054659Z-1-001/break-test/SKILL.md",
+      "why": "U-04 break-test's Research-Kit binding"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/StepenkoAnatoli/SkillsMDs/3f2d2fc6627d63ea93ff97d4d33845a753db16cc/break-test-20261006T054659Z-1-001/break-test/references/research-kit.md",
+      "why": "U-08 break-test collects keyless from a checkout - refused on a builder"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/StepenkoAnatoli/SkillsMDs/3f2d2fc6627d63ea93ff97d4d33845a753db16cc/careful-coding.skill",
+      "why": "U-07 attempt: a zipped .skill archive through a text transport"
+    }
+  ]
+}

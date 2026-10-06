@@ -12,8 +12,8 @@ import {
   exists, readText, writeText, ensureDir, readJson, today, sha256File, parseJson, isDirectory,
 } from './core.mjs';
 import {
-  KIT_HOME, EDIT_GATE_HOOK, RETIRED_EDIT_GATE_HOOKS, RETIRED_KIT_FILES,
-  hooksPath, setHooksPath, setPreviousHooksPath, localHooksPathOverride, runtimePaths, skillLocations, readInstallState, writeInstallState,
+  KIT_HOME, EDIT_GATE_HOOK, RETIRED_EDIT_GATE_HOOKS, RETIRED_KIT_FILES, SKILL_NAME,
+  hooksPath, setHooksPath, setPreviousHooksPath, localHooksPathOverride, runtimePaths, skillLocations, skillRoots, readInstallState, writeInstallState,
   saveConfig, loadConfig, ROLES, namesHook, repoTopLevel,
 } from './machine.mjs';
 import { KIT_ROOT, HOOK_MODE, hookExecutability } from './scaffold.mjs';
@@ -440,6 +440,69 @@ function copyTree(from, to, { prune = [], mirror = false } = {}) {
   return { written, pruned };
 }
 
+/** Where the kit keeps its skill set (ADR-0146): one directory per skill, beside `skill/`. */
+export const SKILL_SET_DIR = 'skills';
+
+/**
+ * The skill set's names: each directory under `skills/` that holds a SKILL.md, sorted. A
+ * directory without one is not a skill, and a runtime would not discover it either.
+ */
+export function shippedSkills(from = KIT_ROOT) {
+  const dir = path.join(from, SKILL_SET_DIR);
+  if (!isDirectory(dir)) return [];
+  return fs.readdirSync(dir)
+    .filter((name) => isDirectory(path.join(dir, name)) && exists(path.join(dir, name, 'SKILL.md')))
+    .sort();
+}
+
+/**
+ * Whether a set skill's target folder may be written: it is absent, or its SKILL.md is,
+ * byte for byte, the one the kit last deployed there (`skillSetHashes` in the install state)
+ * or the one it would deploy now. Any other folder is somebody else's skill that happens to
+ * share a name - `brainstorming` is a common one - and the deploy had overwritten its
+ * SKILL.md and left its other files mixed with the kit's (found 2026-10-06, review). Such a
+ * folder is left as it is and reported.
+ *
+ * The content decides, never the path alone: a recorded path outlives the kit's copy, and a
+ * user who replaced it had his skill overwritten through the record (second review, same
+ * day). The hashes accumulate across deploys, so the kit's copy in a project bound earlier is
+ * still recognised after an update changed the source.
+ */
+function setSkillIsKits(target, src, hashes) {
+  if (!exists(target)) return true;
+  const mine = path.join(target, 'SKILL.md');
+  if (!isDirectory(target) || !exists(mine)) return false;
+  const current = sha256File(mine);
+  return current === hashes[path.resolve(target)] || current === sha256File(path.join(src, 'SKILL.md'));
+}
+
+/** The SKILL.md hash the kit last deployed at each set-skill path, from the install state. */
+function recordedSetSkills(env) {
+  const recorded = (readInstallState(env) ?? {}).skillSetHashes;
+  if (!recorded || typeof recorded !== 'object' || Array.isArray(recorded)) return {};
+  return Object.fromEntries(Object.entries(recorded).filter(([, h]) => typeof h === 'string'));
+}
+
+/**
+ * The set-skill targets a deploy would write, split into the kit's and somebody else's.
+ * `into` adds the project skill directory beside the bound research-first skill.
+ */
+function setSkillTargets({ from, env, into }) {
+  const set = shippedSkills(from);
+  const recorded = recordedSetSkills(env);
+  const roots = exists(path.join(from, 'skill')) ? [...skillRoots(env)] : [];
+  const projectDir = into ? path.join(into, ...runtimePaths(env).projectSkillDir.split('/')) : '';
+  const targets = [];
+  for (const root of roots) for (const name of set) targets.push({ name, target: path.join(root, name), bound: false });
+  if (projectDir) for (const name of set) targets.push({ name, target: path.join(projectDir, name), bound: true });
+  const write = [];
+  const conflicts = [];
+  for (const t of targets) {
+    (setSkillIsKits(t.target, path.join(from, SKILL_SET_DIR, t.name), recorded) ? write : conflicts).push(t);
+  }
+  return { set, write, conflicts: conflicts.map((t) => t.target) };
+}
+
 /**
  * What is deployed, against what would be deployed now.
  *
@@ -484,13 +547,30 @@ export function deployedDrift({ from = KIT_ROOT, kitHome = KIT_HOME, env = proce
   const skills = exists(skillSource)
     ? skillLocations(env).filter((l) => isDirectory(l)).map((location) => ({ location, ...compare(skillSource, location) }))
     : [];
+  // The skill set (ADR-0146) drifts per skill. A root that holds research-first is a root the
+  // kit deploys to, so a set skill absent there is missing - an install from before the set.
+  // A folder of the same name that is not the kit's is somebody else's skill: not drift.
+  const recorded = recordedSetSkills(env);
+  for (const root of skillRoots(env)) {
+    if (!isDirectory(path.join(root, SKILL_NAME))) continue;
+    for (const name of shippedSkills(from)) {
+      const location = path.join(root, name);
+      const src = path.join(from, SKILL_SET_DIR, name);
+      if (!setSkillIsKits(location, src, recorded)) continue;
+      // `set`: the kit mirrors a set skill, so a file it no longer ships is drift (orphaned);
+      // research-first is copied over, and its extras are not counted.
+      skills.push(isDirectory(location)
+        ? { location, set: true, ...compare(src, location) }
+        : { location, set: true, missing: listTree(src), changed: [], extra: [] });
+    }
+  }
 
   const total = (d) => d.missing.length + d.changed.length + d.extra.length;
   return {
     kitHome,
     kit,
     skills,
-    drifted: total(kit) + skills.reduce((n, s) => n + s.missing.length + s.changed.length, 0),
+    drifted: total(kit) + skills.reduce((n, s) => n + s.missing.length + s.changed.length + (s.set ? s.extra.length : 0), 0),
   };
 }
 
@@ -502,7 +582,7 @@ export function driftNote(drift) {
   const kit = [say(drift.kit.missing.length, 'missing'), say(drift.kit.changed.length, 'stale'), say(drift.kit.extra.length, 'orphaned')].filter(Boolean);
   if (kit.length) parts.push(`kit: ${kit.join(', ')}`);
   for (const s of drift.skills) {
-    const bits = [say(s.missing.length, 'missing'), say(s.changed.length, 'stale')].filter(Boolean);
+    const bits = [say(s.missing.length, 'missing'), say(s.changed.length, 'stale'), say(s.set ? s.extra.length : 0, 'orphaned')].filter(Boolean);
     if (bits.length) parts.push(`skill ${s.location}: ${bits.join(', ')}`);
   }
   const sample = [...drift.kit.missing, ...drift.kit.changed].slice(0, 3);
@@ -556,29 +636,48 @@ export function deploy({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env,
     const shipped = new Set(listTree(from));
     const retired = RETIRED_KIT_FILES.filter((rel) => exists(path.join(kitHome, ...rel.split('/'))));
     const extra = listTree(kitHome).filter((rel) => !shipped.has(rel) && !retired.includes(rel));
-    return { dryRun: true, from, to: kitHome, prune: [...retired, ...extra] };
+    return { dryRun: true, from, to: kitHome, prune: [...retired, ...extra], skillConflicts: setSkillTargets({ from, env, into }).conflicts };
   }
 
   const copied = copyTree(from, kitHome, { prune: RETIRED_KIT_FILES, mirror: true });
   const skills = [];
   const skillSource = path.join(from, 'skill');
+  // Decided before anything is written, from the state as it was: a set skill goes only where
+  // the folder is absent or already the kit's; a same-named folder of somebody else's is left.
+  const { set, write, conflicts } = setSkillTargets({ from, env, into });
   if (exists(skillSource)) {
     for (const target of skillLocations(env)) {
       copyTree(skillSource, target);
       skills.push(target);
     }
   }
-
-  let bound = '';
-  if (into) {
-    const dir = path.join(into, ...runtimePaths(env).projectSkillDir.split('/'), 'research-first');
-    copyTree(skillSource, dir);
-    bound = dir;
+  // Each set skill is a sibling of research-first under the root, never inside it: a runtime
+  // discovers subdirectories of a skills root that hold SKILL.md (ADR-0146).
+  // Mirrored: the folder is the kit's (`setSkillTargets`), so a reference or script a later kit
+  // no longer ships is removed rather than left to steer the skill (ADR-0146 decision 5).
+  for (const t of write.filter((w) => !w.bound)) {
+    copyTree(path.join(from, SKILL_SET_DIR, t.name), t.target, { mirror: true });
+    skills.push(t.target);
   }
 
+  let bound = '';
+  const boundSet = [];
+  if (into) {
+    const projectDir = path.join(into, ...runtimePaths(env).projectSkillDir.split('/'));
+    const dir = path.join(projectDir, SKILL_NAME);
+    copyTree(skillSource, dir);
+    bound = dir;
+    for (const t of write.filter((w) => w.bound)) {
+      copyTree(path.join(from, SKILL_SET_DIR, t.name), t.target, { mirror: true });
+      boundSet.push(t.target);
+    }
+  }
+
+  const skillSetHashes = recordedSetSkills(env);
+  for (const t of write) skillSetHashes[path.resolve(t.target)] = sha256File(path.join(t.target, 'SKILL.md'));
   const state = readInstallState(env) ?? {};
-  writeInstallState({ ...state, kitHome, deployedFrom: from, skills, bound }, env);
-  return { ok: true, from, to: kitHome, files: copied.written.length, pruned: copied.pruned, skills, bound };
+  writeInstallState({ ...state, kitHome, deployedFrom: from, skills, bound, boundSet, skillSetHashes }, env);
+  return { ok: true, from, to: kitHome, files: copied.written.length, pruned: copied.pruned, skills, bound, boundSet, skillSet: set, skillConflicts: conflicts };
 }
 
 export function uninstall({ env = process.env, gitPaths = {}, dryRun = false } = {}) {

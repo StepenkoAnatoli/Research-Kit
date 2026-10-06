@@ -23,3 +23,18 @@ Those pages are not this repository's work and are not licensed by its LICENSE.
 
 The evidence behind this notice is docs/decisions/2026-10-02-licence-and-captured-pages/
 (ADR-0130).
+
+Vendored skills
+
+The skill directories under research-kit/skills/ named in REUSE.toml (architecture-pass,
+auto-build, brainstorming, break-test, careful-coding, four-dimension-audit, gap-audit,
+improve-codebase-architecture, lead-orchestrator, subproject-discovery) come from
+StepenkoAnatoli/SkillsMDs at commit 3f2d2fc6627d63ea93ff97d4d33845a753db16cc and are
+licensed under the Apache License 2.0 (LICENSES/Apache-2.0.txt). They are shipped as
+received, apart from the file renames the skill format forces and five auto-build files
+changed so they agree with the kit's rules (SKILL.md, references/mandate.md,
+references/merge-protocol.md, assets/claude-md-auto-build-mandate.md,
+scripts/pr-readiness.sh). Each changed file says so at its top; all the changes are
+listed in docs/adr/0146-the-kit-ships-a-skill-set-and-a-role-aware-router.md. The other skills
+under research-kit/skills/, and the two references/research-kit.md files beside
+lead-orchestrator and auto-build, are the kit's own work, under its LICENSE.

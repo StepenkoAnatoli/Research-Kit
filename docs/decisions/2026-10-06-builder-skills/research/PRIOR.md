@@ -1,0 +1,1 @@
+I expect SkillsMDs to be Apache-2.0; the Agent Skills spec to require SKILL.md at a directory root with name matching the directory; lead-orchestrator to be the model-routing skill and auto-build the skill-composing one; both to forbid --no-verify. I cannot know yet whether the zipped .skill files can be captured as evidence at all.

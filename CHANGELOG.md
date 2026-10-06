@@ -5,6 +5,34 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The kit ships a skill set and a role-aware router (ADR-0146, lifting the freeze for that
+  one item): `research-kit/skills/<name>/`, deployed by `install.mjs` to every skill root
+  beside research-first and `--into` a project. Ten skills are vendored as received from
+  StepenkoAnatoli/SkillsMDs (Apache-2.0); thirteen are the kit's own (build-from-brief,
+  fact-request, cite-in-code, day-one-tasks, contract-tests, commit-report, map-classifier,
+  finding-rewriter, source-grader, brief-writer, freshness-recheck, adr-writer,
+  resume-from-disk); `skill-router` routes by role and gate state and never sends a
+  builder to a skill that collects. Doctor's deploy check measures the set like the skill.
+  A skill of the same name that is not the kit's is left as it is and named, never
+  overwritten. Each set skill the kit owns is mirrored, so a file a later kit no longer
+  ships is removed and, until then, reported as drift. Five vendored auto-build files are
+  changed to agree with the kit's rules (ADR-0146 decision 3): the Mandate always waits,
+  and the merge command pins the approved head.
+  Researched in `docs/decisions/2026-10-06-builder-skills/`.
+- Auto-build runs the kit's way (ADR-0146): `skills/auto-build/references/research-kit.md`
+  starts every run from the router, replaces the research stage on a builder with
+  handoff, build-from-brief and fact-request, ties requirements, the Mandate, code
+  constants and tests to `E-##` rows, and tightens merging - the commit gate, a green suite
+  and `preflight` on the merged head, no override ever. It asks the owner every question
+  only he can answer and stops for his reply at the Mandate, costly or irreversible
+  decisions, secrets and permissions, anything destructive or critical, and the merge; a
+  standing mandate no longer approves any of them. The merge approval names the PR's head
+  commit and lapses on any change to it; a resumed run re-checks that sha, the gate, the
+  suite and `preflight` before merging. A builder also needs no open fact request and no
+  stale evidence under a requirement. Unattended runs stop at the Mandate. Requirements
+  resting on a price, limit, quota, API or schema version, or tier boundary are volatile
+  automatically and need evidence within the project's `refreshDays`; stale facts nothing
+  rests on are listed in the merge summary and must be acknowledged in the approval.
 - A matched-arm evaluation of the kit against a strongly prompted agent with the same
   tools and budget is adopted (ADR-0145) and scaffolded as the nested project
   `docs/decisions/2026-10-06-kit-vs-prompt-evaluation/`, its protocol and grading rubrics
