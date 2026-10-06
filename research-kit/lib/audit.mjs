@@ -18,6 +18,7 @@ import { runPreflight } from './preflight.mjs';
 import { briefSection, judgedSection, BRIEF_SECTIONS } from './brief.mjs';
 import { writeZip } from './archive.mjs';
 import { withLock } from './provenance.mjs';
+import { renderGateWarnings } from './render.mjs';
 
 import { kitCommand } from './core.mjs';
 /**
@@ -126,13 +127,13 @@ export function resolveVersion(root, slug, version = null) {
   return { slug, topic: record.topic ?? slug, version: want, date: held.date, main, subtopics };
 }
 
-/** The version a fingerprint earns: unchanged corpus, unchanged version. */
+/** Reuse only the latest observation; returning to a historical state earns a new version. */
 export function nextVersion(root, slug, fingerprint) {
   const manifest = readManifest(root);
   const record = manifest.topics?.[slug];
   if (!record) return { version: '0.1', fresh: true };
-  const match = Object.entries(record.versions ?? {}).find(([, held]) => held.fingerprint === fingerprint);
-  if (match) return { version: match[0], fresh: false };
+  const latest = record.versions?.[record.latest];
+  if (latest?.fingerprint === fingerprint) return { version: record.latest, fresh: false };
   const highest = Object.keys(record.versions ?? {}).sort(compareVersions).pop() ?? '0.0';
   const parts = String(highest).split('.').map(Number);
   return { version: `${parts[0] ?? 0}.${(parts[1] ?? 0) + 1}`, fresh: true };
@@ -146,7 +147,7 @@ export function nextVersion(root, slug, fingerprint) {
  * saying "unchanged". A derived artifact whose dependency set is narrower than its
  * output is one that quietly goes stale.
  */
-export function fingerprintOf(corpus) {
+export function fingerprintOf(corpus, verdict = null) {
   return sha256(canonicalJson({
     topic: corpus.map.topic,
     intent: corpus.intent,
@@ -158,6 +159,14 @@ export function fingerprintOf(corpus) {
     judged: BRIEF_SECTIONS.filter((s) => s.judged).map((s) => [s.key, briefSection(corpus.brief.text, s.key)]),
     captures: corpus.captures.entries.map((c) => [c.file, c.transport, c.completeness, c.omitted]),
     chain: corpus.ledger.entries.length,
+    // Warnings depend on policy and age as well as the corpus. A changed evaluation
+    // earns a new immutable snapshot; legacy fingerprints earn their first warning-aware
+    // version on the next render (ADR-0143), without rewriting an existing audit.
+    gate: verdict ? {
+      pass: verdict.pass,
+      blocking: verdict.counts.fail,
+      warnings: renderGateWarnings(verdict),
+    } : null,
   })).slice(0, 16);
 }
 
@@ -189,6 +198,7 @@ function mainAudit(corpus, { version, date, verdict }) {
   lines.push('');
   lines.push(`**Gate:** ${verdict.pass ? 'PASS' : 'FAIL'} - ${verdict.counts.fail} blocking, ${verdict.counts.warn} warning(s).`);
   lines.push('');
+  lines.push(renderGateWarnings(verdict), '');
   lines.push('## Build intent');
   lines.push('');
   lines.push(corpus.intent || '_not stated_');
@@ -237,7 +247,7 @@ function mainAudit(corpus, { version, date, verdict }) {
   return `${lines.join('\n')}\n`;
 }
 
-function subtopicAudit(corpus, row, { version, date }) {
+function subtopicAudit(corpus, row, { version, date, verdict }) {
   const cited = row.cites
     .map((id) => corpus.unknowns.find((u) => u.id.toUpperCase() === id.toUpperCase()))
     .filter(Boolean);
@@ -245,6 +255,8 @@ function subtopicAudit(corpus, row, { version, date }) {
     `# Audit - ${row.id} ${row.text} (v${version}, ${date})`,
     '',
     `**Status:** ${row.status}`,
+    '',
+    renderGateWarnings(verdict),
     '',
     `**Why it matters:** ${row.why || '_not stated_'}`,
     '',
@@ -294,7 +306,7 @@ export function writeAudit(root, { date = today(), force = false, env = process.
 
   const topic = corpus.map.topic || corpus.plan?.topic || 'untitled';
   const slug = makeSlug(topic);
-  const fingerprint = fingerprintOf(corpus);
+  const fingerprint = fingerprintOf(corpus, verdict);
   // Choosing the version, writing the immutable files and updating the manifest are one
   // exclusive section: unlocked, two audits at once could interleave, lose a version or
   // collide on an immutable file (found 2026-09-28). withLock is re-entrant.
@@ -319,7 +331,7 @@ export function writeAudit(root, { date = today(), force = false, env = process.
       // files already written are left alone: they read fine, and renaming them would
       // break both the manifest that names them and the history that contains them.
       const file = `${dir}/${slug}-${makeSlug(row.id, 'row', SUBTOPIC_SLUG)}-v${version}-${date}.md`;
-      writeImmutable(root, file, subtopicAudit(corpus, row, { version, date }));
+      writeImmutable(root, file, subtopicAudit(corpus, row, { version, date, verdict }));
       subtopics.push(file);
     }
 

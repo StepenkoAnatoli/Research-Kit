@@ -39,6 +39,7 @@ import { runPreflight } from './preflight.mjs';
 import { briefState, reviewedBy, draftStamp, briefInputsHash, judgedSection, JUDGED_SECTIONS } from './brief.mjs';
 import { firstFinding } from './finding.mjs';
 import { validateArtifact, MANIFEST_PATH, MANIFEST_DIGEST_PATH, README_PATH } from './artifact-validator.mjs';
+import { renderGateWarnings } from './render.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const KIT_ROOT = path.resolve(here, '..');
@@ -339,6 +340,8 @@ function renderReadme(derived, source) {
 Research-Kit collected this evidence, it was ${REVIEWER_PROSE[derived.review.by]}, and the
 gate passed.
 
+${renderGateWarnings(derived.verdict)}
+
 \`manifest.json\` carries \`"state": "APPROVED_BRIEF"\`, \`"buildAuthorized": true\` and
 \`"gate": { "verdict": "PASS" }\`. Confirm all three before acting on this package —
 this file is prose and the manifest is the contract.
@@ -356,6 +359,8 @@ Start by opening:
 Research-Kit did not finish collecting. This package is here so the failure can be
 diagnosed; it holds no usable corpus and authorizes nothing.
 
+${renderGateWarnings(derived.verdict)}
+
 ${first ? `First blocking finding: ${first.code} — ${first.message}\n` : ''}
 See \`reports/problems.json\` for the full list.
 `;
@@ -367,6 +372,8 @@ Research-Kit collected evidence successfully.
 
 This package is **not an approved research brief** and does not authorize
 an AI or person to begin building.
+
+${renderGateWarnings(derived.verdict)}
 
 The commands below are written for PowerShell, bash and zsh. In cmd.exe, write
 \`%USERPROFILE%\` where a command says \`$HOME\`.
@@ -442,6 +449,8 @@ function renderSummary(derived, manifestish) {
     `| credits used | ${c.creditsUsed === null ? 'not recorded' : c.creditsUsed} |`,
     `| fetch provider | ${c.fetchProvider ?? 'none'} |`,
     `| completeness | ${c.completeness} |`,
+    '',
+    renderGateWarnings(derived.verdict),
     '',
     '## Review state',
     '',

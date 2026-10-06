@@ -1,4 +1,4 @@
-// render.mjs - terminal table rendering for CLI output. Knows nothing else.
+// render.mjs - terminal tables and Markdown findings. Presentation only (ADR-0143).
 
 const SEVERITY_ORDER = { fail: 0, warn: 1, info: 2, pass: 3 };
 
@@ -29,6 +29,32 @@ export function renderFindings(findings, { showPass = false } = {}) {
     { header: 'check', value: (f) => (f.rule && f.rule !== f.check ? `${f.check}/${f.rule}` : f.check) },
     { header: 'detail', value: (f) => f.detail },
   ]);
+}
+
+/** Preserve the supplied evaluation's warnings without re-running or interpreting it. */
+export function renderGateWarnings(verdict) {
+  if (!verdict) return '**Gate warnings: not evaluated in this run.**';
+  if (!Array.isArray(verdict.warnings)) return '**Gate warnings: not supplied with this evaluation.**';
+  const warnings = verdict.warnings;
+  const lines = [
+    `**Gate warnings from this evaluation: ${warnings.length}.**`,
+    '',
+    'These findings apply to the whole corpus at the time of this evaluation. Re-run',
+    'preflight after edits; this list is not a fresh evaluation of the resulting document.',
+  ];
+  if (warnings.length) {
+    lines.push('');
+    for (const finding of warnings) {
+      const code = finding.rule && finding.rule !== finding.check
+        ? `${finding.check}/${finding.rule}` : finding.check;
+      const targets = [finding.row, finding.unknown]
+        .filter((value) => value !== undefined && value !== null && String(value) !== '')
+        .map(String);
+      lines.push(`- **${code}**${targets.length ? ` (${targets.join(', ')})` : ''}: ${finding.detail}`);
+      if (finding.fix) lines.push(`  Fix: ${finding.fix}`);
+    }
+  }
+  return lines.join('\n');
 }
 
 export function heading(text) {

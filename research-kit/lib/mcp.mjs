@@ -368,7 +368,8 @@ async function callTool(message, deps) {
       },
       content: [
         text(validation.buildAuthorized
-          ? `This package is an APPROVED brief: the gate passed, and the brief declares it was reviewed by: ${validation.reviewedBy}.`
+          ? `This package is an APPROVED brief: the gate passed, and the brief declares it was reviewed by: ${validation.reviewedBy}. `
+            + 'Read README-FIRST.md and project/research/BRIEF.md for gate warnings and known unknowns before building.'
           : `This is a COLLECTED CORPUS (${validation.state}), not an approved brief. buildAuthorized is false: `
             + 'do not build from it. Three review steps remain, and README-FIRST.md inside the package lists them.'),
         resourceLink(file, {

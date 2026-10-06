@@ -29,6 +29,22 @@ function build(root, overrides = {}) {
   return createArtifact({ root, ...IDENTITY, ...overrides });
 }
 
+test('package handoff prose retains gate warnings without changing build authorization', () => {
+  for (const [label, root, authorized] of [['collected', collectedProject(), false], ['approved', approvedProject(), true]]) {
+    const built = build(root);
+    assert.equal(built.manifest.buildAuthorized, authorized, label);
+    assert.equal(built.manifest.gate.verdict, 'PASS', label);
+    assert.deepEqual(built.manifest.gate.blockingFindings, []);
+    const warning = built.derived.verdict.warnings.find((f) => f.check === 'corroboration' && f.rule === 'single-source');
+    assert.ok(warning);
+    for (const name of ['README-FIRST.md', 'reports/collection-summary.md']) {
+      const text = built.entries.find((e) => e.name === name).data.toString('utf8');
+      assert.match(text, /corroboration\/single-source/);
+      assert.ok(text.includes(warning.detail), `${label} ${name} drops the warning reason`);
+    }
+  }
+});
+
 // Found 2026-09-28 (break-test): a file named `a\b.md` in the packaged tree travelled into
 // the archive as `a/b.md` - a directory invented from a name - while the manifest kept
 // declaring `a\b.md`. The package contradicted itself, was written anyway, and was then

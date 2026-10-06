@@ -342,6 +342,8 @@ test('an approved corpus says so instead, and the two texts cannot both appear',
   }) });
   const r = await handle(call('fetch_corpus', { repository: 'o/r', workflow_run_id: 42 }), d);
   assert.equal(r.result.structuredContent.buildAuthorized, true);
+  assert.match(r.result.content[0].text, /README-FIRST\.md/);
+  assert.match(r.result.content[0].text, /warnings/i);
   assert.match(r.result.content[0].text, /APPROVED brief/);
   assert.ok(!/do not build/i.test(r.result.content[0].text));
 });

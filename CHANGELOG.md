@@ -5,12 +5,19 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
-- A passing generated brief now lists actionable corpus warnings by check/rule, with their row
-  or unknown when available. Before this, the brief said every blocking unknown was closed
-  without surfacing warnings a builder needed to see.
-- Builder-facing brief warnings now omit `brief-stale`, `brief-unstamped`, and all
-  `gate-integrity` findings; the ordinary `Gate: PASS.` line remains unchanged when no other
-  warnings are listed.
+- The pre-merge audit of ADR-0143 closes two remaining handoff defects: a failed or
+  unevaluated brief qualifies CLOSED claims as declarations, and returning to an earlier
+  warning state earns a new audit version so the default bundle reflects the latest
+  observation (ADR-0144). Historical snapshots remain immutable. Public gate wording
+  describes path-based enforcement in gated projects and bounds PASS to checked conditions.
+- Handoffs preserve the configured gate's cautions (ADR-0143): the brief no longer turns
+  PASS into a claim that every unknown is closed or that independent sources agree.
+  Briefs, full and subtopic audits, package reading guides and collection summaries carry
+  all evaluated warning reasons and remedies. The MCP approval text directs the builder
+  to those cautions. An unavailable warning observation is distinct from an evaluated zero.
+  Audit version selection includes the rendered gate result, so a changed warning earns
+  a new immutable snapshot. The public description states these limits and makes no claim
+  of a measured reduction in downstream errors; gate policy and package formats are unchanged.
 - The nested-bare-repository handoff test accepts either Git's older “not a work tree” response
   or newer Git's `safe.bareRepository=explicit` refusal; both must avoid printing an unusable
   checkout command.
