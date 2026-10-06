@@ -19,6 +19,9 @@ human; if a decision is genuinely wrong, write a new ADR that supersedes it.
 | **builder machine** | The machine that builds from the corpus the collector pushed, with no Firecrawl key and no Firecrawl egress. It must not collect: the collection CLIs refuse (exit 2) rather than fall back on another transport, and doctor reports a missing credential as informational instead of a blocker. See ADR-0010, ADR-0011. |
 | **handoff** | The corpus crossing from the collector machine to the builder machine through git — the seam the two-machine model rests on. Verified on arrival by `bin/handoff.mjs` and by doctor on a builder. The remedy **depends on the cause** and `handoffRemedy(report)` picks it: something that did not travel lives on the collector (push `research/raw/` including its dotfiles), a corpus that travelled whole and was rewritten on checkout here lives on this machine (**line-ending rewrite**) — and one blanket text for both is what used to send operators to re-collect, spending credits to reproduce what was already on disk. See ADR-0011, ADR-0020. |
 | **research-first** | The rule that findable facts are collection tasks, not questions. The name of the skill that carries it. |
+| **skill set** | The skills the kit ships beside research-first, one directory each under `research-kit/skills/`, deployed to every skill root (ADR-0146). Guidance, never enforcement. |
+| **skill router** | The `skill-router` skill: picks which skills may run from the machine role and the gate state, then by task. Never routes a builder to a skill that collects, and never picks a model. |
+| **fact request** | What a builder writes when the brief lacks a fact: the unknown, why it blocks, the page that owns it - for the collector to add to `plan.json`. A builder never fetches it itself (ADR-0010). |
 
 ## The standing protocol
 

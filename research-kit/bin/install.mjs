@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// bin/install.mjs - deploy the kit and the skill; role-aware next steps.
+// bin/install.mjs - deploy the kit, the skill and the skill set; role-aware next steps.
 
 import path from 'node:path';
 import { parseFlags, refuseUnknownFlags, checkFlagValues, writeFailure, spellCommand, tolerateClosedStdout } from '../lib/core.mjs';
@@ -18,11 +18,11 @@ refuseUnknownFlags(flags, ['help', 'dry-run', 'into']);
 checkFlagValues(flags, { into: 'value' });
 
 if (flags.help) {
-  process.stdout.write(`install - copy the kit to ${KIT_HOME} and the skill to the personal skill root(s).
+  process.stdout.write(`install - copy the kit to ${KIT_HOME}, and the skill and the skill set to the personal skill root(s).
 
   node research-kit/bin/install.mjs [--dry-run] [--into <project>]
 
-  --into <project>   also bind the skill into that project's skill directory
+  --into <project>   also bind the skill and the skill set into that project's skill directory
 
 Overwrites by default: a stale deployed copy silently defeats an update. Files a past
 version shipped are pruned, because a copy-over deploy never removes anything. A folder
@@ -57,8 +57,12 @@ if (result.dryRun) {
 
 process.stdout.write(`deployed ${result.files} files -> ${result.to}\n`);
 if (result.pruned.length) process.stdout.write(`pruned ${result.pruned.length} retired file(s): ${result.pruned.join(', ')}\n`);
-for (const location of result.skills) process.stdout.write(`skill -> ${location}\n`);
-if (result.bound) process.stdout.write(`bound into project -> ${result.bound}\n`);
+const setNames = new Set(result.skillSet);
+for (const location of result.skills.filter((l) => !setNames.has(path.basename(l)))) process.stdout.write(`skill -> ${location}\n`);
+for (const root of new Set(result.skills.filter((l) => setNames.has(path.basename(l))).map((l) => path.dirname(l)))) {
+  process.stdout.write(`skill set (${result.skillSet.length}) -> ${root}\n`);
+}
+if (result.bound) process.stdout.write(`bound into project -> ${result.bound}${result.boundSet.length ? ` (+ ${result.boundSet.length} set skills beside it)` : ''}\n`);
 
 // The next steps name the copy just installed, never the download this ran from: the operator
 // may delete that as soon as this returns (found 2026-09-27).

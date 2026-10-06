@@ -5,6 +5,15 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The kit ships a skill set and a role-aware router (ADR-0146, lifting the freeze for that
+  one item): `research-kit/skills/<name>/`, deployed by `install.mjs` to every skill root
+  beside research-first and `--into` a project. Ten skills are vendored as received from
+  StepenkoAnatoli/SkillsMDs (Apache-2.0); thirteen are the kit's own (build-from-brief,
+  fact-request, cite-in-code, day-one-tasks, contract-tests, commit-report, map-classifier,
+  finding-rewriter, source-grader, brief-writer, freshness-recheck, adr-writer,
+  resume-from-disk); `skill-router` routes by role and gate state and never sends a
+  builder to a skill that collects. Doctor's deploy check measures the set like the skill.
+  Researched in `docs/decisions/2026-10-06-builder-skills/`.
 - A matched-arm evaluation of the kit against a strongly prompted agent with the same
   tools and budget is adopted (ADR-0145) and scaffolded as the nested project
   `docs/decisions/2026-10-06-kit-vs-prompt-evaluation/`, its protocol and grading rubrics

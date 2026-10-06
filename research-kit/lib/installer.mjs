@@ -12,8 +12,8 @@ import {
   exists, readText, writeText, ensureDir, readJson, today, sha256File, parseJson, isDirectory,
 } from './core.mjs';
 import {
-  KIT_HOME, EDIT_GATE_HOOK, RETIRED_EDIT_GATE_HOOKS, RETIRED_KIT_FILES,
-  hooksPath, setHooksPath, setPreviousHooksPath, localHooksPathOverride, runtimePaths, skillLocations, readInstallState, writeInstallState,
+  KIT_HOME, EDIT_GATE_HOOK, RETIRED_EDIT_GATE_HOOKS, RETIRED_KIT_FILES, SKILL_NAME,
+  hooksPath, setHooksPath, setPreviousHooksPath, localHooksPathOverride, runtimePaths, skillLocations, skillRoots, readInstallState, writeInstallState,
   saveConfig, loadConfig, ROLES, namesHook, repoTopLevel,
 } from './machine.mjs';
 import { KIT_ROOT, HOOK_MODE, hookExecutability } from './scaffold.mjs';
@@ -440,6 +440,21 @@ function copyTree(from, to, { prune = [], mirror = false } = {}) {
   return { written, pruned };
 }
 
+/** Where the kit keeps its skill set (ADR-0146): one directory per skill, beside `skill/`. */
+export const SKILL_SET_DIR = 'skills';
+
+/**
+ * The skill set's names: each directory under `skills/` that holds a SKILL.md, sorted. A
+ * directory without one is not a skill, and a runtime would not discover it either.
+ */
+export function shippedSkills(from = KIT_ROOT) {
+  const dir = path.join(from, SKILL_SET_DIR);
+  if (!isDirectory(dir)) return [];
+  return fs.readdirSync(dir)
+    .filter((name) => isDirectory(path.join(dir, name)) && exists(path.join(dir, name, 'SKILL.md')))
+    .sort();
+}
+
 /**
  * What is deployed, against what would be deployed now.
  *
@@ -484,6 +499,18 @@ export function deployedDrift({ from = KIT_ROOT, kitHome = KIT_HOME, env = proce
   const skills = exists(skillSource)
     ? skillLocations(env).filter((l) => isDirectory(l)).map((location) => ({ location, ...compare(skillSource, location) }))
     : [];
+  // The skill set (ADR-0146) drifts per skill. A root that holds research-first is a root the
+  // kit deploys to, so a set skill absent there is missing - an install from before the set.
+  for (const root of skillRoots(env)) {
+    if (!isDirectory(path.join(root, SKILL_NAME))) continue;
+    for (const name of shippedSkills(from)) {
+      const location = path.join(root, name);
+      const src = path.join(from, SKILL_SET_DIR, name);
+      skills.push(isDirectory(location)
+        ? { location, ...compare(src, location) }
+        : { location, missing: listTree(src), changed: [], extra: [] });
+    }
+  }
 
   const total = (d) => d.missing.length + d.changed.length + d.extra.length;
   return {
@@ -562,23 +589,38 @@ export function deploy({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env,
   const copied = copyTree(from, kitHome, { prune: RETIRED_KIT_FILES, mirror: true });
   const skills = [];
   const skillSource = path.join(from, 'skill');
+  const set = shippedSkills(from);
   if (exists(skillSource)) {
     for (const target of skillLocations(env)) {
       copyTree(skillSource, target);
       skills.push(target);
     }
+    // Each set skill is a sibling of research-first under the root, never inside it: a runtime
+    // discovers subdirectories of a skills root that hold SKILL.md (ADR-0146).
+    for (const root of skillRoots(env)) {
+      for (const name of set) {
+        copyTree(path.join(from, SKILL_SET_DIR, name), path.join(root, name));
+        skills.push(path.join(root, name));
+      }
+    }
   }
 
   let bound = '';
+  const boundSet = [];
   if (into) {
-    const dir = path.join(into, ...runtimePaths(env).projectSkillDir.split('/'), 'research-first');
+    const projectDir = path.join(into, ...runtimePaths(env).projectSkillDir.split('/'));
+    const dir = path.join(projectDir, SKILL_NAME);
     copyTree(skillSource, dir);
     bound = dir;
+    for (const name of set) {
+      copyTree(path.join(from, SKILL_SET_DIR, name), path.join(projectDir, name));
+      boundSet.push(path.join(projectDir, name));
+    }
   }
 
   const state = readInstallState(env) ?? {};
-  writeInstallState({ ...state, kitHome, deployedFrom: from, skills, bound }, env);
-  return { ok: true, from, to: kitHome, files: copied.written.length, pruned: copied.pruned, skills, bound };
+  writeInstallState({ ...state, kitHome, deployedFrom: from, skills, bound, boundSet }, env);
+  return { ok: true, from, to: kitHome, files: copied.written.length, pruned: copied.pruned, skills, bound, boundSet, skillSet: set };
 }
 
 export function uninstall({ env = process.env, gitPaths = {}, dryRun = false } = {}) {

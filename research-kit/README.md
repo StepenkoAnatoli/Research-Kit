@@ -61,6 +61,10 @@ On a machine that builds rather than collects, say so once:
 node research-kit/bin/install-hooks.mjs --role builder
 ```
 
+The install also deploys the **skill set** (`skills/`, ADR-0146) beside the research-first
+skill. Start from `skill-router`: it reads the machine role and the gate state and says which
+skills may run here - a builder is never routed to one that collects.
+
 ## The sequence
 
 The project is the **current working directory**. The kit takes no project argument.
@@ -462,7 +466,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1626 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1632 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

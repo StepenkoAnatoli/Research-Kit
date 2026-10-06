@@ -10,3 +10,23 @@ path = ["research/raw/**", "docs/decisions/*/research/raw/**"]
 precedence = "override"
 SPDX-FileCopyrightText = "the owner of each captured page - see NOTICE"
 SPDX-License-Identifier = "LicenseRef-Captured-Page"
+
+# The vendored skills (ADR-0146): received from StepenkoAnatoli/SkillsMDs under Apache-2.0
+# and shipped as received. The kit's own note beside lead-orchestrator is the kit's work.
+[[annotations]]
+path = [
+  "research-kit/skills/architecture-pass/**",
+  "research-kit/skills/auto-build/**",
+  "research-kit/skills/brainstorming/**",
+  "research-kit/skills/break-test/**",
+  "research-kit/skills/careful-coding/**",
+  "research-kit/skills/four-dimension-audit/**",
+  "research-kit/skills/gap-audit/**",
+  "research-kit/skills/improve-codebase-architecture/**",
+  "research-kit/skills/lead-orchestrator/SKILL.md",
+  "research-kit/skills/lead-orchestrator/references/agent-briefs.md",
+  "research-kit/skills/subproject-discovery/**",
+]
+precedence = "override"
+SPDX-FileCopyrightText = "Anatoli Stepenko - StepenkoAnatoli/SkillsMDs"
+SPDX-License-Identifier = "Apache-2.0"

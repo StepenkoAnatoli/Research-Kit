@@ -272,10 +272,14 @@ export function runtimePaths(env = process.env) {
   };
 }
 
-export function skillLocations(env = process.env) {
+/** The personal skill roots: the machine config's `skillRoots`, else the anchored default. */
+export function skillRoots(env = process.env) {
   const cfg = loadConfig(env);
-  const roots = cfg.skillRoots.length ? cfg.skillRoots : [...RUNTIME_ANCHORS.skillRoots];
-  return roots.map((root) => path.join(root, SKILL_NAME));
+  return cfg.skillRoots.length ? [...cfg.skillRoots] : [...RUNTIME_ANCHORS.skillRoots];
+}
+
+export function skillLocations(env = process.env) {
+  return skillRoots(env).map((root) => path.join(root, SKILL_NAME));
 }
 
 /** A retired ENVIRONMENT variable is reported, never honoured - no kit write reaches a shell. */
