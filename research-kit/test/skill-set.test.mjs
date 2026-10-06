@@ -108,7 +108,9 @@ test('auto-build readiness script rejects a missing --base value', () => {
   if (!bash) throw new Unsupported('NO_BASH', 'bash is required to run the auto-build readiness script');
 
   const script = path.join(SET, 'auto-build', 'scripts', 'pr-readiness.sh');
-  for (const args of [['123', '--base'], ['123', '--base=']]) {
+  for (const args of [
+    ['123', '--base'], ['123', '--base='], ['123', '--base', '--base=main'], ['123', '--base', '--help'],
+  ]) {
     const result = spawnSync(bash, [script, ...args], {
       encoding: 'utf8', timeout: 2_000, windowsHide: true,
     });

@@ -25,7 +25,13 @@ BASE=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --base)
-      if [ $# -lt 2 ] || [ -z "$2" ]; then
+      case "${2-}" in
+        ""|-h|--help|--base|--base=*)
+          echo "BLOCKED: --base requires a branch" >&2
+          exit 3
+          ;;
+      esac
+      if [ $# -lt 2 ]; then
         echo "BLOCKED: --base requires a branch" >&2
         exit 3
       fi
