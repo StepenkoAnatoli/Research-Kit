@@ -1,9 +1,9 @@
 # research-kit
 
 The research-first kit: a collector that turns a fetch into cached, citable evidence, and a
-gate that checks the declared research contract. When the installed hooks are operating
-and the gate has not been overridden, commits that change product code are blocked while
-the configured research checks fail.
+gate that checks the declared research contract. With the commit hook operating and no
+override in effect, a gated project's commit is blocked while preflight fails if it stages
+paths outside `research/` and the permitted project scaffolding.
 
 PASS means the configured checks passed for the declared contract. Disclosed known unknowns
 and nonblocking warnings can remain. Generated briefs, audits and package reading guides
@@ -462,7 +462,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1615 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1618 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

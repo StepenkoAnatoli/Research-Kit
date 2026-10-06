@@ -4,6 +4,7 @@
 import { test, describe, assert, makePassingProject, corrupt, fs, path } from './harness.mjs';
 import { PATHS, resolve, readText, writeText } from '../lib/core.mjs';
 import { runPreflight } from '../lib/preflight.mjs';
+import { readCorpus } from '../lib/corpus.mjs';
 import {
   draftStamp,
   BRIEF_SECTIONS, JUDGED_SECTIONS, BRIEF_FILE_MARKER, TODO_MARK,
@@ -11,6 +12,33 @@ import {
 } from '../lib/brief.mjs';
 
 describe('brief');
+
+test('failed verification qualifies CLOSED claims even when their citation or capture is missing', () => {
+  for (const missing of ['citation', 'capture']) {
+    const dir = makePassingProject();
+    if (missing === 'citation') {
+      corrupt(dir, PATHS.discovery, (text) => text.replace('E-01:', 'E-99:'));
+    } else {
+      fs.rmSync(resolve(dir, readCorpus(dir).evidence[0].raw));
+    }
+    const verdict = runPreflight(dir, { env: {} });
+    assert.equal(verdict.pass, false, `${missing} must fail the real gate`);
+    renderBrief(dir, { verdict });
+    const section = briefSection(readText(resolve(dir, PATHS.brief)), 'verified');
+    assert.match(section, /declared CLOSED claims/i, 'the section must identify declarations rather than successful verification');
+    assert.match(section, /verification has not succeeded/i);
+    assert.match(section, missing === 'citation' ? /E-99/ : /1,000 credits/, 'retain the claimed closure for review');
+  }
+});
+
+test('an unevaluated brief does not present declared closures as successful verification', () => {
+  const dir = makePassingProject();
+  renderBrief(dir);
+  const section = briefSection(readText(resolve(dir, PATHS.brief)), 'verified');
+  assert.match(section, /declared CLOSED claims/i);
+  assert.match(section, /verification has not been evaluated/i);
+  assert.match(section, /10 requests per minute/, 'the draft still contains the claim to review');
+});
 
 // A structural PASS can retain a disclosed gap; the handoff must not turn it into closure.
 test('a passing brief retains a known unknown without claiming every unknown is closed', () => {

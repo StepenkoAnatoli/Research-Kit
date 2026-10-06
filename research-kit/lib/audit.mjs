@@ -127,13 +127,13 @@ export function resolveVersion(root, slug, version = null) {
   return { slug, topic: record.topic ?? slug, version: want, date: held.date, main, subtopics };
 }
 
-/** The version a fingerprint earns: unchanged corpus, unchanged version. */
+/** Reuse only the latest observation; returning to a historical state earns a new version. */
 export function nextVersion(root, slug, fingerprint) {
   const manifest = readManifest(root);
   const record = manifest.topics?.[slug];
   if (!record) return { version: '0.1', fresh: true };
-  const match = Object.entries(record.versions ?? {}).find(([, held]) => held.fingerprint === fingerprint);
-  if (match) return { version: match[0], fresh: false };
+  const latest = record.versions?.[record.latest];
+  if (latest?.fingerprint === fingerprint) return { version: record.latest, fresh: false };
   const highest = Object.keys(record.versions ?? {}).sort(compareVersions).pop() ?? '0.0';
   const parts = String(highest).split('.').map(Number);
   return { version: `${parts[0] ?? 0}.${(parts[1] ?? 0) + 1}`, fresh: true };

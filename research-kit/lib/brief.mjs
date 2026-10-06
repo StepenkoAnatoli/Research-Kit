@@ -279,6 +279,13 @@ and gate warnings still apply; PASS does not establish that every claim is corre
 draft of an incomplete research pass: phase 2 does not start until \`${PATHS.discovery}\`
 passes. Run \`${documentCommand('preflight.mjs', '', { root })}\` to see what is unproven.`);
 
+  const closureQualification = gatePasses === true ? ''
+    : `**These are declared CLOSED claims; verification has ${gatePasses === null
+      ? 'not been evaluated' : 'not succeeded'} in this run.**
+Read the recorded claims and sources below as a draft for review, not successful verification.
+
+`;
+
   const body = `# Brief - ${topic}
 
 _Auto-drafted ${date} by \`bin/brief.mjs\` from the corpus. Sections marked ${TODO_MARK}
@@ -304,7 +311,7 @@ ${snapshot.intent || '_The contract states no build intent._'}
 
 ## ${BRIEF_SECTIONS[1].heading}
 
-${verifiedTable(snapshot)}
+${closureQualification}${verifiedTable(snapshot)}
 
 ## ${BRIEF_SECTIONS[2].heading}
 

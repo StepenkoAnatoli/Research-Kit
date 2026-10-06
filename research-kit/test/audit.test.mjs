@@ -15,6 +15,34 @@ import { holdsLock } from '../lib/provenance.mjs';
 
 describe('audit');
 
+test('returning to an earlier warning state updates the default audit bundle without rewriting history', () => {
+  for (const ages of [[1, 60, 1], [60, 1, 60]]) {
+    const date = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    const dir = makePassingProject(undefined, { date });
+    const config = resolve(tempDir(), 'config.json');
+    const env = { RESEARCH_KIT_CONFIG: config };
+    const history = [];
+    const original = [];
+    for (const maxAgeDays of ages) {
+      writeText(config, JSON.stringify({ maxAgeDays }));
+      const result = writeAudit(dir, { env });
+      history.push(result);
+      if (history.length <= 2) original.push([result.main, readText(resolve(dir, result.main))]);
+    }
+    const bundle = zipAudit(dir);
+    assert.equal(bundle.ok, true, bundle.reason);
+    const contents = readZip(fs.readFileSync(resolve(dir, bundle.file)));
+    for (const entry of contents) {
+      assert.equal(entry.text.includes('unknown-closure/stale-evidence'), ages[2] === 1,
+        `${entry.name} does not carry the most recently evaluated warning state`);
+    }
+    assert.equal(history[2].written, true, 'a return to an older state is a new observation');
+    assert.equal(bundle.version, '0.3');
+    for (const [file, text] of original) assert.equal(readText(resolve(dir, file)), text);
+    assert.equal(writeAudit(dir, { env }).written, false, 'a consecutive identical observation reuses the latest version');
+  }
+});
+
 test('standalone audits retain the full preflight warning that accompanies a pass', () => {
   const dir = makePassingProject();
   const result = writeAudit(dir, { env: {} });

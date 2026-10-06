@@ -5,6 +5,11 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The pre-merge audit of ADR-0142 closes two remaining handoff defects: a failed or
+  unevaluated brief qualifies CLOSED claims as declarations, and returning to an earlier
+  warning state earns a new audit version so the default bundle reflects the latest
+  observation (ADR-0143). Historical snapshots remain immutable. Public gate wording
+  describes path-based enforcement in gated projects and bounds PASS to checked conditions.
 - Handoffs preserve the configured gate's cautions (ADR-0142): the brief no longer turns
   PASS into a claim that every unknown is closed or that independent sources agree.
   Briefs, full and subtopic audits, package reading guides and collection summaries carry
