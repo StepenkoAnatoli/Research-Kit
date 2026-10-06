@@ -97,7 +97,13 @@ names the set exactly, is enough).
    recorded in `MANDATE.md` and `RUN.md`, any change to the head lapses it, and a resumed
    run re-checks the sha, the gate, the suite and `preflight` before merging with the head
    pinned. On a builder the merge also needs no open fact request and no evidence past
-   preflight's age limit under a requirement. Unattended runs stop at the Mandate; a
+   preflight's age limit under a requirement. **Volatile facts** (owner's choice of the
+   safest option): a requirement resting on a price, rate limit, quota, API or schema
+   version, or plan or tier boundary is volatile automatically - only the owner can
+   un-mark it, in the Mandate - and its evidence must be younger than the project's
+   `refreshDays`; stale evidence no requirement rests on is listed in the merge summary,
+   and the merge approval counts only if it acknowledges that list. No kit code changed:
+   the skill reads `REQUIREMENTS.md`, `EVIDENCE.md` and `plan.json`. Unattended runs stop at the Mandate; a
    corrected Mandate needs a fresh approval; no timeout ever acts.
 
 ## Rejected
@@ -122,6 +128,13 @@ names the set exactly, is enough).
   (base green, branches cleaned); the owner chose B.
 - **An opt-in unattended draft mode** (`Unattended: draft`): code and CI on a design nobody
   approved; not adopted.
+- **Blocking the merge on every stale fact**: unrelated old facts would hold up every
+  merge; they are shown and must be acknowledged instead.
+- **Volatile by the agent's judgment alone**: an agent could leave a price row unmarked;
+  the automatic marking can only be relaxed by the owner.
+- **A per-project `maxAgeDays` configuration key**: a new setting under the freeze;
+  `refreshDays` and the volatile marking cover the need. Trigger: a project where they
+  prove insufficient.
 - **Editing the received auto-build text** for the kit's rules: the note beside it carries
   them, so the copy stays identical to its source; if the owner edits SkillsMDs instead,
   the kit re-vendors.

@@ -24,7 +24,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   standing mandate no longer approves any of them. The merge approval names the PR's head
   commit and lapses on any change to it; a resumed run re-checks that sha, the gate, the
   suite and `preflight` before merging. A builder also needs no open fact request and no
-  stale evidence under a requirement. Unattended runs stop at the Mandate.
+  stale evidence under a requirement. Unattended runs stop at the Mandate. Requirements
+  resting on a price, limit, quota, API or schema version, or tier boundary are volatile
+  automatically and need evidence within the project's `refreshDays`; stale facts nothing
+  rests on are listed in the merge summary and must be acknowledged in the approval.
 - A matched-arm evaluation of the kit against a strongly prompted agent with the same
   tools and budget is adopted (ADR-0145) and scaffolded as the nested project
   `docs/decisions/2026-10-06-kit-vs-prompt-evaluation/`, its protocol and grading rubrics

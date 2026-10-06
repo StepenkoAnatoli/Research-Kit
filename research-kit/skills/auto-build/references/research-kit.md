@@ -110,6 +110,13 @@ is never used (ADR-0010).
 - Each row of `REQUIREMENTS.md` carries a **Rests on** cell: the evidence row(s) `E-##` it
   depends on, the unknown `U-##` it is waiting on, or `repository` when the code itself
   answers it. A row with none of these is an assumption and is listed as one.
+- Each row also carries a **Volatile** cell, `yes` or `no`. A row is
+  **volatile automatically** when any `E-##` it rests on states a price, a rate limit, a quota, an
+  API or schema version, or a plan or tier boundary; the run may mark more rows volatile,
+  never fewer. Only the owner can mark such a row `no`, in the Mandate, with his reason
+  recorded beside it. Volatile evidence must be younger than the project's
+  `research/plan.json` `refreshDays` (the stricter of that and `preflight`'s age limit),
+  not only younger than the machine's `maxAgeDays`.
 - `day-one-tasks` turns every `KNOWN-UNKNOWN` row's verification step into the first work
   units and smoke tests. They run before anything that depends on them.
 
@@ -159,10 +166,16 @@ A standing mandate's `GO MERGE` or `Merge: allowed` is read as `GO`. The merge n
 owner's word, and that word approves **one head commit**:
 
 1. **Ask.** Stage 8 stops at the open pull request and sends the merge summary: the PR, its
-   **head commit** (full sha), the checks, the gate, the suite, `preflight`, the findings and
-   what was not verified. `RUN.md` Next action: "awaiting owner: merge <sha>".
+   **head commit** (full sha), the checks, the gate, the suite, `preflight`, the findings,
+   what was not verified, and **Stale, not relied on**: every `stale-evidence` warning
+   `preflight` prints for a row no requirement rests on, by `E-##` and age. `RUN.md` Next
+   action: "awaiting owner: merge <sha>".
 2. **Record.** The owner's reply, word for word, and the sha it approves are written to
-   `MANDATE.md` and `RUN.md` - who approved which code.
+   `MANDATE.md` and `RUN.md` - who approved which code. When "Stale, not relied on" is not
+   empty, the reply must also acknowledge it ("merge <sha>, stale acknowledged", or a
+   request to re-check them first); a reply that does not is a question back, not an
+   approval. The stale rows never ship unseen, and never start a collector round-trip
+   unless the owner asks for one.
 3. **The approval lapses** on any change to the head: a push, a rebase, a fix, a base
    update merged in. The run then stops again with a new summary for the new head. An
    approval never moves to a commit the owner did not see.
@@ -177,13 +190,19 @@ two more conditions hold before the merge summary is even sent:
 
 - no `fact-request` in the run folder is still open;
 - `preflight` reports no evidence older than its age limit for any `E-##` row a requirement
-  rests on. A builder cannot re-check a fact itself, so a stale one is a `fact-request` for
-  a `freshness-recheck` on the collector, and the run stops "awaiting collector".
+  rests on;
+- every `E-##` row a **volatile** requirement rests on was retrieved within the project's
+  `refreshDays` (read from `research/plan.json` and the row's Retrieved date - two files
+  that already exist).
+
+A builder cannot re-check a fact itself, so a stale one is a `fact-request` for a
+`freshness-recheck` on the collector, and the run stops "awaiting collector".
 
 ## Before the merge: freshness
 
 - **On a collector**, `freshness-recheck` re-collects the pages behind the `E-##` rows the
-  code depends on (`research.mjs --refresh-days`). If a fact changed, the run returns to
+  code depends on (`research.mjs --refresh-days`), and behind every volatile requirement's
+  rows with `--refresh-days <refreshDays>` from `research/plan.json`. If a fact changed, the run returns to
   Stage 1 for that topic and re-plans what depended on it; it does not merge.
 - **On a builder**, a fact that may be stale becomes a `fact-request`, and the merge waits
   (see Stage 8's builder conditions).
