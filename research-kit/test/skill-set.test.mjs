@@ -237,3 +237,20 @@ test('the kit\'s own copy in a project bound earlier is still updated after the 
     assert.ok(fs.readFileSync(path.join(dir, 'SKILL.md'), 'utf8').includes('an update'), `${dir} was not updated`);
   }
 });
+
+test('a set skill is mirrored: a file the kit no longer ships is drift, and the next deploy removes it', async () => {
+  const { deploy, deployedDrift, driftNote } = await import('../lib/installer.mjs');
+  const { from, root, project, env, kitHome } = sandbox('research-kit-skillset-mirror');
+  assert.equal(deploy({ from, kitHome, env, into: project }).ok, true);
+  const orphans = [path.join(root, 'break-test', 'references', 'retired.md'),
+    path.join(project, '.claude', 'skills', 'break-test', 'references', 'retired.md')];
+  for (const file of orphans) writeText(file, 'a reference a later kit dropped\n');
+  const drift = deployedDrift({ from, kitHome, env });
+  assert.ok(drift.skills.some((s) => s.location === path.join(root, 'break-test') && s.extra.includes('references/retired.md')),
+    'the orphaned file was not reported');
+  assert.ok(drift.drifted > 0, 'an orphaned file in a set skill read as no drift');
+  assert.match(driftNote(drift), /orphaned/);
+  assert.deepEqual(deploy({ from, kitHome, env, into: project }).skillConflicts, []);
+  for (const file of orphans) assert.equal(fs.existsSync(file), false, `${file} survived the deploy`);
+  assert.ok(fs.existsSync(path.join(root, 'break-test', 'references', 'research-kit.md')), 'the mirror removed a shipped file');
+});

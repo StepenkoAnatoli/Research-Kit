@@ -1,5 +1,7 @@
 # The Mandate
 
+<!-- Modified by Research-Kit (ADR-0146): section 4 - a standing mandate no longer removes the Mandate wait; `Architectural tasks: proceed` is withdrawn. The rest is as received from StepenkoAnatoli/SkillsMDs at 3f2d2fc. -->
+
 The Mandate is the one message in an auto-build run that needs the user, and the one reply that
 authorizes everything after it. It is presented after the research is proven and the design is
 on disk, because that is the first moment the user can make an informed decision, and before any
@@ -127,7 +129,7 @@ A project that runs auto-build often can record the stable decisions in its agen
 ```markdown
 ## Auto-build mandate
 - Default reply for bounded tasks: GO MERGE
-- Architectural tasks: wait | proceed
+- Architectural tasks: wait
 - Base branch: main; working branch pattern: auto/<slug>
 - Merge method: repository default; delete branch after merge: yes; wait for base CI: yes
 - Check timeout: 45 minutes
@@ -144,20 +146,20 @@ Each line removes one reason to stop, and each trades something:
 
 | Line                          | Stop it removes                                      | What it trades away                                           |
 |-------------------------------|------------------------------------------------------|---------------------------------------------------------------|
-| Default reply `GO MERGE`      | the Mandate wait for bounded tasks                   | the chance to correct a bounded design before it is built    |
-| `Architectural tasks: proceed`| the Mandate wait for architectural tasks             | the one review that catches a wrong architecture before it costs a rebuild; the report says nobody approved |
+| Default reply `GO MERGE`      | none - it is the reply offered; the Mandate wait holds | nothing: the user still replies, and may correct the design |
 | `Unanswered questions: ...`   | a stop for a question with no safe default           | the user's answer; the run picks the most reversible reading and names it in "Decisions made without asking" |
 | `Design-change gaps: record`  | a stop when gap-audit finds a gap needing a design change | that gap stays open until the next run                   |
 | `Queue: ...`                  | the "what next?" question on a bare invocation       | the user's choice of order; the queue's order is used         |
 | `Queue: continuous`           | the stop between runs                                | the review of one run's report before the next one starts     |
 | A large page budget           | the budget question                                  | metered credits                                               |
 
-With this section present, a task that fits its lines presents the Mandate and proceeds without
-waiting, citing the section. Record "proceeded under standing mandate" in the Stage 4 log line
-so the report shows the user did not reply, and list every decision the lines made for them
-under "Decisions made without asking".
+With this section present, the run still presents the Mandate and **waits** for the user's
+reply, every task, bounded or architectural: the lines pre-answer preferences, never the
+Mandate. List every preference the lines settled under "Decisions made without asking".
 
 **Stops no standing mandate removes**, so the user knows which ones to expect:
+
+- the Mandate itself, every run;
 
 - the stop-list (section 3): scope beyond the task, invariants, data deletion, production,
   real services, force-push, gate bypass, foreign pull requests, budget overrun;

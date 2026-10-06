@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # pr-readiness.sh - read-only merge readiness check for one GitHub pull request.
 #
-# Usage: scripts/pr-readiness.sh <pr-number-or-url> [--base <branch>] [--timeout-minutes <n>]
+# Usage: scripts/pr-readiness.sh <pr-number-or-url> [--base <branch>]
 #
 # Prints the pull request's head SHA and base, one line per condition, then READY or the
 # unmet conditions. It reads, never writes. The lead confirms the rest (gate equals baseline
@@ -16,6 +16,9 @@
 # Requires: gh (authenticated), node (any version Research-Kit accepts, 22+).
 
 set -u
+
+# Modified by Research-Kit (ADR-0146): --timeout-minutes, which the parser never accepted, is
+# dropped from the usage line. The rest is as received from StepenkoAnatoli/SkillsMDs at 3f2d2fc.
 
 PR=""
 BASE=""

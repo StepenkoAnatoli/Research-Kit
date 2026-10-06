@@ -14,7 +14,10 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   resume-from-disk); `skill-router` routes by role and gate state and never sends a
   builder to a skill that collects. Doctor's deploy check measures the set like the skill.
   A skill of the same name that is not the kit's is left as it is and named, never
-  overwritten.
+  overwritten. Each set skill the kit owns is mirrored, so a file a later kit no longer
+  ships is removed and, until then, reported as drift. Five vendored auto-build files are
+  changed to agree with the kit's rules (ADR-0146 decision 3): the Mandate always waits,
+  and the merge command pins the approved head.
   Researched in `docs/decisions/2026-10-06-builder-skills/`.
 - Auto-build runs the kit's way (ADR-0146): `skills/auto-build/references/research-kit.md`
   starts every run from the router, replaces the research stage on a builder with

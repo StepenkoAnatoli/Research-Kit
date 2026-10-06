@@ -6,6 +6,10 @@ metadata:
   version: "1.0"
   origin: Auto-Build Mode (research-to-production autonomous builder), 2026-10-04
 ---
+<!-- Modified by Research-Kit (ADR-0146): the standing-mandate paragraph in Stage 4 and the ledger reference in the references list. The rest is as received from StepenkoAnatoli/SkillsMDs at 3f2d2fc. -->
+
+Inside a Research-Kit project, `references/research-kit.md` governs this run; where it and this
+file differ, it wins.
 
 # Auto-Build
 
@@ -162,13 +166,12 @@ other reply is a correction to incorporate and present again, not an approval. S
 reply as `MANDATE.md` in the run folder; it is the authorization every later stage cites.
 
 **Standing mandate.** A project may carry an "Auto-build mandate" section in its agent
-instructions (format in `references/mandate.md`). When one exists and the task is classified
-**bounded**, present the Mandate and proceed without waiting. An **architectural** task waits by
-default, because a wrong decision there is the expensive one; a standing mandate may set
-`Architectural tasks: proceed`, and then the run presents the Mandate, takes the recommended
-approach, records that no one approved it, and continues. The stop-list holds either way.
-**Unattended runs** with no standing mandate end at this stage with `RUN.md` Next action
-"awaiting Mandate" and the message ready to read.
+instructions (format in `references/mandate.md`). It pre-answers preferences only (branch
+names, merge method, audit depth, the default reply offered); it never replaces the reply.
+Every run, bounded or architectural, presents the Mandate and **waits** for the user's reply,
+and the stop-list holds either way. **Unattended runs**, standing mandate or not, end at this
+stage with `RUN.md` Next action "awaiting Mandate" and the message ready to read. No timeout
+acts on the user's behalf.
 
 ### Stage 5: Build
 
@@ -293,4 +296,5 @@ written to `RUN.md` with an accurate Next action; a partial run reported as comp
 - `assets/claude-md-auto-build-mandate.md`: a ready-to-paste standing mandate section for a
   project's agent instructions, set for the fewest stops that keep the architectural review.
 - The delegated skills keep their own references; lead-orchestrator's `references/research-kit.md`
-  and `references/run-ledger.md` are the authority for the kit protocol and the ledger.
+  is the authority for the kit protocol, and lead-orchestrator's `SKILL.md` for the run ledger
+  (`RUN.md`).

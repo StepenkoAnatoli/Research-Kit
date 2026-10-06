@@ -557,9 +557,11 @@ export function deployedDrift({ from = KIT_ROOT, kitHome = KIT_HOME, env = proce
       const location = path.join(root, name);
       const src = path.join(from, SKILL_SET_DIR, name);
       if (!setSkillIsKits(location, src, recorded)) continue;
+      // `set`: the kit mirrors a set skill, so a file it no longer ships is drift (orphaned);
+      // research-first is copied over, and its extras are not counted.
       skills.push(isDirectory(location)
-        ? { location, ...compare(src, location) }
-        : { location, missing: listTree(src), changed: [], extra: [] });
+        ? { location, set: true, ...compare(src, location) }
+        : { location, set: true, missing: listTree(src), changed: [], extra: [] });
     }
   }
 
@@ -568,7 +570,7 @@ export function deployedDrift({ from = KIT_ROOT, kitHome = KIT_HOME, env = proce
     kitHome,
     kit,
     skills,
-    drifted: total(kit) + skills.reduce((n, s) => n + s.missing.length + s.changed.length, 0),
+    drifted: total(kit) + skills.reduce((n, s) => n + s.missing.length + s.changed.length + (s.set ? s.extra.length : 0), 0),
   };
 }
 
@@ -580,7 +582,7 @@ export function driftNote(drift) {
   const kit = [say(drift.kit.missing.length, 'missing'), say(drift.kit.changed.length, 'stale'), say(drift.kit.extra.length, 'orphaned')].filter(Boolean);
   if (kit.length) parts.push(`kit: ${kit.join(', ')}`);
   for (const s of drift.skills) {
-    const bits = [say(s.missing.length, 'missing'), say(s.changed.length, 'stale')].filter(Boolean);
+    const bits = [say(s.missing.length, 'missing'), say(s.changed.length, 'stale'), say(s.set ? s.extra.length : 0, 'orphaned')].filter(Boolean);
     if (bits.length) parts.push(`skill ${s.location}: ${bits.join(', ')}`);
   }
   const sample = [...drift.kit.missing, ...drift.kit.changed].slice(0, 3);
@@ -651,8 +653,10 @@ export function deploy({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env,
   }
   // Each set skill is a sibling of research-first under the root, never inside it: a runtime
   // discovers subdirectories of a skills root that hold SKILL.md (ADR-0146).
+  // Mirrored: the folder is the kit's (`setSkillTargets`), so a reference or script a later kit
+  // no longer ships is removed rather than left to steer the skill (ADR-0146 decision 5).
   for (const t of write.filter((w) => !w.bound)) {
-    copyTree(path.join(from, SKILL_SET_DIR, t.name), t.target);
+    copyTree(path.join(from, SKILL_SET_DIR, t.name), t.target, { mirror: true });
     skills.push(t.target);
   }
 
@@ -664,7 +668,7 @@ export function deploy({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env,
     copyTree(skillSource, dir);
     bound = dir;
     for (const t of write.filter((w) => w.bound)) {
-      copyTree(path.join(from, SKILL_SET_DIR, t.name), t.target);
+      copyTree(path.join(from, SKILL_SET_DIR, t.name), t.target, { mirror: true });
       boundSet.push(t.target);
     }
   }

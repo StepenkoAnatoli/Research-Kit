@@ -1,5 +1,7 @@
 # Merge Protocol
 
+<!-- Modified by Research-Kit (ADR-0146): the merge command in section 6 pins the approved head SHA. The rest is as received from StepenkoAnatoli/SkillsMDs at 3f2d2fc. -->
+
 Stage 8 of auto-build. The pull request is the run's delivery; the merge is the one irreversible
 action in the run, so it has the strictest entry conditions and the most explicit record. The
 protocol is written for GitHub and the `gh` CLI; section 8 covers other hosts.
@@ -119,8 +121,12 @@ only when the repository allows nothing else or the Mandate asks, and then recor
 commit against every unit it absorbed.
 
 ```
-gh pr merge <number> --merge   # or --squash / --rebase per the above
+gh pr merge <number> --merge --match-head-commit <approved-sha>   # or --squash / --rebase per the above
 ```
+
+`<approved-sha>` is the head SHA the readiness check printed and the approval named. Pinning it
+makes the merge refuse if the head moved after the check, so only the approved commit can be
+merged.
 
 Add `--delete-branch` only when the Mandate says to delete the branch. Never pass `--admin`,
 never pass `--auto` to leave the merge to a bot, and never use a review approval from the user's

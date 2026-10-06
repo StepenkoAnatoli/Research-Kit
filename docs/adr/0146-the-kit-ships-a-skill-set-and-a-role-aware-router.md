@@ -67,6 +67,20 @@ names the set exactly, is enough).
 
    The two `.docx` documents in the source (guided-build mode, writing plans) are not
    skills and are not shipped.
+
+   **Changed after receipt** (2026-10-06, pull-request review), each file marked at its
+   top as Apache-2.0 section 4(b) asks: auto-build's `SKILL.md` (the standing mandate no
+   longer skips the Mandate wait, so it says what decision 6 says; it names
+   `references/research-kit.md` as governing; the missing `references/run-ledger.md` is
+   replaced by lead-orchestrator's `SKILL.md`), `references/mandate.md` (section 4 to
+   match; `Architectural tasks: proceed` withdrawn), `assets/claude-md-auto-build-mandate.md`
+   (the same), `references/merge-protocol.md` (the merge command pins the approved head
+   with `--match-head-commit`), and `scripts/pr-readiness.sh` (the usage line drops
+   `--timeout-minutes`, which the parser never accepted). Left as received, the shipped
+   skill contradicted the kit note that governs it, and an agent reading only `SKILL.md`
+   could build without an approval or merge a head nobody approved. Rejected: leaving the
+   files as received and relying on the kit note alone - the reviewer showed `SKILL.md` did
+   not say the note wins, so the contradiction was the agent's to resolve.
 4. **The kit writes thirteen skills of its own** around its main idea - evidence before
    building, and a clean handoff. Builder: build-from-brief, fact-request, cite-in-code,
    day-one-tasks, contract-tests, commit-report. Collector: map-classifier,
