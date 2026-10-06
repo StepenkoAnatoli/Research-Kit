@@ -24,8 +24,22 @@ PR=""
 BASE=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --base) BASE="${2:-}"; shift 2 ;;
-    --base=*) BASE="${1#--base=}"; shift ;;
+    --base)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then
+        echo "BLOCKED: --base requires a branch" >&2
+        exit 3
+      fi
+      BASE="$2"
+      shift 2
+      ;;
+    --base=*)
+      BASE="${1#--base=}"
+      if [ -z "$BASE" ]; then
+        echo "BLOCKED: --base requires a branch" >&2
+        exit 3
+      fi
+      shift
+      ;;
     -h|--help) sed -n '2,19p' "$0"; exit 3 ;;
     *) if [ -z "$PR" ]; then PR="$1"; shift; else echo "BLOCKED: unexpected argument: $1" >&2; exit 3; fi ;;
   esac
