@@ -313,6 +313,58 @@ test('an unedited draft is redrafted without --force, and nothing is backed up',
   assert.match(readText(resolve(dir, PATHS.brief)), /Gate: PASS/);
 });
 
+test('a passing brief retains full reasons and targets from the whole warning evaluation', () => {
+  const dir = makePassingProject();
+  renderBrief(dir, {
+    verdict: {
+      pass: true,
+      counts: { fail: 0, warn: 5 },
+      warnings: [
+        { severity: 'warn', check: 'unknown-closure', rule: 'single-witness-stale', unknown: 'U-1', detail: 'The single witness is older than policy.', fix: 'Refresh its capture.' },
+        { severity: 'warn', check: 'citations', rule: 'raw-thin', row: 'E-1', detail: 'The capture contains too little page text.' },
+        { severity: 'warn', check: 'hygiene', rule: 'brief-stale', detail: 'The brief predates the current inputs.' },
+        { severity: 'warn', check: 'hygiene', rule: 'brief-unstamped', detail: 'The brief currency cannot be checked.' },
+        { severity: 'warn', check: 'gate-integrity', rule: 'local-hooks-path', detail: 'The repository hooks path displaces the machine gate.' },
+      ],
+    },
+  });
+  const text = readText(resolve(dir, PATHS.brief));
+  assert.match(text, /Gate: PASS\./);
+  const warnings = text.slice(text.indexOf('Gate warnings from'), text.indexOf('## Intent'));
+  assert.match(warnings, /evaluation: 5/);
+  assert.match(warnings, /unknown-closure\/single-witness-stale[^\n]*U-1/);
+  assert.match(warnings, /citations\/raw-thin[^\n]*E-1/);
+  assert.match(warnings, /brief-stale/);
+  assert.match(warnings, /brief-unstamped/);
+  assert.match(warnings, /local-hooks-path/);
+  assert.match(warnings, /The single witness is older than policy/);
+  assert.match(warnings, /Refresh its capture/);
+  assert.equal(briefState(text), 'draft', 'presenting warnings does not finish the review');
+});
+
+test('a passing brief labels brief and machine warnings as retained observations without changing its review state', () => {
+  const dir = makePassingProject();
+  renderBrief(dir, {
+    verdict: {
+      pass: true,
+      counts: { fail: 0, warn: 3 },
+      warnings: [
+        { severity: 'warn', check: 'hygiene', rule: 'brief-stale', detail: 'The brief predates the current inputs.' },
+        { severity: 'warn', check: 'hygiene', rule: 'brief-unstamped', detail: 'The brief currency cannot be checked.' },
+        { severity: 'warn', check: 'gate-integrity', rule: 'local-hooks-path', detail: 'The repository hooks path displaces the machine gate.' },
+      ],
+    },
+  });
+  const text = readText(resolve(dir, PATHS.brief));
+  assert.match(text, /\*\*Gate: PASS\.\*\*/);
+  assert.match(text, /whole corpus at the time of this evaluation/);
+  assert.match(text, /Re-run\npreflight after edits/);
+  assert.match(text, /brief-stale/);
+  assert.match(text, /brief-unstamped/);
+  assert.match(text, /local-hooks-path/);
+  assert.equal(briefState(text), 'draft', 'warning visibility does not approve the handoff');
+});
+
 // The stamp was anchored to the end of the file until 2026-10-03, so a line appended after
 // it - the `Reviewed by: agent` line AGENTS.md asks for - made `draftStamp` return null: the
 // draft read as unstamped, and the edit went unseen (review of the G1 fix).

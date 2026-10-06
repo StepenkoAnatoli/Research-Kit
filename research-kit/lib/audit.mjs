@@ -161,7 +161,7 @@ export function fingerprintOf(corpus, verdict = null) {
     chain: corpus.ledger.entries.length,
     // Warnings depend on policy and age as well as the corpus. A changed evaluation
     // earns a new immutable snapshot; legacy fingerprints earn their first warning-aware
-    // version on the next render (ADR-0142), without rewriting an existing audit.
+    // version on the next render (ADR-0143), without rewriting an existing audit.
     gate: verdict ? {
       pass: verdict.pass,
       blocking: verdict.counts.fail,

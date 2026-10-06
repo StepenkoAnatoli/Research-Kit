@@ -1,4 +1,4 @@
-# ADR-0142: A passing handoff keeps the gate's cautions
+# ADR-0143: A passing handoff keeps the gate's cautions
 
 Date: 2026-10-05
 Status: accepted. Refines the presentation responsibilities of ADR-0014, ADR-0019 and
@@ -22,13 +22,20 @@ These are output defects: policy already reports the uncertainty, but the handof
 Regression fixtures reproduce the cases with the real preflight evaluation, including a
 single-source warning, secondary evidence, an open contract and a disclosed private quota.
 
+During PR preparation, main independently added an identifier-only brief warning list
+that filtered brief freshness and gate-integrity findings (PR-253). This decision
+supersedes that presentation: those findings also describe limits of the handoff or its
+enforcement. They are retained as observations of the supplied evaluation, with the
+instruction to rerun after edits. Main's watchdog-budget ADR keeps 0142; this ADR was
+renumbered from 0142 to 0143, and the chronological-audit clarification to 0144.
+
 ## Decision
 
 - PASS says the configured research checks passed. It makes no assertion of complete
   closure, independent corroboration or factual correctness. The known-unknown section
   reports the declared status; the contradictions section asks the reviewer for a judgment.
 - `lib/render.mjs` owns a pure Markdown presentation of an existing verdict's warnings.
-  It retains each check/rule, full reason and suggested remedy. A missing evaluation or
+  It retains each check/rule, supplied row/unknown target, full reason and suggested remedy. A missing evaluation or
   warning observation is explicitly unavailable; only an observed empty list prints zero.
   No policy is selected and no evaluation runs in this renderer.
 - The brief preamble, full and subtopic audits, package README-FIRST and collection summary
@@ -55,6 +62,10 @@ single-source warning, secondary evidence, an open contract and a disclosed priv
 - **Only the warning count, or only warnings guessed to concern a subtopic.** A count
   loses the reason. Global findings may have no row ID; guessing applicability would
   silently discard cautions, so subtopic files label the warnings as whole-corpus findings.
+- **Filtering brief freshness and gate-integrity warnings from the handoff.** The
+  observation can matter to a builder's confidence in freshness or enforcement. Labeling
+  its evaluation time and rerun step handles the fact that drafting may change the brief;
+  filtering would remove the caution entirely. Warning severity and approval stay unchanged.
 - **Rewriting historical audits.** It violates their immutability. Version selection fixes
   a current output without changing what an earlier pass recorded.
 - **A new structured warning field in packages or MCP results.** That changes a machine

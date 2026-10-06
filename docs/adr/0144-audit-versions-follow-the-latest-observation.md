@@ -1,7 +1,7 @@
-# ADR-0143: Audit versions follow the latest observation
+# ADR-0144: Audit versions follow the latest observation
 
 Date: 2026-10-05
-Status: accepted. Clarifies ADR-0142's version reuse rule; ADR-0019's immutable snapshots
+Status: accepted. Clarifies ADR-0143's version reuse rule; ADR-0019's immutable snapshots
 and manifest-based bundle remain in force. A lifecycle bug fix under ADR-0117, with no
 new command, flag, schema, check or authorization rule.
 
@@ -13,7 +13,7 @@ the historical v0.1 fingerprint and returned before updating the manifest's late
 pointer. Default bundling therefore retained v0.2, which omitted the current warning.
 The opposite cycle retained a warning that no longer appeared in the current evaluation.
 
-ADR-0142 made warning observations part of the audit fingerprint, exposing the historical
+ADR-0143 made warning observations part of the audit fingerprint, exposing the historical
 reuse defect. Its statement that identical corpus and evaluation reuse an existing
 version did not distinguish a consecutive identical observation from a return to history.
 

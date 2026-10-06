@@ -1,4 +1,4 @@
-// render.mjs - terminal tables and Markdown findings. Presentation only (ADR-0142).
+// render.mjs - terminal tables and Markdown findings. Presentation only (ADR-0143).
 
 const SEVERITY_ORDER = { fail: 0, warn: 1, info: 2, pass: 3 };
 
@@ -47,7 +47,10 @@ export function renderGateWarnings(verdict) {
     for (const finding of warnings) {
       const code = finding.rule && finding.rule !== finding.check
         ? `${finding.check}/${finding.rule}` : finding.check;
-      lines.push(`- **${code}**: ${finding.detail}`);
+      const targets = [finding.row, finding.unknown]
+        .filter((value) => value !== undefined && value !== null && String(value) !== '')
+        .map(String);
+      lines.push(`- **${code}**${targets.length ? ` (${targets.join(', ')})` : ''}: ${finding.detail}`);
       if (finding.fix) lines.push(`  Fix: ${finding.fix}`);
     }
   }

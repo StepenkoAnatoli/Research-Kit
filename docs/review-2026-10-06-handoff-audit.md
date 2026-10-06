@@ -9,7 +9,7 @@ provides the scope and limitations; this review does not establish downstream er
 | Finding | Reproduction | Correction | Verification |
 |---|---|---|---|
 | P2: failed or unevaluated closures looked verified | A CLOSED unknown cited missing E-99, or its raw capture was absent. Real preflight failed, but the verified section printed the claim without qualification. Drafting without a verdict did the same. | The section labels these as declared CLOSED claims and says verification has not succeeded or has not been evaluated. Claims and citations remain visible for review. | verified: both failed fixtures and the unevaluated case failed regression assertions before the fix and passed afterward; an independent reviewer repeated the cases. |
-| P2: returning warnings left the default bundle on an intervening observation | Over a 30-day-old corpus, maxAgeDays 1 -> 60 -> 1 returned historical v0.1 without updating latest from v0.2. Default ZIP omitted the current warning. The opposite cycle retained an obsolete warning. | Only the latest identical fingerprint is reused. A -> B -> A earns v0.1, v0.2, v0.3; the next A reuses v0.3. Historical snapshots stay immutable. [ADR-0143](adr/0143-audit-versions-follow-the-latest-observation.md) records the alternative and reason. | verified: both cycles passed through real preflight and the default ZIP reader; historical bytes were captured at creation and remained unchanged. Independent probing also checked historical reads and latest reuse. |
+| P2: returning warnings left the default bundle on an intervening observation | Over a 30-day-old corpus, maxAgeDays 1 -> 60 -> 1 returned historical v0.1 without updating latest from v0.2. Default ZIP omitted the current warning. The opposite cycle retained an obsolete warning. | Only the latest identical fingerprint is reused. A -> B -> A earns v0.1, v0.2, v0.3; the next A reuses v0.3. Historical snapshots stay immutable. [ADR-0144](adr/0144-audit-versions-follow-the-latest-observation.md) records the alternative and reason. | verified: both cycles passed through real preflight and the default ZIP reader; historical bytes were captured at creation and remained unchanged. Independent probing also checked historical reads and latest reuse. |
 | P2: public wording overstated the gate | The introduction said product-code commits were blocked. The gate classifies paths and allows research/scaffolding paths; it does not inspect code meaning. Older PASS/FAIL descriptions implied semantic correctness. | Describe gated projects, operating hooks, overrides and staged path boundaries. PASS/FAIL describe the command's checked conditions; the edit hook's ask and hard-block modes are distinguished. | verified: read-only review checked the revised wording against gate and edit-hook branches. |
 | Guide clarification: independent work could be read as waiving a red suite | The optional guide allowed independent work after an unresolved fact without mentioning the standing protocol's red-test exception. | Explicitly retain immediate reporting with cwd and the requirement to fix or record and explain the failure before development resumes. | verified: final read-only text review found no remaining issue in the guide's roles, certainty or stopping guidance. |
 
@@ -62,3 +62,20 @@ successful runs. Those initial failures are not product or suite failures. The l
 documentation helper also stopped on a newline assumption before inserting the ADR index
 row; the corrected helper exited 0 and left the table contiguous. The source commit's
 five-part report records the substantive implementation mistakes, impacts and corrections.
+
+## Integration with updated main
+
+GitHub main advanced to `3b295ff` before PR publication. Integration preserves its
+watchdog-budget changes and resolves the competing brief warning presentation through
+the shared renderer. It keeps whole-evaluation warnings and their reasons, and retains
+main's row/unknown targets even when only supplied as finding metadata.
+
+The handoff ADR is now 0143 and chronological-audit ADR 0144; main's watchdog ADR remains
+0142. The earlier commit IDs and test results above describe the audited pre-integration
+tree. A metadata-target regression was verified red (34 passed, 1 failed) before the
+renderer fix. The integrated focused run of brief, audit, artifact-producer, MCP, renderer,
+gate, hook and handoff groups passed with 254 passed, 0 failed and 2 unsupported Windows
+symlink capabilities. Both research projects passed their own preflight and handoff again.
+A read-only integration review found no actionable issue in the staged diff and ADR
+references. Enforced full-suite verification of the integrated tree is pending and is not
+established by the earlier full-suite result.
