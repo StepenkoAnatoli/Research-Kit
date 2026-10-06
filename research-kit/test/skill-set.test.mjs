@@ -191,3 +191,49 @@ test('deploy leaves a same-named skill that is not the kit\'s as it is, and drif
   assert.equal(drift.skills.some((s) => s.location === path.join(root, 'brainstorming')), false, 'somebody else\'s skill was reported as drift');
   assert.equal(drift.drifted, 0);
 });
+
+/** A disposable kit source, skill root, project and install state, for deploys that change the source. */
+function sandbox(prefix) {
+  const from = path.join(tempDir(`${prefix}-from-`), 'research-kit');
+  fs.cpSync(KIT_ROOT, from, { recursive: true, filter: (src) => !/[\\/](node_modules|__pycache__)$/.test(src) });
+  const root = tempDir(`${prefix}-root-`);
+  const project = tempDir(`${prefix}-project-`);
+  writeText(path.join(project, 'AGENTS.md'), '# a project\n');
+  const cfg = path.join(tempDir(`${prefix}-cfg-`), 'c.json');
+  writeText(cfg, JSON.stringify({ skillRoots: [root] }));
+  const env = {
+    ...process.env,
+    RESEARCH_KIT_CONFIG: cfg,
+    RESEARCH_KIT_INSTALL_STATE: path.join(tempDir(`${prefix}-state-`), 'install.json'),
+  };
+  const kitHome = path.join(tempDir(`${prefix}-home-`), 'research-kit');
+  return { from, root, project, env, kitHome };
+}
+
+test('a recorded path is not ownership: a user skill put where the kit\'s was is left as it is', async () => {
+  const { deploy } = await import('../lib/installer.mjs');
+  const { from, root, env, kitHome } = sandbox('research-kit-skillset-replaced');
+  assert.equal(deploy({ from, kitHome, env }).ok, true);
+  fs.rmSync(path.join(root, 'brainstorming'), { recursive: true, force: true });
+  const own = '---\nname: brainstorming\ndescription: MINE\n---\n';
+  writeText(path.join(root, 'brainstorming', 'SKILL.md'), own);
+  assert.ok(deploy({ from, kitHome, env, dryRun: true }).skillConflicts.includes(path.join(root, 'brainstorming')));
+  const result = deploy({ from, kitHome, env });
+  assert.ok(result.skillConflicts.includes(path.join(root, 'brainstorming')));
+  assert.equal(fs.readFileSync(path.join(root, 'brainstorming', 'SKILL.md'), 'utf8'), own, 'the user\'s skill was overwritten through the record');
+});
+
+test('the kit\'s own copy in a project bound earlier is still updated after the source changed', async () => {
+  const { deploy, deployedDrift } = await import('../lib/installer.mjs');
+  const { from, root, project, env, kitHome } = sandbox('research-kit-skillset-update');
+  assert.equal(deploy({ from, kitHome, env, into: project }).ok, true);
+  assert.equal(deploy({ from, kitHome, env }).ok, true);
+  fs.appendFileSync(path.join(from, 'skills', 'brainstorming', 'SKILL.md'), '\nan update\n');
+  assert.ok(deployedDrift({ from, kitHome, env }).skills.some((s) => s.location === path.join(root, 'brainstorming') && s.changed.includes('SKILL.md')),
+    'the kit\'s stale copy was not reported as drift');
+  const result = deploy({ from, kitHome, env, into: project });
+  assert.deepEqual(result.skillConflicts, [], 'the kit\'s own stale copies were taken for somebody else\'s');
+  for (const dir of [path.join(root, 'brainstorming'), path.join(project, '.claude', 'skills', 'brainstorming')]) {
+    assert.ok(fs.readFileSync(path.join(dir, 'SKILL.md'), 'utf8').includes('an update'), `${dir} was not updated`);
+  }
+});

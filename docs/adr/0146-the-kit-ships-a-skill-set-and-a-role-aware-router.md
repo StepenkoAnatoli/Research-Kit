@@ -76,7 +76,8 @@ names the set exactly, is enough).
    `deployedDrift` compares each against every root where research-first is deployed, so
    a machine installed before the set existed reads as drift with the remedy
    (`install.mjs`), never repaired by doctor. A folder of the same name that is not the
-   kit's - absent from the install state and holding another SKILL.md - is never written:
+   kit's - its SKILL.md neither the hash the kit last deployed there (`skillSetHashes`,
+   kept across deploys) nor the one it ships now - is never written:
    the deploy leaves it, names it (the dry run too), and drift does not count it.
 
 6. **Auto-build runs the kit's way, from a note beside it** (owner order, 2026-10-06):

@@ -52,7 +52,7 @@ if (result.refused) {
 
 if (result.dryRun) {
   process.stdout.write(`would deploy ${result.from}\n           -> ${result.to}\nwould prune: ${result.prune.join(', ') || '(nothing)'}\n`);
-  for (const target of result.skillConflicts) process.stderr.write(`would leave ${target} as it is: a skill of the same name that is not the kit's\n`);
+  for (const target of result.skillConflicts) process.stderr.write(`would leave ${target} as it is: a skill of the same name that is not the kit's, or the kit's copy edited since it was deployed\n`);
   process.exit(0);
 }
 
@@ -64,7 +64,7 @@ const perRoot = new Map();
 for (const l of result.skills.filter((s) => setNames.has(path.basename(s)))) perRoot.set(path.dirname(l), (perRoot.get(path.dirname(l)) ?? 0) + 1);
 for (const [root, n] of perRoot) process.stdout.write(`skill set (${n} of ${result.skillSet.length}) -> ${root}\n`);
 for (const target of result.skillConflicts) {
-  process.stderr.write(`left ${target} as it is: a skill of the same name that is not the kit's. `
+  process.stderr.write(`left ${target} as it is: a skill of the same name that is not the kit's, or the kit's copy edited since it was deployed. `
     + 'Rename or remove it, then run install again, to get the kit\'s.\n');
 }
 if (result.bound) process.stdout.write(`bound into project -> ${result.bound}${result.boundSet.length ? ` (+ ${result.boundSet.length} set skills beside it)` : ''}\n`);

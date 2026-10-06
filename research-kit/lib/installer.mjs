@@ -456,24 +456,31 @@ export function shippedSkills(from = KIT_ROOT) {
 }
 
 /**
- * Whether a set skill's target folder may be written: it is absent, the install state records
- * the kit deployed it there, or it already holds the kit's own SKILL.md byte for byte. Any
- * other folder is somebody else's skill that happens to share a name - `brainstorming` is a
- * common one - and the deploy had overwritten its SKILL.md and left its other files mixed
- * with the kit's (found 2026-10-06, review). Such a folder is left as it is and reported.
+ * Whether a set skill's target folder may be written: it is absent, or its SKILL.md is,
+ * byte for byte, the one the kit last deployed there (`skillSetHashes` in the install state)
+ * or the one it would deploy now. Any other folder is somebody else's skill that happens to
+ * share a name - `brainstorming` is a common one - and the deploy had overwritten its
+ * SKILL.md and left its other files mixed with the kit's (found 2026-10-06, review). Such a
+ * folder is left as it is and reported.
+ *
+ * The content decides, never the path alone: a recorded path outlives the kit's copy, and a
+ * user who replaced it had his skill overwritten through the record (second review, same
+ * day). The hashes accumulate across deploys, so the kit's copy in a project bound earlier is
+ * still recognised after an update changed the source.
  */
-function setSkillIsKits(target, src, recorded) {
+function setSkillIsKits(target, src, hashes) {
   if (!exists(target)) return true;
-  if (recorded.has(path.resolve(target))) return true;
   const mine = path.join(target, 'SKILL.md');
-  return isDirectory(target) && exists(mine) && sha256File(mine) === sha256File(path.join(src, 'SKILL.md'));
+  if (!isDirectory(target) || !exists(mine)) return false;
+  const current = sha256File(mine);
+  return current === hashes[path.resolve(target)] || current === sha256File(path.join(src, 'SKILL.md'));
 }
 
-/** Every set-skill path the install state records the kit wrote. */
+/** The SKILL.md hash the kit last deployed at each set-skill path, from the install state. */
 function recordedSetSkills(env) {
-  const state = readInstallState(env) ?? {};
-  const list = [...(Array.isArray(state.skills) ? state.skills : []), ...(Array.isArray(state.boundSet) ? state.boundSet : [])];
-  return new Set(list.filter((l) => typeof l === 'string' && l).map((l) => path.resolve(l)));
+  const recorded = (readInstallState(env) ?? {}).skillSetHashes;
+  if (!recorded || typeof recorded !== 'object' || Array.isArray(recorded)) return {};
+  return Object.fromEntries(Object.entries(recorded).filter(([, h]) => typeof h === 'string'));
 }
 
 /**
@@ -662,8 +669,10 @@ export function deploy({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env,
     }
   }
 
+  const skillSetHashes = recordedSetSkills(env);
+  for (const t of write) skillSetHashes[path.resolve(t.target)] = sha256File(path.join(t.target, 'SKILL.md'));
   const state = readInstallState(env) ?? {};
-  writeInstallState({ ...state, kitHome, deployedFrom: from, skills, bound, boundSet }, env);
+  writeInstallState({ ...state, kitHome, deployedFrom: from, skills, bound, boundSet, skillSetHashes }, env);
   return { ok: true, from, to: kitHome, files: copied.written.length, pruned: copied.pruned, skills, bound, boundSet, skillSet: set, skillConflicts: conflicts };
 }
 
