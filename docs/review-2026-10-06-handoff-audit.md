@@ -77,5 +77,18 @@ renderer fix. The integrated focused run of brief, audit, artifact-producer, MCP
 gate, hook and handoff groups passed with 254 passed, 0 failed and 2 unsupported Windows
 symlink capabilities. Both research projects passed their own preflight and handoff again.
 A read-only integration review found no actionable issue in the staged diff and ADR
-references. Enforced full-suite verification of the integrated tree is pending and is not
-established by the earlier full-suite result.
+references.
+
+- **verified:** the enforced local commit gate accepted integrated merge `4004017` after
+  the full checkout suite reported 1,619 passed, 0 failed, 7 unsupported capabilities and
+  exit 0. The result reports 863.6 seconds across 76 files on Node 24.20.0 / win32.
+  Its total of 1,626 tests matches the integrated technical README. The explicit local
+  `RESEARCH_KIT_ALLOW_UNSUP=1` waiver still applies; this is not a full capability pass.
+  The owned gate and suite processes both exited 0. No hook bypass was used.
+- **verified:** an earlier integrated commit attempt exited 1 without a completed suite
+  result or diagnostic verdict. Publication stopped; the cause remains unknown. The
+  identical staged source was retried through the same enforced gate and produced the
+  completed result above. The interrupted attempt is not claimed as a passing run or a
+  reproduced failing test.
+- **untested:** the integrated branch's remote CI and a controlled downstream outcome
+  pilot. Local validation does not establish either result.
