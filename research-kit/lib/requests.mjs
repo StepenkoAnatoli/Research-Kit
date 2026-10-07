@@ -188,10 +188,11 @@ export function listRequests(project) {
   return out;
 }
 
-/** The contract's unknown ids, in table order. */
-export function contractIds(project) {
+/** The status of a contract unknown, or '' when it is not present. */
+export function contractUnknownStatus(project, id) {
   const table = parseTable(readText(path.join(project, 'research', 'DISCOVERY.md'), ''), HEADERS.unknowns);
-  return table.rows.map((r) => String(r.cells[0] ?? '').trim()).filter(Boolean);
+  const row = table.rows.find((entry) => String(entry.cells[0] ?? '').trim() === id);
+  return String(row?.cells[3] ?? '').trim().toUpperCase();
 }
 
 /**

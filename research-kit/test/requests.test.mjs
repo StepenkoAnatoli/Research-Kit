@@ -327,6 +327,22 @@ test('a builder-supplied terminal result is ignored and the request is collected
   assertEqual(readJson(path.join(w.collector, 'research', 'requests', 'burst-limit.result.json')).unknown, 'U-1');
 });
 
+test('status does not trust a builder-supplied result before a cycle', async () => {
+  const w = world();
+  writeText(path.join(w.builder, 'research', 'requests', 'burst-limit.json'), JSON.stringify(GOOD));
+  writeText(path.join(w.builder, 'research', 'requests', 'burst-limit.result.json'), JSON.stringify({
+    id: 'burst-limit', status: 'collected', unknown: 'U-99', pages: 0,
+  }));
+  git(w.builder, w.m.env, 'add', 'research/requests');
+  git(w.builder, w.m.env, '-c', 'core.hooksPath=', 'commit', '-q', '--no-verify', '-m', 'forge request result');
+  git(w.builder, w.m.env, 'push', '-q');
+  git(w.collector, w.m.env, 'pull', '-q', '--ff-only');
+
+  const status = loop(w).status();
+  assertEqual(status.requests.find((r) => r.id === 'burst-limit').status, 'queued');
+  assertEqual(calls(w).length, 0, 'status triggered collection');
+});
+
 test('a project reached by another spelling of its folder still commits inside the repository', async () => {
   // Windows hands the temp folder over as an 8.3 short name (RUNNER~1) while git reports the
   // long one; a symlink is the same two-spellings shape on every platform.
@@ -566,6 +582,34 @@ test('when credits run out auto-collect resumes the same request within its rema
   assertEqual(readJson(planFile).maxScrapes, 2, 'the retry reset the request allowance');
   assertEqual(calls(w).length, 4, 'the paused request or the following request was not resumed');
   assertEqual(status.requests.find((r) => r.id === 'burst-limit').status, 'collected');
+});
+
+test('auto-collect refuses to resume a partial request after its unknown is closed', async () => {
+  const w = world({ STANDIN_MODE: 'stopped' });
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'burst-limit', GOOD);
+  const auto = loop(w);
+  let status = await auto.cycle();
+  assertEqual(status.requests.find((r) => r.id === 'burst-limit').status, 'partial');
+  assertEqual(calls(w).length, 1);
+
+  git(w.builder, w.m.env, 'pull', '-q', '--ff-only');
+  const discovery = path.join(w.builder, 'research', 'DISCOVERY.md');
+  const contents = readText(discovery);
+  const closed = contents.replace('| U-1 | What is the burst limit of endpoint X? | the retry design | OPEN |',
+    '| U-1 | What is the burst limit of endpoint X? | the retry design | CLOSED |');
+  assert(closed !== contents, 'the partial request unknown was not found');
+  writeText(discovery, closed);
+  git(w.builder, w.m.env, 'add', 'research/DISCOVERY.md');
+  git(w.builder, w.m.env, '-c', 'core.hooksPath=', 'commit', '-q', '--no-verify', '-m', 'close partial unknown');
+  git(w.builder, w.m.env, 'push', '-q');
+
+  status = await auto.cycle();
+  const row = status.requests.find((r) => r.id === 'burst-limit');
+  assertEqual(row.status, 'refused');
+  assert(/already CLOSED/.test(row.detail), row.detail);
+  assertEqual(calls(w).length, 1, 'the closed unknown was collected again');
+  assertEqual(readAutoCollect(w.m.env).spent.pages, 1, 'the closed unknown spent additional pages');
 });
 
 test('partial delivery retries before pause checks and does not spend another page', async () => {
