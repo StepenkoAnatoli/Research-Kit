@@ -119,13 +119,26 @@ export function requestPages(request, perRequestPages) {
   return Number.isInteger(request?.maxPages) ? Math.min(request.maxPages, perRequestPages) : perRequestPages;
 }
 
+/** True when `file` is a symbolic link, dangling or not. */
+function isSymlink(file) {
+  try { return fs.lstatSync(file).isSymbolicLink(); } catch { return false; }
+}
+
+/** Refuse to write a collector-owned file through a link: `writeText` follows link targets. */
+function refuseSymlink(file) {
+  if (isSymlink(file)) throw new Error(`${path.basename(file)} is a symbolic link - the collector does not write through links`);
+}
+
 /**
  * Every request in the project, oldest name first: `{ id, file, request, parseError, result }`.
  * A name that is not an id is listed with `ignored` and never read - the result file it would
- * need could not be named safely.
+ * need could not be named safely. So is a request that is, or whose `.plan.json`/`.result.json`
+ * is, a symbolic link: a link committed by a builder would make the collector read or overwrite
+ * a file of its own machine.
  */
 export function listRequests(project) {
   const dir = path.join(project, REQUESTS_DIR);
+  if (isSymlink(dir)) return [];
   let names = [];
   try { names = fs.readdirSync(dir).filter((n) => n.endsWith('.json')).sort(); } catch { return []; }
   const out = [];
@@ -134,6 +147,8 @@ export function listRequests(project) {
     const id = name.slice(0, -'.json'.length);
     const file = path.join(dir, name);
     if (!REQUEST_ID.test(id)) { out.push({ id, file, ignored: 'the name must be lower-case letters, digits and dashes' }); continue; }
+    const linked = [file, path.join(dir, `${id}.plan.json`), path.join(dir, `${id}.result.json`)].filter(isSymlink);
+    if (linked.length) { out.push({ id, file, ignored: `${linked.map((f) => path.basename(f)).join(', ')} is a symbolic link` }); continue; }
     let request = null;
     let parseError = '';
     let size = 0;
@@ -159,6 +174,8 @@ export function contractIds(project) {
  * throws when the row it names does not exist.
  */
 export function applyRequest(project, id, request, pages) {
+  const planFile = `${REQUESTS_DIR}/${id}.plan.json`;
+  refuseSymlink(path.join(project, planFile));
   const ids = contractIds(project);
   let unknown = request.unknown;
   if (unknown) {
@@ -183,7 +200,6 @@ export function applyRequest(project, id, request, pages) {
 
   const base = readPlan(project);
   const depth = Object.entries(DEPTH_SCRAPES).find(([, n]) => n >= pages)?.[0] ?? 'deep';
-  const planFile = `${REQUESTS_DIR}/${id}.plan.json`;
   writeJson(path.join(project, planFile), {
     topic: base.topic,
     depth,
@@ -201,6 +217,7 @@ export function applyRequest(project, id, request, pages) {
 /** Record what became of a request, beside it, so the builder reads the answer after a pull. */
 export function writeResult(project, id, result) {
   const file = path.join(project, REQUESTS_DIR, `${id}.result.json`);
+  refuseSymlink(file);
   writeJson(file, { id, at: nowIso(), ...result });
   return file;
 }

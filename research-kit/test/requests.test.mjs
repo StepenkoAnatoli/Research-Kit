@@ -5,11 +5,11 @@
 // round trip (builder pushes a request, collector pushes the corpus and its ledger back) is.
 
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, assertEqual, tempDir, fs, path, makeProject, requireGit, fixtureInitArgs } from './harness.mjs';
+import { test, describe, assert, assertEqual, tempDir, fs, path, makeProject, requireGit, requireSymlink, fixtureInitArgs } from './harness.mjs';
 import { writeText, readText, readJson, HEADERS } from '../lib/core.mjs';
 import { parseTable } from '../lib/corpus.mjs';
 import {
-  requestProblems, urlProblem, applyRequest, listRequests, settingsProblem, saveAutoCollect, readAutoCollect, requestPages,
+  requestProblems, urlProblem, applyRequest, listRequests, writeResult, settingsProblem, saveAutoCollect, readAutoCollect, requestPages,
 } from '../lib/requests.mjs';
 import { createAutoCollect, execFile, spentPages, creditsStopped } from '../lib/auto-collect.mjs';
 import { builderInstructions } from '../lib/panel.mjs';
@@ -107,6 +107,34 @@ test('applying a request adds an OPEN contract row, the plan entries, and a boun
   let threw = '';
   try { applyRequest(project, 'third', { ...GOOD, unknown: 'U-9' }, 1); } catch (err) { threw = err.message; }
   assert(/U-9 is not a row/.test(threw), threw);
+});
+
+test('a request or its collector-owned sibling that is a symbolic link is ignored, and never written through', () => {
+  const project = makeProject(undefined, { content: true });
+  const dir = path.join(project, 'research', 'requests');
+  const outside = path.join(tempDir(), 'collector-local.json');
+  writeText(outside, '{"keep":true}');
+  writeText(path.join(dir, 'plain.json'), JSON.stringify(GOOD));
+  requireSymlink(outside, path.join(dir, 'linked.json'), 'a symlinked request');
+  writeText(path.join(dir, 'via-plan.json'), JSON.stringify(GOOD));
+  requireSymlink(outside, path.join(dir, 'via-plan.plan.json'), 'a symlinked plan');
+  writeText(path.join(dir, 'via-result.json'), JSON.stringify(GOOD));
+  requireSymlink(path.join(path.dirname(outside), 'dangling.json'), path.join(dir, 'via-result.result.json'), 'a dangling result link');
+  const listed = Object.fromEntries(listRequests(project).map((r) => [r.id, r]));
+  assert(!listed.plain.ignored && listed.plain.request, 'a plain request was ignored');
+  for (const id of ['linked', 'via-plan', 'via-result']) {
+    assert(/symbolic link/.test(listed[id].ignored ?? ''), `${id}: ${JSON.stringify(listed[id])}`);
+    assertEqual(listed[id].request, undefined);
+  }
+  let threw = '';
+  try { applyRequest(project, 'via-plan', { ...GOOD }, 1); } catch (err) { threw = err.message; }
+  assert(/symbolic link/.test(threw), threw);
+  assertEqual(parseTable(readText(path.join(project, 'research', 'DISCOVERY.md')), HEADERS.unknowns).rows.length, 0);
+  threw = '';
+  try { writeResult(project, 'via-result', { status: 'refused' }); } catch (err) { threw = err.message; }
+  assert(/symbolic link/.test(threw), threw);
+  assertEqual(readText(outside), '{"keep":true}');
+  assert(!fs.existsSync(path.join(path.dirname(outside), 'dangling.json')), 'a dangling result link was written through');
 });
 
 test('the summary parsers read research.mjs\'s own lines', () => {
