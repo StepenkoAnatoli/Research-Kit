@@ -304,7 +304,14 @@ test('a second deploy over its own output survives a read-only source tree', asy
   fs.mkdirSync(path.join(from, 'bin'), { recursive: true });
   writeText(path.join(from, 'README.md'), '# kit\n');
   writeText(path.join(from, 'bin', 'selftest.mjs'), '// the runner\n');
-  if (process.platform !== 'win32') fs.chmodSync(path.join(from, 'README.md'), 0o444);
+  // The mode half of this test is POSIX. There the copy carries the source's permission bits,
+  // which is what makes a 0444 source produce an un-updatable deployed copy; the fix is scoped
+  // there too, matching the kit's existing mode handling. On Windows the read-only attribute is
+  // the analogous mechanism, no Windows host reproduced it, and nothing here repairs it - so the
+  // assertions that need a 0444 file do not run there (CI's Windows job caught the first version
+  // of this test asserting them anyway, 2026-10-07).
+  const posix = process.platform !== 'win32';
+  if (posix) fs.chmodSync(path.join(from, 'README.md'), 0o444);
 
   const kitHome = path.join(tempDir('research-kit-ro-home-'), 'research-kit');
   const env = {
@@ -317,12 +324,14 @@ test('a second deploy over its own output survives a read-only source tree', asy
   assert.equal(second.ok, true, 'the second deploy refused');
   assert.equal(fs.readFileSync(path.join(kitHome, 'README.md'), 'utf8'), '# kit\n');
 
-  // The state an earlier deploy left behind: a read-only file already in the deployed home. The
-  // copy overwrites by default, so it has to open that file - and 0444 refuses to be opened for
-  // writing. The fix must repair that state as well as avoid creating it (found 2026-10-07,
-  // break-test pass 7).
-  fs.chmodSync(path.join(kitHome, 'README.md'), 0o444);
-  const third = deploy({ from, kitHome, env });
-  assert.equal(third.ok, true, 'a deploy over a read-only deployed file refused');
-  assert.equal(fs.statSync(path.join(kitHome, 'README.md')).mode & 0o200, 0o200, 'the deployed file stayed read-only');
+  if (posix) {
+    // The state an earlier deploy left behind: a read-only file already in the deployed home. The
+    // copy overwrites by default, so it has to open that file - and 0444 refuses to be opened for
+    // writing. The fix must repair that state as well as avoid creating it (found 2026-10-07,
+    // break-test pass 7).
+    fs.chmodSync(path.join(kitHome, 'README.md'), 0o444);
+    const third = deploy({ from, kitHome, env });
+    assert.equal(third.ok, true, 'a deploy over a read-only deployed file refused');
+    assert.equal(fs.statSync(path.join(kitHome, 'README.md')).mode & 0o200, 0o200, 'the deployed file stayed read-only');
+  }
 });
