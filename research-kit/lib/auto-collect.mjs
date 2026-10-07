@@ -159,7 +159,8 @@ export function createAutoCollect({
     const output = redact(tail(run.output));
     const stoppedOn = creditsStopped(run.output);
     const paths = [path.posix.join(relTo(top, target), 'research')];
-    if (target !== dir) paths.push(path.posix.join(relTo(top, dir), REQUESTS_DIR));
+    // A new project travels whole - its AGENTS.md and scaffold too - with the request's result.
+    if (target !== dir) paths.unshift(relTo(top, target)), paths.push(path.posix.join(relTo(top, dir), REQUESTS_DIR));
 
     if (stoppedOn) {
       // No result is written: the request is not finished, and runs again once resumed. A
