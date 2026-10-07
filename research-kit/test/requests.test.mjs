@@ -254,6 +254,35 @@ test('auto-collect round trip: the builder pushes a request, the collector colle
   assertEqual(calls(w).length, 1);
 });
 
+test('auto-collect blocks requests until a failed git pull is resolved', async () => {
+  const w = world();
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'burst-limit', GOOD);
+  let failPull = true;
+  const autoCollect = createAutoCollect({
+    project: () => w.collector,
+    env: w.m.env,
+    kitRoot: w.kit,
+    exec: (command, args, options) => {
+      if (failPull && command === 'git' && args[0] === 'pull') {
+        failPull = false;
+        return Promise.resolve({ code: 1, output: 'fatal: synchronization failed\n' });
+      }
+      return execFile(command, args, options);
+    },
+  });
+
+  const failed = await autoCollect.cycle();
+  assertEqual(calls(w).length, 0, 'a failed pull reached research.mjs');
+  assert(!fs.existsSync(path.join(w.collector, 'research', 'requests', 'burst-limit.result.json')));
+  assertEqual(failed.requests.length, 0, 'the unsynchronized request should not be read locally');
+  assert(failed.notes.some((note) => /collection blocked until synchronization succeeds/.test(note)));
+
+  const synced = await autoCollect.cycle();
+  assertEqual(synced.requests[0].status, 'collected');
+  assertEqual(calls(w).length, 1);
+});
+
 test('auto-collect retries a failed push without collecting the request again', async () => {
   const w = world();
   saveAutoCollect({ mode: 'auto' }, w.m.env);

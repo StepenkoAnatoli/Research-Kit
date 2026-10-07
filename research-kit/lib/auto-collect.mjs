@@ -228,9 +228,10 @@ export function createAutoCollect({
       const top = await repoTop(dir);
       if (!top) { note(`${dir} is not in a git repository; requests travel by git`); return status(); }
       const pulled = await git(['pull', '--ff-only'], top);
-      if (pulled.code !== 0) note(`git pull did not run cleanly (${lastLine(pulled.output)}); reading the requests already here`);
+      if (pulled.code !== 0) note(`git pull did not run cleanly (${lastLine(pulled.output)}); collection blocked until synchronization succeeds`);
+      const requests = pulled.code === 0 ? listRequests(dir) : [];
 
-      for (const item of listRequests(dir)) {
+      for (const item of requests) {
         if (item.ignored) continue;
         if (item.result) {
           if (!delivered.has(item.id)) {
