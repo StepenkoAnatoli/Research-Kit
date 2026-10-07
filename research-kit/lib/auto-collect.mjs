@@ -20,6 +20,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import crypto from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { readJson, today, writeJson } from './core.mjs';
 import { collectionPolicy } from './machine.mjs';
@@ -212,6 +213,41 @@ export function createAutoCollect({
     return paths;
   }
 
+  async function deliveryFingerprint(top, paths, excludedPath) {
+    const pathspecs = [...paths, `:(exclude)${excludedPath}`];
+    const status = await git(['status', '--porcelain=v1', '-z', '--untracked-files=all', '--', ...pathspecs], top);
+    if (status.code !== 0) throw new Error(`could not inspect pending delivery: ${lastLine(status.output)}`);
+    const hash = crypto.createHash('sha256');
+    hash.update(status.output);
+    const diff = await git(['diff', '--binary', 'HEAD', '--', ...pathspecs], top);
+    if (diff.code !== 0) throw new Error(`could not fingerprint pending delivery: ${lastLine(diff.output)}`);
+    hash.update(diff.output);
+    for (const record of status.output.split('\0')) {
+      if (!record.startsWith('?? ')) continue;
+      const file = record.slice(3);
+      const absolute = path.resolve(top, file);
+      const relative = posix(path.relative(top, absolute));
+      if (relative === excludedPath) continue;
+      let contents;
+      try {
+        const stat = fs.lstatSync(absolute);
+        contents = stat.isSymbolicLink() ? fs.readlinkSync(absolute) : fs.readFileSync(absolute);
+      } catch (err) { throw new Error(`could not fingerprint ${relative}: ${err.message}`); }
+      hash.update(relative);
+      hash.update(contents);
+    }
+    return hash.digest('hex');
+  }
+
+  async function pushExisting(top) {
+    const upstream = await git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], top);
+    if (upstream.code !== 0) return { pending: false, result: 'no upstream to push to' };
+    const ahead = await git(['rev-list', '--count', '@{u}..HEAD'], top);
+    if (ahead.code !== 0 || Number(ahead.output.trim()) < 1) return { pending: false, result: '' };
+    const pushed = await git(['push'], top);
+    return { pending: true, result: pushed.code === 0 ? 'pushed' : `push failed: ${lastLine(pushed.output)}` };
+  }
+
   function relTo(top, abs) {
     const rel = posix(path.relative(top, abs));
     return rel === '' ? '.' : rel;
@@ -323,6 +359,15 @@ export function createAutoCollect({
         pages: totalSpent,
         resume: { target: relTo(top, target), unknown: applied.unknown, remainingPages, pagesSpent: totalSpent },
       });
+      const resultRelative = path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`);
+      const fingerprint = await deliveryFingerprint(top, paths, resultRelative);
+      writeResult(dir, item.id, {
+        status: 'partial',
+        detail: `credits ran out on ${stoppedOn}`,
+        pages: totalSpent,
+        resume: { target: relTo(top, target), unknown: applied.unknown, remainingPages, pagesSpent: totalSpent },
+        deliveryFingerprint: fingerprint,
+      });
       const committed = await commitAndPush(top, paths, report(
         `research: request ${item.id} partly collected`,
         `recorded partial collection for ${item.id} (${spent} page(s))`,
@@ -400,7 +445,8 @@ export function createAutoCollect({
               const safe = item.request?.topic
                 ? await safeTopicTarget(top, target, readAutoCollect(env).settings.topicsFolder)
                 : { target: target === path.resolve(dir) ? target : '', problem: '' };
-              if (!safe.problem && safe.target && path.resolve(safe.target) === target) {
+              if (!safe.problem && safe.target && path.resolve(safe.target) === target
+                && (!item.request?.topic || path.basename(target).endsWith(`-${item.id}`))) {
                 pendingPaths = collectionPaths(top, dir, target);
               }
             }
@@ -427,6 +473,33 @@ export function createAutoCollect({
         const key = cacheKey(dir, item.id);
         if (item.result?.status === 'partial') {
           const pendingPaths = collectionPaths(top, dir, resume.target);
+          const alreadyCommitted = await pushExisting(top);
+          if (alreadyCommitted.pending) {
+            runs.set(key, { status: 'partial', detail: 'retrying delivery before resume', git: alreadyCommitted.result });
+            if (alreadyCommitted.result !== 'pushed') {
+              note(`partial delivery for ${item.id} is still pending: ${alreadyCommitted.result}`);
+              continue;
+            }
+          } else {
+            const resultRelative = path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`);
+            let fingerprint;
+            const pendingStatus = await git([
+              'status', '--porcelain=v1', '-z', '--untracked-files=all', '--',
+              ...pendingPaths, `:(exclude)${resultRelative}`,
+            ], top);
+            if (pendingStatus.code !== 0) {
+              note(`partial delivery for ${item.id} could not inspect pending paths`);
+              continue;
+            }
+            try { fingerprint = await deliveryFingerprint(top, pendingPaths, resultRelative); } catch (err) {
+              note(`partial delivery for ${item.id} was not staged: ${err.message}`);
+              continue;
+            }
+            if (pendingStatus.output && (typeof item.result.deliveryFingerprint !== 'string' || fingerprint !== item.result.deliveryFingerprint)) {
+              runs.set(key, { status: 'partial', detail: 'research/ changed since the failed delivery; review and commit it manually', git: 'delivery blocked by unexpected changes' });
+              note(`partial delivery for ${item.id} was not staged because research/ changed after the failed attempt`);
+              continue;
+            }
           const delivery = await commitAndPush(top, pendingPaths, report(
             `research: deliver partial request ${item.id}`,
             `committed or pushed the existing partial state for ${item.id}`,
@@ -438,6 +511,7 @@ export function createAutoCollect({
             note(`partial delivery for ${item.id} is still pending: ${delivery}`);
             runs.set(key, { status: 'partial', detail: 'delivery is pending; no further pages were collected', git: delivery });
             continue;
+          }
           }
         }
         if (current.paused) {

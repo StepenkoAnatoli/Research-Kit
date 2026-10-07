@@ -149,16 +149,19 @@ export function configInsideRepository(env = process.env) {
   const parentRepo = repoTopLevel({ cwd: existingAncestor(path.dirname(file)), env });
   if (parentRepo) return parentRepo;
   let target = file;
-  try {
-    target = fs.realpathSync.native(file);
-  } catch {
+  const seen = new Set();
+  for (;;) {
     try {
-      if (fs.lstatSync(file).isSymbolicLink()) {
-        const link = fs.readlinkSync(file);
-        target = path.resolve(path.dirname(file), link);
-      }
-    } catch { /* a missing config is written beside its parent */ }
+      const stat = fs.lstatSync(target);
+      if (!stat.isSymbolicLink()) break;
+      const canonical = path.resolve(target);
+      if (seen.has(canonical)) break;
+      seen.add(canonical);
+      const link = fs.readlinkSync(target);
+      target = path.resolve(path.dirname(target), link);
+    } catch { break; }
   }
+  try { target = fs.realpathSync.native(target); } catch { /* dangling destination: inspect its existing parent */ }
   return repoTopLevel({ cwd: existingAncestor(path.dirname(target)), env }) || '';
 }
 

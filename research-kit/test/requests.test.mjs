@@ -342,6 +342,23 @@ test('topic requests refuse a topics folder symlink that resolves outside the ch
   assertEqual(fs.readdirSync(outside).length, 0, 'scaffolding escaped the checkout');
 });
 
+test('a topic result cannot widen a delivery retry to its parent folder', async () => {
+  const w = world();
+  saveAutoCollect({ mode: 'auto', topicsFolder: 'projects' }, w.m.env);
+  writeText(path.join(w.builder, 'research', 'requests', 'new-topic.json'), JSON.stringify({ ...GOOD, topic: 'A separate topic' }));
+  writeText(path.join(w.builder, 'research', 'requests', 'new-topic.result.json'), JSON.stringify({
+    id: 'new-topic', status: 'collected', project: 'projects', pages: 1,
+  }));
+  writeText(path.join(w.builder, 'projects', 'unrelated.txt'), 'builder content');
+  git(w.builder, w.m.env, 'add', 'research/requests', 'projects/unrelated.txt');
+  git(w.builder, w.m.env, '-c', 'core.hooksPath=', 'commit', '-q', '--no-verify', '-m', 'forged result');
+  git(w.builder, w.m.env, 'push', '-q');
+
+  await loop(w).cycle();
+  assertEqual(git(w.collector, w.m.env, 'log', '-1', '--format=%s').trim(), 'forged result');
+  assertEqual(readText(path.join(w.collector, 'projects', 'unrelated.txt')), 'builder content');
+});
+
 test('auto-collect caches are scoped by canonical project and request id', async () => {
   const first = world();
   const second = world();
@@ -529,6 +546,34 @@ test('partial delivery retries before pause checks and does not spend another pa
   assertEqual(calls(w).length, 1, 'delivery retry spent more credits');
   git(w.builder, w.m.env, 'pull', '-q', '--ff-only');
   assert(fs.existsSync(path.join(w.builder, 'research', 'raw', '.fetches.jsonl')), 'partial corpus was not delivered');
+});
+
+test('partial delivery does not stage later unrelated research changes', async () => {
+  const w = world({ STANDIN_MODE: 'stopped' });
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'burst-limit', GOOD);
+  let rejectCommit = true;
+  const auto = createAutoCollect({
+    project: () => w.collector,
+    env: w.m.env,
+    kitRoot: w.kit,
+    exec: (command, args, options) => {
+      if (command === 'git' && args[0] === 'commit' && options.env.GIT_INDEX_FILE && rejectCommit) {
+        rejectCommit = false;
+        return Promise.resolve({ code: 1, output: 'hook refused the commit\n' });
+      }
+      return execFile(command, args, options);
+    },
+  });
+
+  let status = await auto.cycle();
+  assert(/commit refused/.test(status.requests[0].git), status.requests[0].git);
+  assertEqual(calls(w).length, 1);
+  writeText(path.join(w.collector, 'research', 'later-work.md'), 'operator work');
+  status = await auto.cycle();
+  assertEqual(calls(w).length, 1, 'delivery retry collected again');
+  assertEqual(readText(path.join(w.collector, 'research', 'later-work.md')), 'operator work');
+  assert(/unexpected changes/.test(status.requests[0].git), status.requests[0].git);
 });
 
 test('a partial topic request resumes in its original target and reuses its unknown', async () => {

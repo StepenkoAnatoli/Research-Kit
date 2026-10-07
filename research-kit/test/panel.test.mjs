@@ -220,6 +220,28 @@ test('the key is refused when an outside config path symlinks into a repository'
   } finally { await ctx.panel.close(); }
 });
 
+test('the key is refused through a chain of dangling config symlinks into a repository', async () => {
+  requireGit('a machine config symlink chain into a repository');
+  const repo = tempDir('research-kit-panel-config-chain-target-');
+  const init = spawnSync('git', fixtureInitArgs(), { cwd: repo, encoding: 'utf8' });
+  assertEqual(init.status, 0, init.stderr);
+  const target = path.join(repo, 'cfg', 'research-kit.config.json');
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const external = tempDir('research-kit-panel-config-chain-');
+  const middle = path.join(external, 'middle.json');
+  const link = path.join(external, 'research-kit.config.json');
+  requireSymlink(target, middle, 'dangling middle config symlink');
+  requireSymlink(middle, link, 'outside config symlink');
+  const m = machine({ RESEARCH_KIT_CONFIG: link });
+  const ctx = await started({ machine: m, project: makeProject() });
+  try {
+    const res = await api(ctx, '/api/key/search', { key: KEY });
+    assertEqual(res.status, 409);
+    assert(/Rule 6/.test(res.json.error), res.json.error);
+    assert(!fs.existsSync(target), 'the key was written through the dangling symlink chain');
+  } finally { await ctx.panel.close(); }
+});
+
 test('the panel never collects: research and decompose are not commands it runs', async () => {
   for (const name of ['research', 'decompose', 'collect', '__proto__', 'constructor']) {
     assert(!Object.hasOwn(PANEL_COMMANDS, name), `${name} is a panel command`);
