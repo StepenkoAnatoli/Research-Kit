@@ -154,7 +154,7 @@ test('the page is served with a strict content policy and no referrer, and carri
 });
 
 test('the page never writes server text as HTML', () => {
-  const js = readText(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'panel', 'panel.js'), '');
+  const js = readText(new URL('../panel/panel.js', import.meta.url), '');
   assert(js.length > 0, 'panel.js is missing');
   assert(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(js), 'panel.js writes HTML');
 });
