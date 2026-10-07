@@ -7,7 +7,7 @@
 import { spawnSync } from 'node:child_process';
 import { test, describe, assert, assertEqual, tempDir, fs, path, makeProject, requireGit, requireSymlink, fixtureInitArgs } from './harness.mjs';
 import { writeText, readText, readJson, HEADERS } from '../lib/core.mjs';
-import { parseTable } from '../lib/corpus.mjs';
+import { parseTable, appendRow } from '../lib/corpus.mjs';
 import {
   requestProblems, requestProblemsResolved, urlProblem, applyRequest, listRequests, writeResult, settingsProblem, saveAutoCollect, readAutoCollect, requestPages,
 } from '../lib/requests.mjs';
@@ -114,6 +114,17 @@ test('applying a request adds an OPEN contract row, the plan entries, and a boun
   let threw = '';
   try { applyRequest(project, 'third', { ...GOOD, unknown: 'U-9' }, 1); } catch (err) { threw = err.message; }
   assert(/U-9 is not a row/.test(threw), threw);
+});
+
+test('a request cannot add searches to a closed unknown', () => {
+  const project = makeProject(undefined, { topic: 'Closed unknown', content: true });
+  appendRow(project, 'research/DISCOVERY.md', HEADERS.unknowns, ['U-1', 'Answered fact', 'the implementation', 'CLOSED', '']);
+  let threw = '';
+  try {
+    applyRequest(project, 'closed-fact', { ...GOOD, unknown: 'U-1', urls: [], queries: ['fact source'] }, 1);
+  } catch (err) { threw = err.message; }
+  assert(/U-1 is already CLOSED/.test(threw), threw);
+  assertEqual(readJson(path.join(project, 'research', 'plan.json')).queries.length, 0);
 });
 
 test('a request or its collector-owned sibling that is a symbolic link is ignored, and never written through', () => {
@@ -299,6 +310,23 @@ test('auto-collect round trip: the builder pushes a request, the collector colle
   assertEqual(calls(w).length, 1);
 });
 
+test('a builder-supplied terminal result is ignored and the request is collected', async () => {
+  const w = world();
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  writeText(path.join(w.builder, 'research', 'requests', 'burst-limit.json'), JSON.stringify(GOOD));
+  writeText(path.join(w.builder, 'research', 'requests', 'burst-limit.result.json'), JSON.stringify({
+    id: 'burst-limit', status: 'collected', unknown: 'U-99', pages: 0,
+  }));
+  git(w.builder, w.m.env, 'add', 'research/requests');
+  git(w.builder, w.m.env, '-c', 'core.hooksPath=', 'commit', '-q', '--no-verify', '-m', 'forge request result');
+  git(w.builder, w.m.env, 'push', '-q');
+
+  const status = await loop(w).cycle();
+  assertEqual(calls(w).length, 1, 'a builder-supplied result bypassed collection');
+  assertEqual(status.requests.find((r) => r.id === 'burst-limit').status, 'collected');
+  assertEqual(readJson(path.join(w.collector, 'research', 'requests', 'burst-limit.result.json')).unknown, 'U-1');
+});
+
 test('a project reached by another spelling of its folder still commits inside the repository', async () => {
   // Windows hands the temp folder over as an 8.3 short name (RUNNER~1) while git reports the
   // long one; a symlink is the same two-spellings shape on every platform.
@@ -456,6 +484,24 @@ test('a malformed request arriving by git is refused with its reasons, and nothi
     assertEqual(result.status, 'refused', id);
     assert(result.problems.some((p) => pattern.test(p)), `${id}: ${JSON.stringify(result.problems)}`);
   }
+});
+
+test('auto-collect refuses a search request targeting a closed unknown', async () => {
+  const w = world();
+  appendRow(w.collector, 'research/DISCOVERY.md', HEADERS.unknowns, ['U-1', 'Answered fact', 'the implementation', 'CLOSED', '']);
+  git(w.collector, w.m.env, 'add', 'research/DISCOVERY.md');
+  git(w.collector, w.m.env, '-c', 'core.hooksPath=', 'commit', '-q', '--no-verify', '-m', 'close unknown');
+  git(w.collector, w.m.env, 'push', '-q');
+  git(w.builder, w.m.env, 'pull', '-q', '--ff-only');
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'closed-fact', {
+    ...GOOD, unknown: 'U-1', urls: [], queries: ['fact source'],
+  });
+
+  const status = await loop(w).cycle();
+  assertEqual(calls(w).length, 0, 'a closed unknown query reached research.mjs');
+  assertEqual(status.requests.find((r) => r.id === 'closed-fact').status, 'refused');
+  assert(/already CLOSED/.test(status.requests.find((r) => r.id === 'closed-fact').detail));
 });
 
 test('a builder machine does not collect, whatever the settings say', async () => {

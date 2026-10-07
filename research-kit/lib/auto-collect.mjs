@@ -26,7 +26,7 @@ import { readJson, today, writeJson } from './core.mjs';
 import { collectionPolicy } from './machine.mjs';
 import {
   REQUESTS_DIR, REQUEST_LIMITS, listRequests, requestProblemsResolved, requestPages, contractIds, applyRequest, writeResult,
-  readAutoCollect, recordSpend, setPaused,
+  readAutoCollect, recordSpend, setPaused, recordTrustedResult, isTrustedResult,
 } from './requests.mjs';
 
 export const RUN_OUTPUT_BYTES = 64 * 1024;
@@ -313,6 +313,7 @@ export function createAutoCollect({
 
   async function refuse(top, dir, item, problems) {
     writeResult(dir, item.id, { status: 'refused', problems });
+    recordTrustedResult(dir, item.id, env);
     const committed = await commitAndPush(top, [path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`)],
       report(`research: refuse request ${item.id}`, `recorded request ${item.id} as refused`,
         'the request failed collector validation', `request validation named ${problems.length} problem(s)`));
@@ -390,6 +391,7 @@ export function createAutoCollect({
         resume: { target: relTo(top, target), unknown: applied.unknown, remainingPages, pagesSpent: totalSpent },
         deliveryFingerprint: fingerprint,
       });
+      recordTrustedResult(dir, item.id, env);
       const committed = await commitAndPush(top, paths, report(
         `research: request ${item.id} partly collected`,
         `recorded partial collection for ${item.id} (${spent} page(s))`,
@@ -408,6 +410,7 @@ export function createAutoCollect({
       status: 'collected', unknown: applied.unknown, project: relTo(top, target), pages: (resume?.pagesSpent ?? 0) + spent, preflight,
       next: 'pull; review the new EVIDENCE rows (rewrite each Finding into a claim), then close the unknown and run preflight',
     });
+    recordTrustedResult(dir, item.id, env);
     const committed = await commitAndPush(top, paths, report(
       `research: collect request ${item.id}`,
       `collected ${item.id} for ${applied.unknown} (${spent} page(s))`,
@@ -421,6 +424,7 @@ export function createAutoCollect({
 
   async function fail(top, dir, item, target, detail, output, paths = null, spent = 0) {
     writeResult(dir, item.id, { status: 'failed', detail, project: relTo(top, target), pages: spent });
+    recordTrustedResult(dir, item.id, env);
     const committed = await commitAndPush(top, paths ?? [path.posix.join(relTo(top, dir), REQUESTS_DIR)], report(
       `research: request ${item.id} failed`,
       `recorded request ${item.id} as failed after ${spent} page(s)`,
@@ -458,6 +462,10 @@ export function createAutoCollect({
 
       for (const item of requests) {
         if (item.ignored) continue;
+        if (item.result && !isTrustedResult(dir, item.id, env)) {
+          note(`ignored untrusted result for ${item.id}; the collector will process the request`);
+          item.result = null;
+        }
         if (item.result && ['collected', 'failed', 'refused'].includes(item.result.status)) {
           const key = cacheKey(dir, item.id);
           if (!delivered.has(key)) {
