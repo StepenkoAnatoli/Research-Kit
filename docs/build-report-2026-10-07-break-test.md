@@ -56,7 +56,9 @@ for a decision-grade project, rather than the skill's default `docs/research/`.
   request's first push (run 37621450447): `archive tree`, `node (24)`, `node (26)`,
   `platform (ubuntu-latest)` and `platform (ubuntu-26.04)` passed; `platform (windows-latest)`
   failed in the `selftest` step after 390 s - the defect under *Probe defects*, corrected by
-  `8a2c0d3`. The run after this commit is CI's to show, and this report does not claim it.
+  `8a2c0d3`. The rerun of the workflow at `f27b5e4`, run 37622653086, is green in all seven jobs,
+  `platform (windows-latest)` included. The workflow runs again on every push, so for the head
+  being read, the pull request's checks are the record rather than this line.
 - **External facts.** The nested project `docs/decisions/2026-10-07-break-test-external-facts/`
   (doctor READY first, keyless transport, disclosed): three pages collected, 0 failed,
   `preflight.mjs` PASS (0 blocking, 9 warnings - keyless not metered x3, partial captures x3,
@@ -152,7 +154,8 @@ for a decision-grade project, rather than the skill's default `docs/research/`.
   blocked the pull request. Corrected in `8a2c0d3`: both clauses sit behind `posix`, the plain
   deploy-twice half runs everywhere, and the reason is in the test's comment. Worth recording
   rather than tidying away: an unguarded mode assertion passes on the host that wrote it and is
-  found by the one platform the change does not cover.
+  found by the one platform the change does not cover. The rerun at `f27b5e4` is green in all
+  seven jobs, so the guard is verified on the platform that found the defect.
 - **`minimal-env` (A).** `env -i` dropped `RESEARCH_KIT_ALLOW_UNSUP=1`, so the run exited 1
   with 0 failures - the suite's documented "every test passed and the runner still exited N"
   case. Read from the result file, not reported as a product failure.
