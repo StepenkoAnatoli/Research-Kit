@@ -265,6 +265,21 @@ test('auto-collect round trip: the builder pushes a request, the collector colle
   assertEqual(calls(w).length, 1);
 });
 
+test('a project reached by another spelling of its folder still commits inside the repository', async () => {
+  // Windows hands the temp folder over as an 8.3 short name (RUNNER~1) while git reports the
+  // long one; a symlink is the same two-spellings shape on every platform.
+  const w = world();
+  const alias = path.join(tempDir('research-kit-auto-alias-'), 'collector');
+  fs.symlinkSync(w.collector, alias, 'junction');
+  saveAutoCollect({ mode: 'auto', perRequestPages: 4, dailyPages: 20 }, w.m.env);
+  builderPushes(w, 'burst-limit', GOOD);
+
+  const status = await createAutoCollect({ project: () => alias, env: w.m.env, kitRoot: w.kit }).cycle();
+  const row = status.requests.find((r) => r.id === 'burst-limit');
+  assertEqual(row.status, 'collected', JSON.stringify(row));
+  assertEqual(row.git, 'committed and pushed');
+});
+
 test('auto-collect blocks requests until a failed git pull is resolved', async () => {
   const w = world();
   saveAutoCollect({ mode: 'auto' }, w.m.env);

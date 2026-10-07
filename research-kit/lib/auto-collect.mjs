@@ -98,7 +98,14 @@ export function createAutoCollect({
 
   async function repoTop(dir) {
     const r = await git(['rev-parse', '--show-toplevel'], dir);
-    return r.code === 0 ? path.resolve(r.output.trim()) : '';
+    return r.code === 0 ? canonical(r.output.trim()) : '';
+  }
+
+  // git reports the top level by its final path; the project may arrive by another spelling
+  // of the same folder (a Windows 8.3 short name such as RUNNER~1, a symlinked temp dir), and
+  // path.relative between two spellings walks out of the repository.
+  function canonical(dir) {
+    try { return fs.realpathSync.native(dir); } catch { return path.resolve(dir); }
   }
 
   /** Stage what a run wrote, the ledger by name (a dotfile rule can hide it), commit, push. */
@@ -278,7 +285,7 @@ export function createAutoCollect({
     busy = true;
     try {
       lastCheck = new Date().toISOString();
-      const dir = project();
+      const dir = canonical(project());
       const top = await repoTop(dir);
       if (!top) { note(`${dir} is not in a git repository; requests travel by git`); return status(); }
       const pulled = await git(['pull', '--ff-only'], top);
