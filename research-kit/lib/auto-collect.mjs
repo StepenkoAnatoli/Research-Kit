@@ -114,6 +114,27 @@ export function createAutoCollect({
 
   /** Stage only this run's paths in a private index, leaving every existing staged file alone. */
   async function commitAndPush(top, paths, report) {
+    const upstreamBefore = await git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], top);
+    if (upstreamBefore.code === 0) {
+      const ahead = await git(['rev-list', '--count', '@{u}..HEAD'], top);
+      const count = Number(ahead.output.trim());
+      if (ahead.code !== 0) return `could not inspect local commits: ${lastLine(ahead.output)}`;
+      if (count > 0) {
+        if (count !== 1) return 'local commits are ahead of the upstream; push them manually before auto-collect delivery';
+        const subject = await git(['log', '-1', '--format=%s'], top);
+        if (subject.code !== 0 || subject.output.trim() !== report.subject) {
+          return 'an unrelated local commit is ahead of the upstream; push it manually before auto-collect delivery';
+        }
+        const changed = await git(['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', 'HEAD'], top);
+        if (changed.code !== 0) return `could not inspect pending delivery commit: ${lastLine(changed.output)}`;
+        const allowed = changed.output.split('\0').filter(Boolean).every((file) => paths.some((base) => (
+          file === base || file.startsWith(`${base.replace(/\/$/, '')}/`)
+        )));
+        if (!allowed) return 'the pending auto-collect commit contains paths outside this request; push it manually';
+        const pushed = await git(['push'], top);
+        return pushed.code === 0 ? 'pushed' : `push failed: ${lastLine(pushed.output)}`;
+      }
+    }
     const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'research-kit-autocollect-index-'));
     const indexEnv = { ...env, GIT_INDEX_FILE: path.join(scratch, 'index') };
     const isolatedGit = (args) => exec('git', args, { cwd: top, env: indexEnv });
@@ -207,6 +228,22 @@ export function createAutoCollect({
     return { target: physical };
   }
 
+  async function requestTopicTarget(top, target, topicsFolder, id) {
+    const safe = await safeTopicTarget(top, target, topicsFolder);
+    if (safe.problem) return safe;
+    const topics = throughExistingAncestor(path.resolve(top, ...topicsFolder.split('/')));
+    const base = path.basename(safe.target);
+    const match = /^(\d{4}-\d{2}-\d{2})-(.+)$/.exec(base);
+    const date = match?.[1] ?? '';
+    const parsedDate = date ? new Date(`${date}T00:00:00.000Z`) : null;
+    const validDate = parsedDate && !Number.isNaN(parsedDate.valueOf())
+      && parsedDate.toISOString().slice(0, 10) === date;
+    if (path.dirname(safe.target) !== topics || !validDate || match[2] !== id) {
+      return { problem: 'topic target is not the dated folder generated for this request' };
+    }
+    return safe;
+  }
+
   function collectionPaths(top, dir, target) {
     const paths = [path.posix.join(relTo(top, target), 'research')];
     if (target !== dir) paths.unshift(relTo(top, target)), paths.push(path.posix.join(relTo(top, dir), REQUESTS_DIR));
@@ -239,15 +276,6 @@ export function createAutoCollect({
     return hash.digest('hex');
   }
 
-  async function pushExisting(top) {
-    const upstream = await git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], top);
-    if (upstream.code !== 0) return { pending: false, result: 'no upstream to push to' };
-    const ahead = await git(['rev-list', '--count', '@{u}..HEAD'], top);
-    if (ahead.code !== 0 || Number(ahead.output.trim()) < 1) return { pending: false, result: '' };
-    const pushed = await git(['push'], top);
-    return { pending: true, result: pushed.code === 0 ? 'pushed' : `push failed: ${lastLine(pushed.output)}` };
-  }
-
   function relTo(top, abs) {
     const rel = posix(path.relative(top, abs));
     return rel === '' ? '.' : rel;
@@ -268,13 +296,7 @@ export function createAutoCollect({
     }
     if (item.request.topic) {
       if (!settings.topicsFolder) throw new Error('this collector has no folder approved for new topics');
-      const topics = path.resolve(top, ...settings.topicsFolder.split('/'));
-      const fromTopics = path.relative(topics, target);
-      if (fromTopics === '..' || fromTopics.startsWith(`..${path.sep}`) || path.isAbsolute(fromTopics)
-        || !path.basename(target).endsWith(`-${item.id}`)) {
-        throw new Error('partial request target is outside the approved topic folder');
-      }
-      const safe = await safeTopicTarget(top, target, settings.topicsFolder);
+      const safe = await requestTopicTarget(top, target, settings.topicsFolder, item.id);
       if (safe.problem) throw new Error(safe.problem);
       target = safe.target;
     } else if (target !== path.resolve(dir)) {
@@ -436,22 +458,29 @@ export function createAutoCollect({
 
       for (const item of requests) {
         if (item.ignored) continue;
-        if (item.result && item.result.status !== 'partial') {
+        if (item.result && ['collected', 'failed', 'refused'].includes(item.result.status)) {
           const key = cacheKey(dir, item.id);
           if (!delivered.has(key)) {
             let pendingPaths = [path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`)];
-            if (typeof item.result.project === 'string') {
+            if (typeof item.result.project === 'string' && ['collected', 'failed', 'refused'].includes(item.result.status)) {
               const target = path.resolve(top, item.result.project);
+              const settings = readAutoCollect(env).settings;
               const safe = item.request?.topic
-                ? await safeTopicTarget(top, target, readAutoCollect(env).settings.topicsFolder)
+                ? settings.topicsFolder
+                  ? await requestTopicTarget(top, target, settings.topicsFolder, item.id)
+                  : { target: '', problem: 'no approved topic folder is configured' }
                 : { target: target === path.resolve(dir) ? target : '', problem: '' };
-              if (!safe.problem && safe.target && path.resolve(safe.target) === target
-                && (!item.request?.topic || path.basename(target).endsWith(`-${item.id}`))) {
+              if (!safe.problem && safe.target && path.resolve(safe.target) === target) {
                 pendingPaths = collectionPaths(top, dir, target);
               }
             }
+            const resultSubject = {
+              collected: `research: collect request ${item.id}`,
+              refused: `research: refuse request ${item.id}`,
+              failed: `research: request ${item.id} failed`,
+            }[item.result.status] ?? `research: deliver request ${item.id}`;
             const delivery = await commitAndPush(top, pendingPaths, report(
-              `research: deliver request ${item.id}`,
+              resultSubject,
               `delivered the result and any pending corpus changes for ${item.id}`,
               'a previous collection, failure, or refusal recorded a result that still needs to reach the builder',
               'the result and associated corpus paths were staged in an isolated index and pushed when an upstream was available',
@@ -473,35 +502,27 @@ export function createAutoCollect({
         const key = cacheKey(dir, item.id);
         if (item.result?.status === 'partial') {
           const pendingPaths = collectionPaths(top, dir, resume.target);
-          const alreadyCommitted = await pushExisting(top);
-          if (alreadyCommitted.pending) {
-            runs.set(key, { status: 'partial', detail: 'retrying delivery before resume', git: alreadyCommitted.result });
-            if (alreadyCommitted.result !== 'pushed') {
-              note(`partial delivery for ${item.id} is still pending: ${alreadyCommitted.result}`);
-              continue;
-            }
-          } else {
-            const resultRelative = path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`);
-            let fingerprint;
-            const pendingStatus = await git([
-              'status', '--porcelain=v1', '-z', '--untracked-files=all', '--',
-              ...pendingPaths, `:(exclude)${resultRelative}`,
-            ], top);
-            if (pendingStatus.code !== 0) {
-              note(`partial delivery for ${item.id} could not inspect pending paths`);
-              continue;
-            }
-            try { fingerprint = await deliveryFingerprint(top, pendingPaths, resultRelative); } catch (err) {
-              note(`partial delivery for ${item.id} was not staged: ${err.message}`);
-              continue;
-            }
-            if (pendingStatus.output && (typeof item.result.deliveryFingerprint !== 'string' || fingerprint !== item.result.deliveryFingerprint)) {
-              runs.set(key, { status: 'partial', detail: 'research/ changed since the failed delivery; review and commit it manually', git: 'delivery blocked by unexpected changes' });
-              note(`partial delivery for ${item.id} was not staged because research/ changed after the failed attempt`);
-              continue;
-            }
+          const resultRelative = path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`);
+          let fingerprint;
+          const pendingStatus = await git([
+            'status', '--porcelain=v1', '-z', '--untracked-files=all', '--',
+            ...pendingPaths, `:(exclude)${resultRelative}`,
+          ], top);
+          if (pendingStatus.code !== 0) {
+            note(`partial delivery for ${item.id} could not inspect pending paths`);
+            continue;
+          }
+          try { fingerprint = await deliveryFingerprint(top, pendingPaths, resultRelative); } catch (err) {
+            note(`partial delivery for ${item.id} was not staged: ${err.message}`);
+            continue;
+          }
+          if (pendingStatus.output && (typeof item.result.deliveryFingerprint !== 'string' || fingerprint !== item.result.deliveryFingerprint)) {
+            runs.set(key, { status: 'partial', detail: 'research/ changed since the failed delivery; review and commit it manually', git: 'delivery blocked by unexpected changes' });
+            note(`partial delivery for ${item.id} was not staged because research/ changed after the failed attempt`);
+            continue;
+          }
           const delivery = await commitAndPush(top, pendingPaths, report(
-            `research: deliver partial request ${item.id}`,
+            `research: request ${item.id} partly collected`,
             `committed or pushed the existing partial state for ${item.id}`,
             'the previous credit-limited run must reach the builder before resuming',
             'delivery was retried before pause, dirty-tree, and spend checks; no pages were fetched',
@@ -511,7 +532,6 @@ export function createAutoCollect({
             note(`partial delivery for ${item.id} is still pending: ${delivery}`);
             runs.set(key, { status: 'partial', detail: 'delivery is pending; no further pages were collected', git: delivery });
             continue;
-          }
           }
         }
         if (current.paused) {

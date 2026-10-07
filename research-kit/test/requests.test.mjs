@@ -347,16 +347,16 @@ test('a topic result cannot widen a delivery retry to its parent folder', async 
   saveAutoCollect({ mode: 'auto', topicsFolder: 'projects' }, w.m.env);
   writeText(path.join(w.builder, 'research', 'requests', 'new-topic.json'), JSON.stringify({ ...GOOD, topic: 'A separate topic' }));
   writeText(path.join(w.builder, 'research', 'requests', 'new-topic.result.json'), JSON.stringify({
-    id: 'new-topic', status: 'collected', project: 'projects', pages: 1,
+    id: 'new-topic', status: 'collected', project: 'projects/unrelated-new-topic', pages: 1,
   }));
-  writeText(path.join(w.builder, 'projects', 'unrelated.txt'), 'builder content');
-  git(w.builder, w.m.env, 'add', 'research/requests', 'projects/unrelated.txt');
+  writeText(path.join(w.builder, 'projects', 'unrelated-new-topic', 'unrelated.txt'), 'builder content');
+  git(w.builder, w.m.env, 'add', 'research/requests', 'projects/unrelated-new-topic/unrelated.txt');
   git(w.builder, w.m.env, '-c', 'core.hooksPath=', 'commit', '-q', '--no-verify', '-m', 'forged result');
   git(w.builder, w.m.env, 'push', '-q');
 
   await loop(w).cycle();
   assertEqual(git(w.collector, w.m.env, 'log', '-1', '--format=%s').trim(), 'forged result');
-  assertEqual(readText(path.join(w.collector, 'projects', 'unrelated.txt')), 'builder content');
+  assertEqual(readText(path.join(w.collector, 'projects', 'unrelated-new-topic', 'unrelated.txt')), 'builder content');
 });
 
 test('auto-collect caches are scoped by canonical project and request id', async () => {
@@ -546,6 +546,37 @@ test('partial delivery retries before pause checks and does not spend another pa
   assertEqual(calls(w).length, 1, 'delivery retry spent more credits');
   git(w.builder, w.m.env, 'pull', '-q', '--ff-only');
   assert(fs.existsSync(path.join(w.builder, 'research', 'raw', '.fetches.jsonl')), 'partial corpus was not delivered');
+});
+
+test('partial delivery does not push unrelated commits ahead of the upstream', async () => {
+  const w = world({ STANDIN_MODE: 'stopped' });
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'burst-limit', GOOD);
+  let pushCalls = 0;
+  const auto = createAutoCollect({
+    project: () => w.collector,
+    env: w.m.env,
+    kitRoot: w.kit,
+    exec: (command, args, options) => {
+      if (command === 'git' && args[0] === 'push') {
+        pushCalls += 1;
+        if (pushCalls === 1) return Promise.resolve({ code: 1, output: 'temporary push failure\n' });
+      }
+      return execFile(command, args, options);
+    },
+  });
+
+  let status = await auto.cycle();
+  assertEqual(status.requests[0].status, 'partial');
+  assertEqual(pushCalls, 1);
+  writeText(path.join(w.collector, 'product.txt'), 'unrelated local commit');
+  git(w.collector, w.m.env, 'add', 'product.txt');
+  git(w.collector, w.m.env, 'commit', '-q', '-m', 'unrelated local work');
+
+  status = await auto.cycle();
+  assertEqual(pushCalls, 1, 'retry pushed unrelated local commits');
+  assert(/local commits are ahead/.test(status.requests[0].git), status.requests[0].git);
+  assertEqual(git(w.collector, w.m.env, 'rev-list', '--count', '@{u}..HEAD').trim(), '2');
 });
 
 test('partial delivery does not stage later unrelated research changes', async () => {
