@@ -21,7 +21,9 @@ human; if a decision is genuinely wrong, write a new ADR that supersedes it.
 | **research-first** | The rule that findable facts are collection tasks, not questions. The name of the skill that carries it. |
 | **skill set** | The skills the kit ships beside research-first, one directory each under `research-kit/skills/`, deployed to every skill root (ADR-0146). Guidance, never enforcement. |
 | **skill router** | The `skill-router` skill: picks which skills may run from the machine role and the gate state, then by task. Never routes a builder to a skill that collects, and never picks a model. |
-| **desktop panel** | `bin/panel.mjs`: a page on 127.0.0.1 over doctor, handoff, preflight and install, plus the search key and the builder hand-off text. A shell over existing commands; it never collects (ADR-0147). |
+| **desktop panel** | `bin/panel.mjs`: a page on 127.0.0.1 over doctor, handoff, preflight and install, plus the search key and the builder hand-off text. A shell over existing commands; nothing on the page collects, only auto-collect does (ADR-0147, ADR-0148). |
+| **builder request** | `research/requests/<id>.json`: one fact a builder needs, the page that owns it or queries to find it, and why it blocks. Written by the builder, the only file under `research/` a builder writes; answered by `<id>.result.json` beside it (ADR-0148). |
+| **auto-collect** | The desktop panel's mode in which the collector pulls builder requests, validates them, collects each with the same `research.mjs` within a per-request and a daily page cap, and pushes the corpus with its ledger. It runs only on a collector, and it pauses, never falls back, when the credits run out (ADR-0148). |
 | **fact request** | What a builder writes when the brief lacks a fact: the unknown, why it blocks, the page that owns it - for the collector to add to `plan.json`. A builder never fetches it itself (ADR-0010). |
 
 ## The standing protocol

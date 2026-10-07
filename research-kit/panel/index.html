@@ -44,6 +44,31 @@
     <pre id="builder-text"></pre>
   </section>
 
+  <section class="card wide" id="requests-card">
+    <h2>Builder requests</h2>
+    <p class="muted">The builder decides what is collected: it pushes one file per fact to <code id="requests-folder">research/requests/</code>. In Automatic, this machine pulls, collects each request with the same research.mjs, runs preflight, commits the corpus with its ledger and pushes. When credits run out it pauses and waits for you.</p>
+    <form id="auto-form" class="row">
+      <label for="auto-mode">Auto-collect</label>
+      <select id="auto-mode"><option value="off">Off</option><option value="auto">Automatic</option></select>
+      <label for="auto-per">pages a request</label>
+      <input id="auto-per" type="number" min="1" max="25" class="num">
+      <label for="auto-daily">pages a day</label>
+      <input id="auto-daily" type="number" min="0" max="1000" class="num">
+      <label for="auto-every">check every (min)</label>
+      <input id="auto-every" type="number" min="1" max="1440" class="num">
+      <label for="auto-topics">folder for new topics</label>
+      <input id="auto-topics" type="text" autocomplete="off" spellcheck="false" placeholder="empty: new topics refused">
+      <button type="submit">Save</button>
+    </form>
+    <div class="row buttons">
+      <button type="button" id="auto-check">Check now</button>
+      <button type="button" id="auto-resume">Resume</button>
+      <span id="auto-state" class="muted"></span>
+    </div>
+    <table id="requests"><thead><tr><th>Request</th><th>Status</th><th>Pages</th><th>Fact</th><th>Detail</th></tr></thead><tbody></tbody></table>
+    <pre id="auto-notes"></pre>
+  </section>
+
   <section class="card">
     <h2>Keys</h2>
     <form id="search-form" class="row">

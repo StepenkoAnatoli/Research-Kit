@@ -51,6 +51,40 @@ function render(s) {
   document.querySelector('[data-run="update-preview"]').disabled = s.update.sameCopy;
 }
 
+function renderRequests(r) {
+  $('requests-folder').textContent = r.folder;
+  if (document.activeElement?.closest?.('#auto-form') == null) {
+    $('auto-mode').value = r.settings.mode;
+    $('auto-per').value = r.settings.perRequestPages;
+    $('auto-daily').value = r.settings.dailyPages;
+    $('auto-every').value = r.settings.intervalMinutes;
+    $('auto-topics').value = r.settings.topicsFolder;
+  }
+  const parts = [`${r.spent.pages} of ${r.settings.dailyPages} page(s) spent today`];
+  if (r.busy) parts.push('collecting now');
+  if (r.lastCheck) parts.push(`last check ${r.lastCheck}`);
+  if (r.blocked) parts.push(`BLOCKED: ${r.blocked}`);
+  if (r.paused) parts.push(`PAUSED: ${r.paused}`);
+  $('auto-state').textContent = parts.join(' - ');
+  $('auto-resume').disabled = !r.paused;
+  const body = document.querySelector('#requests tbody');
+  body.replaceChildren(...(r.requests.length ? r.requests : [{ id: '(none yet)', status: '', pages: '', fact: '', detail: '' }]).map((q) => {
+    const tr = document.createElement('tr');
+    for (const value of [q.id, q.status, q.pages, q.fact, [q.detail, q.git].filter(Boolean).join(' - ')]) {
+      const td = document.createElement('td');
+      td.textContent = String(value ?? '');
+      tr.append(td);
+    }
+    if (q.output) tr.addEventListener('click', () => show(`request ${q.id}`, q.output));
+    return tr;
+  }));
+  $('auto-notes').textContent = r.notes.slice().reverse().join('\n');
+}
+
+async function refreshRequests() {
+  try { renderRequests(await call('/api/requests')); } catch (err) { banner(err.message); }
+}
+
 async function refresh() {
   try { render(await call('/api/state')); banner(''); } catch (err) { banner(err.message); }
 }
@@ -109,5 +143,31 @@ document.addEventListener('DOMContentLoaded', () => {
     try { const brief = await call('/api/brief'); show(brief.path, brief.text); } catch (err) { show('BRIEF.md', err.message); }
   });
 
+  $('auto-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const settings = {
+      mode: $('auto-mode').value,
+      perRequestPages: Number($('auto-per').value),
+      dailyPages: Number($('auto-daily').value),
+      intervalMinutes: Number($('auto-every').value),
+      topicsFolder: $('auto-topics').value,
+    };
+    try { renderRequests(await call('/api/autocollect', { settings })); banner(''); } catch (err) { banner(err.message); }
+  });
+
+  $('auto-check').addEventListener('click', async () => {
+    const button = $('auto-check');
+    button.disabled = true;
+    $('auto-state').textContent = 'pulling and checking requests...';
+    try { renderRequests(await call('/api/requests/check', {})); banner(''); } catch (err) { banner(err.message); }
+    finally { button.disabled = false; }
+  });
+
+  $('auto-resume').addEventListener('click', async () => {
+    try { renderRequests(await call('/api/requests/resume', {})); banner(''); } catch (err) { banner(err.message); }
+  });
+
   refresh();
+  refreshRequests();
+  setInterval(refreshRequests, 15000);
 });

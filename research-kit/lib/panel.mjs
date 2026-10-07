@@ -7,9 +7,10 @@
 //   - which project folder it is looking at, chosen explicitly, never searched for;
 //   - the project's topic and BRIEF.md, read and never written (ADR-0056).
 //
-// It never collects. There is no route that runs research.mjs or decompose.mjs, so a
-// builder machine cannot be talked into fetching pages through it, and neither can a
-// collector: collection stays a terminal act with its budget printed beside it.
+// It never collects on a command from the page. The one way pages are fetched through it is
+// auto-collect (ADR-0148): a builder's request file, validated, run on a collector only,
+// within the per-request and daily caps the operator set here, by the same research.mjs. A
+// builder machine refuses it, as it refuses research.mjs itself.
 //
 // A local server answers whatever reaches its port, so four checks guard every request:
 // the socket is bound to 127.0.0.1 only; the Host header must name that address and port
@@ -26,6 +27,8 @@ import { fileURLToPath } from 'node:url';
 import { KIT_VERSION, readJson, readText, homeCommand } from './core.mjs';
 import { KIT_HOME, configPath, readMachineConfig, saveConfig, repoTopLevel } from './machine.mjs';
 import { SEARCH_KEY } from './transport.mjs';
+import { createAutoCollect, execFile } from './auto-collect.mjs';
+import { REQUESTS_DIR, saveAutoCollect } from './requests.mjs';
 
 const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
 export const PANEL_KIT_ROOT = path.resolve(SELF_DIR, '..');
@@ -106,7 +109,14 @@ export function builderInstructions({ topic = '', brief = false } = {}) {
     `     ${homeCommand('preflight.mjs')}`,
     '4. Read research/BRIEF.md. It is your input; build from it and cite its E-## rows in code and tests.',
     '5. Do not collect, fetch pages or research facts yourself - this machine refuses to, by design.',
-    '   If a fact you need is missing or wrong, name it and stop; it is collected on the collector machine.',
+    '   If a fact you need is missing or wrong, ask the collector for it: write one file per fact,',
+    `   ${REQUESTS_DIR}/<id>.json (id: lower-case letters, digits, dashes), commit it and push:`,
+    '     { "fact": "<one fact, as a question a page answers>", "blocks": "<the decision it changes>",',
+    '       "urls": ["https://<the page that owns the fact>"], "queries": ["<search, if no page is known>"] }',
+    '   Optional: "prefer" (owner domains), "unknown" (an existing U-n row), "maxPages",',
+    '   "topic" (a whole new research project instead of one fact).',
+    '   The collector collects it automatically and pushes the corpus with <id>.result.json beside the',
+    '   request. Pull, read the result, review the new evidence rows, and carry on.',
   ];
   return [
     ...collector,
@@ -160,8 +170,17 @@ export function createPanel({
   nodePath = process.execPath,
   token = crypto.randomBytes(24).toString('hex'),
   timeout = RUN_TIMEOUT_MS,
+  autoExec = execFile,
 } = {}) {
   let currentProject = path.resolve(project);
+  const auto = createAutoCollect({
+    project: () => currentProject,
+    env,
+    kitRoot,
+    nodePath,
+    exec: autoExec,
+    redact: (text) => SEARCH_KEY.redact(text, SEARCH_KEY.read(env, readMachineConfig(env).settings)),
+  });
   let port = 0;
   let running = null;
 
@@ -264,6 +283,8 @@ export function createPanel({
       return send(res, 200, { path: file, text: readText(file, '') });
     }
 
+    if (req.method === 'GET' && route === '/api/requests') return send(res, 200, auto.status());
+
     if (req.method !== 'POST') return refuse(res, 405, 'not a panel route');
     if (!/^application\/json\b/i.test(String(req.headers['content-type'] ?? ''))) return refuse(res, 415, 'send JSON');
     const body = await readBody(req);
@@ -288,10 +309,24 @@ export function createPanel({
       return send(res, 200, { saved: true, keys: keyState() });
     }
 
+    if (route === '/api/autocollect') {
+      const patch = body.settings;
+      try { saveAutoCollect(patch, env); } catch (err) { return refuse(res, err.status ?? 400, err.message); }
+      auto.schedule();
+      return send(res, 200, auto.status());
+    }
+
+    if (route === '/api/requests/check') {
+      if (running) return refuse(res, 409, `${running} is still running; wait for it to finish`);
+      return send(res, 200, await auto.cycle({ force: true }));
+    }
+
+    if (route === '/api/requests/resume') return send(res, 200, auto.resume());
+
     if (route === '/api/run') {
       const name = typeof body.command === 'string' ? body.command : '';
       if (!Object.hasOwn(PANEL_COMMANDS, name)) {
-        return refuse(res, 400, `"${name}" is not a panel command. The panel runs ${Object.keys(PANEL_COMMANDS).join(', ')} and never collects; collection stays in the terminal on the collector machine.`);
+        return refuse(res, 400, `"${name}" is not a panel command. The panel runs ${Object.keys(PANEL_COMMANDS).join(', ')} and never collects on a command; pages are fetched only for a builder's request, by auto-collect on the collector machine.`);
       }
       if (PANEL_COMMANDS[name].update && sameCopy(kitRoot, kitHome)) {
         return refuse(res, 409, 'this panel runs from the installed copy, so there is nothing newer to install from. '
@@ -352,11 +387,14 @@ export function createPanel({
         server.listen(wanted, PANEL_HOST, () => {
           server.off('error', reject);
           port = server.address().port;
+          auto.schedule();
           resolve({ port, url: `http://${PANEL_HOST}:${port}/#t=${token}` });
         });
       });
     },
+    autoCollect: auto,
     close() {
+      auto.stop();
       return new Promise((resolve) => { server.close(() => resolve()); server.closeAllConnections?.(); });
     },
   };

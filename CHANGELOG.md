@@ -5,6 +5,17 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The collector serves builder requests (ADR-0148, lifting the freeze for that one item).
+  A builder pushes `research/requests/<id>.json`: one fact, why it blocks, and the owner
+  pages or search queries. The desktop panel's auto-collect runs on a collector only. It
+  pulls and checks each request as untrusted input (fixed fields, http(s) only, no internal
+  address, within the per-request cap). It then adds the contract row and plan entries, runs
+  the same `research.mjs` and preflight, commits the corpus with its ledger and
+  `<id>.result.json`, and pushes. Per-request and daily page caps apply. When credits run
+  out it pauses and never passes `--fallback`. A request with a topic gets a new project,
+  under a folder the operator approves. New modules: `lib/requests.mjs`,
+  `lib/auto-collect.mjs`. The panel shows the queue, the modes (off or automatic), the caps,
+  Check now and Resume.
 - The desktop panel (ADR-0147, lifting the freeze for that one item): `bin/panel.mjs` opens a
   page served from 127.0.0.1 for keys, doctor, update, the topic and the builder hand-off.
   It runs doctor, handoff, preflight and install with fixed arguments and never collects.

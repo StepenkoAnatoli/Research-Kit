@@ -30,7 +30,10 @@ second collection route.
 2. **The panel is a shell, not a second implementation.** Doctor, handoff, preflight and
    install run as children with fixed argument lists (`PANEL_COMMANDS`); the panel adds no
    verdict of its own. Nothing the page sends reaches an argument list.
-3. **The panel never collects.** `research.mjs` and `decompose.mjs` have no route. On a
+3. **The panel never collects.** *(Amended by ADR-0148: the page still has no collect
+   command; auto-collect runs `research.mjs` only for a builder's validated request, on a
+   collector, within the operator's caps.)*
+   `research.mjs` and `decompose.mjs` have no route. On a
    collector, collection stays a terminal act with its budget printed beside it (Rule 5);
    on a builder it is refused anyway (ADR-0010). A page that could spend credits would be
    one cross-site request away from spending them.
