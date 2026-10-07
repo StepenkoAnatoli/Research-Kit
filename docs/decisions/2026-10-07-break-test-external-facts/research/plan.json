@@ -1,0 +1,31 @@
+{
+  "topic": "what the runtime does: Node's certificate store, and the mode a copied file gets",
+  "notes": "Phase 0 could not search: this machine's egress reaches github.com, api.github.com, codeload and the npm registry, and the keyless search lane's provider is outside it (recorded in research/MAP.md). The three pages are therefore named directly - the runtime owner's own files at the tag of the runtime in use (v22.22.0). fs.md carries the overwrite default and the COPYFILE_* semantics; deps/uv/docs/src/fs.rst is the layer that performs the copy; doc/node.1 carries NODE_EXTRA_CA_CERTS whole, where the GitHub viewer truncates the 116 KB doc/api/cli.md before its environment-variable section. All three are plain GitHub pages, so a failed fetch would cost nothing but would show up in the ledger.",
+  "depth": "quick",
+  "refreshDays": 30,
+  "limit": 8,
+  "perQuery": 3,
+  "maxScrapes": 10,
+  "prefer": [
+    "github.com",
+    "nodejs.org"
+  ],
+  "queries": [],
+  "urls": [
+    {
+      "url": "https://github.com/nodejs/node/blob/v22.22.0/doc/api/fs.md?plain=1",
+      "type": "P",
+      "why": "U-02 (the copy overwrites an existing destination by default; COPYFILE_EXCL is what makes it fail) and U-01 (what the page does and does not say about the destination's permissions)"
+    },
+    {
+      "url": "https://github.com/nodejs/node/blob/v22.22.0/deps/uv/docs/src/fs.rst?plain=1",
+      "type": "P",
+      "why": "U-01, U-02: uv_fs_copyfile is the layer that performs the copy; its flags and its documented default decide what the deploy's second run does"
+    },
+    {
+      "url": "https://github.com/nodejs/node/blob/v22.22.0/doc/node.1?plain=1",
+      "type": "P",
+      "why": "U-03: NODE_EXTRA_CA_CERTS - what it extends, the missing/malformed-file behaviour, and that it is read only at process launch"
+    }
+  ]
+}
