@@ -173,6 +173,13 @@ export function createPanel({
   autoExec = execFile,
 } = {}) {
   let currentProject = path.resolve(project);
+  // One mutex for command runs, project switching and auto-collect cycles: none of them
+  // may run while another changes the corpus or the kit tree under it.
+  let running = null;
+  const lock = {
+    take(name) { if (running) return false; running = name; return true; },
+    release(name) { if (running === name) running = null; },
+  };
   const auto = createAutoCollect({
     project: () => currentProject,
     env,
@@ -180,9 +187,9 @@ export function createPanel({
     nodePath,
     exec: autoExec,
     redact: (text) => SEARCH_KEY.redact(text, SEARCH_KEY.read(env, readMachineConfig(env).settings)),
+    lock,
   });
   let port = 0;
-  let running = null;
 
   const allowedHosts = () => new Set([`${PANEL_HOST}:${port}`, `localhost:${port}`]);
   const allowedOrigins = () => new Set([`http://${PANEL_HOST}:${port}`, `http://localhost:${port}`]);
@@ -332,12 +339,11 @@ export function createPanel({
         return refuse(res, 409, 'this panel runs from the installed copy, so there is nothing newer to install from. '
           + 'Update the downloaded kit (git pull, or a new download), then start the panel from that copy and press Update.');
       }
-      if (running) return refuse(res, 409, `${running} is still running; wait for it to finish`);
-      running = name;
+      if (!lock.take(name)) return refuse(res, 409, `${running} is still running; wait for it to finish`);
       try {
         return send(res, 200, await runCommand(name));
       } finally {
-        running = null;
+        lock.release(name);
       }
     }
 

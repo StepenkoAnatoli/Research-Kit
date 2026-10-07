@@ -271,6 +271,29 @@ test('the project is chosen by a full path to a folder that exists, and nothing 
   } finally { await ctx.panel.close(); }
 });
 
+test('an auto-collect cycle and a command run share one lock: neither runs beside the other, nor does a project switch', async () => {
+  const first = makeProject();
+  const second = makeProject();
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  let calls = 0;
+  const autoExec = async () => { calls += 1; await gate; return { code: 1, output: '' }; };
+  const ctx = await started({ project: first, kitRoot: standInKit(), autoExec });
+  try {
+    const cycle = ctx.panel.autoCollect.cycle({ force: true });
+    assertEqual(calls, 1, 'the cycle did not start');
+    assertEqual((await api(ctx, '/api/state')).json.running, 'auto-collect');
+    const run = await api(ctx, '/api/run', { command: 'preflight' });
+    assertEqual(run.status, 409, 'a command ran beside a collection cycle');
+    assertEqual((await api(ctx, '/api/project', { path: second })).status, 409, 'the project switched under a cycle');
+    assertEqual((await api(ctx, '/api/requests/check', {})).status, 409);
+    release();
+    await cycle;
+    assertEqual((await api(ctx, '/api/state')).json.running, null, 'the cycle kept the lock');
+    assertEqual((await api(ctx, '/api/run', { command: 'preflight' })).status, 200);
+  } finally { release(); await ctx.panel.close(); }
+});
+
 test('the brief is read from the project and never written', async () => {
   const project = makeProject(undefined, { content: true });
   const brief = path.join(project, 'research', 'BRIEF.md');

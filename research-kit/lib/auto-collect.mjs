@@ -76,7 +76,15 @@ export function createAutoCollect({
   nodePath = process.execPath,
   exec = execFile,
   redact = (s) => s,
+  lock = null,
 } = {}) {
+  // One mutex shared with whatever else touches the project (the panel's command runs and
+  // project switch): a cycle mutates the corpus, so nothing else runs beside it.
+  let held = '';
+  const mutex = lock ?? {
+    take(name) { if (held) return false; held = name; return true; },
+    release(name) { if (held === name) held = ''; },
+  };
   let busy = false;
   let timer = null;
   let lastCheck = '';
@@ -205,6 +213,7 @@ export function createAutoCollect({
     if (state.settings.mode === 'off' && !force) return status();
     const why = blocked();
     if (why) { note(why); return status(); }
+    if (!mutex.take('auto-collect')) { note('another run holds the project; this check waits for the next one'); return status(); }
     busy = true;
     try {
       lastCheck = new Date().toISOString();
@@ -235,6 +244,7 @@ export function createAutoCollect({
       }
     } finally {
       busy = false;
+      mutex.release('auto-collect');
     }
     return status();
   }
