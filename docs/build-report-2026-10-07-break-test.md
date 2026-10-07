@@ -52,7 +52,11 @@ for a decision-grade project, rather than the skill's default `docs/research/`.
   are `browser-transport`/`browser-guard` LIVE tests that need Chromium.
 - **Fix commits.** On `arena/b5352aeb-research-kit`: the corpus `9939ce0`, F1 `4619922`, this
   report the commit that adds it. The fix commit stages `docs/ARCHITECTURE.md` with the
-  `research-kit/` change, as the repository's own gate requires.
+  `research-kit/` change, as the repository's own gate requires. CI on the pull
+  request's first push (run 37621450447): `archive tree`, `node (24)`, `node (26)`,
+  `platform (ubuntu-latest)` and `platform (ubuntu-26.04)` passed; `platform (windows-latest)`
+  failed in the `selftest` step after 390 s - the defect under *Probe defects*, corrected by
+  `8a2c0d3`. The run after this commit is CI's to show, and this report does not claim it.
 - **External facts.** The nested project `docs/decisions/2026-10-07-break-test-external-facts/`
   (doctor READY first, keyless transport, disclosed): three pages collected, 0 failed,
   `preflight.mjs` PASS (0 blocking, 9 warnings - keyless not metered x3, partial captures x3,
@@ -91,7 +95,9 @@ for a decision-grade project, rather than the skill's default `docs/research/`.
 > kept), `research-kit/test/skill-set.test.mjs` (the regression test: first deploy, second
 > deploy, and a pre-existing 0444 destination), `research-kit/README.md` (the test count the
 > suite itself checks, 1696 -> 1697), `docs/ARCHITECTURE.md` (one clause in the `installer.mjs`
-> row, staged with the change as the repository's gate requires).
+> row, staged with the change as the repository's gate requires). The mode half is POSIX-scoped,
+> matching the kit's existing mode handling - `HOOK_MODE` is POSIX-only for the same reason - so
+> the Windows read-only attribute is not repaired by it, and is not claimed to be.
 > Verification: red before, green after (`14 passed, 0 failed in 1.0s`); the
 > pre-existing-destination half was red on its own (`13 passed, 1 failed`) before it was added;
 > the full gate in the clone after the fix: `1693 passed, 0 failed, 4 unsupported (waived),
@@ -139,6 +145,14 @@ for a decision-grade project, rather than the skill's default `docs/research/`.
 
 ## Probe defects
 
+- **The regression test itself - CI's Windows job found it, this host could not.** The first
+  version of the new test ran its two `0444` assertions on every platform while the fix is
+  POSIX-scoped: on Windows a deployed file carrying the read-only attribute is not repaired, so
+  the assertions failed. `platform (windows-latest)` failed the `selftest` step after 390 s and
+  blocked the pull request. Corrected in `8a2c0d3`: both clauses sit behind `posix`, the plain
+  deploy-twice half runs everywhere, and the reason is in the test's comment. Worth recording
+  rather than tidying away: an unguarded mode assertion passes on the host that wrote it and is
+  found by the one platform the change does not cover.
 - **`minimal-env` (A).** `env -i` dropped `RESEARCH_KIT_ALLOW_UNSUP=1`, so the run exited 1
   with 0 failures - the suite's documented "every test passed and the runner still exited N"
   case. Read from the result file, not reported as a product failure.
@@ -215,7 +229,10 @@ Commands are from the repository root of a clone unless noted; every full suite 
 
 - **Windows and macOS.** No host here; CI's `windows-latest` job is the only Windows run. The
   kit's Windows-specific paths (`HOOK_MODE`, `chmod` guards) were exercised only through tests
-  that skip on POSIX.
+  that skip on POSIX. F1's analogous
+  Windows case - a deploy whose source or destination carries the read-only attribute - was not
+  reproduced, and the fix does not cover it; the test's `0444` clauses are POSIX-only for
+  exactly that reason.
 - **Root-only and container-as-root permission semantics.** uid 1001, so permission bits are
   enforced - good for F1, but a root-running deployment was not covered.
 - **Network-off isolation.** `unshare -n true` is refused in this sandbox, so the suite was not
@@ -246,7 +263,9 @@ this host does not have. One real defect was found and fixed: a deploy from a re
 tree left a deployed kit that could not be updated, because the copy carries the source mode
 and overwrites by default - neither behaviour is documented (E-01, E-02) - and the fix sets the
 mode explicitly rather than trusting that, in `4619922`, with the full gate green in the clone
-and in the checkout. The decisions that remain are small: whether to name
+and in the checkout. The fix is POSIX-scoped, and the one Windows-side regression the pull
+request's CI caught - an unguarded assertion in the new test, not the fix itself - is corrected
+in `8a2c0d3`. The decisions that remain are small: whether to name
 `NODE_EXTRA_CA_CERTS` where the collector reports an unverifiable certificate, and whether to
 index the six dated reports the reading map omits. Review: `git show 4619922` and
 `docs/decisions/2026-10-07-break-test-external-facts/research/` for the external facts.
