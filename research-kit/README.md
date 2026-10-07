@@ -107,6 +107,7 @@ node "$HOME/.agents/research-kit/bin/handoff.mjs"     # did the corpus arrive wh
 | `new-project.mjs` | scaffold the shape (`--layout`, `--force`) |
 | `install.mjs` | deploy (`--dry-run`, `--into <project>`) |
 | `install-hooks.mjs` | the two gates and the machine's role and posture |
+| `panel.mjs` | the desktop panel: a page on 127.0.0.1 for keys, doctor, update, the topic and the builder hand-off (`--project`, `--port`, `--no-open`); never collects (ADR-0147) |
 | `researcher-release.mjs` | release evidence (`validate`, `conform`, `fi-validate`), read-only |
 | `path-authority.mjs` | Git-origin path-authority snapshots (`conform`, `validate`), read-only |
 | `ledger-conformance.mjs` + `.py` | qualification-ledger vectors, in two languages |
@@ -119,6 +120,35 @@ node "$HOME/.agents/research-kit/bin/handoff.mjs"     # did the corpus arrive wh
 | `mcp-server.mjs` | the collector as an MCP server over stdio, for an agent that speaks the protocol |
 | `disclosure.mjs` | what a stranger can read of a workflow run (`--repository`, `--run`, `--topic`), unauthenticated and read-only |
 | `selftest.mjs` | the whole suite, offline, under a scratch home with no `RESEARCH_KIT_*` variable or vendor key (ADR-0123) |
+
+## The desktop panel
+
+```
+node "$HOME/.agents/research-kit/bin/panel.mjs" --project "C:\path\to\my-research"
+```
+
+It opens your browser at a page served from 127.0.0.1. Across the top it shows the
+project's topic, this machine's role and a **Connect builder** button. Below are the
+SerpAPI key (saved to the machine config and never shown again), **Doctor**, and
+**Update**. Update installs the kit copy the panel was started from, so to update, start
+the panel from the new download.
+
+**Connect builder** is the hand-off. This machine collects and the builder builds. The
+builder is any AI agent or a person, on its own machine. The panel runs preflight, handoff
+and doctor and opens `BRIEF.md`. It then gives you the push lines for this machine and the
+text to paste to the builder. That text tells the builder to declare its role, run handoff
+and preflight, read the brief, and never collect. The panel never collects either:
+collection stays in the terminal, with its budget in view.
+
+**A desktop shortcut on Windows.** Right-click the desktop, choose New > Shortcut, and
+give it this target:
+
+```
+node "%USERPROFILE%\.agents\research-kit\bin\panel.mjs" --project "C:\path\to\my-research"
+```
+
+Ctrl+C in the window it opens stops the panel. The address it prints carries a one-time
+token: anyone holding it can use the panel until it stops, so do not share it.
 
 ## The portable artifact
 
@@ -466,7 +496,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1640 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1661 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

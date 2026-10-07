@@ -5,6 +5,14 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The desktop panel (ADR-0147, lifting the freeze for that one item): `bin/panel.mjs` opens a
+  page served from 127.0.0.1 for keys, doctor, update, the topic and the builder hand-off.
+  It runs doctor, handoff, preflight and install with fixed arguments and never collects.
+  It saves the SerpAPI key to the machine config, refuses to save it inside a repository,
+  and never shows it again. Its builder section gives the collector's push, ledger included,
+  and the builder's own steps. Host, Origin, JSON-only POSTs and a per-launch token in the
+  URL fragment guard every request. `transport.mjs` exposes `SEARCH_KEY` so the vendor stays
+  named only in the registry.
 - The kit ships a skill set and a role-aware router (ADR-0146, lifting the freeze for that
   one item): `research-kit/skills/<name>/`, deployed by `install.mjs` to every skill root
   beside research-first and `--into` a project. Ten skills are vendored as received from
