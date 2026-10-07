@@ -138,7 +138,7 @@ export function createAutoCollect({
       target = path.join(top, ...settings.topicsFolder.split('/'), `${today()}-${item.id}`);
       if (!target.startsWith(top + path.sep)) return refuse(top, dir, item, ['the folder for new topics is outside the repository']);
       if (fs.existsSync(target)) return refuse(top, dir, item, [`${relTo(top, target)} already exists; a new topic never goes over an existing project`]);
-      const made = await kit('new-project.mjs', [target, '--topic', request.topic], top);
+      const made = await kit('new-project.mjs', [target, `--topic=${request.topic}`], top);
       if (made.code !== 0) return fail(top, dir, item, target, `new-project failed: ${lastLine(made.output)}`, made.output);
       // The map's seeded checklist, searched but no page scraped: classifying it is the
       // builder's review step, and the pages are the request's to name.
