@@ -571,7 +571,7 @@ export function createAutoCollect({
 
   function status() {
     const state = readAutoCollect(env);
-    const dir = project();
+    const dir = canonical(project());
     const requests = listRequests(dir).map((item) => {
       const run = runs.get(cacheKey(dir, item.id)) ?? {};
       const fact = item.request && typeof item.request.fact === 'string' ? item.request.fact.slice(0, 300) : '';

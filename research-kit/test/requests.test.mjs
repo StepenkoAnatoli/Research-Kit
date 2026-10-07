@@ -352,10 +352,13 @@ test('a project reached by another spelling of its folder still commits inside t
   saveAutoCollect({ mode: 'auto', perRequestPages: 4, dailyPages: 20 }, w.m.env);
   builderPushes(w, 'burst-limit', GOOD);
 
-  const status = await createAutoCollect({ project: () => alias, env: w.m.env, kitRoot: w.kit }).cycle();
+  const auto = createAutoCollect({ project: () => alias, env: w.m.env, kitRoot: w.kit });
+  const status = await auto.cycle();
   const row = status.requests.find((r) => r.id === 'burst-limit');
   assertEqual(row.status, 'collected', JSON.stringify(row));
   assertEqual(row.git, 'committed and pushed');
+  const afterRestart = createAutoCollect({ project: () => alias, env: w.m.env, kitRoot: w.kit }).status();
+  assertEqual(afterRestart.requests.find((r) => r.id === 'burst-limit').status, 'collected', JSON.stringify(afterRestart));
 });
 
 test('auto-collect commits only its selected paths and preserves other staged work', async () => {
