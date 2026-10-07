@@ -75,7 +75,7 @@ stderr (cut at 1 MB, stopped after 10 minutes), redacts the search key, and retu
 ## Error handling
 
 - A wrong Host is 421, a foreign Origin 403, a missing or wrong token 401, a non-JSON POST
-  415, an unknown command 400 (naming the commands and that the panel never collects),
+  415, an unknown command 400 (naming the allowed commands and that arbitrary commands are never run),
   a run while another runs 409, update from the installed copy 409, a config inside a
   repository 409.
 - A child that cannot start, overflows or times out returns its output with the reason.

@@ -225,7 +225,7 @@ export function createAutoCollect({
       || !Number.isInteger(resume.pagesSpent) || resume.pagesSpent < 0) {
       throw new Error('partial request has invalid continuation state');
     }
-    const target = path.resolve(top, resume.target);
+    let target = path.resolve(top, resume.target);
     const relative = path.relative(top, target);
     if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
       throw new Error('partial request target is outside the repository');
@@ -394,12 +394,21 @@ export function createAutoCollect({
         if (item.result && item.result.status !== 'partial') {
           const key = cacheKey(dir, item.id);
           if (!delivered.has(key)) {
-            const resultPath = path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`);
-            const delivery = await commitAndPush(top, [resultPath], report(
+            let pendingPaths = [path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`)];
+            if (typeof item.result.project === 'string') {
+              const target = path.resolve(top, item.result.project);
+              const safe = item.request?.topic
+                ? await safeTopicTarget(top, target, readAutoCollect(env).settings.topicsFolder)
+                : { target: target === path.resolve(dir) ? target : '', problem: '' };
+              if (!safe.problem && safe.target && path.resolve(safe.target) === target) {
+                pendingPaths = collectionPaths(top, dir, target);
+              }
+            }
+            const delivery = await commitAndPush(top, pendingPaths, report(
               `research: deliver request ${item.id}`,
-              `delivered the existing result for ${item.id}`,
-              'a previous collection or refusal recorded a result that still needs to reach the builder',
-              'the result file was staged in an isolated index and pushed when an upstream was available',
+              `delivered the result and any pending corpus changes for ${item.id}`,
+              'a previous collection, failure, or refusal recorded a result that still needs to reach the builder',
+              'the result and associated corpus paths were staged in an isolated index and pushed when an upstream was available',
             ));
             if (delivery === 'committed and pushed' || delivery === 'pushed') delivered.add(key);
             runs.set(key, { git: delivery });
@@ -427,10 +436,14 @@ export function createAutoCollect({
           runs.set(key, { status: 'partial', detail: 'retrying delivery before resume', git: delivery });
           if (delivery !== 'committed and pushed' && delivery !== 'pushed') {
             note(`partial delivery for ${item.id} is still pending: ${delivery}`);
+            runs.set(key, { status: 'partial', detail: 'delivery is pending; no further pages were collected', git: delivery });
             continue;
           }
         }
-        if (current.paused) { runs.set(key, { status: 'waiting', detail: 'auto-collect is paused' }); continue; }
+        if (current.paused) {
+          runs.set(key, { status: 'waiting', detail: 'auto-collect is paused', ...(runs.get(key)?.git ? { git: runs.get(key).git } : {}) });
+          continue;
+        }
         const pages = resume
           ? Math.min(resume.remainingPages, requestPages(item.request, current.settings.perRequestPages))
           : requestPages(item.request, current.settings.perRequestPages);

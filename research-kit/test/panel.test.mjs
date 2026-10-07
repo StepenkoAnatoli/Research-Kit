@@ -4,7 +4,7 @@
 
 import http from 'node:http';
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, assertEqual, tempDir, fs, path, makeProject, requireGit, fixtureInitArgs, KIT_ROOT } from './harness.mjs';
+import { test, describe, assert, assertEqual, tempDir, fs, path, makeProject, requireGit, requireSymlink, fixtureInitArgs, KIT_ROOT } from './harness.mjs';
 import { writeText, readText } from '../lib/core.mjs';
 import { createPanel, PANEL_COMMANDS, PANEL_HOST, keyProblem, projectTopic, builderInstructions } from '../lib/panel.mjs';
 

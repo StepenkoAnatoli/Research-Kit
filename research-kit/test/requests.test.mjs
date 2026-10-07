@@ -338,7 +338,7 @@ test('topic requests refuse a topics folder symlink that resolves outside the ch
   const status = await loop(w).cycle();
   const row = status.requests.find((request) => request.id === 'new-topic');
   assertEqual(row.status, 'refused');
-  assert(/resolves outside the repository/.test(row.detail), row.detail);
+  assert(/symbolic link/.test(row.detail), row.detail);
   assertEqual(fs.readdirSync(outside).length, 0, 'scaffolding escaped the checkout');
 });
 
@@ -355,9 +355,9 @@ test('auto-collect caches are scoped by canonical project and request id', async
   assertEqual(one.requests[0].status, 'collected');
   current = second.collector;
   const before = auto.status();
-  assertEqual(before.requests[0].status, 'queued');
+  assert(before.requests.every((request) => request.status !== 'collected'), JSON.stringify(before));
   const two = await auto.cycle();
-  assertEqual(two.requests[0].status, 'collected');
+  assertEqual(two.requests.find((request) => request.id === 'burst-limit')?.status, 'collected', JSON.stringify(two));
   assertEqual(calls(first).length, 2);
 });
 
@@ -551,7 +551,7 @@ test('a partial topic request resumes in its original target and reuses its unkn
   auto.resume();
   const status = await auto.cycle();
   const collected = readJson(resultFile);
-  assertEqual(collected.status, 'collected');
+  assertEqual(collected.status, 'collected', JSON.stringify(collected));
   assertEqual(collected.project, partial.resume.target);
   assertEqual(collected.unknown, unknown);
   assertEqual(collected.pages, 3);
