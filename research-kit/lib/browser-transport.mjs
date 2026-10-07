@@ -100,7 +100,8 @@ export function guardChildTimeout(timeout = TIMEOUT_MS) {
 export function renderGuarded(binary, args, { url, env = process.env, timeout = TIMEOUT_MS, allowInternalRedirects, nodePath = process.execPath, spawn = spawnSync } = {}) {
   // ADR-0110: undefined lets the child decide from the URL asked for; the operator's opt-out,
   // or a caller's explicit choice, overrides it.
-  const allow = allowInternalRedirects ?? (env.RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS === '1' ? true : undefined);
+  const allow = allowInternalRedirects ?? (env.RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS === '1' ? true
+    : env.RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS === '0' ? false : undefined);
   const job = { binary, args, url: String(url), timeout, ...(allow === undefined ? {} : { allowInternalRedirects: allow }) };
   const result = spawn(nodePath, [GUARD_CHILD], {
     input: JSON.stringify(job), encoding: 'utf8', timeout: guardChildTimeout(timeout), windowsHide: true, maxBuffer: CHILD_OUTPUT_LIMIT, env,

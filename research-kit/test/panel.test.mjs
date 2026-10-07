@@ -157,6 +157,7 @@ test('the page never writes server text as HTML', () => {
   const js = readText(new URL('../panel/panel.js', import.meta.url), '');
   assert(js.length > 0, 'panel.js is missing');
   assert(!/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(js), 'panel.js writes HTML');
+  assert(/button\.type = 'button'/.test(js) && /aria-label/.test(js), 'request output has no keyboard-accessible control');
 });
 
 test('saving the search key writes the machine config and never echoes the key', async () => {
@@ -196,6 +197,26 @@ test('the key is never written into a repository, whatever RESEARCH_KIT_CONFIG s
     assertEqual(res.status, 409);
     assert(/Rule 6/.test(res.json.error), res.json.error);
     assert(!fs.existsSync(path.join(repo, 'cfg', 'research-kit.config.json')), 'the config was written into the repository');
+  } finally { await ctx.panel.close(); }
+});
+
+test('the key is refused when an outside config path symlinks into a repository', async () => {
+  requireGit('a machine config symlink into a repository');
+  const repo = tempDir('research-kit-panel-config-target-');
+  const init = spawnSync('git', fixtureInitArgs(), { cwd: repo, encoding: 'utf8' });
+  assertEqual(init.status, 0, init.stderr);
+  const target = path.join(repo, 'research-kit.config.json');
+  writeText(target, '{}\n');
+  const external = tempDir('research-kit-panel-config-link-');
+  const link = path.join(external, 'research-kit.config.json');
+  requireSymlink(target, link, 'outside config symlink');
+  const m = machine({ RESEARCH_KIT_CONFIG: link });
+  const ctx = await started({ machine: m, project: makeProject() });
+  try {
+    const res = await api(ctx, '/api/key/search', { key: KEY });
+    assertEqual(res.status, 409);
+    assert(/Rule 6/.test(res.json.error), res.json.error);
+    assertEqual(readText(target), '{}\n', 'the key was written through the symlink');
   } finally { await ctx.panel.close(); }
 });
 

@@ -33,11 +33,15 @@ the same `research.mjs`, and pushes the corpus with its ledger, plus `<id>.resul
 beside your request. Pull, and read the result:
 - `collected`: review the new evidence rows (rewrite each Finding into a claim), then close
   the unknown and run preflight.
+- `partial`: credits ran out after some pages were collected. The collector pauses without
+  switching transports; the result records the target, unknown, pages spent, and remaining
+  allowance. The operator can top up and press Resume, after which the collector continues
+  that same request without resetting its page cap.
 - `refused`: its `problems` say why (a page on an internal address, too many pages, a
   missing field). Fix the request under a new id.
 - `failed`: its `detail` says why.
-- no result yet: the request is waiting, either for today's cap or for the operator to top
-  up the credits.
+- no result yet: the request is waiting, either for today's cap, for the operator to top up
+  the credits, or for the collector to retry delivery of a previous result.
 
 Never fetch the page yourself while you wait.
 

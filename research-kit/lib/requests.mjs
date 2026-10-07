@@ -15,10 +15,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
-import { HEADERS, readJson, readText, writeJson, today, nowIso } from './core.mjs';
-import { parseTable, appendRow } from './corpus.mjs';
+import { HEADERS, parseJson, readJson, readText, writeJson, today, nowIso } from './core.mjs';
+import { duplicateKey, parseTable, appendRow } from './corpus.mjs';
 import { DEPTH_SCRAPES, readPlan } from './research-run.mjs';
-import { isInternal } from './http-transport.mjs';
+import { internalTarget, isInternal } from './http-transport.mjs';
 import { configPath } from './machine.mjs';
 
 export const REQUESTS_DIR = 'research/requests';
@@ -114,6 +114,21 @@ export function requestProblems(request, { perRequestPages = AUTO_COLLECT_DEFAUL
   return out;
 }
 
+/** Resolve builder-supplied hosts before collection; the fetch transport still guards rebinding. */
+export async function requestProblemsResolved(request, { resolveInternal = internalTarget, ...options } = {}) {
+  const out = requestProblems(request, options);
+  if (!Array.isArray(request?.urls)) return out;
+  for (const [i, value] of request.urls.entries()) {
+    const problem = urlProblem(value);
+    if (problem) continue;
+    const host = new URL(value).hostname.replace(/^\[|\]$/g, '');
+    if (net.isIP(host)) continue;
+    const internal = await resolveInternal(host);
+    if (internal) out.push(`urls[${i}] ${internal}`);
+  }
+  return out;
+}
+
 /** The pages one request may spend: what it asked for, or the collector's cap. */
 export function requestPages(request, perRequestPages) {
   return Number.isInteger(request?.maxPages) ? Math.min(request.maxPages, perRequestPages) : perRequestPages;
@@ -129,6 +144,16 @@ function refuseSymlink(file) {
   if (isSymlink(file)) throw new Error(`${path.basename(file)} is a symbolic link - the collector does not write through links`);
 }
 
+/** Reject linked path components under the project before reading or writing collector files. */
+function refuseLinkedPath(project, relative) {
+  let current = path.resolve(project);
+  const root = current;
+  for (const part of relative.split(/[\\/]+/).filter(Boolean)) {
+    current = path.join(current, part);
+    if (isSymlink(current)) throw new Error(`${path.relative(root, current)} is a symbolic link - the collector does not read or write through links`);
+  }
+}
+
 /**
  * Every request in the project, oldest name first: `{ id, file, request, parseError, result }`.
  * A name that is not an id is listed with `ignored` and never read - the result file it would
@@ -138,7 +163,7 @@ function refuseSymlink(file) {
  */
 export function listRequests(project) {
   const dir = path.join(project, REQUESTS_DIR);
-  if (isSymlink(dir)) return [];
+  if (['research', REQUESTS_DIR].some((p) => isSymlink(path.join(project, p)))) return [];
   let names = [];
   try { names = fs.readdirSync(dir).filter((n) => n.endsWith('.json')).sort(); } catch { return []; }
   const out = [];
@@ -175,7 +200,21 @@ export function contractIds(project) {
  */
 export function applyRequest(project, id, request, pages) {
   const planFile = `${REQUESTS_DIR}/${id}.plan.json`;
-  refuseSymlink(path.join(project, planFile));
+  refuseLinkedPath(project, 'research/DISCOVERY.md');
+  refuseLinkedPath(project, 'research/plan.json');
+  refuseLinkedPath(project, planFile);
+  const planPath = path.join(project, 'research', 'plan.json');
+  let plan;
+  try {
+    const source = readText(planPath);
+    if (source === null) throw new Error('research/plan.json is missing');
+    const duplicate = duplicateKey(source);
+    if (duplicate) throw new Error(`research/plan.json ${duplicate}`);
+    plan = parseJson(source);
+    if (!plan || typeof plan !== 'object' || Array.isArray(plan)) throw new Error('research/plan.json must be a JSON object');
+  } catch (err) {
+    throw new Error(`cannot apply request: ${err.message}`);
+  }
   const ids = contractIds(project);
   let unknown = request.unknown;
   if (unknown) {
@@ -190,8 +229,6 @@ export function applyRequest(project, id, request, pages) {
   const queries = (request.queries ?? []).map((q) => ({ q: q.trim(), why: unknown, ...(prefer.length ? { prefer } : {}) }));
   const urls = (request.urls ?? []).map((url) => ({ url, why, type: 'P' }));
 
-  const planPath = path.join(project, 'research', 'plan.json');
-  const plan = readJson(planPath, null) ?? {};
   plan.queries = Array.isArray(plan.queries) ? plan.queries : [];
   plan.urls = Array.isArray(plan.urls) ? plan.urls : [];
   for (const q of queries) if (!plan.queries.some((e) => (typeof e === 'string' ? e : e?.q) === q.q)) plan.queries.push(q);
@@ -242,6 +279,7 @@ export function settingsProblem(patch) {
       if (v && (v.startsWith('/') || /^[a-z]:/i.test(v) || v.split('/').some((s) => s === '..' || s === '.') || !/^[A-Za-z0-9._/-]+$/.test(v))) {
         return 'topicsFolder is a path relative to the repository, such as "projects" - no "..", no drive, no leading slash';
       }
+      if (v.split('/').some((part) => part.toLowerCase() === '.git')) return 'topicsFolder cannot name Git metadata';
       continue;
     }
     return `unknown setting "${key}"`;

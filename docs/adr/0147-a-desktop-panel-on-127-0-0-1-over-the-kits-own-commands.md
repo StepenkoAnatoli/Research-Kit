@@ -33,10 +33,12 @@ second collection route.
 3. **The panel never collects.** *(Amended by ADR-0148: the page still has no collect
    command; auto-collect runs `research.mjs` only for a builder's validated request, on a
    collector, within the operator's caps.)*
-   `research.mjs` and `decompose.mjs` have no route. On a
-   collector, collection stays a terminal act with its budget printed beside it (Rule 5);
-   on a builder it is refused anyway (ADR-0010). A page that could spend credits would be
-   one cross-site request away from spending them.
+   `research.mjs` and `decompose.mjs` have no direct/general-purpose route. On a collector,
+   direct collection stays a terminal act with its budget printed beside it (Rule 5); the
+   sole panel-triggered exception is auto-collection of validated builder requests within
+   the operator's configured caps. On a builder, collection is refused anyway (ADR-0010).
+   A page that could spend credits on arbitrary input would be one cross-site request away
+   from spending them.
 4. **"Connect builder" is the hand-off, as designed.** It checks the gate (preflight,
    handoff, doctor), opens `BRIEF.md`, and gives the text the collector pastes to its
    builder: the push with the ledger by name, then the builder's steps - declare the role,

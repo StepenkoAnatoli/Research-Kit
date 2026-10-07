@@ -9,7 +9,7 @@ import { test, describe, assert, assertEqual, tempDir, fs, path, makeProject, re
 import { writeText, readText, readJson, HEADERS } from '../lib/core.mjs';
 import { parseTable } from '../lib/corpus.mjs';
 import {
-  requestProblems, urlProblem, applyRequest, listRequests, writeResult, settingsProblem, saveAutoCollect, readAutoCollect, requestPages,
+  requestProblems, requestProblemsResolved, urlProblem, applyRequest, listRequests, writeResult, settingsProblem, saveAutoCollect, readAutoCollect, requestPages,
 } from '../lib/requests.mjs';
 import { createAutoCollect, execFile, spentPages, creditsStopped } from '../lib/auto-collect.mjs';
 import { builderInstructions } from '../lib/panel.mjs';
@@ -56,6 +56,13 @@ test('a page on this machine or its network is refused - a request cannot aim th
   assertEqual(urlProblem('https://docs.example.com/limits'), '');
 });
 
+test('a builder hostname resolving to an internal address is refused', async () => {
+  const problems = await requestProblemsResolved({ ...GOOD }, {
+    resolveInternal: async (host) => host === 'docs.example.com' ? 'docs.example.com resolves to 127.0.0.1, an internal address' : null,
+  });
+  assert(problems.some((problem) => /resolves to 127\.0\.0\.1/.test(problem)), problems.join('; '));
+});
+
 test('a request over the per-request budget is refused, not trimmed', () => {
   const problems = requestProblems({ ...GOOD, maxPages: 10 }, { perRequestPages: 4 });
   assert(problems.some((p) => /over this collector's budget of 4/.test(p)), problems.join('; '));
@@ -66,7 +73,7 @@ test('a request over the per-request budget is refused, not trimmed', () => {
 test('settings accept only the two modes and a folder inside the repository', () => {
   assertEqual(settingsProblem({ mode: 'auto', perRequestPages: 4, dailyPages: 20, intervalMinutes: 5, topicsFolder: 'projects/new' }), '');
   for (const bad of [{ mode: 'approve' }, { mode: 'always' }, { perRequestPages: 26 }, { dailyPages: -1 }, { intervalMinutes: 0 },
-    { topicsFolder: '../outside' }, { topicsFolder: '/abs' }, { topicsFolder: 'C:/x' }, { fallback: true }]) {
+    { topicsFolder: '../outside' }, { topicsFolder: '/abs' }, { topicsFolder: 'C:/x' }, { topicsFolder: '.git' }, { fallback: true }]) {
     assert(settingsProblem(bad), `${JSON.stringify(bad)} was accepted`);
   }
 });
@@ -135,6 +142,33 @@ test('a request or its collector-owned sibling that is a symbolic link is ignore
   assert(/symbolic link/.test(threw), threw);
   assertEqual(readText(outside), '{"keep":true}');
   assert(!fs.existsSync(path.join(path.dirname(outside), 'dangling.json')), 'a dangling result link was written through');
+});
+
+test('a request cannot write through symlinked project control files', () => {
+  for (const rel of ['research/plan.json', 'research/DISCOVERY.md']) {
+    const project = makeProject(undefined, { content: true });
+    const outside = path.join(tempDir(), `outside-${path.basename(rel)}`);
+    writeText(outside, 'leave this file untouched');
+    fs.rmSync(path.join(project, rel));
+    requireSymlink(outside, path.join(project, rel), `${rel} symlink`);
+    let threw = '';
+    try { applyRequest(project, 'linked-control', { ...GOOD }, 1); } catch (err) { threw = err.message; }
+    assert(/symbolic link/.test(threw), `${rel}: ${threw}`);
+    assertEqual(readText(outside), 'leave this file untouched');
+  }
+});
+
+test('a malformed, duplicate-keyed, or non-object plan is refused without rewriting it', () => {
+  for (const contents of ['{ broken', '{"topic":"first","topic":"second"}', 'null', '[]']) {
+    const project = makeProject(undefined, { content: true });
+    const file = path.join(project, 'research', 'plan.json');
+    writeText(file, contents);
+    let threw = '';
+    try { applyRequest(project, 'bad-plan', { ...GOOD }, 1); } catch (err) { threw = err.message; }
+    assert(/cannot apply request/.test(threw), `${contents}: ${threw}`);
+    assertEqual(readText(file), contents, `${contents} was overwritten`);
+    assertEqual(parseTable(readText(path.join(project, 'research', 'DISCOVERY.md')), HEADERS.unknowns).rows.length, 0);
+  }
 });
 
 test('the summary parsers read research.mjs\'s own lines', () => {
@@ -280,6 +314,53 @@ test('a project reached by another spelling of its folder still commits inside t
   assertEqual(row.git, 'committed and pushed');
 });
 
+test('auto-collect commits only its selected paths and preserves other staged work', async () => {
+  const w = world();
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'burst-limit', GOOD);
+  writeText(path.join(w.collector, 'product.txt'), 'staged product change');
+  git(w.collector, w.m.env, 'add', 'product.txt');
+
+  const status = await loop(w).cycle();
+  assertEqual(status.requests[0].status, 'collected');
+  assertEqual(git(w.collector, w.m.env, 'diff', '--cached', '--name-only').trim(), 'product.txt');
+  assert(!git(w.collector, w.m.env, 'show', '--pretty=', '--name-only', 'HEAD').includes('product.txt'));
+  assertEqual(readText(path.join(w.collector, 'product.txt')), 'staged product change');
+});
+
+test('topic requests refuse a topics folder symlink that resolves outside the checkout', async () => {
+  const w = world();
+  const outside = tempDir('research-kit-auto-outside-topics-');
+  requireSymlink(outside, path.join(w.collector, 'projects'), 'topics folder symlink');
+  saveAutoCollect({ mode: 'auto', topicsFolder: 'projects' }, w.m.env);
+  builderPushes(w, 'new-topic', { ...GOOD, topic: 'A separate topic' });
+
+  const status = await loop(w).cycle();
+  const row = status.requests.find((request) => request.id === 'new-topic');
+  assertEqual(row.status, 'refused');
+  assert(/resolves outside the repository/.test(row.detail), row.detail);
+  assertEqual(fs.readdirSync(outside).length, 0, 'scaffolding escaped the checkout');
+});
+
+test('auto-collect caches are scoped by canonical project and request id', async () => {
+  const first = world();
+  const second = world();
+  saveAutoCollect({ mode: 'auto' }, first.m.env);
+  builderPushes(first, 'burst-limit', GOOD);
+  builderPushes(second, 'burst-limit', GOOD);
+  let current = first.collector;
+  const auto = createAutoCollect({ project: () => current, env: first.m.env, kitRoot: first.kit });
+
+  const one = await auto.cycle();
+  assertEqual(one.requests[0].status, 'collected');
+  current = second.collector;
+  const before = auto.status();
+  assertEqual(before.requests[0].status, 'queued');
+  const two = await auto.cycle();
+  assertEqual(two.requests[0].status, 'collected');
+  assertEqual(calls(first).length, 2);
+});
+
 test('auto-collect blocks requests until a failed git pull is resolved', async () => {
   const w = world();
   saveAutoCollect({ mode: 'auto' }, w.m.env);
@@ -418,6 +499,36 @@ test('when credits run out auto-collect resumes the same request within its rema
   assertEqual(readJson(planFile).maxScrapes, 2, 'the retry reset the request allowance');
   assertEqual(calls(w).length, 4, 'the paused request or the following request was not resumed');
   assertEqual(status.requests.find((r) => r.id === 'burst-limit').status, 'collected');
+});
+
+test('partial delivery retries before pause checks and does not spend another page', async () => {
+  const w = world({ STANDIN_MODE: 'stopped' });
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'burst-limit', GOOD);
+  let failPush = true;
+  const auto = createAutoCollect({
+    project: () => w.collector,
+    env: w.m.env,
+    kitRoot: w.kit,
+    exec: (command, args, options) => {
+      if (command === 'git' && args[0] === 'push' && failPush) {
+        failPush = false;
+        return Promise.resolve({ code: 1, output: 'temporary push failure\n' });
+      }
+      return execFile(command, args, options);
+    },
+  });
+
+  let status = await auto.cycle();
+  assertEqual(status.requests[0].status, 'partial');
+  assert(/push failed/.test(status.requests[0].git), status.requests[0].git);
+  assertEqual(calls(w).length, 1);
+  status = await auto.cycle();
+  assertEqual(status.requests[0].status, 'partial');
+  assertEqual(status.requests[0].git, 'pushed');
+  assertEqual(calls(w).length, 1, 'delivery retry spent more credits');
+  git(w.builder, w.m.env, 'pull', '-q', '--ff-only');
+  assert(fs.existsSync(path.join(w.builder, 'research', 'raw', '.fetches.jsonl')), 'partial corpus was not delivered');
 });
 
 test('a partial topic request resumes in its original target and reuses its unknown', async () => {

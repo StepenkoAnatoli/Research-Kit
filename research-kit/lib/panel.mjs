@@ -97,7 +97,12 @@ export function builderInstructions({ topic = '', brief = false } = {}) {
     'On the collector (this machine), once preflight prints PASS and research/BRIEF.md is written:',
     '  git add research/',
     '  git add -f research/raw/.fetches.jsonl',
-    '  git commit -m "research: corpus and brief"   then push',
+    '  git commit -m "research: corpus and brief" \\',
+    '    -m "what changed: collected corpus and builder brief" \\',
+    '    -m "why: complete the phase-one handoff" \\',
+    '    -m "what you verified: verified preflight PASS and handoff checks" \\',
+    '    -m "what you got wrong: nothing to report"',
+    '  git push',
   ];
   const builder = [
     `You are the BUILDER for this project${topic ? `: "${topic}"` : ''}. The collector has finished phase 1; you do phase 2.`,
@@ -141,7 +146,20 @@ function existingAncestor(dir) {
 /** Rule 6: the key is never written into a repository, whatever RESEARCH_KIT_CONFIG says. */
 export function configInsideRepository(env = process.env) {
   const file = configPath(env);
-  return repoTopLevel({ cwd: existingAncestor(path.dirname(file)), env }) || '';
+  const parentRepo = repoTopLevel({ cwd: existingAncestor(path.dirname(file)), env });
+  if (parentRepo) return parentRepo;
+  let target = file;
+  try {
+    target = fs.realpathSync.native(file);
+  } catch {
+    try {
+      if (fs.lstatSync(file).isSymbolicLink()) {
+        const link = fs.readlinkSync(file);
+        target = path.resolve(path.dirname(file), link);
+      }
+    } catch { /* a missing config is written beside its parent */ }
+  }
+  return repoTopLevel({ cwd: existingAncestor(path.dirname(target)), env }) || '';
 }
 
 function sameCopy(a, b) {

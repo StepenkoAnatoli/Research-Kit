@@ -75,7 +75,14 @@ function renderRequests(r) {
       td.textContent = String(value ?? '');
       tr.append(td);
     }
-    if (q.output) tr.addEventListener('click', () => show(`request ${q.id}`, q.output));
+    if (q.output) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = 'View output';
+      button.setAttribute('aria-label', `View output for request ${q.id}`);
+      button.addEventListener('click', () => show(`request ${q.id}`, q.output));
+      tr.lastElementChild.append(button);
+    }
     return tr;
   }));
   $('auto-notes').textContent = r.notes.slice().reverse().join('\n');

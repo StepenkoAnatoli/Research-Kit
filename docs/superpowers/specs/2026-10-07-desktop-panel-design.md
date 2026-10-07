@@ -58,10 +58,17 @@ All `/api/` routes need the token header; POSTs need `Content-Type: application/
 | `POST /api/project {path}` | switch project: an absolute path to an existing folder |
 | `POST /api/key/search {key}` | save or clear the search key in the machine config |
 | `POST /api/run {command}` | one of `doctor`, `handoff`, `preflight`, `update-preview`, `update`; one at a time |
+| `GET /api/requests` | request queue, collection settings, daily meter, results, and recent output |
+| `POST /api/autocollect {settings}` | validate and save machine-local auto-collect settings; arm or stop the timer |
+| `POST /api/requests/check` | check for builder requests; on a collector, may collect validated requests within configured caps and commit/push results |
+| `POST /api/requests/resume` | clear the pause after credit exhaustion; later checks may continue the partial request |
 
 ## Data flow
 
-The page reads `/api/state`, renders it with `textContent` only, and posts actions. A run
+The page reads `/api/state` and `/api/requests`, renders untrusted values with `textContent`
+or DOM controls, and posts actions. Auto-collection mutates and commits corpus files only
+for validated builder requests on a collector, within the configured per-request and daily
+page caps; it never accepts arbitrary commands or passes `--fallback`. A run
 spawns `node <kit>/bin/<script> <fixed args>` with the project as cwd, collects stdout and
 stderr (cut at 1 MB, stopped after 10 minutes), redacts the search key, and returns it.
 
@@ -80,7 +87,10 @@ The panel holds a credential and runs commands, so: bound to 127.0.0.1; Host and
 checks against rebinding and cross-site requests; a 192-bit per-launch token in the URL
 fragment, compared in constant time; JSON-only POSTs; a strict Content-Security-Policy
 (`script-src 'self'`, no inline script), `no-referrer`, `no-store`, `frame-ancestors
-'none'`; no route that collects or writes a repository file.
+'none'`. Collection is limited to validated builder requests on a collector and obeys the
+operator's configured caps; it cannot collect arbitrary pages or execute arbitrary commands.
+The settings route writes only machine-local settings, while request checks may write,
+commit, and push corpus/result files for those validated requests.
 
 ## Testing
 
@@ -94,5 +104,6 @@ project switching; the brief read-only; the hand-off text; no runtime named; CLI
 
 ## Out of scope (left out deliberately)
 
-A packaged window or tray icon (Electron, Tauri, SEA), editing the topic, collection, a
-folder picker that browses the disk, remote access to the panel, an installed shortcut.
+A packaged window or tray icon (Electron, Tauri, SEA), editing the topic, manual/general-
+purpose collection controls, a folder picker that browses the disk, remote access to the
+panel, an installed shortcut.

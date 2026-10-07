@@ -29,7 +29,8 @@ const SELF = fileURLToPath(import.meta.url);
 function runJob(job, { timeout = 60_000, spawn = spawnSync, nodePath = process.execPath, env = process.env, allowInternalRedirects } = {}) {
   // ADR-0110: undefined lets the child decide from the URL asked for; the operator's opt-out,
   // or a caller's explicit choice, overrides it.
-  const allow = allowInternalRedirects ?? (env.RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS === '1' ? true : undefined);
+  const allow = allowInternalRedirects ?? (env.RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS === '1' ? true
+    : env.RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS === '0' ? false : undefined);
   const result = spawn(nodePath, [SELF], {
     input: JSON.stringify(allow === undefined ? job : { ...job, allowInternalRedirects: allow }),
     encoding: 'utf8',
