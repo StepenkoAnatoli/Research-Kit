@@ -219,6 +219,11 @@ reaches 1.1, or if artifact download proves too awkward in practice.
 > evidenced in `docs/decisions/2026-09-21-sea-assets/`. If an offline operator ever turns up,
 > nothing here has to be re-researched.
 
+> **Amendment, 2026-10-07 - the operator turned up, and asked for a window, not a binary.**
+> ADR-0147 answers the request this rejection anticipated with a local page served by the
+> kit (`bin/panel.mjs`), which needs no packaging. The `.exe` itself stays rejected; the
+> route above is still the one to take if a machine without Node must run that page.
+
 **Hybrid first.** The strongest long-term shape and the most work, and it needs the
 collector anyway. It is what the collector grows into, not an alternative to building it.
 

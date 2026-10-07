@@ -5,6 +5,25 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- The collector serves builder requests (ADR-0148, lifting the freeze for that one item).
+  A builder pushes `research/requests/<id>.json`: one fact, why it blocks, and the owner
+  pages or search queries. The desktop panel's auto-collect runs on a collector only. It
+  pulls and checks each request as untrusted input (fixed fields, http(s) only, no internal
+  address, within the per-request cap). It then adds the contract row and plan entries, runs
+  the same `research.mjs` and preflight, commits the corpus with its ledger and
+  `<id>.result.json`, and pushes. Per-request and daily page caps apply. When credits run
+  out it pauses and never passes `--fallback`. A request with a topic gets a new project,
+  under a folder the operator approves. New modules: `lib/requests.mjs`,
+  `lib/auto-collect.mjs`. The panel shows the queue, the modes (off or automatic), the caps,
+  Check now and Resume. A failed commit or push is retried without collecting the request again.
+- The desktop panel (ADR-0147, lifting the freeze for that one item): `bin/panel.mjs` opens a
+  page served from 127.0.0.1 for keys, doctor, update, the topic and the builder hand-off.
+  It runs doctor, handoff, preflight and install with fixed arguments and never collects.
+  It saves the SerpAPI key to the machine config, refuses to save it inside a repository,
+  and never shows it again. Its builder section gives the collector's push, ledger included,
+  and the builder's own steps. Host, Origin, JSON-only POSTs and a per-launch token in the
+  URL fragment guard every request. `transport.mjs` exposes `SEARCH_KEY` so the vendor stays
+  named only in the registry.
 - The kit ships a skill set and a role-aware router (ADR-0146, lifting the freeze for that
   one item): `research-kit/skills/<name>/`, deployed by `install.mjs` to every skill root
   beside research-first and `--into` a project. Ten skills are vendored as received from

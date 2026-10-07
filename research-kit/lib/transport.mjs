@@ -157,6 +157,23 @@ export function unusedKeyNote(chosen, env = process.env) {
 }
 
 /**
+ * The metered search provider's credential, for a surface that must not name the vendor
+ * (the desktop panel, ADR-0147). The registry is the one place besides the adapter that may.
+ * `state` says whether a key is set and where it came from, never the key itself.
+ */
+export const SEARCH_KEY = Object.freeze({
+  env: serpapi.KEY_ENV,
+  configKey: serpapi.CONFIG_KEY,
+  read: (env = process.env, config = null) => serpapi.readKey({ env, config }),
+  state(env = process.env, config = null) {
+    const fromEnv = typeof env[serpapi.KEY_ENV] === 'string' && env[serpapi.KEY_ENV].trim() !== '';
+    const key = serpapi.readKey({ env, config });
+    return { set: Boolean(key), source: fromEnv ? 'environment' : (key ? 'config' : '') };
+  },
+  redact: (text, key) => serpapi.redact(text, key),
+});
+
+/**
  * The SEARCH side, resolved independently and by the same ladder: explicit flag,
  * environment, machine config, then auto-detect.
  *

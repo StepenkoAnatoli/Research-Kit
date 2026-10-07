@@ -40,7 +40,9 @@ If the working directory is not the project the operator means, stop and ask whi
 
 A builder never runs a collecting skill: `research.mjs` and `decompose.mjs` refuse there
 (exit 2), and a page fetched another way is not evidence (ADR-0010). A missing fact is a
-`fact-request`, never a fetch.
+`fact-request`, never a fetch. When the collector runs auto-collect, the request is a file,
+`research/requests/<id>.json`, and the collector collects it and pushes the result
+(ADR-0148). The builder decides what is collected; only the collector fetches it.
 
 ## Step 3: route by task (once building is allowed)
 
@@ -82,7 +84,7 @@ replaced by `fact-request`.
 | break-test | stage | hardening a build | hardening a build, Research-Kit step replaced by fact-request |
 | skill-router | no | always first | always first |
 | resume-from-disk | no | after an interruption | after an interruption |
-| fact-request | no | when a builder's request arrives | whenever a fact is missing |
+| fact-request | no | when a builder's request arrives (auto-collect answers a request file) | whenever a fact is missing; push research/requests/<id>.json |
 | build-from-brief | no | after the gate passes | after the handoff and the gate pass |
 | day-one-tasks | no | first build steps | first build steps |
 | cite-in-code | no | while building | while building |

@@ -9,10 +9,46 @@ A builder does not collect. `research.mjs` and `decompose.mjs` refuse there (exi
 a page fetched by hand, by a browser tool, or from memory is not evidence in this kit
 (ADR-0010). The honest move is to name the fact precisely and hand it to the collector.
 
-## The request
+## The request file (the collector collects it automatically)
 
-Write it in your report, the pull request, or an issue - not into `research/`, which the
-collector owns. One request per fact:
+When the collector runs auto-collect (ADR-0148), write one file per fact, then commit and push it. This
+is the only place under `research/` a builder writes; the rest is the collector's:
+
+```
+research/requests/<id>.json        id: lower-case letters, digits and dashes
+{
+  "fact":    "<the fact, as a question a page can answer>",
+  "blocks":  "<the design decision that changes if it is guessed wrong>",
+  "urls":    ["https://<the page that owns the fact>"],
+  "queries": ["<a search, when no owner page is known>"],
+  "prefer":  ["<owner domain>"],          optional
+  "unknown": "U-NN",                      optional: an existing contract row
+  "maxPages": 4,                          optional: at most the collector's cap
+  "topic":   "<a whole new project>"      optional, instead of one fact in this one
+}
+```
+
+The collector pulls it, checks it, adds the contract row and the plan entry, collects with
+the same `research.mjs`, and pushes the corpus with its ledger, plus `<id>.result.json`
+beside your request. Pull, and read the result:
+- `collected`: review the new evidence rows (rewrite each Finding into a claim), then close
+  the unknown and run preflight.
+- `partial`: credits ran out after some pages were collected. The collector pauses without
+  switching transports; the result records the target, unknown, pages spent, and remaining
+  allowance. The operator can top up and press Resume, after which the collector continues
+  that same request without resetting its page cap.
+- `refused`: its `problems` say why (a page on an internal address, too many pages, a
+  missing field). Fix the request under a new id.
+- `failed`: its `detail` says why.
+- no result yet: the request is waiting, either for today's cap, for the operator to top up
+  the credits, or for the collector to retry delivery of a previous result.
+
+Never fetch the page yourself while you wait.
+
+## The request in prose (no auto-collect)
+
+When the collector does not run auto-collect, write it in your report, the pull request,
+or an issue - not into `research/`, which the collector owns. One request per fact:
 
 ```
 Fact request - <project path>
