@@ -20,10 +20,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { today } from './core.mjs';
+import { readJson, today, writeJson } from './core.mjs';
 import { collectionPolicy } from './machine.mjs';
 import {
-  REQUESTS_DIR, listRequests, requestProblems, requestPages, applyRequest, writeResult,
+  REQUESTS_DIR, REQUEST_LIMITS, listRequests, requestProblems, requestPages, contractIds, applyRequest, writeResult,
   readAutoCollect, recordSpend, setPaused,
 } from './requests.mjs';
 
@@ -133,6 +133,39 @@ export function createAutoCollect({
     return rel === '' ? '.' : rel;
   }
 
+  function resumeInfo(top, dir, item, settings) {
+    if (item.result?.status !== 'partial') return null;
+    const resume = item.result.resume;
+    if (!resume || typeof resume.target !== 'string' || typeof resume.unknown !== 'string'
+      || !Number.isInteger(resume.remainingPages) || resume.remainingPages < 0 || resume.remainingPages > REQUEST_LIMITS.maxPages
+      || !Number.isInteger(resume.pagesSpent) || resume.pagesSpent < 0) {
+      throw new Error('partial request has invalid continuation state');
+    }
+    const target = path.resolve(top, resume.target);
+    const relative = path.relative(top, target);
+    if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+      throw new Error('partial request target is outside the repository');
+    }
+    if (item.request.topic) {
+      if (!settings.topicsFolder) throw new Error('this collector has no folder approved for new topics');
+      const topics = path.resolve(top, ...settings.topicsFolder.split('/'));
+      const fromTopics = path.relative(topics, target);
+      if (fromTopics === '..' || fromTopics.startsWith(`..${path.sep}`) || path.isAbsolute(fromTopics)
+        || !path.basename(target).endsWith(`-${item.id}`)) {
+        throw new Error('partial request target is outside the approved topic folder');
+      }
+    } else if (target !== path.resolve(dir)) {
+      throw new Error('partial request target does not match this project');
+    }
+    if (!fs.existsSync(path.join(target, `${REQUESTS_DIR}/${item.id}.plan.json`))) {
+      throw new Error('partial request plan is missing');
+    }
+    if (!contractIds(target).includes(resume.unknown)) {
+      throw new Error(`${resume.unknown} is not a row of research/DISCOVERY.md`);
+    }
+    return { ...resume, target };
+  }
+
   async function refuse(top, dir, item, problems) {
     writeResult(dir, item.id, { status: 'refused', problems });
     const committed = await commitAndPush(top, [path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`)],
@@ -142,11 +175,10 @@ export function createAutoCollect({
     note(`refused ${item.id}: ${problems.join('; ')}`);
   }
 
-  async function collect(top, dir, item, settings) {
+  async function collect(top, dir, item, settings, pages, resume) {
     const request = item.request;
-    const pages = requestPages(request, settings.perRequestPages);
-    let target = dir;
-    if (request.topic) {
+    let target = resume?.target ?? dir;
+    if (!resume && request.topic) {
       if (!settings.topicsFolder) return refuse(top, dir, item, ['this collector has no folder approved for new topics; the operator sets one in the panel']);
       target = path.join(top, ...settings.topicsFolder.split('/'), `${today()}-${item.id}`);
       if (!target.startsWith(top + path.sep)) return refuse(top, dir, item, ['the folder for new topics is outside the repository']);
@@ -162,7 +194,19 @@ export function createAutoCollect({
     }
 
     let applied;
-    try { applied = applyRequest(target, item.id, request, pages); } catch (err) { return refuse(top, dir, item, [err.message]); }
+    try {
+      if (resume) {
+        const planFile = `${REQUESTS_DIR}/${item.id}.plan.json`;
+        const planPath = path.join(target, planFile);
+        const plan = readJson(planPath, null);
+        if (!plan || typeof plan !== 'object' || Array.isArray(plan)) throw new Error('partial request plan is invalid');
+        plan.maxScrapes = pages;
+        writeJson(planPath, plan);
+        applied = { unknown: resume.unknown, planFile };
+      } else {
+        applied = applyRequest(target, item.id, request, pages);
+      }
+    } catch (err) { return refuse(top, dir, item, [err.message]); }
     runs.set(item.id, { status: 'collecting', detail: `${pages} page(s) for ${applied.unknown}` });
     note(`collecting ${item.id}: up to ${pages} page(s) for ${applied.unknown}`);
 
@@ -176,12 +220,22 @@ export function createAutoCollect({
     if (target !== dir) paths.unshift(relTo(top, target)), paths.push(path.posix.join(relTo(top, dir), REQUESTS_DIR));
 
     if (stoppedOn) {
-      // No result is written: the request is not finished, and runs again once resumed. A
-      // page already on disk is not fetched twice, so only what is left is paid for.
+      // A stopped request keeps its target, contract row and unused allowance for the next cycle.
       setPaused(`credits ran out on ${stoppedOn} during request ${item.id}. Top up and press Resume, `
         + 'or finish it in a terminal - auto-collect never switches to the free transports by itself.', env);
+      const totalSpent = (resume?.pagesSpent ?? 0) + spent;
+      const remainingPages = Math.max(0, pages - spent);
+      const plan = readJson(path.join(target, applied.planFile), {});
+      plan.maxScrapes = remainingPages;
+      writeJson(path.join(target, applied.planFile), plan);
+      writeResult(dir, item.id, {
+        status: 'partial',
+        detail: `credits ran out on ${stoppedOn}`,
+        pages: totalSpent,
+        resume: { target: relTo(top, target), unknown: applied.unknown, remainingPages, pagesSpent: totalSpent },
+      });
       const committed = await commitAndPush(top, paths, `research: request ${item.id} partly collected (${spent} page(s)) - credits ran out`);
-      runs.set(item.id, { status: 'stopped', detail: `credits ran out on ${stoppedOn}`, pages: spent, output, git: committed });
+      runs.set(item.id, { status: 'stopped', detail: `credits ran out on ${stoppedOn}`, pages: totalSpent, output, git: committed });
       note(`paused: credits ran out on ${stoppedOn} during ${item.id}`);
       return;
     }
@@ -190,7 +244,7 @@ export function createAutoCollect({
     const gate = await kit('preflight.mjs', [], target);
     const preflight = { code: gate.code, verdict: lastLine(gate.output) };
     writeResult(dir, item.id, {
-      status: 'collected', unknown: applied.unknown, project: relTo(top, target), pages: spent, preflight,
+      status: 'collected', unknown: applied.unknown, project: relTo(top, target), pages: (resume?.pagesSpent ?? 0) + spent, preflight,
       next: 'pull; review the new EVIDENCE rows (rewrite each Finding into a claim), then close the unknown and run preflight',
     });
     const committed = await commitAndPush(top, paths, `research: collect request ${item.id} (${spent} page(s), ${applied.unknown})`);
@@ -233,7 +287,7 @@ export function createAutoCollect({
 
       for (const item of requests) {
         if (item.ignored) continue;
-        if (item.result) {
+        if (item.result && item.result.status !== 'partial') {
           if (!delivered.has(item.id)) {
             const resultPath = path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`);
             const delivery = await commitAndPush(top, [resultPath], `research: deliver request ${item.id}`);
@@ -246,8 +300,15 @@ export function createAutoCollect({
         if (item.parseError) { await refuse(top, dir, item, [item.parseError]); continue; }
         const problems = requestProblems(item.request, current.settings);
         if (problems.length) { await refuse(top, dir, item, problems); continue; }
+        let resume;
+        try { resume = resumeInfo(top, dir, item, current.settings); } catch (err) {
+          await refuse(top, dir, item, [err.message]);
+          continue;
+        }
         if (current.paused) { runs.set(item.id, { status: 'waiting', detail: 'auto-collect is paused' }); continue; }
-        const pages = requestPages(item.request, current.settings.perRequestPages);
+        const pages = resume
+          ? Math.min(resume.remainingPages, requestPages(item.request, current.settings.perRequestPages))
+          : requestPages(item.request, current.settings.perRequestPages);
         if (current.spent.pages + pages > current.settings.dailyPages) {
           runs.set(item.id, { status: 'waiting', detail: `today's cap: ${current.spent.pages} of ${current.settings.dailyPages} page(s) spent, this needs ${pages}` });
           continue;
@@ -257,7 +318,7 @@ export function createAutoCollect({
           runs.set(item.id, { status: 'waiting', detail: 'research/ has uncommitted changes; commit or discard them - auto-collect commits everything under research/' });
           continue;
         }
-        await collect(top, dir, item, current.settings);
+        await collect(top, dir, item, current.settings, pages, resume);
       }
     } finally {
       busy = false;

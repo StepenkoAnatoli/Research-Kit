@@ -154,6 +154,7 @@ test('the builder instructions say how to file a request', () => {
 /** Stand-in kit: research.mjs writes one capture and a ledger line, or reports credits gone. */
 function standInKit() {
   const root = tempDir('research-kit-auto-kit-');
+  const template = makeProject(undefined, { topic: 'Auto topic template', content: true });
   writeText(path.join(root, 'bin', 'research.mjs'), `
 const fs = require('node:fs');
 const path = require('node:path');
@@ -170,11 +171,19 @@ console.log('collected  2');
 console.log('spent      2 (budget consumed: collected + failed)');
 `.replace(/^\n/, ''));
   writeText(path.join(root, 'bin', 'preflight.mjs'), "console.log('FAIL - 1 unknown OPEN'); process.exit(1);\n");
+  writeText(path.join(root, 'bin', 'new-project.cjs'), `
+const fs = require('node:fs');
+const path = require('node:path');
+fs.mkdirSync(path.dirname(process.argv[2]), { recursive: true });
+fs.cpSync(process.env.STANDIN_TEMPLATE, process.argv[2], { recursive: true });
+`);
+  writeText(path.join(root, 'bin', 'decompose.cjs'), "console.log('decomposed');\n");
   for (const name of ['research.mjs', 'preflight.mjs']) fs.renameSync(path.join(root, 'bin', name), path.join(root, 'bin', name.replace('.mjs', '.cjs')));
+  for (const name of ['new-project', 'decompose']) fs.writeFileSync(path.join(root, 'bin', `${name}.mjs`), `import './${name}.cjs';\n`);
   // .cjs so the stand-in may use require; the loop runs bin/<name>.mjs, which loads it.
   writeText(path.join(root, 'bin', 'research.mjs'), "import './research.cjs';\n");
   writeText(path.join(root, 'bin', 'preflight.mjs'), "import './preflight.cjs';\n");
-  return root;
+  return { root, template };
 }
 
 function gitEnv(extra = {}) {
@@ -211,7 +220,9 @@ function world(extra = {}) {
   git(collector, m.env, 'config', 'core.hooksPath', path.join(m.dir, 'no-hooks'));
   const builder = tempDir('research-kit-auto-builder-');
   git(builder, m.env, 'clone', '-q', remote, '.');
-  return { m, remote, collector, builder, kit: standInKit() };
+  const kit = standInKit();
+  m.env.STANDIN_TEMPLATE = kit.template;
+  return { m, remote, collector, builder, kit: kit.root };
 }
 
 function builderPushes(w, id, request) {
@@ -347,7 +358,7 @@ test('a builder machine does not collect, whatever the settings say', async () =
   assert(!fs.existsSync(path.join(w.collector, 'research', 'requests', 'burst-limit.result.json')));
 });
 
-test('when the credits run out auto-collect pauses, keeps the request open, and waits for the operator', async () => {
+test('when credits run out auto-collect resumes the same request within its remaining allowance', async () => {
   const w = world({ STANDIN_MODE: 'stopped' });
   saveAutoCollect({ mode: 'auto' }, w.m.env);
   builderPushes(w, 'burst-limit', GOOD);
@@ -357,7 +368,13 @@ test('when the credits run out auto-collect pauses, keeps the request open, and 
   assert(/credits ran out on firecrawl/.test(status.paused), status.paused);
   assertEqual(calls(w).length, 1, 'the run after the stop was attempted');
   assert(!calls(w)[0].includes('--fallback'), 'auto-collect passed --fallback');
-  assert(!fs.existsSync(path.join(w.collector, 'research', 'requests', 'burst-limit.result.json')), 'a stopped request was marked finished');
+  const partial = readJson(path.join(w.collector, 'research', 'requests', 'burst-limit.result.json'));
+  assertEqual(partial.status, 'partial');
+  assertEqual(partial.resume.unknown, 'U-1');
+  assertEqual(partial.resume.remainingPages, 3);
+  assertEqual(partial.resume.pagesSpent, 1);
+  const planFile = path.join(w.collector, 'research', 'requests', 'burst-limit.plan.json');
+  assertEqual(readJson(planFile).maxScrapes, 3, 'the remaining allowance was not saved in the run plan');
   // What was collected before the stop is committed, ledger included.
   git(w.builder, w.m.env, 'pull', '-q', '--ff-only');
   assert(fs.existsSync(path.join(w.builder, 'research', 'raw', '.fetches.jsonl')), 'the partial corpus did not travel');
@@ -367,6 +384,56 @@ test('when the credits run out auto-collect pauses, keeps the request open, and 
   assertEqual(status.requests.find((r) => r.id === 'second').status, 'waiting');
   status = auto.resume();
   assertEqual(status.paused, '');
+  status = await auto.cycle();
+  const retried = readJson(path.join(w.collector, 'research', 'requests', 'burst-limit.result.json'));
+  assertEqual(retried.status, 'partial');
+  assertEqual(retried.resume.unknown, 'U-1');
+  assertEqual(retried.resume.remainingPages, 2);
+  assertEqual(retried.resume.pagesSpent, 2);
+  assertEqual(readJson(planFile).maxScrapes, 2, 'a second stop reset the remaining allowance');
+  assertEqual(calls(w).length, 2, 'the second partial attempt did not run');
+
+  w.m.env.STANDIN_MODE = '';
+  auto.resume();
+  status = await auto.cycle();
+  const result = readJson(path.join(w.collector, 'research', 'requests', 'burst-limit.result.json'));
+  assertEqual(result.status, 'collected');
+  assertEqual(result.unknown, 'U-1', 'the resumed run appended a second unknown');
+  assertEqual(result.pages, 4, 'the result does not account for every attempt');
+  assertEqual(readJson(planFile).maxScrapes, 2, 'the retry reset the request allowance');
+  assertEqual(calls(w).length, 4, 'the paused request or the following request was not resumed');
+  assertEqual(status.requests.find((r) => r.id === 'burst-limit').status, 'collected');
+});
+
+test('a partial topic request resumes in its original target and reuses its unknown', async () => {
+  const w = world({ STANDIN_MODE: 'stopped' });
+  saveAutoCollect({ mode: 'auto', topicsFolder: 'projects' }, w.m.env);
+  builderPushes(w, 'new-topic', { ...GOOD, topic: 'A separate topic' });
+  const auto = loop(w);
+  await auto.cycle();
+  const resultFile = path.join(w.collector, 'research', 'requests', 'new-topic.result.json');
+  const partial = readJson(resultFile);
+  assertEqual(partial.status, 'partial');
+  const target = path.join(w.collector, partial.resume.target);
+  const unknown = partial.resume.unknown;
+  const beforeRows = parseTable(readText(path.join(target, 'research', 'DISCOVERY.md')), HEADERS.unknowns).rows;
+  const planFile = path.join(target, 'research', 'requests', 'new-topic.plan.json');
+  assertEqual(readJson(planFile).maxScrapes, 3);
+  const unknownRows = beforeRows.filter((row) => row.cells[0] === unknown).length;
+
+  w.m.env.STANDIN_MODE = '';
+  auto.resume();
+  const status = await auto.cycle();
+  const collected = readJson(resultFile);
+  assertEqual(collected.status, 'collected');
+  assertEqual(collected.project, partial.resume.target);
+  assertEqual(collected.unknown, unknown);
+  assertEqual(collected.pages, 3);
+  const afterRows = parseTable(readText(path.join(target, 'research', 'DISCOVERY.md')), HEADERS.unknowns).rows;
+  assertEqual(afterRows.filter((row) => row.cells[0] === unknown).length, unknownRows, 'the resumed run added the unknown twice');
+  assertEqual(readJson(planFile).maxScrapes, 3);
+  assertEqual(calls(w).length, 2);
+  assertEqual(status.requests[0].status, 'collected');
 });
 
 test('a request over today\'s cap waits for tomorrow instead of being refused', async () => {
