@@ -4,7 +4,7 @@
 
 import http from 'node:http';
 import { spawnSync } from 'node:child_process';
-import { test, describe, assert, assertEqual, tempDir, fs, path, makeProject, requireGit, fixtureInitArgs } from './harness.mjs';
+import { test, describe, assert, assertEqual, tempDir, fs, path, makeProject, requireGit, fixtureInitArgs, KIT_ROOT } from './harness.mjs';
 import { writeText, readText } from '../lib/core.mjs';
 import { createPanel, PANEL_COMMANDS, PANEL_HOST, keyProblem, projectTopic, builderInstructions } from '../lib/panel.mjs';
 
@@ -315,7 +315,7 @@ test('projectTopic reads plan.json and is empty outside a project', () => {
 });
 
 test('bin/panel.mjs refuses an unknown flag and a bad port before listening', () => {
-  const bin = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'bin', 'panel.mjs');
+  const bin = path.join(KIT_ROOT, 'bin', 'panel.mjs');
   const unknown = spawnSync(process.execPath, [bin, '--collect'], { encoding: 'utf8' });
   assertEqual(unknown.status, 2);
   assert(/unknown option --collect/.test(unknown.stderr), unknown.stderr);
@@ -345,7 +345,7 @@ test('connecting a builder hands it the phase-2 steps of the kit: handoff, prefl
 });
 
 test('the panel names no runtime: the builder is any agent or a person (ADR-0012)', () => {
-  const dir = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'panel');
+  const dir = path.join(KIT_ROOT, 'panel');
   const texts = [builderInstructions({ topic: 'x', brief: true }), ...['index.html', 'panel.js'].map((f) => readText(path.join(dir, f), ''))];
   for (const text of texts) assert.doesNotMatch(text, /\b(claude|gpt|gemini|opus|sonnet|haiku|copilot|codex|cursor)\b/i);
 });
