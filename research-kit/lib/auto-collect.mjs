@@ -90,6 +90,7 @@ export function createAutoCollect({
   let lastCheck = '';
   const notes = [];
   const runs = new Map();
+  const delivered = new Set();
 
   const note = (line) => { notes.push(`${new Date().toISOString()} ${redact(line)}`); if (notes.length > 50) notes.shift(); };
   const kit = (script, args, cwd) => exec(nodePath, [path.join(kitRoot, 'bin', script), ...args], { cwd, env });
@@ -115,13 +116,16 @@ export function createAutoCollect({
       }
     }
     const staged = await git(['diff', '--cached', '--quiet'], top);
-    if (staged.code === 0) return 'nothing to commit';
-    const c = await git(['commit', '-m', message], top);
-    if (c.code !== 0) return `commit refused: ${lastLine(c.output)}`;
+    const hasChanges = staged.code !== 0;
+    if (hasChanges) {
+      const c = await git(['commit', '-m', message], top);
+      if (c.code !== 0) return `commit refused: ${lastLine(c.output)}`;
+    }
     const upstream = await git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], top);
-    if (upstream.code !== 0) return 'committed; no upstream to push to';
+    if (upstream.code !== 0) return hasChanges ? 'committed; no upstream to push to' : 'no upstream to push to';
     const p = await git(['push'], top);
-    return p.code === 0 ? 'committed and pushed' : `committed; push failed: ${lastLine(p.output)}`;
+    if (p.code !== 0) return hasChanges ? `committed; push failed: ${lastLine(p.output)}` : `push failed: ${lastLine(p.output)}`;
+    return hasChanges ? 'committed and pushed' : 'pushed';
   }
 
   function relTo(top, abs) {
@@ -133,6 +137,7 @@ export function createAutoCollect({
     writeResult(dir, item.id, { status: 'refused', problems });
     const committed = await commitAndPush(top, [path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`)],
       `research: refuse request ${item.id}`);
+    if (committed === 'committed and pushed' || committed === 'pushed') delivered.add(item.id);
     runs.set(item.id, { status: 'refused', detail: problems.join('; '), git: committed });
     note(`refused ${item.id}: ${problems.join('; ')}`);
   }
@@ -189,6 +194,7 @@ export function createAutoCollect({
       next: 'pull; review the new EVIDENCE rows (rewrite each Finding into a claim), then close the unknown and run preflight',
     });
     const committed = await commitAndPush(top, paths, `research: collect request ${item.id} (${spent} page(s), ${applied.unknown})`);
+    if (committed === 'committed and pushed' || committed === 'pushed') delivered.add(item.id);
     runs.set(item.id, { status: 'collected', detail: `${applied.unknown}; preflight exit ${gate.code}`, pages: spent, output, git: committed });
     note(`collected ${item.id}: ${spent} page(s); ${committed}`);
   }
@@ -196,6 +202,7 @@ export function createAutoCollect({
   async function fail(top, dir, item, target, detail, output, paths = null, spent = 0) {
     writeResult(dir, item.id, { status: 'failed', detail, project: relTo(top, target), pages: spent });
     const committed = await commitAndPush(top, paths ?? [path.posix.join(relTo(top, dir), REQUESTS_DIR)], `research: request ${item.id} failed`);
+    if (committed === 'committed and pushed' || committed === 'pushed') delivered.add(item.id);
     runs.set(item.id, { status: 'failed', detail, pages: spent, output: redact(tail(String(output ?? ''))), git: committed });
     note(`failed ${item.id}: ${detail}`);
   }
@@ -224,7 +231,16 @@ export function createAutoCollect({
       if (pulled.code !== 0) note(`git pull did not run cleanly (${lastLine(pulled.output)}); reading the requests already here`);
 
       for (const item of listRequests(dir)) {
-        if (item.ignored || item.result) continue;
+        if (item.ignored) continue;
+        if (item.result) {
+          if (!delivered.has(item.id)) {
+            const resultPath = path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`);
+            const delivery = await commitAndPush(top, [resultPath], `research: deliver request ${item.id}`);
+            if (delivery === 'committed and pushed' || delivery === 'pushed') delivered.add(item.id);
+            runs.set(item.id, { git: delivery });
+          }
+          continue;
+        }
         const current = readAutoCollect(env);
         if (item.parseError) { await refuse(top, dir, item, [item.parseError]); continue; }
         const problems = requestProblems(item.request, current.settings);
@@ -303,4 +319,3 @@ export function requestExample() {
     prefer: ['docs.example.com'],
   }, null, 2)}\n`;
 }
-

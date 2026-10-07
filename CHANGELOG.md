@@ -15,7 +15,7 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
   out it pauses and never passes `--fallback`. A request with a topic gets a new project,
   under a folder the operator approves. New modules: `lib/requests.mjs`,
   `lib/auto-collect.mjs`. The panel shows the queue, the modes (off or automatic), the caps,
-  Check now and Resume.
+  Check now and Resume. A failed commit or push is retried without collecting the request again.
 - The desktop panel (ADR-0147, lifting the freeze for that one item): `bin/panel.mjs` opens a
   page served from 127.0.0.1 for keys, doctor, update, the topic and the builder hand-off.
   It runs doctor, handoff, preflight and install with fixed arguments and never collects.

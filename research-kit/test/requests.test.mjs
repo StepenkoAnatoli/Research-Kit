@@ -226,6 +226,41 @@ test('auto-collect round trip: the builder pushes a request, the collector colle
   assertEqual(calls(w).length, 1);
 });
 
+test('auto-collect retries a failed push without collecting the request again', async () => {
+  const w = world();
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'burst-limit', GOOD);
+  let failPush = true;
+  const auto = createAutoCollect({
+    project: () => w.collector,
+    env: w.m.env,
+    kitRoot: w.kit,
+    exec: (command, args, options) => {
+      if (command === 'git' && args[0] === 'push' && failPush) {
+        failPush = false;
+        return Promise.resolve({ code: 1, output: 'temporary push failure\n' });
+      }
+      return execFile(command, args, options);
+    },
+  });
+
+  let status = await auto.cycle();
+  let row = status.requests.find((r) => r.id === 'burst-limit');
+  assertEqual(row.status, 'collected');
+  assert(/push failed/.test(row.git), row.git);
+  assertEqual(calls(w).length, 1);
+
+  status = await auto.cycle();
+  row = status.requests.find((r) => r.id === 'burst-limit');
+  assertEqual(row.status, 'collected');
+  assertEqual(row.git, 'pushed');
+  assertEqual(calls(w).length, 1, 'a failed delivery caused collection to run again');
+
+  git(w.builder, w.m.env, 'pull', '-q', '--ff-only');
+  assertEqual(readJson(path.join(w.builder, 'research', 'requests', 'burst-limit.result.json')).status, 'collected');
+  assert(fs.existsSync(path.join(w.builder, 'research', 'raw', '.fetches.jsonl')), 'the corpus did not travel with the result');
+});
+
 test('a malformed request arriving by git is refused with its reasons, and nothing is collected', async () => {
   const w = world();
   saveAutoCollect({ mode: 'auto' }, w.m.env);
