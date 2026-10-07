@@ -292,3 +292,37 @@ test('a set skill is mirrored: a file the kit no longer ships is drift, and the 
   for (const file of orphans) assert.equal(fs.existsSync(file), false, `${file} survived the deploy`);
   assert.ok(fs.existsSync(path.join(root, 'break-test', 'references', 'research-kit.md')), 'the mirror removed a shipped file');
 });
+
+test('a second deploy over its own output survives a read-only source tree', async () => {
+  const { deploy } = await import('../lib/installer.mjs');
+  // The source is not always writable: a checkout on a read-only mount, a store-like tree whose
+  // files are 0444, a tree somebody chmod'ed to stop accidental edits. `copyFileSync` keeps the
+  // SOURCE file's mode, so the first deploy wrote read-only files into the deployed home and the
+  // second died with EACCES on its own output - the deployed kit was un-updatable (found
+  // 2026-10-07, break-test pass 7: four skill-set tests red on a read-only tree).
+  const from = tempDir('research-kit-ro-source-');
+  fs.mkdirSync(path.join(from, 'bin'), { recursive: true });
+  writeText(path.join(from, 'README.md'), '# kit\n');
+  writeText(path.join(from, 'bin', 'selftest.mjs'), '// the runner\n');
+  if (process.platform !== 'win32') fs.chmodSync(path.join(from, 'README.md'), 0o444);
+
+  const kitHome = path.join(tempDir('research-kit-ro-home-'), 'research-kit');
+  const env = {
+    ...process.env,
+    RESEARCH_KIT_CONFIG: path.join(tempDir('research-kit-ro-cfg-'), 'c.json'),
+    RESEARCH_KIT_INSTALL_STATE: path.join(tempDir('research-kit-ro-state-'), 'install.json'),
+  };
+  assert.equal(deploy({ from, kitHome, env }).ok, true, 'the first deploy refused');
+  const second = deploy({ from, kitHome, env });
+  assert.equal(second.ok, true, 'the second deploy refused');
+  assert.equal(fs.readFileSync(path.join(kitHome, 'README.md'), 'utf8'), '# kit\n');
+
+  // The state an earlier deploy left behind: a read-only file already in the deployed home. The
+  // copy overwrites by default, so it has to open that file - and 0444 refuses to be opened for
+  // writing. The fix must repair that state as well as avoid creating it (found 2026-10-07,
+  // break-test pass 7).
+  fs.chmodSync(path.join(kitHome, 'README.md'), 0o444);
+  const third = deploy({ from, kitHome, env });
+  assert.equal(third.ok, true, 'a deploy over a read-only deployed file refused');
+  assert.equal(fs.statSync(path.join(kitHome, 'README.md')).mode & 0o200, 0o200, 'the deployed file stayed read-only');
+});
