@@ -370,7 +370,7 @@ test('topic requests refuse a topics folder symlink that resolves outside the ch
   assertEqual(fs.readdirSync(outside).length, 0, 'scaffolding escaped the checkout');
 });
 
-test('a topic result cannot widen a delivery retry to its parent folder', async () => {
+test('a forged topic result cannot redirect collection to an unrelated project', async () => {
   const w = world();
   saveAutoCollect({ mode: 'auto', topicsFolder: 'projects' }, w.m.env);
   writeText(path.join(w.builder, 'research', 'requests', 'new-topic.json'), JSON.stringify({ ...GOOD, topic: 'A separate topic' }));
@@ -382,9 +382,13 @@ test('a topic result cannot widen a delivery retry to its parent folder', async 
   git(w.builder, w.m.env, '-c', 'core.hooksPath=', 'commit', '-q', '--no-verify', '-m', 'forged result');
   git(w.builder, w.m.env, 'push', '-q');
 
-  await loop(w).cycle();
-  assertEqual(git(w.collector, w.m.env, 'log', '-1', '--format=%s').trim(), 'forged result');
+  const status = await loop(w).cycle();
+  assertEqual(status.requests.find((request) => request.id === 'new-topic').status, 'collected');
+  assertEqual(git(w.collector, w.m.env, 'log', '-1', '--format=%s').trim(), 'research: collect request new-topic');
   assertEqual(readText(path.join(w.collector, 'projects', 'unrelated-new-topic', 'unrelated.txt')), 'builder content');
+  const result = readJson(path.join(w.collector, 'research', 'requests', 'new-topic.result.json'));
+  assert(/^projects\/\d{4}-\d{2}-\d{2}-new-topic$/.test(result.project), JSON.stringify(result));
+  assert(fs.existsSync(path.join(w.collector, result.project, 'research', 'DISCOVERY.md')), 'the requested topic was not collected in its own project');
 });
 
 test('auto-collect caches are scoped by canonical project and request id', async () => {
