@@ -638,6 +638,17 @@ function mirrorRefusal(kitHome, env) {
  * Refuses, touching nothing, a folder that is not a kit deployment (`mirrorRefusal`).
  */
 export function deploy({ from = KIT_ROOT, kitHome = KIT_HOME, env = process.env, dryRun = false, into = '' } = {}) {
+  // ADR-0006: a typo in --into must refuse before the kit mirror, personal skills or
+  // installation state are written. The preview judges the same project as the deploy.
+  // .git may be a file (a worktree); AGENTS.md is a file and research/ is a directory.
+  const projectFile = (name) => { try { return fs.statSync(path.join(into, name)).isFile(); } catch { return false; } };
+  if (into && (!isDirectory(into) || !(isDirectory(path.join(into, '.git')) || projectFile('.git')
+    || projectFile('AGENTS.md') || isDirectory(path.join(into, 'research'))))) {
+    return {
+      ok: false, dryRun, from, to: kitHome,
+      refused: `${into} is not a project - --into needs a directory containing .git, AGENTS.md, or research/. No deployment files were changed.`,
+    };
+  }
   const refused = mirrorRefusal(kitHome, env);
   if (refused) return { ok: false, dryRun, from, to: kitHome, refused };
   // What the deploy below would prune, computed the same way: retired files that are there, and
