@@ -7,7 +7,7 @@
 import { spawnSync } from 'node:child_process';
 import { test, describe, assert, assertEqual, tempDir, fs, path, makeProject, requireGit, requireSymlink, fixtureInitArgs } from './harness.mjs';
 import { writeText, readText, readJson, HEADERS } from '../lib/core.mjs';
-import { parseTable } from '../lib/corpus.mjs';
+import { parseTable, appendRow } from '../lib/corpus.mjs';
 import {
   requestProblems, requestProblemsResolved, urlProblem, applyRequest, listRequests, writeResult, settingsProblem, saveAutoCollect, readAutoCollect, requestPages,
 } from '../lib/requests.mjs';
@@ -114,6 +114,17 @@ test('applying a request adds an OPEN contract row, the plan entries, and a boun
   let threw = '';
   try { applyRequest(project, 'third', { ...GOOD, unknown: 'U-9' }, 1); } catch (err) { threw = err.message; }
   assert(/U-9 is not a row/.test(threw), threw);
+});
+
+test('a request cannot add searches to a closed unknown', () => {
+  const project = makeProject(undefined, { topic: 'Closed unknown', content: true });
+  appendRow(project, 'research/DISCOVERY.md', HEADERS.unknowns, ['U-1', 'Answered fact', 'the implementation', 'CLOSED', '']);
+  let threw = '';
+  try {
+    applyRequest(project, 'closed-fact', { ...GOOD, unknown: 'U-1', urls: [], queries: ['fact source'] }, 1);
+  } catch (err) { threw = err.message; }
+  assert(/U-1 is already CLOSED/.test(threw), threw);
+  assertEqual(readJson(path.join(project, 'research', 'plan.json')).queries.length, 0);
 });
 
 test('a request or its collector-owned sibling that is a symbolic link is ignored, and never written through', () => {
@@ -299,6 +310,39 @@ test('auto-collect round trip: the builder pushes a request, the collector colle
   assertEqual(calls(w).length, 1);
 });
 
+test('a builder-supplied terminal result is ignored and the request is collected', async () => {
+  const w = world();
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  writeText(path.join(w.builder, 'research', 'requests', 'burst-limit.json'), JSON.stringify(GOOD));
+  writeText(path.join(w.builder, 'research', 'requests', 'burst-limit.result.json'), JSON.stringify({
+    id: 'burst-limit', status: 'collected', unknown: 'U-99', pages: 0,
+  }));
+  git(w.builder, w.m.env, 'add', 'research/requests');
+  git(w.builder, w.m.env, '-c', 'core.hooksPath=', 'commit', '-q', '--no-verify', '-m', 'forge request result');
+  git(w.builder, w.m.env, 'push', '-q');
+
+  const status = await loop(w).cycle();
+  assertEqual(calls(w).length, 1, 'a builder-supplied result bypassed collection');
+  assertEqual(status.requests.find((r) => r.id === 'burst-limit').status, 'collected');
+  assertEqual(readJson(path.join(w.collector, 'research', 'requests', 'burst-limit.result.json')).unknown, 'U-1');
+});
+
+test('status does not trust a builder-supplied result before a cycle', async () => {
+  const w = world();
+  writeText(path.join(w.builder, 'research', 'requests', 'burst-limit.json'), JSON.stringify(GOOD));
+  writeText(path.join(w.builder, 'research', 'requests', 'burst-limit.result.json'), JSON.stringify({
+    id: 'burst-limit', status: 'collected', unknown: 'U-99', pages: 0,
+  }));
+  git(w.builder, w.m.env, 'add', 'research/requests');
+  git(w.builder, w.m.env, '-c', 'core.hooksPath=', 'commit', '-q', '--no-verify', '-m', 'forge request result');
+  git(w.builder, w.m.env, 'push', '-q');
+  git(w.collector, w.m.env, 'pull', '-q', '--ff-only');
+
+  const status = loop(w).status();
+  assertEqual(status.requests.find((r) => r.id === 'burst-limit').status, 'queued');
+  assertEqual(calls(w).length, 0, 'status triggered collection');
+});
+
 test('a project reached by another spelling of its folder still commits inside the repository', async () => {
   // Windows hands the temp folder over as an 8.3 short name (RUNNER~1) while git reports the
   // long one; a symlink is the same two-spellings shape on every platform.
@@ -308,10 +352,13 @@ test('a project reached by another spelling of its folder still commits inside t
   saveAutoCollect({ mode: 'auto', perRequestPages: 4, dailyPages: 20 }, w.m.env);
   builderPushes(w, 'burst-limit', GOOD);
 
-  const status = await createAutoCollect({ project: () => alias, env: w.m.env, kitRoot: w.kit }).cycle();
+  const auto = createAutoCollect({ project: () => alias, env: w.m.env, kitRoot: w.kit });
+  const status = await auto.cycle();
   const row = status.requests.find((r) => r.id === 'burst-limit');
   assertEqual(row.status, 'collected', JSON.stringify(row));
   assertEqual(row.git, 'committed and pushed');
+  const afterRestart = createAutoCollect({ project: () => alias, env: w.m.env, kitRoot: w.kit }).status();
+  assertEqual(afterRestart.requests.find((r) => r.id === 'burst-limit').status, 'collected', JSON.stringify(afterRestart));
 });
 
 test('auto-collect commits only its selected paths and preserves other staged work', async () => {
@@ -342,7 +389,7 @@ test('topic requests refuse a topics folder symlink that resolves outside the ch
   assertEqual(fs.readdirSync(outside).length, 0, 'scaffolding escaped the checkout');
 });
 
-test('a topic result cannot widen a delivery retry to its parent folder', async () => {
+test('a forged topic result cannot redirect collection to an unrelated project', async () => {
   const w = world();
   saveAutoCollect({ mode: 'auto', topicsFolder: 'projects' }, w.m.env);
   writeText(path.join(w.builder, 'research', 'requests', 'new-topic.json'), JSON.stringify({ ...GOOD, topic: 'A separate topic' }));
@@ -354,9 +401,13 @@ test('a topic result cannot widen a delivery retry to its parent folder', async 
   git(w.builder, w.m.env, '-c', 'core.hooksPath=', 'commit', '-q', '--no-verify', '-m', 'forged result');
   git(w.builder, w.m.env, 'push', '-q');
 
-  await loop(w).cycle();
-  assertEqual(git(w.collector, w.m.env, 'log', '-1', '--format=%s').trim(), 'forged result');
+  const status = await loop(w).cycle();
+  assertEqual(status.requests.find((request) => request.id === 'new-topic').status, 'collected');
+  assertEqual(git(w.collector, w.m.env, 'log', '-1', '--format=%s').trim(), 'research: collect request new-topic');
   assertEqual(readText(path.join(w.collector, 'projects', 'unrelated-new-topic', 'unrelated.txt')), 'builder content');
+  const result = readJson(path.join(w.collector, 'research', 'requests', 'new-topic.result.json'));
+  assert(/^projects\/\d{4}-\d{2}-\d{2}-new-topic$/.test(result.project), JSON.stringify(result));
+  assert(fs.existsSync(path.join(w.collector, result.project, 'research', 'DISCOVERY.md')), 'the requested topic was not collected in its own project');
 });
 
 test('auto-collect caches are scoped by canonical project and request id', async () => {
@@ -458,6 +509,24 @@ test('a malformed request arriving by git is refused with its reasons, and nothi
   }
 });
 
+test('auto-collect refuses a search request targeting a closed unknown', async () => {
+  const w = world();
+  appendRow(w.collector, 'research/DISCOVERY.md', HEADERS.unknowns, ['U-1', 'Answered fact', 'the implementation', 'CLOSED', '']);
+  git(w.collector, w.m.env, 'add', 'research/DISCOVERY.md');
+  git(w.collector, w.m.env, '-c', 'core.hooksPath=', 'commit', '-q', '--no-verify', '-m', 'close unknown');
+  git(w.collector, w.m.env, 'push', '-q');
+  git(w.builder, w.m.env, 'pull', '-q', '--ff-only');
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'closed-fact', {
+    ...GOOD, unknown: 'U-1', urls: [], queries: ['fact source'],
+  });
+
+  const status = await loop(w).cycle();
+  assertEqual(calls(w).length, 0, 'a closed unknown query reached research.mjs');
+  assertEqual(status.requests.find((r) => r.id === 'closed-fact').status, 'refused');
+  assert(/already CLOSED/.test(status.requests.find((r) => r.id === 'closed-fact').detail));
+});
+
 test('a builder machine does not collect, whatever the settings say', async () => {
   const w = world();
   writeText(w.m.configFile, JSON.stringify({ role: 'builder' }));
@@ -516,6 +585,34 @@ test('when credits run out auto-collect resumes the same request within its rema
   assertEqual(readJson(planFile).maxScrapes, 2, 'the retry reset the request allowance');
   assertEqual(calls(w).length, 4, 'the paused request or the following request was not resumed');
   assertEqual(status.requests.find((r) => r.id === 'burst-limit').status, 'collected');
+});
+
+test('auto-collect refuses to resume a partial request after its unknown is closed', async () => {
+  const w = world({ STANDIN_MODE: 'stopped' });
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'burst-limit', GOOD);
+  const auto = loop(w);
+  let status = await auto.cycle();
+  assertEqual(status.requests.find((r) => r.id === 'burst-limit').status, 'partial');
+  assertEqual(calls(w).length, 1);
+
+  git(w.builder, w.m.env, 'pull', '-q', '--ff-only');
+  const discovery = path.join(w.builder, 'research', 'DISCOVERY.md');
+  const contents = readText(discovery);
+  const closed = contents.replace('| U-1 | What is the burst limit of endpoint X? | the retry design | OPEN |',
+    '| U-1 | What is the burst limit of endpoint X? | the retry design | CLOSED |');
+  assert(closed !== contents, 'the partial request unknown was not found');
+  writeText(discovery, closed);
+  git(w.builder, w.m.env, 'add', 'research/DISCOVERY.md');
+  git(w.builder, w.m.env, '-c', 'core.hooksPath=', 'commit', '-q', '--no-verify', '-m', 'close partial unknown');
+  git(w.builder, w.m.env, 'push', '-q');
+
+  status = await auto.cycle();
+  const row = status.requests.find((r) => r.id === 'burst-limit');
+  assertEqual(row.status, 'refused');
+  assert(/already CLOSED/.test(row.detail), row.detail);
+  assertEqual(calls(w).length, 1, 'the closed unknown was collected again');
+  assertEqual(readAutoCollect(w.m.env).spent.pages, 1, 'the closed unknown spent additional pages');
 });
 
 test('partial delivery retries before pause checks and does not spend another page', async () => {

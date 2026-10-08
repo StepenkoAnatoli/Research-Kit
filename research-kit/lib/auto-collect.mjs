@@ -25,8 +25,8 @@ import { spawn } from 'node:child_process';
 import { readJson, today, writeJson } from './core.mjs';
 import { collectionPolicy } from './machine.mjs';
 import {
-  REQUESTS_DIR, REQUEST_LIMITS, listRequests, requestProblemsResolved, requestPages, contractIds, applyRequest, writeResult,
-  readAutoCollect, recordSpend, setPaused,
+  REQUESTS_DIR, REQUEST_LIMITS, listRequests, requestProblemsResolved, requestPages, contractUnknownStatus, applyRequest, writeResult,
+  readAutoCollect, recordSpend, setPaused, recordTrustedResult, isTrustedResult,
 } from './requests.mjs';
 
 export const RUN_OUTPUT_BYTES = 64 * 1024;
@@ -305,14 +305,17 @@ export function createAutoCollect({
     if (!fs.existsSync(path.join(target, `${REQUESTS_DIR}/${item.id}.plan.json`))) {
       throw new Error('partial request plan is missing');
     }
-    if (!contractIds(target).includes(resume.unknown)) {
+    const unknownStatus = contractUnknownStatus(target, resume.unknown);
+    if (!unknownStatus) {
       throw new Error(`${resume.unknown} is not a row of research/DISCOVERY.md`);
     }
+    if (unknownStatus === 'CLOSED') throw new Error(`${resume.unknown} is already CLOSED; a partial request cannot resume collection`);
     return { ...resume, target };
   }
 
   async function refuse(top, dir, item, problems) {
     writeResult(dir, item.id, { status: 'refused', problems });
+    recordTrustedResult(dir, item.id, env);
     const committed = await commitAndPush(top, [path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`)],
       report(`research: refuse request ${item.id}`, `recorded request ${item.id} as refused`,
         'the request failed collector validation', `request validation named ${problems.length} problem(s)`));
@@ -390,6 +393,7 @@ export function createAutoCollect({
         resume: { target: relTo(top, target), unknown: applied.unknown, remainingPages, pagesSpent: totalSpent },
         deliveryFingerprint: fingerprint,
       });
+      recordTrustedResult(dir, item.id, env);
       const committed = await commitAndPush(top, paths, report(
         `research: request ${item.id} partly collected`,
         `recorded partial collection for ${item.id} (${spent} page(s))`,
@@ -408,6 +412,7 @@ export function createAutoCollect({
       status: 'collected', unknown: applied.unknown, project: relTo(top, target), pages: (resume?.pagesSpent ?? 0) + spent, preflight,
       next: 'pull; review the new EVIDENCE rows (rewrite each Finding into a claim), then close the unknown and run preflight',
     });
+    recordTrustedResult(dir, item.id, env);
     const committed = await commitAndPush(top, paths, report(
       `research: collect request ${item.id}`,
       `collected ${item.id} for ${applied.unknown} (${spent} page(s))`,
@@ -421,6 +426,7 @@ export function createAutoCollect({
 
   async function fail(top, dir, item, target, detail, output, paths = null, spent = 0) {
     writeResult(dir, item.id, { status: 'failed', detail, project: relTo(top, target), pages: spent });
+    recordTrustedResult(dir, item.id, env);
     const committed = await commitAndPush(top, paths ?? [path.posix.join(relTo(top, dir), REQUESTS_DIR)], report(
       `research: request ${item.id} failed`,
       `recorded request ${item.id} as failed after ${spent} page(s)`,
@@ -458,6 +464,10 @@ export function createAutoCollect({
 
       for (const item of requests) {
         if (item.ignored) continue;
+        if (item.result && !isTrustedResult(dir, item.id, env)) {
+          note(`ignored untrusted result for ${item.id}; the collector will process the request`);
+          item.result = null;
+        }
         if (item.result && ['collected', 'failed', 'refused'].includes(item.result.status)) {
           const key = cacheKey(dir, item.id);
           if (!delivered.has(key)) {
@@ -561,13 +571,14 @@ export function createAutoCollect({
 
   function status() {
     const state = readAutoCollect(env);
-    const dir = project();
+    const dir = canonical(project());
     const requests = listRequests(dir).map((item) => {
       const run = runs.get(cacheKey(dir, item.id)) ?? {};
       const fact = item.request && typeof item.request.fact === 'string' ? item.request.fact.slice(0, 300) : '';
       if (item.ignored) return { id: item.id, status: 'ignored', detail: item.ignored };
-      if (item.result) return { id: item.id, fact, status: item.result.status, pages: item.result.pages ?? 0,
-        detail: item.result.status === 'refused' ? (item.result.problems ?? []).join('; ') : String(item.result.detail ?? item.result.unknown ?? ''),
+      const result = item.result && isTrustedResult(dir, item.id, env) ? item.result : null;
+      if (result) return { id: item.id, fact, status: result.status, pages: result.pages ?? 0,
+        detail: result.status === 'refused' ? (result.problems ?? []).join('; ') : String(result.detail ?? result.unknown ?? ''),
         output: run.output ?? '', git: run.git ?? '' };
       return { id: item.id, fact, status: run.status ?? 'queued', detail: run.detail ?? '', pages: run.pages ?? 0, output: run.output ?? '', git: run.git ?? '' };
     });

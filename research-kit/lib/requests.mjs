@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import net from 'node:net';
+import crypto from 'node:crypto';
 import { HEADERS, parseJson, readJson, readText, writeJson, today, nowIso } from './core.mjs';
 import { duplicateKey, parseTable, appendRow } from './corpus.mjs';
 import { DEPTH_SCRAPES, readPlan } from './research-run.mjs';
@@ -187,10 +188,11 @@ export function listRequests(project) {
   return out;
 }
 
-/** The contract's unknown ids, in table order. */
-export function contractIds(project) {
+/** The status of a contract unknown, or '' when it is not present. */
+export function contractUnknownStatus(project, id) {
   const table = parseTable(readText(path.join(project, 'research', 'DISCOVERY.md'), ''), HEADERS.unknowns);
-  return table.rows.map((r) => String(r.cells[0] ?? '').trim()).filter(Boolean);
+  const row = table.rows.find((entry) => String(entry.cells[0] ?? '').trim() === id);
+  return String(row?.cells[3] ?? '').trim().toUpperCase();
 }
 
 /**
@@ -215,10 +217,15 @@ export function applyRequest(project, id, request, pages) {
   } catch (err) {
     throw new Error(`cannot apply request: ${err.message}`);
   }
-  const ids = contractIds(project);
+  const unknownRows = parseTable(readText(path.join(project, 'research', 'DISCOVERY.md'), ''), HEADERS.unknowns).rows;
+  const ids = unknownRows.map((row) => String(row.cells[0] ?? '').trim()).filter(Boolean);
   let unknown = request.unknown;
   if (unknown) {
-    if (!ids.includes(unknown)) throw new Error(`${unknown} is not a row of research/DISCOVERY.md`);
+    const row = unknownRows.find((entry) => String(entry.cells[0] ?? '').trim() === unknown);
+    if (!row) throw new Error(`${unknown} is not a row of research/DISCOVERY.md`);
+    if (String(row.cells[3] ?? '').trim().toUpperCase() === 'CLOSED') {
+      throw new Error(`${unknown} is already CLOSED; a request cannot add searches to a closed unknown`);
+    }
   } else {
     const next = ids.reduce((max, v) => Math.max(max, Number(/^U-(\d+)$/.exec(v)?.[1] ?? 0)), 0) + 1;
     unknown = `U-${next}`;
@@ -295,11 +302,44 @@ export function readAutoCollect(env = process.env) {
   }
   const day = today();
   const spent = stored.spent && stored.spent.day === day && Number.isInteger(stored.spent.pages) ? stored.spent.pages : 0;
-  return { settings, spent: { day, pages: spent }, paused: typeof stored.paused === 'string' ? stored.paused : '' };
+  const trustedResults = stored.trustedResults && typeof stored.trustedResults === 'object' && !Array.isArray(stored.trustedResults)
+    ? stored.trustedResults : {};
+  return { settings, spent: { day, pages: spent }, paused: typeof stored.paused === 'string' ? stored.paused : '', trustedResults };
 }
 
 function writeAutoCollect(state, env) {
-  writeJson(autoCollectPath(env), { ...state.settings, spent: state.spent, paused: state.paused });
+  writeJson(autoCollectPath(env), { ...state.settings, spent: state.spent, paused: state.paused, trustedResults: state.trustedResults ?? {} });
+}
+
+function resultTrustKey(project, id) {
+  return JSON.stringify([path.resolve(project), id]);
+}
+
+function fileHash(file) {
+  const contents = readText(file, null);
+  return typeof contents === 'string'
+    ? crypto.createHash('sha256').update(contents.replace(/\r\n/g, '\n')).digest('hex')
+    : '';
+}
+
+/** Remember collector-written results outside the shared repository, bound to their request. */
+export function recordTrustedResult(project, id, env = process.env) {
+  const request = path.join(project, REQUESTS_DIR, `${id}.json`);
+  const result = path.join(project, REQUESTS_DIR, `${id}.result.json`);
+  const requestHash = fileHash(request);
+  const resultHash = fileHash(result);
+  if (!requestHash || !resultHash) return false;
+  const state = readAutoCollect(env);
+  state.trustedResults[resultTrustKey(project, id)] = { requestHash, resultHash };
+  writeAutoCollect(state, env);
+  return true;
+}
+
+/** A result arriving over git is not authoritative unless this collector recorded it locally. */
+export function isTrustedResult(project, id, env = process.env) {
+  const trusted = readAutoCollect(env).trustedResults[resultTrustKey(project, id)];
+  return Boolean(trusted && trusted.requestHash === fileHash(path.join(project, REQUESTS_DIR, `${id}.json`))
+    && trusted.resultHash === fileHash(path.join(project, REQUESTS_DIR, `${id}.result.json`)));
 }
 
 export function saveAutoCollect(patch, env = process.env) {
