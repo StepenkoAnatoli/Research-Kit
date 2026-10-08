@@ -35,24 +35,14 @@ about defects that were already fixed. Nothing was deleted; it was moved and lin
                               lib/provenance.mjs ◄──────────── lib/corpus.mjs
                         hash-chained ledger, migrations      one corpus snapshot
                                                                       ▲
-   bin/decompose.mjs ── lib/decompose.mjs ── lib/dimensions.mjs       │
-        (phase 0 CLI)      (gathers, seeds)     (the checklist)  readCorpus()
-                                                                      ▲
-   bin/research.mjs ── lib/research-run.mjs ───────── lib/collect.mjs ── lib/finding.mjs
-                       (budget, cache, plan)      collectOne, writeRaw     firstFinding:
-                                                                      │     the auto-extracted
-                                                                      │     Finding cell
-                                                                      │ runScrape seam
-                                                                      ▼
-                                              lib/transport.mjs ──── one reader of the
-                                              (which adapter)        operator's choice,
-                                                    │                for BOTH sides
-                                       fetch ───────┤
-                                                    ├── lib/firecrawl.mjs       (the CLI)
-                                                    └── lib/http-transport.mjs  (keyless, no deps)
-                                      search ───────┤
-                                                    ├── (either of the above)
-                                                    └── lib/serpapi.mjs         (search only)
+   bin/decompose.mjs ── selectTransport() ── lib/decompose.mjs
+        (phase 0 CLI)   lib/transport.mjs      (gathers, seeds MAP.md)
+
+   bin/research.mjs ─── selectTransport() ── lib/research-run.mjs
+        (phase 1 CLI)   lib/transport.mjs      (plan, queries, budget, cache)
+
+   Both coordinators use the selected adapters through search-session.mjs and
+   collect.mjs. The invocation and provenance boundaries are shown below.
 
    lib/machine.mjs ──── everything outside the project (config, install state, git
    (ADR-0002, 0010,     hooksPath, posture, machine role collector|builder) — the only
@@ -71,6 +61,74 @@ about defects that were already fixed. Nothing was deleted; it was moved and lin
    lib/doctor.mjs ───── diagnostics: aggregates machine + project + gate + chain
    lib/installer.mjs ── installs the hooks, records/restores prior state
 ```
+
+## Search and collection invocation
+
+The CLI chooses providers before invoking its coordinator. `transport.mjs` returns the fetch adapter, search adapter or merged adapters, selection reasons, and selection readiness metadata. Automatic fetch selection may perform a memoized Firecrawl CLI `--status` probe when the executable is present. Selection does not search or fetch a page. The coordinators decide which queries and pages to attempt; the shared search session and collection writer carry out those decisions.
+
+```mermaid
+flowchart TD
+    R[bin/research.mjs] -->|selectTransport| T[lib/transport.mjs]
+    D[bin/decompose.mjs] -->|selectTransport| T
+    T -->|adapters and selection metadata returned to CLI| R
+    T -->|adapters and selection metadata returned to CLI| D
+    R -->|runResearch with adapters and optional exhaustion fallback| RR[lib/research-run.mjs]
+    D -->|decompose with adapters| DD[lib/decompose.mjs]
+    RR -->|creates and consults per-run exhaustion policy| C[lib/credits.mjs]
+    RR -->|creates session with policy| S[lib/search-session.mjs]
+    DD -->|creates session without credits policy| S
+    S -->|synchronous search calls without a credits policy| SP[Selected search adapters]
+    S -->|askLive and live during research| C
+    C -->|supplied patient search function on live adapter| SP
+    RR -->|selected targets and live fetch adapter| CO[lib/collect.mjs: collectOne]
+    DD -->|selected material and fetch adapter| CO
+    CO -->|runScrape seam| FP[Selected fetch adapter]
+    CO -->|capture and source writes| RAW[research/raw captures and source siblings]
+    CO -->|appendFetch and locked row writes| P[lib/provenance.mjs and lib/corpus.mjs]
+    P --> LEDGER[research/raw/.fetches.jsonl]
+    P --> ROWS[research/EVIDENCE.md and SOURCES.md]
+```
+
+| Responsibility | Owner and boundary |
+|---|---|
+| Fetch/search choice and readiness information | `transport.mjs`: explicit flag, environment, machine config, then automatic selection. Fetch and search are separate choices; a search-only adapter is excluded from the fetch registry. |
+| Shared search calls, rank interleaving, attribution and meters | `search-session.mjs`: synchronous provider calls, result-shape normalization, rate-limit patience, one bounded single-provider degradation, and one failure row per failed answer surfaced to the session. The exhaustion policy records its transition separately. |
+| Paying-adapter identity and exhaustion transition | `credits.mjs`: one fresh policy per research run. It recognizes exhaustion only when the failed provider is the exact selected fetch-adapter object (`provider === adapter`), substitutes that object after a supported switch, and records one exhaustion transition. |
+| Local exhaustion-fallback choice | `bin/research.mjs`: supplies a fallback only when explicitly enabled and the selected adapter exposes `creditsExhausted`. It prefers an available browser, otherwise `http-keyless`. |
+| Query and target sequencing | `research-run.mjs` or `decompose.mjs`: relevance/preference rules, deduplication, budgets, cache decisions, failure sinks and output appropriate to its phase. |
+| Durable page provenance | `collect.mjs` with `provenance.mjs` and `corpus.mjs`: cache recheck under the writer lock, capture/source bytes, hashes, ledger append and evidence/source rows. |
+| Remote collection request and return | `dispatch.mjs` and `mcp.mjs`: workflow dispatch, run identity/status, artifact download, unwrapping and validation. These are separate from local adapter selection and search. |
+
+The search arrows describe conditional invocation. During research, the session calls the supplied policy's `askLive` and `live` methods. The policy invokes the coordinator-supplied patient search callback, which uses `searchPatiently` to call the selected provider synchronously. Without a credits policy, as in decomposition, the session invokes that patient seam directly. The selection arrows above return adapters and metadata to the CLI; they do not represent page or search invocation. The research coordinator also consults the policy for its live fetch adapter, stop/switch decisions and final state.
+
+There are three distinct ways a provider can change:
+
+| Change | Trigger and scope | Spending and limits |
+|---|---|---|
+| Selection before a run | Automatic fetch selection uses a present authenticated or anonymous Firecrawl CLI, otherwise `http-keyless`. Automatic search uses the fetch adapter when it can search; a fetch-only browser or anonymous CLI uses keyless search. A configured SerpAPI key selects a rank merge with a search-capable partner. | No page is fetched by selection. Its reasons and labels describe the selected route, including anonymous mode. Explicit names are not silently replaced by this automatic ladder. |
+| Degradation for one query | With one search provider, a failed ask can make one additional ask through the current fetch adapter when it is a different provider and can search. This happens without `--fallback`. | The replacement ask can spend on the fetch provider's search meter. Its failure and degradation are recorded. A fetch-only provider cannot rescue a search. Merged provider calls use a sequential loop and rank interleaving; they do not use this same single-provider degradation branch. |
+| Credit-exhaustion transition during research | The selected paying adapter recognizes exhaustion. Local default stops. `--fallback` permits the chosen supported switch once; `--no-fallback` wins if both flags are present. | Remaining work uses the chosen fallback in place of the exhausted adapter. A fetch-only browser can fetch remaining pages but cannot answer searches. A fallback's own error is not a second exhaustion transition. Unattempted pages/searches on a stopped run are counted separately from failed or spent work. |
+
+`runResearch` constructs a new credits policy and search session for each invocation. It uses two rate-limit retries by default for search; `collectOne` separately uses two page-fetch rate-limit retries by default. Decomposition creates a new search session with **zero search rate-limit retries** and no credits policy. Its optional page fetches still use `collectOne`'s default retries. Decomposition exposes no exhaustion-fallback flag. These are different coordination policies, although both use the same search and collection seams.
+
+Readiness has two layers. `selectSearch` preserves an explicit provider's missing-key or missing-instance reason on `chosen.search.notReady`, allowing a preview or doctor to describe the selection. Both spending CLIs refuse that selection before searching. `searchSession.assertReady()` has a narrower library contract: it inspects `notReady` only on the supplied `searchAdapter` and `searchAdapters` objects. It does not read the selection object's metadata, inspect every fetch/fallback capability, or inspect an implicit fetch adapter when no search adapter was supplied. `searchPatiently` separately returns a named failure for a provider that cannot search, throws, or returns a Promise; search adapters are synchronous.
+
+Research follows this sequence:
+
+1. For a collection invocation, the CLI checks role policy for a spending run and validates the plan, selects fetch/search adapters, then rejects `chosen.search.notReady` for a spending run before calling `runResearch`. The dry-run path does not take that CLI refusal branch. The coordinator checks CLI-major compatibility only when the fetch adapter name equals `firecrawl.name` (`firecrawl-cli`); the automatically labelled `firecrawl-cli-anonymous` adapter is outside that guard. It then checks session readiness and ledger appendability before search/page calls, including previews. Selection/account probes and the named CLI compatibility probe can happen before those search/page checks.
+2. The coordinator queues explicit plan URLs first, deduplicated by `urlKey`. It filters queries by `--only` and skips queries whose cited unknowns are all CLOSED unless `--force` is used. Its seen set includes existing captures and already queued pages.
+3. Each remaining query goes through the session. A merged session asks each planned provider sequentially, normalizes result rows, interleaves by rank, and records every provider that found an exact result URL. The coordinator filters web URLs, relevance or the operator's `prefer`, ranks candidates, deduplicates by page identity and applies `perQuery`. Search-found pages start as secondary/context sources; a ranking preference does not declare primary authority.
+4. The page budget is `min(plan.maxScrapes, depth allowance)`. A fresh cache hit or a recent remembered 404/410 costs no new page slot. Preview attempts obey the same page cap while spending nothing. Failed non-exhaustion fetches consume a page attempt; a recognized exhaustion refusal stops or retries the same page on the chosen fallback without counting that refusal as paid work. Search counters and adapter credit estimates remain separate from page attempts; they are not a vendor billing balance.
+5. For each actual page, `collectOne` rechecks the cache under the project writer lock. A success writes the capture and any available source sibling, hashes the bytes, appends a fetch-ledger entry, and updates source/evidence rows. The ledger records the actual fetch transport, declared completeness/omissions, source hash/omission, vendor cache metadata where provided, and `discoveredBy` for the ranking provider(s). An explicit plan URL has no ranking attribution. An error/oversized response records a `fail` entry without inventing a capture; an unchanged forced capture can retain its existing evidence row while recording the new fetch.
+6. The coordinator returns page outcomes, discovered results, independent search meters, degradation and exhaustion state. Its usage row is written for actual page spend or reported search usage, including a search-only run. The CLI prints that result; it does not recover authoritative provider accounting from an arbitrary diagnostic string.
+
+Decomposition builds queries from the project topic, filters and deduplicates returned web pages, and interleaves compound-topic material by query. It orders optional scrape targets using likely-owner and relevance rules, uses `maxScrapes` as a page-attempt cap, and lets cache hits reach further down the candidates. Skipped likely-owner pages remain named for review. It drafts `research/MAP.md` with the checklist unjudged, candidate material and any captured page outlines; those outlines are read from disk without another fetch. Its `--force` permits redrafting judged MAP rows; this coordinator does not pass `force` into its page-cache decisions as research does.
+
+The failure sink is the coordinator's. The session counts and reports the answer returned by `creditsPolicy.askLive`: that policy can intercept recognized exhaustion of the selected paying adapter and return a fallback answer instead. It records the exhaustion transition as `op: credits-exhausted`; if the returned fallback answer succeeds, the intercepted refusal does not also become a session `op: search` failure. Research immediately serializes search failures surfaced to the session into `research/raw/.failures.jsonl` as `op: search`; empty and off-topic answers get their own events there, and its credits policy appends the exhaustion event to the same log. Decomposition retains the session's failure objects and renders them in MAP and its search summary. In a merged query, the session delivers a failed ask to the sink immediately, then mutates that retained object's `covered` field when another provider answers. A retained object can therefore show `covered` later, while a row serialized at the moment of failure cannot; the research sink intentionally does not serialize that later field. This preserves chronology rather than promising identical snapshots from both sink types. Each run starts with new session meters, failure collections and exhaustion state.
+
+Ledger appendability checks parsing, the finished tail and hash-chain links before spending; the append repeats that structural check under the lock. It does **not** certify existing capture bodies. `verifyLedger`, handoff and preflight perform the separate byte/hash and referenced-capture verification. A chain that can accept another entry is not by itself a validated corpus or an approved brief.
+
+Remote dispatch is a separate flow: a CLI/MCP caller invokes `dispatch.mjs` to start `collect.yml`, receives its run id, follows that run and downloads/unwraps its corpus artifact for the existing artifact validator. The workflow performs collection on its runner and explicitly passes `--fallback`; that unattended policy does not change the local default. MCP `collect` returns the run id promptly, and `fetch_corpus` reads completion and validation. A downloaded corpus still carries `buildAuthorized` and review state; successful dispatch or download alone does not authorize building. Existing received-project review/repackaging compatibility is governed by its own ADRs, rather than by the provider selection layer.
 
 Release validation is a **separate path** — it shares the canonical primitives and nothing
 else, and it never touches the corpus. It is also **optional**: decompose, research, preflight, the
