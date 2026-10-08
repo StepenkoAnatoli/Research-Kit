@@ -1,54 +1,33 @@
 # Discovery Contract - what the runtime does: Node's certificate store, and the mode a copied file gets
 
-Started 2026-10-07. This file is the definition of "enough information to build".
-`node "/home/user/.agents/research-kit/bin/preflight.mjs"` reads it and blocks the build until every unknown
-below is either `CLOSED` with evidence or `KNOWN-UNKNOWN` with a verification step.
+Started 2026-10-07; corrected 2026-10-07/08 after review of the committed pass-7 corpus.
+Run the checkout's `research-kit/bin/preflight.mjs` from this nested project; a root verdict does not validate this corpus.
 
 ## Build intent
 
-The external facts the 2026-10-07 break-test of this repository (pass 7) rests on, closed from the
-runtime owner's own documentation instead of recalled. Two claims needed them: the cause of the
-finding that a deploy from a read-only source tree leaves a deployed kit that cannot be updated
-(the mode a copied file gets, and what the copy does to an existing destination), and the
-recommendation that the collector name a documented remedy when a TLS-inspecting middlebox
-rejects the machine's trust store (`NODE_EXTRA_CA_CERTS`, when it is read). Done means: one `E-##`
-row per page whose `Raw` capture holds the quoted sentence, both claims in the report name their
-row, and `preflight.mjs` says PASS. The kit's own behaviour - the deploy, the collector's failure
-message - is observed by running it and is deliberately not researched here (break-test rule 6).
+Support the break-test pass-7 report, correction of installer-owned read-only output, and the scoped private child-accounting remedy with primary runtime documentation. Distinguish documented overwrite/permission/IPC APIs from the original Linux Node v22.22.3 measurements and later implementation tests. Bound the certificate recommendation to the trusted-CA mechanism Node documents. Done means complete owner-hosted captures for the missing API sections, rewritten quoted Findings, a classified map, an answered and current brief, and this nested project's passing preflight and intact handoff. Product code and its regression outcomes remain outside this research project.
 
 ## Unknowns
 
-A fact belongs here when guessing it wrong changes the design: API limits and pricing,
-auth model, data schemas, rate limits, licensing/ToS, platform behavior, current library
-versions, competitor pricing, data availability.
-
-Status is exactly one of:
-- `CLOSED` - proven by an `E-##` row in `research/EVIDENCE.md` (which must point at cached raw text).
-- `KNOWN-UNKNOWN` - unreachable now; the `Evidence` cell names the day-one verification step.
-
-Anything else (`OPEN`, blank, "in progress") fails the gate.
+A fact belongs here when a wrong guess changes the repair or the report. CLOSED means supported by the cited cached evidence. KNOWN-UNKNOWN requires a concrete verification step; an unlabeled gap is not closure.
 
 | ID | Unknown | Why it blocks the build | Status | Evidence |
 |---|---|---|---|---|
-| U-01 | Does Node document the permissions the file a copy produces receives - in particular, is "a read-only source produces a read-only destination" a documented guarantee? | The finding's cause is that the deployed copy carried the source's 0444 mode; whether that is a documented promise decides whether the fix may rely on propagation (it must not) and whether a runtime upgrade could change the failure | CLOSED | E-01, E-02: neither Node's `fs.md` (the `mode` argument, the three `COPYFILE_*` modifiers, the overwrite default) nor libuv's `uv_fs_copyfile` documentation names any permission behaviour for the destination. The propagation is measured on this host (0444 to 0444, 644 to 644, 600 to 600 under umask 0022) and is not promised, so the fix sets the owner-write bit explicitly rather than trusting it. |
-| U-02 | What do Node and libuv document about copying onto a destination that already exists - is overwriting the default, and what does `COPYFILE_EXCL` change? | The second deploy's `EACCES` needs this half of the mechanism: the deploy opens its own read-only output for writing, which only happens because the copy overwrites rather than refuses | CLOSED | E-01, E-02: Node - "Asynchronously copies `src` to `dest`. By default, `dest` is overwritten if it already exists", with `COPYFILE_EXCL` as the modifier that makes the operation fail; libuv - "The default behavior is to overwrite the destination if it exists", with `UV_FS_COPYFILE_EXCL` failing `UV_EEXIST`. `lib/installer.mjs` passes no flags, so the overwrite path is the one a second deploy takes, and it opens the 0444 destination for writing. |
-| U-03 | What does Node document about `NODE_EXTRA_CA_CERTS` - what it extends, when it is read, what a missing or malformed file does, and when it does not apply? | The remaining-risk recommendation (name the documented remedy for `unable to verify the first certificate`, and state its launch-time limit) rests on this page | CLOSED | E-03: the man page states that the well-known root CAs are extended with the certificates in the PEM file, that a missing or malformed file is a one-time `process.emitWarning()` and otherwise ignored, and that the variable is read only when the process is first launched. That is the remedy the report's remaining risk names, with its limit stated. |
+| U-01 | What do the complete Node fs.copyFileSync API sections at the original probe and correction-host versions promise about destination permissions? | A mode repair must not rely on the original source-mode propagation measurement as a universal API guarantee | CLOSED | E-04, E-05: the complete v22.22.3 and v24.20.0 fs.copyFileSync sections specify copy modifiers, overwrite and non-atomic behavior; those sections do not specify propagation of source permission bits. E-01 is a truncated historical fsPromises excerpt and cannot prove a whole-document absence. E-02 supplies the older libuv copy section. The reported Linux 0444/644/600 measurements remain separate empirical evidence, not a documented cross-platform guarantee. |
+| U-02 | Is overwriting an existing destination the documented default for fs.copyFileSync, and what does COPYFILE_EXCL change? | The installer must make its owned destination writable before the copy opens it; a post-copy change cannot repair a failure opening existing read-only output | CLOSED | E-04, E-05 document the synchronous overwrite default and COPYFILE_EXCL refusing an existing destination. They also say the operation is not guaranteed atomic and an error after opening for writing leads to attempted destination removal. E-02 agrees on libuv's overwrite default. These establish the API contract; the exact installer failure and repair require direct tests. |
+| U-03 | What does NODE_EXTRA_CA_CERTS extend, when is it read, what happens for a missing/malformed file, and when does it not apply? | The report's certificate recommendation must describe a bounded supported mechanism | CLOSED | E-03 documents the v22.22.0 man-page mechanism and ignored setuid-root/Linux-file-capability conditions. Complete v24.20.0 CLI capture E-06 adds that explicit TLS/HTTPS ca options bypass the well-known and extra certificates. A trusted PEM file extends the roots; a missing/malformed file warns once and other errors are ignored; the variable is read at process launch. Name it for an applicable missing trusted CA before launching the collector, not as a diagnosis or unconditional fix for every certificate error. |
+| U-04 | What permission change does Node support on Windows, and which available mode bit supports restoring write access to an installer-owned file? | A POSIX-only mode repair leaves the observed Windows read-only-copy case unresolved | CLOSED | E-04, E-05 state that Windows chmod changes only write permission and does not implement group/owner/others distinctions. E-05 lists S_IRUSR and S_IWUSR as the available Windows constants and S_IWUSR as 0o200, write by owner. Restoring this write bit is supported API use; test actual read-only replacement on Windows and preservation of POSIX bits rather than treating documentation as a successful repair or an ACL bypass. |
+| U-05 | What do the inspected Node 22 and correction-host APIs document about private child IPC, the process.send callback parameter/boolean return, connected/disconnect and the parent's received message? | The child sender supplies a callback, so that API parameter needs direct support; spending must rest on an actual received/validated report, not a human log, exit or callback as receipt proof | CLOSED | E-07 documents one spawn IPC channel, parent message receipt and exit/close/disconnect bounds. E-08/E-09 document process.send's optional Function callback and boolean return at v22.22.3/v24.20.0, undefined without IPC, serialized messages to the parent, connected=false preventing sends and graceful disconnect. Their process.send sections do not document the child callback's exact failure arguments or equate them with ChildProcess.send. Verify child delivery/error behavior through actual-runtime regressions and CI; do not infer an all-version guarantee. The parent must fail closed on unknown/failed delivery and receive/validate the accounting report. |
 
 ## Questions for the human (maximum 3)
 
-Intent questions only - things no document can answer. Facts never go here; they go in
-the table above. If a question's answer is in public documentation, it is a research
-task, not a question.
+No additional intent questions are needed. The owner authorized correcting Arena PR266 and bounded primary collection; these facts are obtained from the runtime owner's pages.
 
 ## Already decided
 
-Locked decisions for this project. Do not revisit these without the human.
-
-- The pages are the owner's own files at the tag of the runtime in use here (Node v22.22.3, docs
-  tag v22.22.0): `nodejs/node` `doc/api/fs.md`, its `deps/uv/docs/src/fs.rst`, and its `doc/node.1`.
-  No mirror, no third-party summary.
-- `doc/node.1` carries U-03 because the GitHub viewer truncates the 116 KB `doc/api/cli.md` at
-  "[View remainder of file in raw view]" before its environment-variable section; the man page is
-  the same owner, the same tag, and renders whole.
-- The search lane (DuckDuckGo) is outside this machine's egress; the plan names pages directly.
-  That makes the search failure a collection limitation to disclose, not a hole in the facts.
+- Preserve all original captures and the first three ledger entries. The original runtime was Node v22.22.3 but the first documentation captures were v22.22.0. That mismatch and E-01's GitHub-viewer truncation are disclosed instead of rewriting capture history.
+- Append complete raw owner-source captures at exact v22.22.3 and correction-host v24.20.0. These do not establish documentation for every Node version, including Node 26.
+- Reuse the existing judged decomposition. `decompose.mjs --dry-run --transport http-keyless` refused to erase it without --force; retain and extend the map rather than discard its decisions.
+- Correction collection fetched three direct owner files on 2026-10-07 and the IPC plus two process API files on 2026-10-08. The last run fetched only the two new process URLs and reused all four existing correction pages. Total new fetches are six, no searches, http-keyless, maxScrapes 6, and no fallback. The quick depth tier still caps any one run at four scrapes; cache reuse made the last run spend two. The initial sandbox's failed search lane remains historical context.
+- Doctor confirmed the eligible collector role and intact corpus with RESEARCH_KIT_HOME selecting this checkout, and reported that the registered edit hook was outside that selected kit. This comparison does not establish that the operator's deployed configuration is broken. No READY claim, role/config mutation, or machine-wide hook/settings repair is made by this corpus correction.
+- The corpus is already committed by 9939ce0 and the original POSIX repair by 4619922. The reviewed follow-up and product repair are separately reviewable work; no code-test success is inferred from this project's PASS.
