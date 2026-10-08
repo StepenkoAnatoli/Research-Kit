@@ -408,25 +408,19 @@ function copyTree(from, to, { prune = [], mirror = false } = {}) {
       if (fs.statSync(abs).isDirectory()) { walk(abs); continue; }
       const target = path.join(to, rel);
       ensureDir(path.dirname(target));
-      // `copyFileSync` keeps the SOURCE file's mode. A read-only source - a checkout on a
-      // read-only mount, a store-like tree whose files are 0444 - therefore wrote read-only files
-      // into the deployed home, and the NEXT deploy died with EACCES on its own output: the
-      // deployed kit was un-updatable (found 2026-10-07, break-test pass 7). The deployed tree is
-      // the deployer's copy, so the owner write bit is added; everything else the source carried,
-      // an executable bit included, is kept.
-      const mode = process.platform === 'win32' ? 0 : fs.statSync(abs).mode & 0o777;
-      if (process.platform !== 'win32' && (mode & 0o200) === 0 && fs.existsSync(target)) {
-        // The state an earlier deploy left behind: the copy overwrites by default, so a read-only
-        // destination has to be opened for writing, and 0444 refuses (citations E-01, E-02). The
-        // owner write bit is restored before the copy, and the source's mode is applied after it.
-        const dest = fs.statSync(target).mode & 0o777;
-        if ((dest & 0o200) === 0) fs.chmodSync(target, dest | 0o200);
+      // The deployer's copy must stay writable. Earlier output can be read-only even when
+      // the incoming source is writable; restore write access before copyFileSync opens it.
+      // Windows chmod changes write permission only (E-04/E-05 in the break-test corpus).
+      const mode = fs.statSync(abs).mode & 0o777;
+      if (fs.existsSync(target)) {
+        const dest = fs.statSync(target);
+        if (dest.isFile() && (dest.mode & 0o200) === 0) fs.chmodSync(target, (dest.mode & 0o777) | 0o200);
       }
       fs.copyFileSync(abs, target);
-      if (process.platform !== 'win32') {
-        if ((mode & 0o200) === 0) fs.chmodSync(target, mode | 0o200);
-        if (rel.split(path.sep)[0] === 'githooks') fs.chmodSync(target, HOOK_MODE);
-      }
+      // Normalize explicitly: source-mode propagation is measured, not an API guarantee.
+      // Preserve ordinary POSIX permission/execute bits and make Windows output writable.
+      fs.chmodSync(target, mode | 0o200);
+      if (process.platform !== 'win32' && rel.split(path.sep)[0] === 'githooks') fs.chmodSync(target, HOOK_MODE);
       written.push(rel.split(path.sep).join('/'));
     }
   };
