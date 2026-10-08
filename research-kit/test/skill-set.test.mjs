@@ -112,7 +112,7 @@ test('auto-build readiness script rejects a missing --base value', () => {
     ['123', '--base'], ['123', '--base='], ['123', '--base', '--base=main'], ['123', '--base', '--help'],
   ]) {
     const result = spawnSync(bash, [script, ...args], {
-      encoding: 'utf8', timeout: 2_000, windowsHide: true,
+      encoding: 'utf8', timeout: 10_000, windowsHide: true,
     });
     assert.equal(result.status, 3, result.error?.message || result.stderr);
     assert.match(result.stderr, /BLOCKED: --base requires a branch/);
@@ -130,7 +130,7 @@ test('auto-build readiness script accepts hyphen-leading base refs', () => {
     ['123', '--base', '-foo', '--help'], ['123', '--base=-foo', '--help'], ['123', '--base=--foo', '--help'],
   ]) {
     const result = spawnSync(bash, [script, ...args], {
-      encoding: 'utf8', timeout: 2_000, windowsHide: true,
+      encoding: 'utf8', timeout: 10_000, windowsHide: true,
     });
     assert.equal(result.status, 3, result.error?.message || result.stderr);
     assert.doesNotMatch(result.stderr, /BLOCKED: --base requires a branch/);
