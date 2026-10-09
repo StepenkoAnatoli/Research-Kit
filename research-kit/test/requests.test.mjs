@@ -1,8 +1,9 @@
 // Builder requests and auto-collect (ADR-0148): the builder decides what is collected, the
 // collector collects it. Requests are validated as untrusted input; the loop runs only on a
 // collector, within its caps, never passes --fallback, and pauses when the credits run out.
-// The kit's scripts are stand-ins here - nothing reaches a network - and git is real, so the
-// round trip (builder pushes a request, collector pushes the corpus and its ledger back) is.
+// The kit's scripts are stand-ins here - nothing reaches a network. Delivery fixtures use
+// real Git; the repeated allowance-state fixture injects finite Git responses and still
+// runs the stand-in Node scripts.
 
 import { spawnSync } from 'node:child_process';
 import { test, describe, assert, assertEqual, tempDir, fs, path, makeProject, requireGit, requireSymlink, fixtureInitArgs } from './harness.mjs';
@@ -280,6 +281,76 @@ function builderPushes(w, id, request) {
 const loop = (w) => createAutoCollect({ project: () => w.collector, env: w.m.env, kitRoot: w.kit });
 const calls = (w) => (readText(path.join(w.m.dir, 'calls.log'), '') ?? '').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
 
+// Neighboring native fixtures prove Git delivery. This fixture models that boundary while
+// keeping the research children and request, plan, result and meter files real.
+function allowanceFixture() {
+  const m = gitEnv({ STANDIN_MODE: 'stopped' });
+  const collector = fs.realpathSync.native(makeProject(tempDir('research-kit-allowance-'), { topic: 'Allowance state', content: true }));
+  const kit = standInKit();
+  m.env.STANDIN_TEMPLATE = kit.template;
+  let pending = false;
+  const indexes = new Set();
+  const complete = (code = 0, output = '') => ({ code, output, signal: null, timedOut: false, truncated: false });
+  const exec = async (command, args, options) => {
+    assertEqual(options.env.RESEARCH_KIT_CONFIG, m.configFile);
+    if (command !== 'git') {
+      assertEqual(command, process.execPath);
+      const research = args[0] === path.join(kit.root, 'bin', 'research.mjs');
+      assert(research || (args.length === 1 && args[0] === path.join(kit.root, 'bin', 'preflight.mjs')), 'unexpected fixture Node command');
+      if (research) assert(args.length === 3 && args[1] === '--plan' && /^research\/requests\/(burst-limit|second)\.plan\.json$/.test(args[2]));
+      assertEqual(options.cwd, collector);
+      const result = await execFile(command, args, options);
+      if (research) pending = true;
+      return result;
+    }
+    const exact = (...wanted) => args.length === wanted.length && args.every((arg, index) => arg === wanted[index]);
+    const external = () => assertEqual(options.env.GIT_INDEX_FILE, undefined, 'fixture command unexpectedly uses a private index');
+    const index = () => {
+      const file = options.env.GIT_INDEX_FILE;
+      assert(typeof file === 'string' && path.isAbsolute(file) && path.basename(file) === 'index');
+      assert(path.basename(path.dirname(file)).startsWith('research-kit-autocollect-index-') && fs.existsSync(path.dirname(file)));
+      return file;
+    };
+    if (exact('status', '--porcelain', '--', '.')) {
+      assertEqual(options.cwd, path.join(collector, 'research'));
+      external();
+      return complete();
+    }
+    assertEqual(options.cwd, collector);
+    if (exact('read-tree', 'HEAD')) {
+      indexes.add(index());
+      return complete();
+    }
+    if (exact('add', '--', 'research') || exact('add', '-f', '--', 'research/raw/.fetches.jsonl')) {
+      assert(indexes.has(index()), 'the fixture index was not initialized');
+      return complete();
+    }
+    if (exact('diff', '--cached', '--quiet')) {
+      assert(indexes.has(index()), 'the fixture index was not initialized');
+      return complete(pending ? 1 : 0);
+    }
+    if (args.length === 5 && args[0] === 'commit' && args[1] === '-m' && args[3] === '-m'
+      && ['research: request burst-limit partly collected', 'research: collect request burst-limit', 'research: collect request second'].includes(args[2])
+      && typeof args[4] === 'string') {
+      assert(indexes.has(index()), 'the fixture index was not initialized');
+      assert(pending, 'the fixture committed without a research attempt');
+      pending = false;
+      return complete();
+    }
+    external();
+    if (exact('rev-parse', '--show-toplevel')) return complete(0, `${collector}\n`);
+    if (exact('rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}')) return complete(0, 'origin/main\n');
+    if (exact('rev-list', '--count', '@{u}..HEAD')) return complete(0, '0\n');
+    if (exact('pull', '--ff-only') || exact('push') || exact('reset', '--quiet', 'HEAD', '--', 'research')) return complete();
+    const excluded = args.at(-1);
+    if (['burst-limit', 'second'].some((id) => excluded === `:(exclude)research/requests/${id}.result.json`)
+      && (exact('status', '--porcelain=v1', '-z', '--untracked-files=all', '--', 'research', excluded)
+        || exact('diff', '--binary', 'HEAD', '--', 'research', excluded))) return complete();
+    throw new Error('unexpected fixture Git command');
+  };
+  return { m, collector, kit: kit.root, exec };
+}
+
 test('auto-collect round trip: the builder pushes a request, the collector collects it and pushes the corpus with its ledger', async () => {
   const w = world();
   saveAutoCollect({ mode: 'auto', perRequestPages: 4, dailyPages: 20 }, w.m.env);
@@ -541,13 +612,15 @@ test('a builder machine does not collect, whatever the settings say', async () =
 });
 
 test('when credits run out auto-collect resumes the same request within its remaining allowance', async () => {
-  const w = world({ STANDIN_MODE: 'stopped' });
+  const w = allowanceFixture();
   saveAutoCollect({ mode: 'auto' }, w.m.env);
-  builderPushes(w, 'burst-limit', GOOD);
-  builderPushes(w, 'second', { ...GOOD, urls: ['https://docs.example.com/other'] });
-  const auto = loop(w);
+  writeText(path.join(w.collector, 'research', 'requests', 'burst-limit.json'), JSON.stringify(GOOD));
+  writeText(path.join(w.collector, 'research', 'requests', 'second.json'), JSON.stringify({ ...GOOD, urls: ['https://docs.example.com/other'] }));
+  await assert.rejects(w.exec('git', ['unexpected'], { cwd: w.collector, env: w.m.env }), /unexpected fixture Git command/);
+  const auto = createAutoCollect({ project: () => w.collector, env: w.m.env, kitRoot: w.kit, exec: w.exec });
   let status = await auto.cycle();
   assert(/credits ran out on firecrawl/.test(status.paused), status.paused);
+  assertEqual(status.spent.pages, 1);
   assertEqual(calls(w).length, 1, 'the run after the stop was attempted');
   assert(!calls(w)[0].includes('--fallback'), 'auto-collect passed --fallback');
   const partial = readJson(path.join(w.collector, 'research', 'requests', 'burst-limit.result.json'));
@@ -557,11 +630,10 @@ test('when credits run out auto-collect resumes the same request within its rema
   assertEqual(partial.resume.pagesSpent, 1);
   const planFile = path.join(w.collector, 'research', 'requests', 'burst-limit.plan.json');
   assertEqual(readJson(planFile).maxScrapes, 3, 'the remaining allowance was not saved in the run plan');
-  // What was collected before the stop is committed, ledger included.
-  git(w.builder, w.m.env, 'pull', '-q', '--ff-only');
-  assert(fs.existsSync(path.join(w.builder, 'research', 'raw', '.fetches.jsonl')), 'the partial corpus did not travel');
+  assert(fs.existsSync(path.join(w.collector, 'research', 'raw', '.fetches.jsonl')), 'the partial ledger was not written');
 
   status = await auto.cycle();
+  assertEqual(status.spent.pages, 1);
   assertEqual(calls(w).length, 1, 'a paused loop collected');
   assertEqual(status.requests.find((r) => r.id === 'second').status, 'waiting');
   status = auto.resume();
@@ -572,6 +644,7 @@ test('when credits run out auto-collect resumes the same request within its rema
   assertEqual(retried.resume.unknown, 'U-1');
   assertEqual(retried.resume.remainingPages, 2);
   assertEqual(retried.resume.pagesSpent, 2);
+  assertEqual(status.spent.pages, 2);
   assertEqual(readJson(planFile).maxScrapes, 2, 'a second stop reset the remaining allowance');
   assertEqual(calls(w).length, 2, 'the second partial attempt did not run');
 
@@ -585,6 +658,8 @@ test('when credits run out auto-collect resumes the same request within its rema
   assertEqual(readJson(planFile).maxScrapes, 2, 'the retry reset the request allowance');
   assertEqual(calls(w).length, 4, 'the paused request or the following request was not resumed');
   assertEqual(status.requests.find((r) => r.id === 'burst-limit').status, 'collected');
+  assertEqual(status.requests.find((r) => r.id === 'second').pages, 2);
+  assertEqual(status.spent.pages, 6);
 });
 
 test('auto-collect refuses to resume a partial request after its unknown is closed', async () => {
@@ -643,6 +718,14 @@ test('partial delivery retries before pause checks and does not spend another pa
   assertEqual(calls(w).length, 1, 'delivery retry spent more credits');
   git(w.builder, w.m.env, 'pull', '-q', '--ff-only');
   assert(fs.existsSync(path.join(w.builder, 'research', 'raw', '.fetches.jsonl')), 'partial corpus was not delivered');
+  assert(fs.existsSync(path.join(w.builder, 'research', 'raw', '2026-10-07-page.md')), 'partial capture was not delivered');
+  const partial = readJson(path.join(w.builder, 'research', 'requests', 'burst-limit.result.json'));
+  assertEqual(partial.status, 'partial');
+  assertEqual(partial.resume.unknown, 'U-1');
+  assertEqual(partial.pages, 1);
+  assertEqual(partial.resume.pagesSpent, 1);
+  assertEqual(partial.resume.remainingPages, 3);
+  assertEqual(readJson(path.join(w.builder, 'research', 'requests', 'burst-limit.plan.json')).maxScrapes, 3);
 });
 
 test('partial delivery does not push unrelated commits ahead of the upstream', async () => {
