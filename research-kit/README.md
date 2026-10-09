@@ -162,7 +162,13 @@ panel then:
 5. commits the corpus with its ledger, plus `<id>.result.json` beside the request, and pushes.
 
 The builder pulls and reads the result. A refused request gets its reasons in the result.
-The panel shows every request, the pages spent today and the daily cap.
+The panel shows every request, the pages used or reserved today and the daily cap.
+Accounting comes from a private message from the research child, separate from its bounded
+diagnostic output. If its measurement is missing or invalid, collection pauses and reserves
+that attempt's remaining page allowance against today's cap. The failed result and output
+label those pages as reserved: actual spend is unknown. Resume allows other requests within
+the remaining daily cap; it does not automatically retry that failed request or remove the
+reservation. A valid received measurement remains counted even if the child exits unsuccessfully.
 
 It runs only on a collector. It never passes `--fallback`: when the credits run out, it
 commits what it collected, pauses, and waits for you to top up and press **Resume**. While
@@ -525,7 +531,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1710 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1725 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

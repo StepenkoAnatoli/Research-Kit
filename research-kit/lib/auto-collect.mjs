@@ -32,37 +32,97 @@ import {
 export const RUN_OUTPUT_BYTES = 64 * 1024;
 const LEDGER = 'research/raw/.fetches.jsonl';
 
-/** `node`/`git` as a child: resolves `{ code, output }`, never rejects. */
-export function execFile(command, args, { cwd, env, timeout = 30 * 60 * 1000 } = {}) {
+// The fixed research child sends this private packet, not a line a query/URL can print.
+// Keep the packet's type, sizes and admitted page allowance checked at the parent boundary.
+function accountingProblem(message, pages) {
+  if (!message || typeof message !== 'object' || Array.isArray(message)
+    || Object.keys(message).length !== 3 || message.type !== 'research-kit-accounting'
+    || !Number.isSafeInteger(message.spent) || message.spent < 0
+    || typeof message.stoppedOn !== 'string' || message.stoppedOn.length > 80
+    || (message.stoppedOn !== '' && !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(message.stoppedOn))) {
+    return 'invalid collection accounting message';
+  }
+  return message.spent > pages ? 'collection accounting exceeds the admitted page allowance' : '';
+}
+
+/** `node`/`git` as a child: resolves `{ code, output }`, never rejects.
+ * `accountingPages` is private to the fixed research child; other commands have no IPC.
+ */
+export function execFile(command, args, { cwd, env, timeout = 30 * 60 * 1000, accountingPages = null } = {}) {
   return new Promise((resolve) => {
-    let output = '';
+    let output = Buffer.alloc(0);
+    let truncated = false;
+    let timedOut = false;
+    let accounting = null;
+    let accountingError = '';
+    let messages = 0;
+    const expectsAccounting = Number.isSafeInteger(accountingPages) && accountingPages >= 0;
+    // Other commands retain their historical larger prefix (git's output is also data).
+    // Research diagnostics use a smaller tail; neither buffer supplies its accounting.
+    const outputLimit = expectsAccounting ? RUN_OUTPUT_BYTES : RUN_OUTPUT_BYTES * 4;
+    const keep = (chunk) => {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), 'utf8');
+      if (!expectsAccounting) {
+        const room = outputLimit - output.length;
+        truncated ||= bytes.length > room;
+        output = Buffer.concat([output, bytes.subarray(0, room)]);
+      } else if (bytes.length >= outputLimit) {
+        truncated ||= output.length + bytes.length > outputLimit;
+        output = Buffer.from(bytes.subarray(-outputLimit));
+      } else {
+        const room = outputLimit - bytes.length;
+        truncated ||= output.length > room;
+        output = Buffer.concat([output.subarray(-room), bytes]);
+      }
+    };
+    const result = (code, signal = null) => ({
+      code, signal, timedOut,
+      output: `${truncated ? `[... ${expectsAccounting ? 'earlier' : 'later'} output truncated ...]\n` : ''}${output.toString('utf8')}`,
+      ...(expectsAccounting ? { accounting, accountingError: accountingError || (messages === 0 ? 'missing collection accounting message' : '') } : {}),
+    });
     let child;
     try {
-      child = spawn(command, args, { cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(command, args, { cwd, env, windowsHide: true,
+        stdio: expectsAccounting ? ['ignore', 'pipe', 'pipe', 'ipc'] : ['ignore', 'pipe', 'pipe'] });
     } catch (err) {
-      resolve({ code: null, output: `could not start ${command}: ${err.message}\n` });
+      keep(`could not start ${command}: ${err.message}\n`);
+      resolve(result(null));
       return;
     }
-    const keep = (chunk) => { if (output.length < RUN_OUTPUT_BYTES * 4) output += chunk.toString('utf8'); };
-    const timer = setTimeout(() => child.kill(), timeout);
+    if (expectsAccounting) child.on('message', (message) => {
+      messages += 1;
+      if (messages !== 1) {
+        accounting = null;
+        accountingError = 'multiple collection accounting messages';
+        return;
+      }
+      accountingError = accountingProblem(message, accountingPages);
+      if (!accountingError) accounting = { type: message.type, spent: message.spent, stoppedOn: message.stoppedOn };
+    });
+    const timer = setTimeout(() => { timedOut = true; child.kill(); }, timeout);
     child.stdout.on('data', keep);
     child.stderr.on('data', keep);
-    child.on('error', (err) => { output += `could not start ${command}: ${err.message}\n`; });
-    child.on('close', (code) => { clearTimeout(timer); resolve({ code, output }); });
+    child.on('error', (err) => keep(`could not start ${command}: ${err.message}\n`));
+    // Receipt, not exit zero or the child's send callback, establishes the measurement.
+    child.on('close', (code, signal) => { clearTimeout(timer); resolve(result(code, signal)); });
   });
 }
 
-const tail = (s, n = RUN_OUTPUT_BYTES) => (s.length > n ? `[...]\n${s.slice(-n)}` : s);
-const lastLine = (s) => String(s).trim().split(/\r?\n/).filter(Boolean).pop() ?? '';
+const tail = (s, n = RUN_OUTPUT_BYTES) => {
+  const text = String(s ?? '');
+  const bytes = Buffer.from(text, 'utf8');
+  return bytes.length > n ? `[... earlier output truncated ...]\n${bytes.subarray(-n).toString('utf8')}` : text;
+};
+const lastLine = (s) => tail(String(s ?? '').trim().split(/\r?\n/).filter(Boolean).pop() ?? '', 1000);
 const posix = (p) => p.split(path.sep).join('/');
 
-/** The pages a research.mjs run spent, from its own summary line. */
+/** Legacy diagnostic parser. Collection accounting never trusts human-readable logs. */
 export function spentPages(output) {
   const m = /^spent\s+(\d+)/m.exec(String(output));
   return m ? Number(m[1]) : 0;
 }
 
-/** The provider whose credits ran out, from research.mjs's summary, or ''. */
+/** Legacy diagnostic parser. The collection pause decision uses the private child packet. */
 export function creditsStopped(output) {
   return /^stopped\s+credits ran out on (\S+)/m.exec(String(output))?.[1] ?? '';
 }
@@ -95,7 +155,8 @@ export function createAutoCollect({
   const delivered = new Set();
 
   const note = (line) => { notes.push(`${new Date().toISOString()} ${redact(line)}`); if (notes.length > 50) notes.shift(); };
-  const kit = (script, args, cwd, commandEnv = env) => exec(nodePath, [path.join(kitRoot, 'bin', script), ...args], { cwd, env: commandEnv });
+  const kit = (script, args, cwd, commandEnv = env, accountingPages = null) => exec(nodePath, [path.join(kitRoot, 'bin', script), ...args],
+    { cwd, env: commandEnv, ...(accountingPages === null ? {} : { accountingPages }) });
   const git = (args, cwd) => exec('git', args, { cwd, env });
 
   const cacheKey = (dir, id) => `${canonical(dir)}\0${id}`;
@@ -362,12 +423,21 @@ export function createAutoCollect({
     note(`collecting ${item.id}: up to ${pages} page(s) for ${applied.unknown}`);
 
     const requestEnv = { ...env, RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS: '0' };
-    const run = await kit('research.mjs', ['--plan', applied.planFile], target, requestEnv);
-    const spent = spentPages(run.output);
-    recordSpend(spent, env);
-    const output = redact(tail(run.output));
-    const stoppedOn = creditsStopped(run.output);
+    const run = await kit('research.mjs', ['--plan', applied.planFile], target, requestEnv, pages);
     const paths = collectionPaths(top, dir, target);
+    const measurementProblem = run.accountingError || accountingProblem(run.accounting, pages);
+    if (measurementProblem) {
+      // The run might have spent every admitted page before interruption. Reserve that
+      // allowance, rather than recording a fabricated zero or admitting another request.
+      recordSpend(pages, env);
+      const detail = `collection accounting unavailable (${measurementProblem}); ${pages} page(s) reserved for the daily cap, actual spend unknown`;
+      setPaused(`${detail} during request ${item.id}. Inspect the run before pressing Resume.`, env);
+      return fail(top, dir, item, target, detail, run.output, paths, (resume?.pagesSpent ?? 0) + pages, 'reserved');
+    }
+    const spent = run.accounting.spent;
+    recordSpend(spent, env);
+    const stoppedOn = run.accounting.stoppedOn;
+    const output = `Accounting: ${spent} page(s) measured this attempt${stoppedOn ? `; credits ran out on ${stoppedOn}` : ''}.\n\nDiagnostic output (not accounting):\n${redact(tail(run.output))}`;
 
     if (stoppedOn) {
       // A stopped request keeps its target, contract row and unused allowance for the next cycle.
@@ -404,7 +474,12 @@ export function createAutoCollect({
       note(`paused: credits ran out on ${stoppedOn} during ${item.id}`);
       return;
     }
-    if (run.code !== 0) return fail(top, dir, item, target, `research.mjs exited ${run.code}: ${lastLine(run.output)}`, run.output, paths, spent);
+    if (run.timedOut || run.signal) {
+      setPaused(`research.mjs was interrupted during request ${item.id}; ${spent} page(s) measured this attempt. Inspect the run before pressing Resume.`, env);
+    }
+    if (run.code !== 0 || run.timedOut || run.signal) return fail(top, dir, item, target,
+      `research.mjs ${run.timedOut || run.signal ? 'was interrupted' : `exited ${run.code}`}: ${lastLine(run.output)}`,
+      run.output, paths, (resume?.pagesSpent ?? 0) + spent, 'measured');
 
     const gate = await kit('preflight.mjs', [], target);
     const preflight = { code: gate.code, verdict: lastLine(gate.output) };
@@ -424,17 +499,22 @@ export function createAutoCollect({
     note(`collected ${item.id}: ${spent} page(s); ${committed}`);
   }
 
-  async function fail(top, dir, item, target, detail, output, paths = null, spent = 0) {
+  async function fail(top, dir, item, target, detail, output, paths = null, spent = 0, measurement = 'none') {
     writeResult(dir, item.id, { status: 'failed', detail, project: relTo(top, target), pages: spent });
     recordTrustedResult(dir, item.id, env);
     const committed = await commitAndPush(top, paths ?? [path.posix.join(relTo(top, dir), REQUESTS_DIR)], report(
       `research: request ${item.id} failed`,
-      `recorded request ${item.id} as failed after ${spent} page(s)`,
+      `recorded request ${item.id} as failed with ${spent} page(s) ${measurement === 'reserved' ? 'used or reserved' : 'accounted'}`,
       detail,
-      `research.mjs exited unsuccessfully${spent ? ` after reporting ${spent} page(s)` : ''}`,
+      measurement === 'reserved' ? 'no valid accounting measurement was received; the remaining admitted allowance was reserved, not measured'
+        : measurement === 'measured' ? 'the failed run retained its received accounting and any prior measured attempts'
+          : 'the failure occurred before page collection',
     ));
     if (committed === 'committed and pushed' || committed === 'pushed') delivered.add(cacheKey(dir, item.id));
-    runs.set(cacheKey(dir, item.id), { status: 'failed', detail, pages: spent, output: redact(tail(String(output ?? ''))), git: committed });
+    const accountingLabel = measurement === 'reserved' ? detail
+      : measurement === 'measured' ? `Accounting: ${spent} page(s) measured across this request's attempts.` : '';
+    runs.set(cacheKey(dir, item.id), { status: 'failed', detail, pages: spent,
+      output: `${accountingLabel ? `${redact(accountingLabel)}\n\n` : ''}Diagnostic output (not accounting):\n${redact(tail(output))}`, git: committed });
     note(`failed ${item.id}: ${detail}`);
   }
 
@@ -552,7 +632,7 @@ export function createAutoCollect({
           ? Math.min(resume.remainingPages, requestPages(item.request, current.settings.perRequestPages))
           : requestPages(item.request, current.settings.perRequestPages);
         if (current.spent.pages + pages > current.settings.dailyPages) {
-          runs.set(key, { status: 'waiting', detail: `today's cap: ${current.spent.pages} of ${current.settings.dailyPages} page(s) spent, this needs ${pages}` });
+          runs.set(key, { status: 'waiting', detail: `today's cap: ${current.spent.pages} of ${current.settings.dailyPages} page(s) used or reserved, this needs ${pages}` });
           continue;
         }
         const dirty = await git(['status', '--porcelain', '--', '.'], path.join(dir, 'research'));

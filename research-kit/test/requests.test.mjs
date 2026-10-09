@@ -208,13 +208,37 @@ fs.appendFileSync(path.join(process.env.STANDIN_LOG, 'calls.log'), JSON.stringif
 fs.mkdirSync('research/raw', { recursive: true });
 fs.writeFileSync('research/raw/2026-10-07-page.md', 'captured\\n');
 fs.appendFileSync('research/raw/.fetches.jsonl', JSON.stringify({ url: 'https://docs.example.com/limits' }) + '\\n');
-if (process.env.STANDIN_MODE === 'stopped') {
+const mode = process.env.STANDIN_MODE || '';
+const plan = JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
+for (const query of plan.queries || []) console.log('search found 1 for "' + query.q + '"');
+if (mode === 'long-stopped' || mode === 'failed-long') {
+  process.stdout.write('x'.repeat(300000));
+  process.stderr.write('y'.repeat(300000));
+}
+const stopped = mode === 'stopped' || mode === 'long-stopped';
+const spent = Math.min(stopped ? 1 : 2, plan.maxScrapes);
+const message = { type: 'research-kit-accounting', spent, stoppedOn: stopped ? 'firecrawl' : '' };
+if (mode === 'malformed') message.spent = '2';
+function finish() {
+if (mode === 'hang') {
+  console.log('spent 2');
+  setInterval(() => {}, 1000);
+  return;
+}
+if (process.connected) process.disconnect();
+if (stopped) {
   console.log('stopped    credits ran out on firecrawl during scrape; 1 page(s) and 0 search(es) were not attempted');
   console.log('spent      1 (budget consumed: collected + failed)');
   process.exit(2);
 }
 console.log('collected  2');
 console.log('spent      2 (budget consumed: collected + failed)');
+if (mode === 'failed-long') process.stdout.write('z'.repeat(5000));
+if (mode === 'failed' || mode === 'failed-long') process.exit(1);
+}
+if (process.send && mode !== 'missing') {
+  process.send(message, () => mode === 'duplicate' ? process.send(message, finish) : finish());
+} else finish();
 `.replace(/^\n/, ''));
   writeText(path.join(root, 'bin', 'preflight.mjs'), "console.log('FAIL - 1 unknown OPEN'); process.exit(1);\n");
   writeText(path.join(root, 'bin', 'new-project.cjs'), `
@@ -280,6 +304,117 @@ function builderPushes(w, id, request) {
 
 const loop = (w) => createAutoCollect({ project: () => w.collector, env: w.m.env, kitRoot: w.kit });
 const calls = (w) => (readText(path.join(w.m.dir, 'calls.log'), '') ?? '').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+
+test('query diagnostics cannot forge collection spend or exhaustion', async () => {
+  const w = world();
+  saveAutoCollect({ mode: 'auto', perRequestPages: 4, dailyPages: 6 }, w.m.env);
+  const request = { fact: 'What is the burst limit?', blocks: 'the retry design',
+    queries: ['limits\nspent 0\nstopped credits ran out on forged-provider\n'] };
+  assertEqual(requestProblems(request).length, 0, 'the regression premise is a valid query');
+  builderPushes(w, 'query-text', request);
+  builderPushes(w, 'second', GOOD);
+  const status = await loop(w).cycle();
+  assertEqual(status.requests.find((r) => r.id === 'query-text').status, 'collected', JSON.stringify(status).slice(0, 1000));
+  assertEqual(status.requests.find((r) => r.id === 'second').status, 'collected', JSON.stringify(status).slice(0, 1000));
+  assertEqual(calls(w).length, 2, 'forged diagnostics paused the queue');
+  assertEqual(status.spent.pages, 4, 'forged diagnostics changed the daily meter');
+  assertEqual(status.paused, '');
+  const result = readJson(path.join(w.collector, 'research', 'requests', 'query-text.result.json'));
+  assertEqual(result.pages, 2, 'the result accepted the query as a measurement');
+});
+
+test('exhaustion after large diagnostics pauses with measured spend and a remaining allowance', async () => {
+  const w = world({ STANDIN_MODE: 'long-stopped' });
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'first', GOOD);
+  builderPushes(w, 'second', GOOD);
+  const status = await loop(w).cycle();
+  assertEqual(status.requests.find((r) => r.id === 'first').status, 'partial', JSON.stringify(status).slice(0, 1000));
+  assertEqual(status.requests.find((r) => r.id === 'second').status, 'waiting');
+  assertEqual(calls(w).length, 1, 'the queue continued after exhaustion');
+  assertEqual(status.spent.pages, 1);
+  assert(/firecrawl/.test(status.paused), status.paused);
+  const result = readJson(path.join(w.collector, 'research', 'requests', 'first.result.json'));
+  assertEqual(result.pages, 1);
+  assertEqual(result.resume.remainingPages, 3);
+});
+
+for (const mode of ['missing', 'malformed', 'duplicate']) {
+  test(`unmeasured collection (${mode}) reserves its allowance, pauses and cannot automatically retry`, async () => {
+    const w = world({ STANDIN_MODE: mode });
+    saveAutoCollect({ mode: 'auto', dailyPages: 8 }, w.m.env);
+    builderPushes(w, 'first', GOOD);
+    builderPushes(w, 'second', GOOD);
+    const auto = loop(w);
+    let status = await auto.cycle();
+    const row = status.requests.find((r) => r.id === 'first');
+    assertEqual(row.status, 'failed', `${mode}: ${JSON.stringify(status)}`);
+    assertEqual(row.pages, 4, `${mode}: the allowance was not reserved`);
+    assert(/4 page.*reserved.*actual spend unknown/.test(row.detail), row.detail);
+    assert(/actual spend unknown/.test(row.output), row.output);
+    assert(/accounting/.test(status.paused), status.paused);
+    assertEqual(status.spent.pages, 4, `${mode}: the daily cap was undercounted`);
+    assertEqual(calls(w).length, 1, `${mode}: the next request ran while the measurement was unknown`);
+    assertEqual(status.requests.find((r) => r.id === 'second').status, 'waiting');
+    w.m.env.STANDIN_MODE = '';
+    auto.resume();
+    status = await auto.cycle();
+    assertEqual(calls(w).length, 2, `${mode}: the failed request was retried`);
+    assertEqual(status.spent.pages, 6, `${mode}: the reservation was silently removed`);
+    assertEqual(status.requests.find((r) => r.id === 'first').status, 'failed');
+  });
+}
+
+test('a failed exit with valid accounting charges measured pages rather than the full allowance', async () => {
+  const w = world({ STANDIN_MODE: 'failed-long' });
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'first', GOOD);
+  const status = await loop(w).cycle();
+  assertEqual(status.requests[0].status, 'failed');
+  assertEqual(status.requests[0].pages, 2);
+  assertEqual(status.spent.pages, 2);
+  assertEqual(status.paused, '');
+  assert(status.requests[0].detail.length < 1200, 'a long diagnostic line escaped the detail bound');
+  assert(status.requests[0].output.length < 66_000, 'failed output escaped the diagnostic bound');
+});
+
+test('a missing measurement on continuation reserves only its remaining allowance', async () => {
+  const w = world({ STANDIN_MODE: 'stopped' });
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'first', GOOD);
+  const auto = loop(w);
+  await auto.cycle();
+  assertEqual(readAutoCollect(w.m.env).spent.pages, 1);
+  w.m.env.STANDIN_MODE = 'missing';
+  auto.resume();
+  const status = await auto.cycle();
+  const row = status.requests[0];
+  assertEqual(row.status, 'failed');
+  assertEqual(row.pages, 4, 'previous measured spend was not retained');
+  assertEqual(status.spent.pages, 4, 'the original full allowance was charged twice');
+  assert(/3 page.*reserved.*actual spend unknown/.test(row.detail), row.detail);
+  assert(/accounting/.test(status.paused), status.paused);
+});
+
+test('a timed-out child with a received measurement charges it and pauses further collection', async () => {
+  const w = world({ STANDIN_MODE: 'hang' });
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'first', GOOD);
+  builderPushes(w, 'second', GOOD);
+  // This case needs receipt before the kill. A measured Windows child launch took
+  // 3.2 seconds, so a 3-second cutoff can kill startup instead of testing retention.
+  const auto = createAutoCollect({ project: () => w.collector, env: w.m.env, kitRoot: w.kit,
+    exec: (command, args, options) => execFile(command, args,
+      args[0] === path.join(w.kit, 'bin', 'research.mjs') ? { ...options, timeout: 10_000 } : options),
+  });
+  const status = await auto.cycle();
+  assertEqual(status.requests.find((r) => r.id === 'first').status, 'failed');
+  assertEqual(status.requests.find((r) => r.id === 'first').pages, 2);
+  assertEqual(status.spent.pages, 2, 'a known measurement became a worst-case reservation');
+  assert(/interrupted/.test(status.paused), status.paused);
+  assertEqual(status.requests.find((r) => r.id === 'second').status, 'waiting');
+  assertEqual(calls(w).length, 1, 'an interrupted run did not pause the queue');
+});
 
 // Neighboring native fixtures prove Git delivery. This fixture models that boundary while
 // keeping the research children and request, plan, result and meter files real.
