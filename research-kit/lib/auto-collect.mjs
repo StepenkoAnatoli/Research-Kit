@@ -76,7 +76,7 @@ export function execFile(command, args, { cwd, env, timeout = 30 * 60 * 1000, ac
       }
     };
     const result = (code, signal = null) => ({
-      code, signal, timedOut,
+      code, signal, timedOut, truncated,
       output: `${truncated ? `[... ${expectsAccounting ? 'earlier' : 'later'} output truncated ...]\n` : ''}${output.toString('utf8')}`,
       ...(expectsAccounting ? { accounting, accountingError: accountingError || (messages === 0 ? 'missing collection accounting message' : '') } : {}),
     });
@@ -163,6 +163,7 @@ export function createAutoCollect({
 
   async function repoTop(dir) {
     const r = await git(['rev-parse', '--show-toplevel'], dir);
+    if (r.truncated) { note('repository inspection was refused: Git output was truncated; inspect it manually'); return ''; }
     return r.code === 0 ? canonical(r.output.trim()) : '';
   }
 
@@ -176,17 +177,24 @@ export function createAutoCollect({
   /** Stage only this run's paths in a private index, leaving every existing staged file alone. */
   async function commitAndPush(top, paths, report) {
     const upstreamBefore = await git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], top);
+    if (upstreamBefore.truncated) return 'could not inspect upstream: Git output was truncated; deliver manually';
     if (upstreamBefore.code === 0) {
       const ahead = await git(['rev-list', '--count', '@{u}..HEAD'], top);
+      if (ahead.truncated) return 'could not inspect local commits: Git output was truncated; deliver manually';
       const count = Number(ahead.output.trim());
       if (ahead.code !== 0) return `could not inspect local commits: ${lastLine(ahead.output)}`;
+      if (!/^\d+$/.test(ahead.output.trim()) || !Number.isSafeInteger(count)) {
+        return 'could not inspect local commits: invalid Git ahead count; deliver manually';
+      }
       if (count > 0) {
         if (count !== 1) return 'local commits are ahead of the upstream; push them manually before auto-collect delivery';
         const subject = await git(['log', '-1', '--format=%s'], top);
+        if (subject.truncated) return 'could not inspect pending commit subject: Git output was truncated; deliver manually';
         if (subject.code !== 0 || subject.output.trim() !== report.subject) {
           return 'an unrelated local commit is ahead of the upstream; push it manually before auto-collect delivery';
         }
         const changed = await git(['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', 'HEAD'], top);
+        if (changed.truncated) return 'could not inspect pending commit paths: Git output was truncated; deliver manually';
         if (changed.code !== 0) return `could not inspect pending delivery commit: ${lastLine(changed.output)}`;
         const allowed = changed.output.split('\0').filter(Boolean).every((file) => paths.some((base) => (
           file === base || file.startsWith(`${base.replace(/\/$/, '')}/`)
@@ -215,7 +223,7 @@ export function createAutoCollect({
         }
       }
       const staged = await isolatedGit(['diff', '--cached', '--quiet']);
-      if (staged.code > 1) return `could not inspect isolated git index: ${lastLine(staged.output)}`;
+      if (staged.code !== 0 && staged.code !== 1) return `could not inspect isolated git index: ${lastLine(staged.output)}`;
       const hasChanges = staged.code !== 0;
       if (hasChanges) {
         const c = await isolatedGit(['commit', '-m', report.subject, '-m', report.body]);
@@ -224,6 +232,7 @@ export function createAutoCollect({
         if (reset.code !== 0) return `committed; could not refresh staged paths: ${lastLine(reset.output)}`;
       }
       const upstream = await git(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], top);
+      if (upstream.truncated) return `${hasChanges ? 'committed; ' : ''}could not inspect upstream: Git output was truncated; deliver manually`;
       if (upstream.code !== 0) return hasChanges ? 'committed; no upstream to push to' : 'no upstream to push to';
       const pushed = await git(['push'], top);
       if (pushed.code !== 0) return hasChanges ? `committed; push failed: ${lastLine(pushed.output)}` : `push failed: ${lastLine(pushed.output)}`;
@@ -279,6 +288,8 @@ export function createAutoCollect({
     const physical = throughExistingAncestor(lexical);
     if (!inside(canonical(top), physical)) return { problem: 'the approved topics folder resolves outside the repository' };
     const gitDir = await git(['rev-parse', '--absolute-git-dir'], top);
+    if (gitDir.truncated) return { problem: 'could not inspect Git metadata: Git output was truncated; inspect the target manually' };
+    if (gitDir.code !== 0) return { problem: `could not inspect Git metadata: ${lastLine(gitDir.output)}` };
     if (gitDir.code === 0 && inside(canonical(gitDir.output.trim()), physical)) {
       return { problem: 'new topics cannot be created in Git metadata' };
     }
@@ -314,10 +325,12 @@ export function createAutoCollect({
   async function deliveryFingerprint(top, paths, excludedPath) {
     const pathspecs = [...paths, `:(exclude)${excludedPath}`];
     const status = await git(['status', '--porcelain=v1', '-z', '--untracked-files=all', '--', ...pathspecs], top);
+    if (status.truncated) throw new Error('could not inspect pending delivery: Git output was truncated; deliver manually');
     if (status.code !== 0) throw new Error(`could not inspect pending delivery: ${lastLine(status.output)}`);
     const hash = crypto.createHash('sha256');
     hash.update(status.output);
     const diff = await git(['diff', '--binary', 'HEAD', '--', ...pathspecs], top);
+    if (diff.truncated) throw new Error('could not fingerprint pending delivery: Git output was truncated; deliver manually');
     if (diff.code !== 0) throw new Error(`could not fingerprint pending delivery: ${lastLine(diff.output)}`);
     hash.update(diff.output);
     for (const record of status.output.split('\0')) {
@@ -454,8 +467,17 @@ export function createAutoCollect({
         pages: totalSpent,
         resume: { target: relTo(top, target), unknown: applied.unknown, remainingPages, pagesSpent: totalSpent },
       });
+      // A fingerprint refusal must not turn a collector-written partial result into an
+      // untrusted builder result after restart and spend the same allowance again.
+      recordTrustedResult(dir, item.id, env);
       const resultRelative = path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`);
-      const fingerprint = await deliveryFingerprint(top, paths, resultRelative);
+      let fingerprint;
+      try { fingerprint = await deliveryFingerprint(top, paths, resultRelative); } catch (err) {
+        const refused = `delivery blocked: ${err.message}`;
+        runs.set(cacheKey(dir, item.id), { status: 'partial', detail: `credits ran out on ${stoppedOn}`, pages: totalSpent, output, git: refused });
+        note(`partial delivery for ${item.id} was not staged: ${err.message}`);
+        return;
+      }
       writeResult(dir, item.id, {
         status: 'partial',
         detail: `credits ran out on ${stoppedOn}`,
@@ -598,12 +620,19 @@ export function createAutoCollect({
             'status', '--porcelain=v1', '-z', '--untracked-files=all', '--',
             ...pendingPaths, `:(exclude)${resultRelative}`,
           ], top);
+          if (pendingStatus.truncated) {
+            const detail = 'partial delivery blocked: Git output was truncated; deliver manually';
+            note(`${item.id}: ${detail}`);
+            runs.set(key, { status: 'partial', detail, git: detail });
+            continue;
+          }
           if (pendingStatus.code !== 0) {
             note(`partial delivery for ${item.id} could not inspect pending paths`);
             continue;
           }
           try { fingerprint = await deliveryFingerprint(top, pendingPaths, resultRelative); } catch (err) {
             note(`partial delivery for ${item.id} was not staged: ${err.message}`);
+            runs.set(key, { status: 'partial', detail: 'delivery is pending; no further pages were collected', git: `delivery blocked: ${err.message}` });
             continue;
           }
           if (pendingStatus.output && (typeof item.result.deliveryFingerprint !== 'string' || fingerprint !== item.result.deliveryFingerprint)) {
@@ -636,6 +665,10 @@ export function createAutoCollect({
           continue;
         }
         const dirty = await git(['status', '--porcelain', '--', '.'], path.join(dir, 'research'));
+        if (dirty.truncated) {
+          runs.set(key, { status: 'waiting', detail: 'collection blocked: Git output was truncated while inspecting research/; inspect it manually' });
+          continue;
+        }
         if (dirty.code !== 0 || dirty.output.trim()) {
           runs.set(key, { status: 'waiting', detail: 'research/ has uncommitted changes; commit or discard them - auto-collect commits everything under research/' });
           continue;
