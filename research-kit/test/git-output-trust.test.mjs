@@ -25,7 +25,8 @@ function world({ partial = false, large = false, topic = false } = {}) {
   const env = { ...process.env, RESEARCH_KIT_CONFIG: config, GIT_CONFIG_GLOBAL: globalConfig, GIT_CONFIG_NOSYSTEM: '1', RK_TEST_CALLS: path.join(machine, 'calls') };
   const remote = tempDir('rk-git-trust-remote-');
   git(remote, env, ...fixtureInitArgs('--bare', '-b', 'main'));
-  const project = makeProject(undefined, { topic: 'Git output trust', content: true });
+  // Match the listener's project identity when TMP names a Windows short path or junction.
+  const project = fs.realpathSync.native(makeProject(undefined, { topic: 'Git output trust', content: true }));
   git(project, env, ...fixtureInitArgs('-b', 'main'));
   git(project, env, 'config', 'core.hooksPath', path.join(machine, 'no-hooks'));
   writeText(path.join(project, 'research', 'a.txt'), 'base\n');
