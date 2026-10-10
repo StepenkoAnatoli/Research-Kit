@@ -13,6 +13,9 @@ permits, whether a platform can do the thing the design depends on. Plain Node, 
 dependencies, no `package.json`. Everything except the collection itself runs offline.
 
 **What PASS means.** The configured checks passed for the declared research contract.
+The agent also writes the contract and unknowns list: an omitted blocking question is
+not checked, and a contract with a trivially easy unknown can pass. PASS does not prove
+that the unknowns cover the intended build or that the claims are true.
 A pass can retain disclosed known unknowns and warnings. Generated briefs, audits and
 package reading guides preserve those warnings and their reasons. The gate checks
 provenance and research structure; an agent still has to check whether a source supports
@@ -78,6 +81,16 @@ Two ideas carry the whole design:
 The work splits into **two phases**, usually done by different agents. Phase 1 is research:
 it ends with a passing gate and a brief, and never writes product code. Phase 2 is the
 build: a builder reads the brief and implements, and should never need to re-research.
+
+**The gate stops forgetful agents, not adversarial ones.** It is a workflow check, not a
+security boundary. The edit hook matches `Edit|Write|MultiEdit|NotebookEdit`; shell writes
+such as `>`, `sed -i` and `tee` do not reach it. For those writes, the commit hook is the
+backstop when it runs. Its default `failOpen: true` permits a commit when the gate cannot
+run or fails internally; an ordinary failing research verdict still blocks the commit.
+The active edit hook denies creating `research/GATE_OFF`, like edits into `research/raw/`,
+but an agent with shell or configuration access can still create an override or bypass a
+hook. The existing `editGate.mode=off` and present `GATE_OFF` overrides remain deliberate
+operator controls.
 
 **What the gate does not stop, so you know where to look.** Three overrides exist. `git commit
 --no-verify` skips the hook, and a hook git did not run cannot record anything, so that one

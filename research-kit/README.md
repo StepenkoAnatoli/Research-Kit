@@ -5,12 +5,24 @@ gate that checks the declared research contract. With the commit hook operating 
 override in effect, a gated project's commit is blocked while preflight fails if it stages
 paths outside `research/` and the permitted project scaffolding.
 
-PASS means the configured checks passed for the declared contract. Disclosed known unknowns
-and nonblocking warnings can remain. Generated briefs, audits and package reading guides
+PASS means the configured checks passed for the declared contract. The agent also writes
+the contract and unknowns list: omitted blocking questions are not checked, and a trivially
+easy unknown can pass. PASS does not establish completeness for the intended build or
+the truth of the claims. Disclosed known unknowns and nonblocking warnings can remain.
+Generated briefs, audits and package reading guides
 carry the warning reasons from their evaluation; an unevaluated warning list says so.
 These checks establish provenance and research structure. Source support, factual wording
 and implemented behavior still need review and appropriate verification. The kit has no
 controlled measurement of how much it reduces errors in research, code or writing.
+
+**The gate stops forgetful agents, not adversarial ones.** The edit hook matches
+`Edit|Write|MultiEdit|NotebookEdit`, so shell redirection, `sed -i` and `tee` bypass it.
+The commit hook is their backstop when it runs. `failOpen: true` is the default for a
+missing or internally failing gate; an ordinary failing research verdict still blocks.
+The active edit hook denies creation of `research/GATE_OFF`, with the same deliberate
+off-switches as the `research/raw/` guard. Shell access, configuration access and hook
+bypasses remain outside that protection. The ledger is self-attested and can be
+recomputed by someone with write access; neither hook nor ledger is an adversarial sandbox.
 
 Plain Node, no dependencies, no `package.json`. It installs with one command and runs
 offline for everything except collection itself.
@@ -542,7 +554,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1746 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1748 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
