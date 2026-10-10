@@ -26,7 +26,7 @@ import { readJson, today, writeJson } from './core.mjs';
 import { collectionPolicy } from './machine.mjs';
 import {
   REQUESTS_DIR, REQUEST_LIMITS, listRequests, requestProblemsResolved, requestPages, contractUnknownStatus, applyRequest, writeResult,
-  readAutoCollect, recordSpend, setPaused, recordTrustedResult, isTrustedResult,
+  readAutoCollect, reserveCollection, settleCollection, setPaused, recordTrustedResult, isTrustedResult,
 } from './requests.mjs';
 
 export const RUN_OUTPUT_BYTES = 64 * 1024;
@@ -438,26 +438,28 @@ export function createAutoCollect({
     note(`collecting ${item.id}: up to ${pages} page(s) for ${applied.unknown}`);
 
     const requestEnv = { ...env, RESEARCH_KIT_ALLOW_INTERNAL_REDIRECTS: '0' };
+    const reservation = reserveCollection(pages,
+      redact(`collection is in flight for request ${item.id}; ${pages} page(s) reserved for the daily cap. Inspect the run before pressing Resume.`), env);
     const run = await kit('research.mjs', ['--plan', applied.planFile], target, requestEnv, pages);
     const paths = collectionPaths(top, dir, target);
     const measurementProblem = run.accountingError || accountingProblem(run.accounting, pages);
     if (measurementProblem) {
-      // The run might have spent every admitted page before interruption. Reserve that
-      // allowance, rather than recording a fabricated zero or admitting another request.
-      recordSpend(pages, env);
       const detail = `collection accounting unavailable (${measurementProblem}); ${pages} page(s) reserved for the daily cap, actual spend unknown`;
-      setPaused(redact(`${detail} during request ${item.id}. Inspect the run before pressing Resume.`), env);
+      settleCollection(reservation, null, redact(`${detail} during request ${item.id}. Inspect the run before pressing Resume.`), env);
       return fail(top, dir, item, target, detail, run.output, paths, (resume?.pagesSpent ?? 0) + pages, 'reserved');
     }
     const spent = run.accounting.spent;
-    recordSpend(spent, env);
     const stoppedOn = run.accounting.stoppedOn;
+    const pauseReason = stoppedOn
+      ? `credits ran out on ${stoppedOn} during request ${item.id}. Top up and press Resume, `
+        + 'or finish it in a terminal - auto-collect never switches to the free transports by itself.'
+      : run.timedOut || run.signal
+        ? `research.mjs was interrupted during request ${item.id}; ${spent} page(s) measured this attempt. Inspect the run before pressing Resume.` : '';
+    settleCollection(reservation, spent, redact(pauseReason), env);
     const output = `Accounting: ${spent} page(s) measured this attempt${stoppedOn ? `; credits ran out on ${stoppedOn}` : ''}.\n\nDiagnostic output (not accounting):\n${redact(tail(run.output))}`;
 
     if (stoppedOn) {
       // A stopped request keeps its target, contract row and unused allowance for the next cycle.
-      setPaused(redact(`credits ran out on ${stoppedOn} during request ${item.id}. Top up and press Resume, `
-        + 'or finish it in a terminal - auto-collect never switches to the free transports by itself.'), env);
       const totalSpent = (resume?.pagesSpent ?? 0) + spent;
       const remainingPages = Math.max(0, pages - spent);
       const plan = readJson(path.join(target, applied.planFile), {});
@@ -497,9 +499,6 @@ export function createAutoCollect({
       runs.set(cacheKey(dir, item.id), { status: 'stopped', detail: `credits ran out on ${stoppedOn}`, pages: totalSpent, output, git: committed });
       note(`paused: credits ran out on ${stoppedOn} during ${item.id}`);
       return;
-    }
-    if (run.timedOut || run.signal) {
-      setPaused(redact(`research.mjs was interrupted during request ${item.id}; ${spent} page(s) measured this attempt. Inspect the run before pressing Resume.`), env);
     }
     if (run.code !== 0 || run.timedOut || run.signal) return fail(top, dir, item, target,
       `research.mjs ${run.timedOut || run.signal ? 'was interrupted' : `exited ${run.code}`}: ${lastLine(run.output)}`,

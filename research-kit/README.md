@@ -170,6 +170,17 @@ label those pages as reserved: actual spend is unknown. Resume allows other requ
 the remaining daily cap; it does not automatically retry that failed request or remove the
 reservation. A valid received measurement remains counted even if the child exits unsuccessfully.
 
+Before the research child starts, its entire newly admitted allowance and an in-flight
+pause are saved atomically in the existing meter. A killed collector therefore leaves
+that charge and pause for inspection on restart, including after switching projects.
+A valid report refunds only unused allowance once. Continuation charges only its newly
+admitted remaining pages. A failed meter write prevents the child from starting.
+A run that completes across midnight never refunds yesterday against today: its
+measured total, or full allowance when unmeasured, is conservatively charged to the
+completion day. A single final total cannot date individual attempts, so a cross-day
+run can be charged on two days; an over-cap completion remains paused for inspection
+(ADR-0152). These are page-attempt allowances, not a provider billing balance.
+
 It runs only on a collector. It never passes `--fallback`: when the credits run out, it
 commits what it collected, pauses, and waits for you to top up and press **Resume**. While
 `research/` has uncommitted changes it waits, because its commit takes everything under
@@ -531,7 +542,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1738 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1746 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 

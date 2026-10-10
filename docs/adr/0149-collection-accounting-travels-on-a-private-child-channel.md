@@ -65,8 +65,10 @@ claimed for every Node version.
   were attempted. Charging the remaining allowance and pausing preserves the existing
   cap without inventing a measurement.
 - **Add a public measurement file, result field or configuration switch.** The fixed
-  Node child already has a private IPC mechanism; a new public interface or durable
-  measurement lifecycle is unnecessary for this correction.
+  Node child already has a private IPC mechanism; a new public measurement interface
+  remains unnecessary. ADR-0152 supersedes the original claim that durable admission
+  is unnecessary: the admitted allowance and an in-flight pause must be saved in the
+  existing meter before the collector starts that child.
 - **Charge the original full request allowance again on continuation.** Prior measured
   attempts are already counted. Only the newly admitted remaining allowance can be
   reserved without double charging.
