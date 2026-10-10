@@ -132,6 +132,18 @@ test('arguments that fail the schema come back as a tool result the model can re
   const typo = await call('collect', { repository: 'o/r', topic: 'x', token: 'oops' });
   assert.equal(typo.result?.isError, true);
   assert.match(typo.result.content[0].text, /unknown argument token/);
+  // JSON.parse preserves an own __proto__ key; an object literal would exercise its
+  // special prototype syntax instead of the argument a JSON-RPC client can send.
+  for (const key of ['constructor', 'toString', '__proto__']) {
+    const args = JSON.parse(`{"repository":"o/r","topic":"x",${JSON.stringify(key)}:"stray"}`);
+    const d = deps();
+    const r = await handle({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'collect', arguments: args } }, d);
+    assert.equal('dispatch' in d.seen, false, `${key}: unknown own argument reached dispatch`);
+    assert.equal(r.error, undefined, 'a schema failure must be a tool result');
+    assert.equal(r.result.isError, true);
+    assert.match(r.result.content[0].text, new RegExp(`unknown argument ${key}`));
+    assert.match(r.result.content[0].text, /inputSchema allows/);
+  }
   const unknown = await call('no_such_tool', {});
   assert.equal(unknown.error?.code, ERRORS.INVALID_PARAMS, 'an unknown tool stays a protocol error');
 });
@@ -246,6 +258,43 @@ test('an unknown or mistyped argument is refused, not ignored', () => {
 
 // ---------------------------------------------------------------- collecting
 
+test('collect refuses non-array query and URL arguments before dispatch', async () => {
+  const cases = [
+    ['queries', 42], ['queries', 'q'], ['queries', {}], ['queries', null],
+    ['urls', 'https://a.example/x'], ['urls', 42], ['urls', {}], ['urls', null],
+  ];
+  for (const [key, value] of cases) {
+    const d = deps();
+    const r = await handle(call('collect', { repository: 'o/r', topic: 'x', [key]: value }), d);
+    assert.equal('dispatch' in d.seen, false, `${key}: malformed argument reached dispatch`);
+    assert.equal(r.error, undefined, `${key}: this must be a tool result`);
+    assert.equal(r.result.isError, true);
+    assert.match(r.result.content[0].text, new RegExp(`${key} must be an array`));
+    assert.match(r.result.content[0].text, /inputSchema allows/);
+  }
+  const absent = deps({ env: {} });
+  const r = await handle(call('collect', { repository: 'o/r', topic: 'x', queries: 42 }), absent);
+  assert.equal('dispatch' in absent.seen, false);
+  assert.equal(r.error, undefined);
+  assert.equal(r.result.isError, true);
+  assert.match(r.result.content[0].text, /queries must be an array/,
+    'a missing credential must not hide an argument error');
+});
+
+test('collect refuses non-string query and URL items before dispatch', async () => {
+  for (const key of ['queries', 'urls']) {
+    for (const items of [[null], [42], [{}], [true], Array(1)]) {
+      const d = deps();
+      const r = await handle(call('collect', { repository: 'o/r', topic: 'x', [key]: items }), d);
+      assert.equal('dispatch' in d.seen, false, `${key}: malformed item reached dispatch`);
+      assert.equal(r.error, undefined, `${key}: this must be a tool result`);
+      assert.equal(r.result.isError, true);
+      assert.match(r.result.content[0].text, new RegExp(`${key}\\[0\\] must be a string`));
+      assert.match(r.result.content[0].text, /inputSchema allows/);
+    }
+  }
+});
+
 test('collect takes pages to fetch by URL, in the same input as the queries', async () => {
   const d = deps();
   await handle(call('collect', { repository: 'o/r', topic: 'x', queries: ['q'], urls: ['https://a.example/x'] }), d);
@@ -254,6 +303,12 @@ test('collect takes pages to fetch by URL, in the same input as the queries', as
   const r = await handle(call('collect', { repository: 'o/r', topic: 'x', urls: ['file:///etc/passwd'] }), bad);
   assert.equal(r.result.isError, true, 'a non-http URL must be refused, not dispatched');
   assert.equal(bad.seen.dispatch, undefined, 'nothing was dispatched');
+  for (const arrays of [{}, { queries: [], urls: [] }, { queries: ['  '], urls: [''] }]) {
+    const empty = deps();
+    const r = await handle(call('collect', { repository: 'o/r', topic: 'x', ...arrays }), empty);
+    assert.equal(r.result.isError, undefined, 'omitted, empty or blank string arrays remain valid');
+    assert.equal(empty.seen.dispatch.inputs.queries, '', 'the existing topic-based default is preserved');
+  }
 });
 
 test('collect returns the run id immediately and says the work is not finished', async () => {
