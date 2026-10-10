@@ -206,7 +206,7 @@ test('the suite rule runs the checkout\'s own runner and reads its result file',
 import fs from 'node:fs';
 const red = fs.existsSync(new URL('../../RED', import.meta.url));
 fs.writeFileSync(new URL('../../ENV.json', import.meta.url), JSON.stringify(process.env));
-fs.writeFileSync(process.env.RESEARCH_KIT_RESULT_FILE, JSON.stringify({ passed: red ? 4 : 5, failures: red ? 1 : 0, unsupported: 0, exit: red ? 1 : 0 }));
+fs.writeFileSync(process.env.RESEARCH_KIT_RESULT_FILE, JSON.stringify({ passed: red ? 4 : 5, failures: red ? 1 : 0, failed: red ? ['stand-in > intentional failure'] : [], unsupported: 0, exit: red ? 1 : 0 }));
 process.exit(red ? 1 : 0);
 `);
   writeText(resolve(dir, 'RED'), '');
@@ -223,6 +223,7 @@ process.exit(red ? 1 : 0);
   }
   assert.equal(red?.rule, SUITE_RULE, JSON.stringify(red));
   assert.match(red.detail, /1 failed, 4 passed/);
+  assert.match(red.detail, /stand-in > intentional failure/, 'the gate discarded the label before deleting the scratch result');
   const given = JSON.parse(readText(resolve(dir, 'ENV.json')));
   for (const k of Object.keys(hookEnv)) assert.equal(given[k], undefined, `${k} reached the suite`);
   assert.equal(given.RESEARCH_KIT_ALLOW_UNSUP, '1', 'an unsupported test must not make the run exit 1 (ADR-0108)');

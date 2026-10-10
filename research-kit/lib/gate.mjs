@@ -232,6 +232,19 @@ export function runSuiteHere(root, { timeout = suiteBudgetMs() } = {}) {
   }
 }
 
+// The scratch result is removed after reading it. Preserve enough of its failing
+// identifiers in the verdict to diagnose a red without an unbounded/control-filled log.
+function suiteFailureIdentifiers(failed) {
+  const labels = Array.isArray(failed) ? failed : [];
+  const shown = labels.slice(0, 5).flatMap((label) => {
+    if (typeof label !== 'string') return [];
+    const prefix = label.slice(0, 160).replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+    return prefix ? [`${JSON.stringify(prefix)}${label.length > 160 ? ' (truncated)' : ''}`] : [];
+  });
+  if (!shown.length) return '; failing test identifiers unavailable';
+  return `; failing tests: ${shown.join('; ')}${labels.length > 5 ? `; ${labels.length - 5} more identifiers omitted` : ''}`;
+}
+
 export function suiteBreach(root, stagedPaths, { run = () => runSuiteHere(root), announce = null } = {}) {
   if (!suiteOwed(root, stagedPaths)) return null;
   const fix = `make the suite green (node ${KIT_DIR}/bin/selftest.mjs), then commit again; git commit --no-verify overrides, and records nothing - say so in your reply`;
@@ -255,7 +268,7 @@ export function suiteBreach(root, stagedPaths, { run = () => runSuiteHere(root),
   if (failures > 0) {
     return {
       rule: SUITE_RULE,
-      detail: `the suite is red: ${failures} failed, ${Number(result.passed) || 0} passed${unsupported ? `, ${unsupported} unsupported` : ''} - a red suite stops work (ADR-0120)`,
+      detail: `the suite is red: ${failures} failed, ${Number(result.passed) || 0} passed${unsupported ? `, ${unsupported} unsupported` : ''}${suiteFailureIdentifiers(result.failed)} - a red suite stops work (ADR-0120)`,
       fix,
     };
   }
