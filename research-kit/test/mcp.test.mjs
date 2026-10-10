@@ -622,9 +622,8 @@ test('a stream that ends on a newline produces no extra reply', async () => {
 // default thing while the operator believes otherwise, which cost this project 26
 // Firecrawl credits once (see refuseUnknownFlags in lib/core.mjs).
 //
-// It cannot use refuseUnknownFlags: that helper lists the options an entrypoint DOES
-// accept, and this one accepts none, so its list would be empty and it would refuse a
-// bare invocation too.
+// The entrypoint checks the whole argv, including positionals; refuseUnknownFlags
+// only sees parsed named flags and allows an empty map even with an empty whitelist.
 test('the server refuses any argument, because its configuration is its environment', () => {
   const server = path.join(KIT_ROOT, 'bin', 'mcp-server.mjs');
   const run = (args) => spawnSync(process.execPath, [server, ...args], {
@@ -637,8 +636,34 @@ test('the server refuses any argument, because its configuration is its environm
   for (const args of [['--zzz-not-a-flag'], ['--directory', tempDir('rk-mcp-arg-')], ['--token', 'x']]) {
     const r = run(args);
     assert.equal(r.status, 2, `mcp-server.mjs accepted ${args.join(' ')} (exit ${r.status})`);
-    assert.match(r.stderr, /unknown option/, `${args.join(' ')} was not named in the refusal`);
+    assert.match(r.stderr, /unknown option/, 'the refusal did not identify an unexpected startup argument');
     assert.match(r.stderr, /takes no options/, 'the refusal does not say why there is nothing to accept');
+  }
+});
+
+test('the server refuses startup arguments without echoing synthetic credential values', () => {
+  const server = path.join(KIT_ROOT, 'bin', 'mcp-server.mjs');
+  const shaped = 'github_' + 'pat_' + 'SYNTHETIC'.repeat(4);
+  const opaque = 'opaque-argv-value-' + 'example-only'.repeat(3);
+  const positional = 'opaque-positional-' + 'example-only'.repeat(3);
+  for (const { args, value } of [
+    { args: ['--token', shaped], value: shaped },
+    { args: ['--token', opaque], value: opaque },
+    { args: [positional], value: positional },
+  ]) {
+    const r = spawnSync(process.execPath, [server, ...args], {
+      encoding: 'utf8', timeout: 30_000, windowsHide: true, input: '',
+    });
+    assert.equal(r.status, 2, 'a refused startup argument must remain exit 2');
+    assert.equal(r.stdout, '', 'a refused startup must not write the protocol stream');
+    assert(!r.stdout.includes(value) && !r.stderr.includes(value), 'startup refusal echoed a synthetic argument value');
+    assert.match(r.stderr, /unknown option/);
+    assert.match(r.stderr, new RegExp(`started with ${args.length} argument\\(s\\)`));
+    assert.match(r.stderr, /takes no options/);
+    assert.match(r.stderr, /ENVIRONMENT/);
+    assert.match(r.stderr, /RESEARCH_KIT_GITHUB_TOKEN/);
+    assert.match(r.stderr, /never from an argument/);
+    assert.match(r.stderr, /Run it with --help/);
   }
 });
 
