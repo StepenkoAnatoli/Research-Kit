@@ -5,6 +5,12 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- QUICKSTART names the applicable trusted-PEM `NODE_EXTRA_CA_CERTS` remedy before
+  starting Node on a network with TLS inspection, with missing/malformed-file warnings,
+  setuid/Linux-capability and explicit TLS/HTTPS `ca` limits (break-test evidence
+  E-03/E-06). A client setting does not configure a remote collector; no environment
+  or trust store is changed by the documentation.
+
 - Builder handoff guidance states the existing complete/current review rather than
   treating PASS, BRIEF presence or a Git request's `collected` result as permission
   (ADR-0150). The builder reads/judges returned evidence; the collector records Git
