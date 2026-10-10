@@ -401,7 +401,14 @@ test('connecting a builder hands it the phase-2 steps of the kit: handoff, prefl
   assert(/Do not collect/.test(text), 'the builder is not told it never collects');
   assert(!/research\.mjs|decompose\.mjs/.test(text), 'a collecting command reached the builder');
   assert(text.includes('$HOME/.agents/research-kit/bin/'), 'the text names a path that does not travel');
-  assert(/does not exist yet/.test(builderInstructions({ brief: false })), 'a missing brief is not said');
+  const missing = builderInstructions({ brief: false });
+  assert(/does not exist yet/.test(missing), 'a missing brief is not said');
+  assert.doesNotMatch(missing, /the collector has finished phase 1/i,
+    'missing-brief instructions claim that research is finished');
+  assert.doesNotMatch(text, /what you verified: verified preflight PASS and handoff checks/,
+    'the panel supplied a verification claim without observing those checks');
+  assert(/brief\.mjs[\s\S]*authored/.test(text), 'file presence must not substitute for brief review');
+  assert(/current|stale/.test(text), 'the builder is not told to check the brief against current inputs');
 
   const project = makeProject(undefined, { topic: 'Hand-off topic', content: true });
   const ctx = await started({ project });
