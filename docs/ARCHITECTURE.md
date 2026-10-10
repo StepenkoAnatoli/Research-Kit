@@ -257,7 +257,12 @@ verifyHandoff, the builder's first command; on a collector whose report says `no
 line names **the setting that decided the verdict**, printing `[--strict, over
 evidencePolicy=pluralist]` rather than the declared policy alone — `--strict` promotes every
 warning while `evidencePolicy=strict` promotes only the three `POLICY_CHECKS`, and labelling
-a flag-driven failure with the policy name told a reader the policy had failed them),
+a flag-driven failure with the policy name told a reader the policy had failed them;
+ADR-0153: after existing argument and check-name validation, a cwd with none of the four
+gate markers returns the same ungated scope in text and JSON. JSON keeps the existing
+keys and types but reports `pass:false`, counts `0/1/0`, one `warn/gate/not-gated` notice
+and exit 0; this unjudged scope notice is not promoted by strict settings and grants no
+build approval. The shared verdict library and all gated formatting stay unchanged),
 `gate.mjs`
 (→ evaluate; `--staged-stdin` reads the piped path list; `--posture` answers 0 allow /
 1 fail-closed / 2 unreadable-and-closed, so no shell has to parse JSON), `doctor.mjs` (`--fix-arity`), `install.mjs` (deploy + `--into` per-project

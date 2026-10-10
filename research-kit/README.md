@@ -15,6 +15,13 @@ These checks establish provenance and research structure. Source support, factua
 and implemented behavior still need review and appropriate verification. The kit has no
 controlled measurement of how much it reduces errors in research, code or writing.
 
+When the current directory holds none of the four gate markers, preflight reports that
+it is not gated and exits 0 in either output mode. With `--json`, this unjudged scope has
+`pass:false`, counts `{ "pass": 0, "warn": 1, "fail": 0 }`, and one `warn/gate/not-gated`
+notice; no research verdict or permission to build was established. Strict settings do
+not promote this scope notice. This is the ungated CLI exception to the judged verdict's
+`pass === (counts.fail === 0)` relationship (ADR-0153); gated verdicts retain it.
+
 **The gate stops forgetful agents, not adversarial ones.** The edit hook matches
 `Edit|Write|MultiEdit|NotebookEdit`, so shell redirection, `sed -i` and `tee` bypass it.
 The commit hook is their backstop when it runs. `failOpen: true` is the default for a
@@ -554,7 +561,7 @@ node research-kit/bin/selftest.mjs            # all of it
 node research-kit/bin/selftest.mjs gate hook  # just these files
 ```
 
-1767 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
+1770 tests, offline, no key and no network. The runner **awaits** every test, so `ok` means
 the assertions settled (ADR-0021), and each test is raced against a watchdog
 (`RESEARCH_KIT_TEST_TIMEOUT`, default 60s).
 
