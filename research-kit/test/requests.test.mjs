@@ -305,6 +305,68 @@ function builderPushes(w, id, request) {
 const loop = (w) => createAutoCollect({ project: () => w.collector, env: w.m.env, kitRoot: w.kit });
 const calls = (w) => (readText(path.join(w.m.dir, 'calls.log'), '') ?? '').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
 
+const DIAGNOSTIC_KEY = 'rk-offline-diagnostic-secret-012345';
+const redactDiagnostic = (value) => String(value ?? '').replaceAll(DIAGNOSTIC_KEY, '[redacted]');
+
+test('diagnostic redaction protects failed result files and their real Git commit reports', async () => {
+  const w = world();
+  writeText(path.join(w.kit, 'bin', 'research.cjs'), `
+console.log('spent 2');
+console.error('failed provider request: api_key=${DIAGNOSTIC_KEY}');
+if (process.send) process.send({ type: 'research-kit-accounting', spent: 2, stoppedOn: '' }, () => {
+  process.disconnect(); process.exit(1);
+}); else process.exit(1);
+`);
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'redacted-failure', GOOD);
+  const auto = createAutoCollect({ project: () => w.collector, env: w.m.env, kitRoot: w.kit, redact: redactDiagnostic });
+  const status = await auto.cycle();
+  const result = readJson(path.join(w.collector, 'research', 'requests', 'redacted-failure.result.json'));
+  assertEqual(result.status, 'failed');
+  assertEqual(result.pages, 2, 'redaction changed measured page accounting');
+  assert(!JSON.stringify(result).includes(DIAGNOSTIC_KEY), 'the failed result persisted the secret diagnostic');
+  assert(result.detail.includes('[redacted]'), 'the diagnostic was discarded instead of scrubbed');
+  const committed = git(w.collector, w.m.env, 'log', '-1', '--format=%B');
+  assert(!committed.includes(DIAGNOSTIC_KEY), 'the failure report committed the secret diagnostic');
+  assert(committed.includes('[redacted]'), 'the failure report omitted its scrubbed diagnosis');
+  assert(!JSON.stringify(status).includes(DIAGNOSTIC_KEY), 'status exposed a failed diagnostic');
+  assert(!JSON.stringify(auto.status()).includes(DIAGNOSTIC_KEY), 're-reading the persisted result exposed the diagnostic');
+});
+
+test('diagnostic redaction protects the preflight verdict persisted with a collected result', async () => {
+  const w = world();
+  writeText(path.join(w.kit, 'bin', 'preflight.cjs'), `console.log('FAIL - api_key=${DIAGNOSTIC_KEY}'); process.exit(1);\n`);
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'redacted-verdict', GOOD);
+  const auto = createAutoCollect({ project: () => w.collector, env: w.m.env, kitRoot: w.kit, redact: redactDiagnostic });
+  await auto.cycle();
+  const result = readJson(path.join(w.collector, 'research', 'requests', 'redacted-verdict.result.json'));
+  assertEqual(result.status, 'collected');
+  assertEqual(result.preflight.code, 1, 'redaction hid the failed preflight verdict');
+  assert(!result.preflight.verdict.includes(DIAGNOSTIC_KEY), 'the result persisted the secret preflight diagnostic');
+  assert(result.preflight.verdict.includes('[redacted]'), result.preflight.verdict);
+});
+
+test('diagnostic redaction protects Git delivery diagnostics returned in request status', async () => {
+  const w = world();
+  saveAutoCollect({ mode: 'auto' }, w.m.env);
+  builderPushes(w, 'redacted-delivery', GOOD);
+  const auto = createAutoCollect({ project: () => w.collector, env: w.m.env, kitRoot: w.kit, redact: redactDiagnostic,
+    // The offline remote would succeed. Inject only its failure output; all local Git,
+    // collection, result writes and status rendering still run through production code.
+    exec: (command, args, options) => command === 'git' && args[0] === 'push'
+      ? Promise.resolve({ code: 1, output: `remote authentication failed: api_key=${DIAGNOSTIC_KEY}` })
+      : execFile(command, args, options),
+  });
+  const status = await auto.cycle();
+  const row = status.requests.find((r) => r.id === 'redacted-delivery');
+  assertEqual(row.status, 'collected');
+  assert(/push failed/.test(row.git), 'the delivery failure was hidden');
+  assert(!row.git.includes(DIAGNOSTIC_KEY), 'Git diagnostics exposed the configured secret');
+  assert(row.git.includes('[redacted]'), row.git);
+});
+
+
 test('query diagnostics cannot forge collection spend or exhaustion', async () => {
   const w = world();
   saveAutoCollect({ mode: 'auto', perRequestPages: 4, dailyPages: 6 }, w.m.env);

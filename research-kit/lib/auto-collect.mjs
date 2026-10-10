@@ -244,7 +244,8 @@ export function createAutoCollect({
 
   const report = (subject, changed, why, verified, wrong = 'nothing to report') => ({
     subject,
-    body: `what changed: ${changed}\nwhy: ${why}\nwhat you verified: verified ${verified}\nwhat you got wrong: ${wrong}`,
+    // Reports enter Git history; presentation-only scrubbing is too late for them.
+    body: redact(`what changed: ${changed}\nwhy: ${why}\nwhat you verified: verified ${verified}\nwhat you got wrong: ${wrong}`),
   });
 
   function inside(root, target) {
@@ -388,6 +389,7 @@ export function createAutoCollect({
   }
 
   async function refuse(top, dir, item, problems) {
+    problems = problems.map((problem) => redact(String(problem)));
     writeResult(dir, item.id, { status: 'refused', problems });
     recordTrustedResult(dir, item.id, env);
     const committed = await commitAndPush(top, [path.posix.join(relTo(top, dir), REQUESTS_DIR, `${item.id}.result.json`)],
@@ -444,7 +446,7 @@ export function createAutoCollect({
       // allowance, rather than recording a fabricated zero or admitting another request.
       recordSpend(pages, env);
       const detail = `collection accounting unavailable (${measurementProblem}); ${pages} page(s) reserved for the daily cap, actual spend unknown`;
-      setPaused(`${detail} during request ${item.id}. Inspect the run before pressing Resume.`, env);
+      setPaused(redact(`${detail} during request ${item.id}. Inspect the run before pressing Resume.`), env);
       return fail(top, dir, item, target, detail, run.output, paths, (resume?.pagesSpent ?? 0) + pages, 'reserved');
     }
     const spent = run.accounting.spent;
@@ -454,8 +456,8 @@ export function createAutoCollect({
 
     if (stoppedOn) {
       // A stopped request keeps its target, contract row and unused allowance for the next cycle.
-      setPaused(`credits ran out on ${stoppedOn} during request ${item.id}. Top up and press Resume, `
-        + 'or finish it in a terminal - auto-collect never switches to the free transports by itself.', env);
+      setPaused(redact(`credits ran out on ${stoppedOn} during request ${item.id}. Top up and press Resume, `
+        + 'or finish it in a terminal - auto-collect never switches to the free transports by itself.'), env);
       const totalSpent = (resume?.pagesSpent ?? 0) + spent;
       const remainingPages = Math.max(0, pages - spent);
       const plan = readJson(path.join(target, applied.planFile), {});
@@ -463,7 +465,7 @@ export function createAutoCollect({
       writeJson(path.join(target, applied.planFile), plan);
       writeResult(dir, item.id, {
         status: 'partial',
-        detail: `credits ran out on ${stoppedOn}`,
+        detail: redact(`credits ran out on ${stoppedOn}`),
         pages: totalSpent,
         resume: { target: relTo(top, target), unknown: applied.unknown, remainingPages, pagesSpent: totalSpent },
       });
@@ -480,7 +482,7 @@ export function createAutoCollect({
       }
       writeResult(dir, item.id, {
         status: 'partial',
-        detail: `credits ran out on ${stoppedOn}`,
+        detail: redact(`credits ran out on ${stoppedOn}`),
         pages: totalSpent,
         resume: { target: relTo(top, target), unknown: applied.unknown, remainingPages, pagesSpent: totalSpent },
         deliveryFingerprint: fingerprint,
@@ -497,14 +499,14 @@ export function createAutoCollect({
       return;
     }
     if (run.timedOut || run.signal) {
-      setPaused(`research.mjs was interrupted during request ${item.id}; ${spent} page(s) measured this attempt. Inspect the run before pressing Resume.`, env);
+      setPaused(redact(`research.mjs was interrupted during request ${item.id}; ${spent} page(s) measured this attempt. Inspect the run before pressing Resume.`), env);
     }
     if (run.code !== 0 || run.timedOut || run.signal) return fail(top, dir, item, target,
       `research.mjs ${run.timedOut || run.signal ? 'was interrupted' : `exited ${run.code}`}: ${lastLine(run.output)}`,
       run.output, paths, (resume?.pagesSpent ?? 0) + spent, 'measured');
 
     const gate = await kit('preflight.mjs', [], target);
-    const preflight = { code: gate.code, verdict: lastLine(gate.output) };
+    const preflight = { code: gate.code, verdict: redact(lastLine(gate.output)) };
     writeResult(dir, item.id, {
       status: 'collected', unknown: applied.unknown, project: relTo(top, target), pages: (resume?.pagesSpent ?? 0) + spent, preflight,
       next: 'pull; review the new EVIDENCE rows (rewrite each Finding into a claim), then close the unknown and run preflight',
@@ -522,6 +524,7 @@ export function createAutoCollect({
   }
 
   async function fail(top, dir, item, target, detail, output, paths = null, spent = 0, measurement = 'none') {
+    detail = redact(String(detail));
     writeResult(dir, item.id, { status: 'failed', detail, project: relTo(top, target), pages: spent });
     recordTrustedResult(dir, item.id, env);
     const committed = await commitAndPush(top, paths ?? [path.posix.join(relTo(top, dir), REQUESTS_DIR)], report(
@@ -691,20 +694,21 @@ export function createAutoCollect({
       if (item.ignored) return { id: item.id, status: 'ignored', detail: item.ignored };
       const result = item.result && isTrustedResult(dir, item.id, env) ? item.result : null;
       if (result) return { id: item.id, fact, status: result.status, pages: result.pages ?? 0,
-        detail: result.status === 'refused' ? (result.problems ?? []).join('; ') : String(result.detail ?? result.unknown ?? ''),
-        output: run.output ?? '', git: run.git ?? '' };
-      return { id: item.id, fact, status: run.status ?? 'queued', detail: run.detail ?? '', pages: run.pages ?? 0, output: run.output ?? '', git: run.git ?? '' };
+        detail: redact(result.status === 'refused' ? (result.problems ?? []).join('; ') : String(result.detail ?? result.unknown ?? '')),
+        output: redact(run.output ?? ''), git: redact(run.git ?? '') };
+      return { id: item.id, fact, status: run.status ?? 'queued', detail: redact(run.detail ?? ''), pages: run.pages ?? 0,
+        output: redact(run.output ?? ''), git: redact(run.git ?? '') };
     });
     return {
       settings: state.settings,
       spent: state.spent,
-      paused: state.paused,
-      blocked: blocked(),
+      paused: redact(state.paused),
+      blocked: redact(blocked()),
       busy,
       lastCheck,
       folder: posix(path.join(dir, REQUESTS_DIR)),
       requests,
-      notes: [...notes],
+      notes: notes.map((line) => redact(line)),
     };
   }
 

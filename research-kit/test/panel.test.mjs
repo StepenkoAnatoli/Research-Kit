@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { test, describe, assert, assertEqual, tempDir, fs, path, makeProject, requireGit, requireSymlink, fixtureInitArgs, KIT_ROOT } from './harness.mjs';
 import { writeText, readText } from '../lib/core.mjs';
 import { createPanel, PANEL_COMMANDS, PANEL_HOST, keyProblem, projectTopic, builderInstructions } from '../lib/panel.mjs';
+import { writeResult, recordTrustedResult, setPaused } from '../lib/requests.mjs';
 
 describe('panel');
 
@@ -87,6 +88,29 @@ test('the state names the topic from plan.json, the role and the project, and no
     assertEqual(res.json.keys.search.set, true);
     assertEqual(res.json.keys.search.source, 'environment');
     assert(!res.text.includes(KEY), 'the state echoed the key');
+  } finally { await ctx.panel.close(); }
+});
+
+test('diagnostic redaction protects inherited result details and pause text in the panel request payload', async () => {
+  const m = machine({ SERPAPI_API_KEY: KEY });
+  const project = fs.realpathSync.native(makeProject(undefined, { topic: 'Inherited diagnostics', content: true }));
+  writeText(path.join(project, 'research', 'requests', 'legacy.json'), JSON.stringify({
+    fact: 'What is the limit?', blocks: 'retry design', urls: ['https://docs.example.com/limits'],
+  }));
+  const resultFile = writeResult(project, 'legacy', { status: 'failed', pages: 2, detail: `provider failed: ${KEY}` });
+  recordTrustedResult(project, 'legacy', m.env);
+  setPaused(`inspect failed provider ${KEY}`, m.env);
+  const original = readText(resultFile);
+  const ctx = await started({ machine: m, project });
+  try {
+    const res = await api(ctx, '/api/requests');
+    assertEqual(res.status, 200);
+    assertEqual(res.json.requests[0].status, 'failed', 'redaction invalidated collector-local result trust');
+    assertEqual(res.json.requests[0].pages, 2);
+    assert(!res.text.includes(KEY), 'the panel exposed an inherited diagnostic secret');
+    assert(res.json.requests[0].detail.includes('***REDACTED***'), 'the inherited diagnosis was discarded');
+    assert(res.json.paused.includes('***REDACTED***'), 'the pause diagnosis was discarded');
+    assertEqual(readText(resultFile), original, 'reading status rewrote an inherited trusted result');
   } finally { await ctx.panel.close(); }
 });
 
