@@ -68,7 +68,7 @@ function discoveryContract(corpus) {
   const out = [];
   if (!corpus.discovery.present) {
     return [finding('fail', 'discovery-contract', 'contract-missing',
-      `${PATHS.discovery} is missing. A gated project without its contract fails harder, not open.`)];
+      `${PATHS.discovery} is missing or could not be read. A gated project without its contract fails harder, not open.`)];
   }
   if (!corpus.intent.trim()) {
     // Missing and empty are different fixes: a renamed heading read as "is empty" while the
