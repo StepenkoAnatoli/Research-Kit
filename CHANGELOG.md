@@ -5,6 +5,13 @@ Each release of Research-Kit, newest first. The version is `KIT_VERSION` in
 
 ## Unreleased
 
+- Builder handoff guidance states the existing complete/current review rather than
+  treating PASS, BRIEF presence or a Git request's `collected` result as permission
+  (ADR-0150). The builder reads/judges returned evidence; the collector records Git
+  Findings, closures, map and brief. Local received-package review/re-packaging and
+  authored unstamped compatibility remain available. Keyless role tables and installer
+  next steps now match doctor's existing chosen-transport behavior; no config is changed.
+
 - Maintenance corrects the shipped auto-build summaries to match ADR-0146: current
   design approval and completed-head merge approval are separate; changed artifacts
   need their applicable reply, standing preferences never supply it, and gate/hook

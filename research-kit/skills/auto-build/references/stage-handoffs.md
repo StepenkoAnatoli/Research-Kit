@@ -1,6 +1,6 @@
 # Stage Handoffs
 
-<!-- Modified by Research-Kit on 2026-10-08: approval handoffs and unattended owner stops are aligned with the governing Research-Kit note and ADR-0146. Received baseline: StepenkoAnatoli/SkillsMDs at 3f2d2fc. -->
+<!-- Modified by Research-Kit on 2026-10-08: approval handoffs and unattended owner stops align with the governing Research-Kit note and ADR-0146; ADR-0150 adds complete-review/Git-ownership handoff guidance. Received baseline: StepenkoAnatoli/SkillsMDs at 3f2d2fc. -->
 
 How auto-build hands each stage to the skill that owns it, what that skill must leave behind
 before the next stage may start, where auto-build adapts the skill's rules (and why), and what
@@ -55,13 +55,21 @@ the protocol, exit codes, machine roles and kit-finding format. One researcher p
 question, each in its own research project folder, each with a page budget.
 
 **Must leave, per topic:** the research project folder under the project's convention (default
-`docs/research/<YYYY-MM-DD>-<topic>/`), `preflight` exit 0 recorded, `research/BRIEF.md`, and
-a row in `RUN.md`'s Research table with status BRIEFED or COMMITTED.
+`docs/research/<YYYY-MM-DD>-<topic>/`), handoff and `preflight` exit 0 recorded,
+classified MAP, rewritten Findings and an authored brief with both judged sections
+answered and current stamped inputs (authored unstamped compatibility remains under
+ADR-0138), plus a row in `RUN.md`'s Research table with status BRIEFED or COMMITTED.
+File presence or a Git request result marked `collected` alone is not this handoff.
 
 **Sufficiency gate** (the lead's check, after the kit's): read each brief against the task and
 write under "Decisions and assumptions" one line per design-critical question with the claim
 that answers it (`E-nn`). A question with no claim is either a KNOWN-UNKNOWN with a verification
 step the design will include, or a reason to return the brief.
+
+For Git requests, the builder reads and judges the returned captures, while the
+collector records Findings, closures, the map and current authored brief. Return a
+review-only gap in prose; fetch only a missing fact. ADR-0052's received-package local
+review and re-packaging remains available without collection (ADR-0150).
 
 **Adaptation:** the governing Research-Kit note keeps the owner stops and the separate
 completed-head approval. A standing budget is a preference; paid collection requires

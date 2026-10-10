@@ -91,6 +91,11 @@ names the set exactly, is enough).
    enforcement to actual checks. NOTICE and REUSE.toml describe the current adaptations.
    The receipt hashes above are retained as historical evidence; they are not replaced
    with current modified-file digests.
+
+   ADR-0150 (2026-10-08) separately clarifies complete review and Git corpus ownership
+   in the research handoffs, preserving local received-package review and authored
+   unstamped compatibility. Those marked maintenance adaptations do not replace the
+   receipt hashes or create another approval/role condition.
 4. **The kit writes thirteen skills of its own** around its main idea - evidence before
    building, and a clean handoff. Builder: build-from-brief, fact-request, cite-in-code,
    day-one-tasks, contract-tests, commit-report. Collector: map-classifier,

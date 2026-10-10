@@ -17,8 +17,11 @@ a human - takes `research/BRIEF.md` plus `research/` and implements. They should
 to re-research anything: if they do, phase 1 was incomplete, and the fix is to collect the
 missing fact rather than to let the builder guess it.
 
-The gate below is the handoff point between the two. Before it passes, phase 2 does not
-start. After it passes, phase 1's work is done and the builder owns the rest.
+The handoff needs a passing gate, an intact corpus, a classified map, rewritten Findings,
+and an authored brief with its judged sections answered. For a stamped brief, its inputs
+must still match the corpus. PASS or file presence alone does not complete phase 1.
+An authored unstamped brief keeps the existing approval path, with currency unknown
+(ADR-0138). Machine role controls collection, not the derived approval conditions.
 
 ## Two machines, two roles
 
@@ -29,9 +32,9 @@ role is machine config - `role: "collector" | "builder"` in
 
 | | **collector machine** (the operator's PC) | **builder machine** (a sandbox, a CI box, a laptop) |
 |---|---|---|
-| holds | the Firecrawl key | no key, no Firecrawl egress |
+| holds | the Firecrawl key when that route is used; none is needed for a chosen keyless route | no collection key required, no Firecrawl egress |
 | runs | `decompose.mjs`, `research.mjs` - it produces the corpus | `handoff.mjs`, `preflight.mjs`, the build - it consumes it |
-| `doctor.mjs` says | a missing key is a **FAIL**: a collector that cannot collect is broken | a missing key is **informational**: this machine does not collect |
+| `doctor.mjs` says | missing Firecrawl CLI/auth fails with an unchosen or Firecrawl route; an explicitly chosen keyless route passes those findings (ADR-0095) | missing Firecrawl CLI/auth is expected: this machine does not collect |
 | must | push `research/raw/` including its dotfiles, so the builder can receive the corpus | **not collect** - `research.mjs` and `decompose.mjs` refuse (exit 2) |
 
 **If you are on a builder machine and there is no brief: you do not collect.** You are in
@@ -74,6 +77,13 @@ This repository ships that `.gitattributes` at its root, so the second case shou
 arise; `handoff.mjs` distinguishes the two anyway, because a project scaffolded before it
 did, or one cloned onto a machine with a hostile `core.autocrlf`, still can.
 `node research-kit/bin/doctor.mjs` reports the same thing on a builder, as a blocker.
+
+For Git builder requests (ADR-0148), a `collected` result delivers captures, not completed
+review. The builder reads and judges them and reports review-only gaps in prose; the
+collector records the Findings, unknown closures, classified map and current authored
+brief in this Git corpus. Request another fetch only for a missing external fact.
+ADR-0052's local review and re-packaging of a received package remains available; it
+does not authorize fetching or editing the collector's Git corpus (ADR-0150).
 
 ## Starting in the wrong place: ask which project, do not hunt for it
 
@@ -252,7 +262,10 @@ If a fact is genuinely unreachable (login-walled, private, paywalled), mark the 
 
 ## Rule 5 - cost discipline
 
-Every scrape spends Firecrawl credits (free tier is about 1,000). Plan the queries in `research/plan.json` before collecting, reuse the cache (`--refresh-days`), and check the budget with:
+Firecrawl collection spends credits; chosen keyless transports do not spend Firecrawl
+credits, but still use the planned page allowance and carry transport/policy warnings.
+Plan the queries in `research/plan.json` before collecting, reuse the cache
+(`--refresh-days`), and check the budget with:
 
 ```
 node research-kit/bin/research.mjs --status
@@ -393,8 +406,9 @@ what has gone stale).
   a package's `buildAuthorized` is derived, never supplied; captures are written only by the
   collector; no key is ever written into the repository; the root corpus and every project
   under `docs/decisions/` keep a passing gate.
-- **Research-Kit.** This repository is the kit; `doctor` is READY on the collector machine
-  with the Firecrawl key, informational without it. A decision about the kit itself is a
+- **Research-Kit.** This repository is the kit; record `doctor`'s actual verdict and chosen
+  transport for the intended machine. ADR-0095 permits a chosen keyless collector;
+  readiness is not inferred from key presence. A decision about the kit itself is a
   nested project under `docs/decisions/<date>-<slug>/research/` (ADR-0030), committed with
   its ledger. Delegated builders work in worktrees and leave uncommitted changes; the lead
   integrates one unit per commit through the gate.

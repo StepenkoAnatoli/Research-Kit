@@ -421,9 +421,9 @@ machine config, default `collector`).
 
 | | **collector** (your PC) | **builder** (a sandbox, a CI box, another agent's machine) |
 |---|---|---|
-| holds | the Firecrawl key | no key |
+| holds | the Firecrawl key when using that route; none for a chosen keyless route | no collection key required |
 | runs | `decompose.mjs`, `research.mjs` | `handoff.mjs`, `preflight.mjs`, then the build |
-| `doctor` says | a missing key is a FAIL | a missing key is informational |
+| `doctor` says | absent Firecrawl CLI/auth fails for an unchosen or Firecrawl route; a chosen keyless route passes those findings (ADR-0095) | absent Firecrawl CLI/auth is expected |
 | must | push `research/` including the ledger | not collect; `research.mjs` and `decompose.mjs` refuse there |
 
 The corpus travels through git. The builder's first command, inside the project:
@@ -441,6 +441,17 @@ builder with `.gitattributes`: `research/raw/* text eol=lf`). The scaffold ships
 
 A builder who finds a fact missing reports which one and lets the collector fetch it. A
 page fetched by hand is not evidence in this kit.
+
+An intact handoff and PASS are necessary, but do not by themselves finish review. Check
+the classified MAP, rewritten Findings, and an authored brief with both judged sections
+answered and current stamped inputs; authored unstamped briefs retain ADR-0138's
+compatibility path with currency unknown. Approval is derived from that work on either
+machine, never from a builder-role predicate.
+
+A Git request result marked `collected` means captures were delivered. The builder
+reads and judges them; the collector records their Findings, unknown closures, map and
+brief. Send review-only gaps back in prose instead of paying for another fetch. Local
+review and re-packaging of a received package still follows ADR-0052 (ADR-0150).
 
 ## Keys and cost
 

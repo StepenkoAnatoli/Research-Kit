@@ -6,7 +6,7 @@ metadata:
   version: "1.0"
   origin: Auto-Build Mode (research-to-production autonomous builder), 2026-10-04
 ---
-<!-- Modified by Research-Kit: ADR-0146 adaptations and 2026-10-08 approval-summary corrections (description, purpose, stage table, research/design handoffs, Mandate, merge and stop summaries). Received baseline: StepenkoAnatoli/SkillsMDs at 3f2d2fc; the ledger reference also differs from that baseline. -->
+<!-- Modified by Research-Kit: ADR-0146 adaptations and 2026-10-08 approval-summary corrections (description, purpose, stage table, research/design handoffs, Mandate, merge and stop summaries), plus ADR-0150 complete-review guidance. Received baseline: StepenkoAnatoli/SkillsMDs at 3f2d2fc; the ledger reference also differs from that baseline. -->
 
 Inside a Research-Kit project, `references/research-kit.md` governs this run; where it and this
 file differ, it wins.
@@ -118,10 +118,18 @@ Discovery of the repository itself (Phase 1a) runs in parallel.
 
 **Sufficiency gate.** Research is sufficient when, for every topic: `preflight` exits 0;
 every blocking unknown is CLOSED with an evidence row or KNOWN-UNKNOWN with a day-one
-verification step; `BRIEF.md` exists; and the lead, reading the briefs against the task, can
+verification step; the MAP is classified, extractor Findings rewritten, and the brief
+is authored with both judged sections present and answered. A stamped brief must match
+the current corpus; authored unstamped briefs retain ADR-0138's compatibility path
+with currency unknown. Handoff must also pass. The lead, reading the briefs against the task, can
 answer "can the platform do what the design will assume?" and "what will this cost at the
 intended volume?" from cited claims. A plausible answer is not a sufficient one. A brief that
 rests on an unproven unknown goes back to its researcher.
+
+Inside Research-Kit, use `references/research-kit.md` Stage 0/1 for these checks on
+either role. A Git request's `collected` result alone does not complete review;
+the collector records the Findings, closures, map and current authored brief. Local
+review and re-packaging of a received package remains available under ADR-0052.
 
 ### Stage 2: Requirements
 

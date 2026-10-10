@@ -508,7 +508,7 @@ export function createAutoCollect({
     const preflight = { code: gate.code, verdict: redact(lastLine(gate.output)) };
     writeResult(dir, item.id, {
       status: 'collected', unknown: applied.unknown, project: relTo(top, target), pages: (resume?.pagesSpent ?? 0) + spent, preflight,
-      next: 'pull; review the new EVIDENCE rows (rewrite each Finding into a claim), then close the unknown and run preflight',
+      next: 'pull and read the captures; report review-only gaps to the collector in prose. The collector records Findings, unknown closures, classified MAP and the current authored BRIEF. Run handoff, preflight and brief --state; build only after complete/current review. Request another fetch only for a missing external fact (ADR-0150)',
     });
     recordTrustedResult(dir, item.id, env);
     const committed = await commitAndPush(top, paths, report(
