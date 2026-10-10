@@ -77,11 +77,13 @@ did, or one cloned onto a machine with a hostile `core.autocrlf`, still can.
 
 ## Starting in the wrong place: ask which project, do not hunt for it
 
-The project is the **current working directory**. The kit takes no project argument and
-never will: the gate resolves one project from where it stands, and every artifact it
+For gate and corpus commands, the project is the **current working directory**. Those
+commands take no project argument: the gate resolves one project from where it stands, and every artifact it
 judges - `research/DISCOVERY.md`, the corpus, the ledger - is read relative to that one
 root. Getting this wrong is worse than doing nothing, because everything downstream is
-then true of the wrong thing.
+then true of the wrong thing. The desktop panel's accepted `--project` flag
+(ADR-0147) selects its project explicitly; confirm that effective project before
+diagnostics instead of generalizing the flag to gate/corpus commands.
 
 So if the cwd is not the project the operator means - it is the kit's own repo, a parent
 folder holding several projects, an unrelated checkout - **ask which project**, and wait.
@@ -383,8 +385,10 @@ what has gone stale).
   decision with a rejected alternative), `CONTEXT.md` (the domain terms), `CHANGELOG.md`
   (Unreleased first), `docs/review-*.md` (audit findings and their outcomes).
 - **Conventions.** One commit per task with the five-part report (rule 2 above); red-first
-  tests; no `--no-verify`; the feature freeze (ADR-0117) admits bug fixes, docs, tests and
-  vendor updates only, anything else through an ADR that lifts it for that one item.
+  tests; no `--no-verify`; the feature freeze (ADR-0117) admits bug fixes, already-deferred
+  gaps whose recorded triggers fire, docs, tests and vendor updates, anything else
+  through an ADR that lifts it for that one item. Classification is review, not a suite
+  verdict; unrelated work remains frozen.
 - **Invariants.** The ledger `research/raw/.fetches.jsonl` is evidence and is never edited;
   a package's `buildAuthorized` is derived, never supplied; captures are written only by the
   collector; no key is ever written into the repository; the root corpus and every project

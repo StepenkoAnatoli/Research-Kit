@@ -1,10 +1,12 @@
 # Research-Kit, as auto-build runs inside it
 
-This file is added by the kit (ADR-0146). The auto-build SKILL.md beside it ships as its
-author wrote it; this file says how each stage runs on a machine with Research-Kit
-installed. **Where the two differ, this file wins inside a Research-Kit project**, because
-the kit's gate enforces it anyway: a run that ignores it is stopped by the gate, not by
-this text. Which skill to use at each point is the `skill-router` skill's table.
+This file is added by the kit (ADR-0146). The auto-build files were received from the
+upstream baseline recorded in NOTICE and carry marked kit adaptations. This file says
+how each stage runs with Research-Kit. **Where the two differ, this file wins inside a
+Research-Kit project.** The commands and hooks enforce their documented checks; they
+do not verify owner replies or every prose obligation. Following these owner stops and
+review duties remains the run's responsibility. Which skill to use is the `skill-router`
+skill's table.
 
 Commands below assume the kit at `$HOME/.agents/research-kit` (`KIT` for short):
 
@@ -29,7 +31,7 @@ mandate - when any of these holds:
 
 | Stop | Why it is the owner's |
 |---|---|
-| the Mandate is ready (every run, bounded or architectural) | it authorizes everything after it |
+| the Mandate is ready (every run, bounded or architectural) | it approves the current design and in-scope build |
 | a decision is hard to reverse, changes the task's goal, or picks between approaches with different consequences | the design is the owner's |
 | anything would spend money: paid pages, a paid service, a dependency with a licence cost, a budget raise | the account is the owner's |
 | a secret, credential, token or personal data would be read, written, sent or logged | security and privacy |
@@ -45,6 +47,11 @@ At a stop the run writes `RUN.md` (state, what it found, the question, Next acti
 take "no answer" as consent. A decision it takes alone - reversible, cheap, inside the
 approved Mandate and the evidence - is recorded under "Decisions and assumptions" so the
 owner can overrule it.
+
+Use authorization already recorded in the session for the same unchanged action and
+artifact; do not repeatedly ask for it. A changed Mandate and an unapproved completed
+head still require their own replies. At an unanswered required stop, end the turn;
+silence and elapsed time never supply that reply.
 
 The standing mandate may still pre-answer *preferences* (branch names, merge method, audit
 depth, page budget for free transports). It never pre-approves a stop in the table above.

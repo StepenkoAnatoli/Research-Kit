@@ -48,8 +48,10 @@ a corpus that travelled whole and was rewritten on checkout here is fixed **here
 
 ## Starting in the wrong place: ask which project, do not hunt for it
 
-The project is the **current working directory**. The kit takes no project argument and
-never will. If the cwd is not the project the operator means - the kit's own repo, a
+For gate and corpus commands, the project is the **current working directory**; those
+commands take no project argument. The desktop panel has its own `--project` selector:
+confirm that effective project before running its diagnostics. If the cwd is not the
+project the operator means - the kit's own repo, a
 parent folder, an unrelated checkout - **ask which project**, and wait. Do not search the
 filesystem, do not infer it from a name, do not look it up on a remote. Searching a
 person's disk to guess his intent reads directories nobody authorised, and the question
