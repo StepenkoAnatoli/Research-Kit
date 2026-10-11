@@ -224,7 +224,7 @@ person with an unzip tool all read the same way. See
 ```
 node research-kit/bin/artifact.mjs create --root . \
   --repository OWNER/REPO --ref main --commit <sha40> \
-  --workflow start-research.yml --run-id <workflow_run_id>
+  --workflow collect.yml --run-id <workflow_run_id>
 
 node research-kit/bin/artifact.mjs validate --file research-kit-corpus-v1-<ref>.zip --json
 ```
